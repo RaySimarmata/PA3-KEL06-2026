@@ -1,0 +1,36 @@
+# v0 runtime files (should only exist in preview, not in git)
+__v0_runtime_loader.js
+__v0_devtools.tsx
+__v0_jsx-dev-runtime.ts
+
+# Common ignores
+node_modules/
+.next/
+.DS_Store
+
+# Environment files - DO NOT COMMIT
+.env
+.env.backup
+.env.production
+.env.staging
+.env.testing
+
+# Allow .env.example (template)
+!.env.example
+
+# Laravel
+/vendor
+/storage/logs
+/storage/framework/cache
+/storage/framework/sessions
+/storage/framework/views
+/bootstrap/cache
+*.cache
+
+# Laravel compiled files
+public/hot
+public/storage
+
+# PHP
+*.log
+Thumbs.db

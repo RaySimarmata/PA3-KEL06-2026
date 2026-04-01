@@ -1,0 +1,452 @@
+<?php
+
+namespace App\Helpers;
+
+use Illuminate\Support\Facades\Log;
+
+class EmailHelper
+{
+    /**
+     * Test SMTP connection
+     */
+    public static function testSmtpConnection()
+    {
+        $host = config('mail.mailers.smtp.host');
+        $port = config('mail.mailers.smtp.port');
+        $timeout = config('mail.mailers.smtp.timeout', 30);
+
+        try {
+            $connection = @fsockopen($host, $port, $errno, $errstr, $timeout);
+            
+            if (!$connection) {
+                Log::error("SMTP Connection Failed", [
+                    'host' => $host,
+                    'port' => $port,
+                    'error_code' => $errno,
+                    'error_message' => $errstr
+                ]);
+                return false;
+            }
+
+            fclose($connection);
+            Log::info("SMTP Connection Success", [
+                'host' => $host,
+                'port' => $port
+            ]);
+            return true;
+
+        } catch (\Exception $e) {
+            Log::error("SMTP Connection Exception", [
+                'host' => $host,
+                'port' => $port,
+                'exception' => $e->getMessage()
+            ]);
+            return false;
+        }
+    }
+
+    /**
+     * Get email configuration info
+     */
+    public static function getEmailConfig()
+    {
+        return [
+            'mailer' => config('mail.default'),
+            'host' => config('mail.mailers.smtp.host'),
+            'port' => config('mail.mailers.smtp.port'),
+            'encryption' => config('mail.mailers.smtp.encryption'),
+            'username' => config('mail.mailers.smtp.username'),
+            'from_address' => config('mail.from.address'),
+            'from_name' => config('mail.from.name'),
+            'timeout' => config('mail.mailers.smtp.timeout'),
+        ];
+    }
+
+    /**
+     * Validate email configuration
+     */
+    public static function validateConfig()
+    {
+        $errors = [];
+
+        if (empty(config('mail.mailers.smtp.host'))) {
+            $errors[] = 'MAIL_HOST tidak diset';
+        }
+
+        if (empty(config('mail.mailers.smtp.port'))) {
+            $errors[] = 'MAIL_PORT tidak diset';
+        }
+
+        if (empty(config('mail.mailers.smtp.username'))) {
+            $errors[] = 'MAIL_USERNAME tidak diset';
+        }
+
+        if (empty(config('mail.mailers.smtp.password'))) {
+            $errors[] = 'MAIL_PASSWORD tidak diset';
+        }
+
+        if (empty(config('mail.from.address'))) {
+            $errors[] = 'MAIL_FROM_ADDRESS tidak diset';
+        }
+
+        return [
+            'valid' => empty($errors),
+            'errors' => $errors
+        ];
+    }
+
+    /**
+     * Send Reminder Perwalian & Persiapan Perkuliahan
+     */
+    public static function sendReminderPerwalian($dosenEmail, $dosenName, $subject, $messageContent, $prodiName = 'TRPL', $prodiKode = 'TRPL')
+    {
+        try {
+            $mail = new \App\Mail\ReminderPerwalianMail($subject, $messageContent, $dosenName, $prodiName, $prodiKode);
+            \Illuminate\Support\Facades\Mail::to($dosenEmail)->send($mail);
+
+            // Log email
+            \App\Models\LogEmail::create([
+                'penerima_email' => $dosenEmail,
+                'subjek' => $subject,
+                'isi_email' => $messageContent,
+                'status_pengiriman' => 'success',
+                'tanggal_pengiriman' => now()->toDateString(),
+            ]);
+
+            Log::info("Reminder Perwalian sent successfully", [
+                'to' => $dosenEmail,
+                'subject' => $subject
+            ]);
+
+            return ['success' => true, 'message' => 'Email berhasil dikirim'];
+
+        } catch (\Exception $e) {
+            // Log error
+            \App\Models\LogEmail::create([
+                'penerima_email' => $dosenEmail,
+                'subjek' => $subject,
+                'isi_email' => $messageContent,
+                'status_pengiriman' => 'failed',
+                'tanggal_pengiriman' => now()->toDateString(),
+                'pesan_error' => $e->getMessage(),
+            ]);
+
+            Log::error("Failed to send Reminder Perwalian", [
+                'to' => $dosenEmail,
+                'error' => $e->getMessage()
+            ]);
+
+            return ['success' => false, 'message' => $e->getMessage()];
+        }
+    }
+
+    /**
+     * Send Reminder Upload Materi di CIS
+     */
+    public static function sendReminderUploadMateri($dosenEmail, $dosenName, $subject, $messageContent, $prodiName = 'TRPL', $prodiKode = 'TRPL')
+    {
+        try {
+            $mail = new \App\Mail\ReminderUploadMateriMail($subject, $messageContent, $dosenName, $prodiName, $prodiKode);
+            \Illuminate\Support\Facades\Mail::to($dosenEmail)->send($mail);
+
+            // Log email
+            \App\Models\LogEmail::create([
+                'penerima_email' => $dosenEmail,
+                'subjek' => $subject,
+                'isi_email' => $messageContent,
+                'status_pengiriman' => 'success',
+                'tanggal_pengiriman' => now()->toDateString(),
+            ]);
+
+            Log::info("Reminder Upload Materi sent successfully", [
+                'to' => $dosenEmail,
+                'subject' => $subject
+            ]);
+
+            return ['success' => true, 'message' => 'Email berhasil dikirim'];
+
+        } catch (\Exception $e) {
+            // Log error
+            \App\Models\LogEmail::create([
+                'penerima_email' => $dosenEmail,
+                'subjek' => $subject,
+                'isi_email' => $messageContent,
+                'status_pengiriman' => 'failed',
+                'tanggal_pengiriman' => now()->toDateString(),
+                'pesan_error' => $e->getMessage(),
+            ]);
+
+            Log::error("Failed to send Reminder Upload Materi", [
+                'to' => $dosenEmail,
+                'error' => $e->getMessage()
+            ]);
+
+            return ['success' => false, 'message' => $e->getMessage()];
+        }
+    }
+
+    /**
+     * Send Reminder Kaprodi Review Soal
+     */
+    public static function sendReminderReviewSoal($kaprodiEmail, $kaprodiName, $subject, $messageContent, $prodiName = 'TRPL', $prodiKode = 'TRPL')
+    {
+        try {
+            $mail = new \App\Mail\ReminderReviewSoalMail($subject, $messageContent, $kaprodiName, $prodiName, $prodiKode);
+            \Illuminate\Support\Facades\Mail::to($kaprodiEmail)->send($mail);
+
+            // Log email
+            \App\Models\LogEmail::create([
+                'penerima_email' => $kaprodiEmail,
+                'subjek' => $subject,
+                'isi_email' => $messageContent,
+                'status_pengiriman' => 'success',
+                'tanggal_pengiriman' => now()->toDateString(),
+            ]);
+
+            Log::info("Reminder Review Soal sent successfully", [
+                'to' => $kaprodiEmail,
+                'subject' => $subject
+            ]);
+
+            return ['success' => true, 'message' => 'Email berhasil dikirim'];
+
+        } catch (\Exception $e) {
+            // Log error
+            \App\Models\LogEmail::create([
+                'penerima_email' => $kaprodiEmail,
+                'subjek' => $subject,
+                'isi_email' => $messageContent,
+                'status_pengiriman' => 'failed',
+                'tanggal_pengiriman' => now()->toDateString(),
+                'pesan_error' => $e->getMessage(),
+            ]);
+
+            Log::error("Failed to send Reminder Review Soal", [
+                'to' => $kaprodiEmail,
+                'error' => $e->getMessage()
+            ]);
+
+            return ['success' => false, 'message' => $e->getMessage()];
+        }
+    }
+
+    /**
+     * Send Reminder RPS (untuk scheduler otomatis)
+     */
+    public static function sendReminderRPS($dosen)
+    {
+        $subject = 'Reminder: Upload RPS';
+        $message = "Yth. {$dosen->nama_lengkap},\n\n" .
+                   "Kami mengingatkan Anda untuk segera melengkapi dan mengupload RPS (Rencana Pembelajaran Semester) " .
+                   "untuk mata kuliah yang Anda ampu.\n\n" .
+                   "Silakan login ke sistem untuk melakukan upload RPS.\n\n" .
+                   "Terima kasih atas perhatian dan kerjasamanya.";
+
+        $prodiName = $dosen->prodi->nama_prodi ?? 'TRPL';
+        $prodiKode = $dosen->prodi->kode_prodi ?? 'TRPL';
+
+        try {
+            $mail = new \App\Mail\ReminderRPSMail($subject, $message, $dosen->nama_lengkap, $prodiName, $prodiKode);
+            \Illuminate\Support\Facades\Mail::to($dosen->kontak_email)->send($mail);
+
+            // Log email
+            \App\Models\LogEmail::create([
+                'penerima_email' => $dosen->kontak_email,
+                'subjek' => $subject,
+                'isi_email' => $message,
+                'status_pengiriman' => 'success',
+                'tanggal_pengiriman' => now()->toDateString(),
+            ]);
+
+            Log::info("Reminder RPS sent successfully", [
+                'to' => $dosen->kontak_email,
+                'dosen' => $dosen->nama_lengkap
+            ]);
+
+            return true;
+
+        } catch (\Exception $e) {
+            // Log error
+            \App\Models\LogEmail::create([
+                'penerima_email' => $dosen->kontak_email,
+                'subjek' => $subject,
+                'isi_email' => $message,
+                'status_pengiriman' => 'failed',
+                'tanggal_pengiriman' => now()->toDateString(),
+                'pesan_error' => $e->getMessage(),
+            ]);
+
+            Log::error("Failed to send Reminder RPS", [
+                'to' => $dosen->kontak_email,
+                'error' => $e->getMessage()
+            ]);
+
+            return false;
+        }
+    }
+
+    /**
+     * Send Reminder Upload Materi (untuk scheduler otomatis)
+     */
+    public static function sendReminderUploadMateri($dosen)
+    {
+        $subject = 'Reminder: Upload Materi Perkuliahan';
+        $message = "Yth. {$dosen->nama_lengkap},\n\n" .
+                   "Kami mengingatkan Anda untuk segera mengupload materi perkuliahan di CIS " .
+                   "untuk mata kuliah yang Anda ampu.\n\n" .
+                   "Silakan login ke sistem untuk melakukan upload materi.\n\n" .
+                   "Terima kasih atas perhatian dan kerjasamanya.";
+
+        $prodiName = $dosen->prodi->nama_prodi ?? 'TRPL';
+        $prodiKode = $dosen->prodi->kode_prodi ?? 'TRPL';
+
+        try {
+            $mail = new \App\Mail\ReminderUploadMateriMail($subject, $message, $dosen->nama_lengkap, $prodiName, $prodiKode);
+            \Illuminate\Support\Facades\Mail::to($dosen->kontak_email)->send($mail);
+
+            // Log email
+            \App\Models\LogEmail::create([
+                'penerima_email' => $dosen->kontak_email,
+                'subjek' => $subject,
+                'isi_email' => $message,
+                'status_pengiriman' => 'success',
+                'tanggal_pengiriman' => now()->toDateString(),
+            ]);
+
+            Log::info("Reminder Upload Materi sent successfully", [
+                'to' => $dosen->kontak_email,
+                'dosen' => $dosen->nama_lengkap
+            ]);
+
+            return true;
+
+        } catch (\Exception $e) {
+            // Log error
+            \App\Models\LogEmail::create([
+                'penerima_email' => $dosen->kontak_email,
+                'subjek' => $subject,
+                'isi_email' => $message,
+                'status_pengiriman' => 'failed',
+                'tanggal_pengiriman' => now()->toDateString(),
+                'pesan_error' => $e->getMessage(),
+            ]);
+
+            Log::error("Failed to send Reminder Upload Materi", [
+                'to' => $dosen->kontak_email,
+                'error' => $e->getMessage()
+            ]);
+
+            return false;
+        }
+    }
+
+    /**
+     * Send Reminder Review Soal (untuk scheduler otomatis)
+     */
+    public static function sendReminderReviewSoal($dosen)
+    {
+        $subject = 'Reminder: Review Soal Ujian';
+        $message = "Yth. {$dosen->nama_lengkap},\n\n" .
+                   "Kami mengingatkan Anda untuk segera melakukan review soal ujian " .
+                   "untuk mata kuliah yang Anda ampu.\n\n" .
+                   "Silakan login ke sistem untuk melakukan review soal.\n\n" .
+                   "Terima kasih atas perhatian dan kerjasamanya.";
+
+        $prodiName = $dosen->prodi->nama_prodi ?? 'TRPL';
+        $prodiKode = $dosen->prodi->kode_prodi ?? 'TRPL';
+
+        try {
+            $mail = new \App\Mail\ReminderReviewSoalMail($subject, $message, $dosen->nama_lengkap, $prodiName, $prodiKode);
+            \Illuminate\Support\Facades\Mail::to($dosen->kontak_email)->send($mail);
+
+            // Log email
+            \App\Models\LogEmail::create([
+                'penerima_email' => $dosen->kontak_email,
+                'subjek' => $subject,
+                'isi_email' => $message,
+                'status_pengiriman' => 'success',
+                'tanggal_pengiriman' => now()->toDateString(),
+            ]);
+
+            Log::info("Reminder Review Soal sent successfully", [
+                'to' => $dosen->kontak_email,
+                'dosen' => $dosen->nama_lengkap
+            ]);
+
+            return true;
+
+        } catch (\Exception $e) {
+            // Log error
+            \App\Models\LogEmail::create([
+                'penerima_email' => $dosen->kontak_email,
+                'subjek' => $subject,
+                'isi_email' => $message,
+                'status_pengiriman' => 'failed',
+                'tanggal_pengiriman' => now()->toDateString(),
+                'pesan_error' => $e->getMessage(),
+            ]);
+
+            Log::error("Failed to send Reminder Review Soal", [
+                'to' => $dosen->kontak_email,
+                'error' => $e->getMessage()
+            ]);
+
+            return false;
+        }
+    }
+
+    /**
+     * Send Reminder Perwalian (untuk scheduler otomatis)
+     */
+    public static function sendReminderPerwalian($dosen)
+    {
+        $subject = 'Reminder: Perwalian Mahasiswa';
+        $message = "Yth. {$dosen->nama_lengkap},\n\n" .
+                   "Kami mengingatkan Anda untuk segera melakukan perwalian dan persiapan perkuliahan " .
+                   "untuk kelas yang Anda wali.\n\n" .
+                   "Silakan login ke sistem untuk melakukan perwalian.\n\n" .
+                   "Terima kasih atas perhatian dan kerjasamanya.";
+
+        $prodiName = $dosen->prodi->nama_prodi ?? 'TRPL';
+        $prodiKode = $dosen->prodi->kode_prodi ?? 'TRPL';
+
+        try {
+            $mail = new \App\Mail\ReminderPerwalianMail($subject, $message, $dosen->nama_lengkap, $prodiName, $prodiKode);
+            \Illuminate\Support\Facades\Mail::to($dosen->kontak_email)->send($mail);
+
+            // Log email
+            \App\Models\LogEmail::create([
+                'penerima_email' => $dosen->kontak_email,
+                'subjek' => $subject,
+                'isi_email' => $message,
+                'status_pengiriman' => 'success',
+                'tanggal_pengiriman' => now()->toDateString(),
+            ]);
+
+            Log::info("Reminder Perwalian sent successfully", [
+                'to' => $dosen->kontak_email,
+                'dosen' => $dosen->nama_lengkap
+            ]);
+
+            return true;
+
+        } catch (\Exception $e) {
+            // Log error
+            \App\Models\LogEmail::create([
+                'penerima_email' => $dosen->kontak_email,
+                'subjek' => $subject,
+                'isi_email' => $message,
+                'status_pengiriman' => 'failed',
+                'tanggal_pengiriman' => now()->toDateString(),
+                'pesan_error' => $e->getMessage(),
+            ]);
+
+            Log::error("Failed to send Reminder Perwalian", [
+                'to' => $dosen->kontak_email,
+                'error' => $e->getMessage()
+            ]);
+
+            return false;
+        }
+    }
+}

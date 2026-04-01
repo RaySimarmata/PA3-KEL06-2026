@@ -1,0 +1,31 @@
+/* =====================================================
+   Custom App Styles (Bootstrap Based)
+   ===================================================== */
+
+/* Global Body */
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+/* Force full width layout */
+.content {
+    width: 100%;
+}
+
+.container-fluid {
+    width: 100%;
+}
+
+/* Optional: Improve card consistency */
+.card {
+    border-radius: 10px;
+}
+
+/* Optional: Table improvement */
+.table th {
+    vertical-align: middle;
+}
+
+.table td {
+    vertical-align: middle;
+}
