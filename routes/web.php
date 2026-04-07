@@ -17,6 +17,7 @@ use App\Http\Controllers\GJM\ValidasiLaporanController;
 use App\Http\Controllers\GJM\LaporanGJMController;
 use App\Http\Controllers\GJM\BuatLaporanController;
 use App\Http\Controllers\GJM\BuatPPTController;
+use App\Http\Controllers\GJM\KirimLaporanController as GJMKirimLaporanController;
 
 // Auth Routes
 Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
@@ -42,6 +43,7 @@ Route::middleware('auth')->group(function () {
         // Data Master
         Route::prefix('data-master')->name('data-master.')->group(function () {
             Route::get('/', [DataMasterController::class, 'index'])->name('index');
+            Route::get('/penugasan-dosen', [DataMasterController::class, 'penugasanDosen'])->name('penugasan-dosen');
             Route::get('/dosen-pengajar', [DataMasterController::class, 'dosenPengajar'])->name('dosen');
             Route::post('/dosen-pengajar', [DataMasterController::class, 'storeDosen'])->name('dosen.store');
             Route::put('/dosen-pengajar/{id}', [DataMasterController::class, 'updateDosen'])->name('dosen.update');
@@ -68,6 +70,7 @@ Route::middleware('auth')->group(function () {
         // Monitoring RPS & Materi
         Route::prefix('monitoring-rps')->name('monitoring-rps.')->group(function () {
             Route::get('/', [MonitoringRPSController::class, 'index'])->name('index');
+            Route::post('/clear-cache', [MonitoringRPSController::class, 'clearCache'])->name('clear-cache');
             Route::get('/ceklist-rps', [MonitoringRPSController::class, 'ceklistRPS'])->name('ceklist');
             Route::post('/generate-message', [MonitoringRPSController::class, 'generateReminderMessage'])->name('generate-message');
             Route::post('/send-reminder', [MonitoringRPSController::class, 'sendReminder'])->name('send-reminder');
@@ -77,6 +80,8 @@ Route::middleware('auth')->group(function () {
         // Monitoring Perkuliahan
         Route::prefix('monitoring-perkuliahan')->name('monitoring-perkuliahan.')->group(function () {
             Route::get('/', [MonitoringPerkuliahanController::class, 'index'])->name('index');
+            Route::post('/clear-cache', [MonitoringPerkuliahanController::class, 'clearCache'])->name('clear-cache');
+            Route::get('/kirim-pengingat', [MonitoringPerkuliahanController::class, 'kirimPengingat'])->name('kirim-pengingat');
             Route::get('/reminder-perwalian', [MonitoringPerkuliahanController::class, 'reminderPerwalian'])->name('perwalian');
             Route::post('/reminder-perwalian/send', [MonitoringPerkuliahanController::class, 'kirimReminderPerwalian'])->name('perwalian.send');
             Route::post('/reminder-perwalian/generate', [MonitoringPerkuliahanController::class, 'generateMessagePerwalian'])->name('perwalian.generate');
@@ -182,6 +187,13 @@ Route::middleware('auth')->group(function () {
             Route::get('/{id}', [BuatLaporanController::class, 'show'])->name('show');
             Route::get('/{id}/download-pdf', [BuatLaporanController::class, 'downloadPDF'])->name('download.pdf');
             Route::get('/{id}/download-ppt', [BuatLaporanController::class, 'downloadPPT'])->name('download.ppt');
+        });
+
+        // Kirim Laporan
+        Route::prefix('kirim-laporan')->name('kirim-laporan.')->group(function () {
+            Route::get('/', [GJMKirimLaporanController::class, 'index'])->name('index');
+            Route::post('/generate', [GJMKirimLaporanController::class, 'generateMessage'])->name('generate');
+            Route::post('/send', [GJMKirimLaporanController::class, 'send'])->name('send');
         });
 
         // Laporan GJM Fakultas (Arsip)

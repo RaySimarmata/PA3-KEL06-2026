@@ -15,6 +15,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Http;
 
 class DataMasterController extends Controller
 {
@@ -889,5 +890,147 @@ class DataMasterController extends Controller
             return redirect()->back()
                 ->with('error', 'Gagal menghapus kelas: ' . $e->getMessage());
         }
+    }
+
+    public function penugasanDosen(Request $request)
+    {
+        $user = Auth::user();
+        
+        // Handle AJAX request for dosen list (autocomplete)
+        if ($request->ajax() || $request->has('get_dosen_list')) {
+            try {
+                $apiService = app(\App\Services\ExternalAPIService::class);
+                $dosenData = $apiService->getFilteredDosen();
+                
+                // Return only nama and email for autocomplete
+                $dosenList = array_map(function($dosen) {
+                    return [
+                        'nama' => $dosen['nama'] ?? '',
+                        'email' => $dosen['email'] ?? ''
+                    ];
+                }, $dosenData);
+                
+                return response()->json(['dosen' => $dosenList]);
+            } catch (\Exception $e) {
+                \Log::error('AJAX Dosen List Error: ' . $e->getMessage());
+                return response()->json(['dosen' => []]);
+            }
+        }
+        
+        // Initialize empty collection
+        $dosenList = new \Illuminate\Pagination\LengthAwarePaginator(
+            [],
+            0,
+            10,
+            1,
+            ['path' => $request->url(), 'query' => $request->query()]
+        );
+        
+        // Only fetch data if search is provided or form is submitted
+        if (!$request->has('search') && !$request->has('submitted')) {
+            return view('gkm.data-master.penugasan-dosen', compact('user', 'dosenList'));
+        }
+        
+        try {
+            $apiService = app(\App\Services\ExternalAPIService::class);
+            
+            // Fetch data from API using service
+            $dosenData = $apiService->getFilteredDosen();
+            
+            // Search by name
+            if ($request->search) {
+                $searchTerm = strtolower($request->search);
+                $dosenData = array_filter($dosenData, function($dosen) use ($searchTerm) {
+                    return isset($dosen['nama']) && 
+                           str_contains(strtolower($dosen['nama']), $searchTerm);
+                });
+            }
+            
+            // Convert to collection for pagination
+            $dosenCollection = collect(array_values($dosenData));
+            
+            // PAGINATION FIRST - before fetching jadwal
+            $perPage = 10;
+            $currentPage = $request->get('page', 1);
+            
+            // Get only current page items
+            $currentPageDosen = $dosenCollection->forPage($currentPage, $perPage)->all();
+            
+            // Get semester and year from request or use defaults
+            $currentMonth = date('n');
+            $defaultSemTa = $currentMonth >= 8 ? 1 : 2; // 1 = Ganjil (Aug-Dec), 2 = Genap (Jan-Jul)
+            
+            $semTa = $request->get('sem_ta', $defaultSemTa);
+            $ta = $request->get('ta', 2020); // Default to 2020 as API only has 2020 data
+            
+            // Fetch jadwal ONLY for current page dosen (not all dosen)
+            foreach ($currentPageDosen as &$dosen) {
+                $pegawaiId = $dosen['pegawai_id'] ?? null;
+                
+                if ($pegawaiId) {
+                    // Get jadwal from API with cache
+                    $jadwal = \Cache::remember(
+                        "jadwal_{$pegawaiId}_{$semTa}_{$ta}",
+                        3600,
+                        function() use ($apiService, $pegawaiId, $semTa, $ta) {
+                            return $apiService->getJadwalByDosen($pegawaiId, $semTa, $ta);
+                        }
+                    );
+                    
+                    // Remove duplicates based on kode_mk
+                    $uniqueJadwal = [];
+                    $seenKodeMk = [];
+                    
+                    foreach ($jadwal as $mk) {
+                        $kodeMk = $mk['kode_mk'] ?? null;
+                        
+                        if ($kodeMk && !in_array($kodeMk, $seenKodeMk)) {
+                            $uniqueJadwal[] = $mk;
+                            $seenKodeMk[] = $kodeMk;
+                        }
+                    }
+                    
+                    $dosen['matakuliah'] = $uniqueJadwal;
+                } else {
+                    $dosen['matakuliah'] = [];
+                }
+            }
+            unset($dosen); // Break reference
+            
+            // Create paginator with fetched data
+            $dosenList = new \Illuminate\Pagination\LengthAwarePaginator(
+                $currentPageDosen,
+                $dosenCollection->count(),
+                $perPage,
+                $currentPage,
+                ['path' => $request->url(), 'query' => $request->query()]
+            );
+            
+            return view('gkm.data-master.penugasan-dosen', compact('user', 'dosenList'));
+            
+        } catch (\Exception $e) {
+            // Fallback to database on error
+            \Log::error('API Dosen Error: ' . $e->getMessage());
+            return $this->penugasanDosenFromDatabase($request, $user);
+        }
+    }
+    
+    private function penugasanDosenFromDatabase(Request $request, $user)
+    {
+        $query = Dosen::with('matakuliah')
+            ->where('status', 'aktif')
+            ->orderBy('nama_lengkap');
+        
+        if ($user->prodi_id) {
+            $query->where('prodi_id', $user->prodi_id);
+        }
+        
+        if ($request->search) {
+            $query->where('nama_lengkap', 'like', '%' . $request->search . '%');
+        }
+        
+        $dosenList = $query->paginate(10)->appends($request->all());
+        
+        return view('gkm.data-master.penugasan-dosen', compact('user', 'dosenList'));
     }
 }

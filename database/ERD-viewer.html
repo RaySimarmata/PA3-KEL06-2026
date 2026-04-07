@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ERD - Sistem Monitoring Mutu Akademik</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+
+        .container {
+            max-width: 100%;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 30px;
+        }
+
+        .controls {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            margin: 5px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        button:hover {
+            background: #45a049;
+        }
+
+        .mermaid {
+            text-align: center;
+            background: white;
+            padding: 20px;
+            overflow-x: auto;
+        }
+
+        .info {
+            background: #e3f2fd;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            border-left: 4px solid #2196F3;
+        }
+
+        .info h3 {
+            margin-top: 0;
+            color: #1976D2;
+        }
+
+        .legend {
+            background: #fff3e0;
+            padding: 15px;
+            border-radius: 5px;
+            margin-top: 20px;
+            border-left: 4px solid #FF9800;
+        }
+
+        .legend h3 {
+            margin-top: 0;
+            color: #F57C00;
+        }
+
+        .legend ul {
+            margin: 10px 0;
+            padding-left: 20px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>Entity Relationship Diagram (ERD)</h1>
+        <p class="subtitle">Sistem Monitoring Mutu Akademik</p>
+
+        <div class="info">
+            <h3>📋 Informasi</h3>
+            <p>Diagram ini menampilkan struktur database lengkap dengan 25+ tabel dan relasinya.</p>
+            <p><strong>Cara Export ke Gambar:</strong></p>
+            <ul>
+                <li>Klik kanan pada diagram → "Save image as..." (Chrome/Edge)</li>
+                <li>Atau gunakan screenshot tool (Windows: Win+Shift+S, Mac: Cmd+Shift+4)</li>
+                <li>Atau buka di <a href="https://mermaid.live" target="_blank">mermaid.live</a> untuk export
+                    PNG/SVG/PDF</li>
+            </ul>
+        </div>
+
+        <div class="controls">
+            <button onclick="zoomIn()">🔍 Zoom In</button>
+            <button onclick="zoomOut()">🔍 Zoom Out</button>
+            <button onclick="resetZoom()">↺ Reset</button>
+            <button onclick="window.print()">🖨️ Print</button>
+        </div>
+
+        <div id="diagram-container" style="transform-origin: top center;">
+            <div class="mermaid">
+                erDiagram
+                PRODI ||--o{ USERS : "memiliki"
+                PRODI ||--o{ DOSEN : "memiliki"
+                PRODI ||--o{ MATAKULIAH : "memiliki"
+                PRODI ||--o{ LAPORAN_GKM : "membuat"
+                PRODI ||--o{ MONITORING : "dimonitor"
+                PRODI ||--o{ PENCAPAIAN_KPI : "memiliki"
+                PRODI ||--o{ KELAS : "memiliki"
+                PRODI ||--o{ TEMPLATE_LAPORAN : "memiliki"
+                PRODI ||--o{ LAPORAN_BULANAN : "membuat"
+                PRODI ||--o{ JADWAL_REMINDER : "memiliki"
+
+                USERS ||--o| DOSEN : "adalah"
+                USERS ||--o{ LAPORAN_GJM : "review"
+                USERS ||--o{ TEMPLATE_LAPORAN : "upload"
+                USERS ||--o{ LAPORAN_BULANAN : "buat"
+
+                DOSEN ||--o{ RPS : "membuat"
+                DOSEN ||--o{ EVALUASI_ARTEFAK : "evaluasi"
+                DOSEN ||--o{ REMINDER : "menerima"
+                DOSEN ||--o{ PERWALIAAN : "melakukan"
+                DOSEN ||--o{ JAWABAN_KUISIONER : "menjawab"
+                DOSEN ||--o{ LAPORAN_GKM : "ketua"
+                DOSEN ||--o{ LAPORAN_GKM : "review"
+                DOSEN }o--o{ MATAKULIAH : "mengajar"
+
+                MATAKULIAH ||--o{ RPS : "memiliki"
+                MATAKULIAH }o--o{ DOSEN : "diajar_oleh"
+
+                AJARAN ||--o{ RPS : "periode"
+                AJARAN ||--o{ KUISIONER : "periode"
+                AJARAN ||--o{ LAPORAN_GKM : "periode"
+                AJARAN ||--o{ LAPORAN_GJM : "periode"
+                AJARAN ||--o{ PERWALIAAN : "periode"
+                AJARAN ||--o{ MONITORING : "periode"
+                AJARAN ||--o{ PENCAPAIAN_KPI : "periode"
+
+                RPS ||--o{ MATERI : "memiliki"
+                RPS ||--o{ EVALUASI_ARTEFAK : "dievaluasi"
+
+                MATERI ||--o{ EVALUASI_ARTEFAK : "dievaluasi"
+
+                KUISIONER ||--o{ PERTANYAAN_KUISIONER : "memiliki"
+                PERTANYAAN_KUISIONER ||--o{ JAWABAN_KUISIONER : "dijawab"
+
+                REMINDER ||--o{ LOG_EMAIL : "menghasilkan"
+
+                KUESIONER_UPLOADS ||--o{ DOCUMENT_CHUNKS : "dipecah"
+                KUESIONER_UPLOADS ||--o{ LAPORAN_BULANAN : "digunakan"
+
+                TEMPLATE_LAPORAN ||--o{ DOCUMENT_CHUNKS : "dipecah"
+                TEMPLATE_LAPORAN ||--o{ LAPORAN_BULANAN : "digunakan"
+
+                PRODI {
+                bigint id PK
+                string kode_prodi UK
+                string nama_prodi
+                string nama_singkat
+                text deskripsi
+                bigint kaprodi_id FK
+                }
+
+                USERS {
+                bigint id PK
+                string name
+                string email UK
+                string username UK
+                string password
+                enum role
+                bigint prodi_id FK
+                boolean is_active
+                }
+
+                DOSEN {
+                bigint id PK
+                bigint user_id FK
+                string nama_lengkap
+                string nidn UK
+                string gelar_akademik
+                string jabatan_akademik
+                string kontak_email
+                bigint prodi_id FK
+                enum status
+                boolean is_kaprodi
+                boolean is_wali_kelas
+                }
+
+                MATAKULIAH {
+                bigint id PK
+                bigint prodi_id FK
+                string kode_mk UK
+                string nama_mk
+                int sks
+                int semester
+                string jenis_mk
+                enum status
+                }
+
+                DOSEN_MATAKULIAH {
+                bigint id PK
+                bigint dosen_id FK
+                bigint matakuliah_id FK
+                }
+
+                AJARAN {
+                bigint id PK
+                year tahun_ajaran
+                enum semester
+                date tanggal_mulai
+                date tanggal_akhir
+                enum status
+                bigint prodi_id FK
+                }
+
+                RPS {
+                bigint id PK
+                bigint matakuliah_id FK
+                bigint ajaran_id FK
+                bigint dosen_id FK
+                text deskripsi
+                string file_rps
+                enum status_rps
+                enum status_review_rps
+                date tanggal_upload
+                }
+
+                MATERI {
+                bigint id PK
+                bigint rps_id FK
+                string judul_materi
+                int pertemuan_ke
+                string file_materi
+                enum status
+                date tanggal_upload
+                }
+
+                MONITORING {
+                bigint id PK
+                bigint ajaran_id FK
+                bigint prodi_id FK
+                enum jenis_monitoring
+                int total_dosen
+                int dosen_selesai
+                decimal persentase_kepatuhan
+                }
+
+                REMINDER {
+                bigint id PK
+                bigint dosen_id FK
+                bigint kaprodi_id FK
+                enum tipe_reminder
+                string judul
+                date tanggal_reminder
+                enum status
+                }
+
+                JADWAL_REMINDER {
+                bigint id PK
+                bigint prodi_id FK
+                enum tipe_reminder
+                int hari_sebelum_deadline
+                enum frekuensi
+                enum status
+                }
+
+                LOG_EMAIL {
+                bigint id PK
+                bigint reminder_id FK
+                bigint prodi_id FK
+                string penerima_email
+                string subjek
+                enum status_pengiriman
+                }
+
+                LAPORAN_GKM {
+                bigint id PK
+                bigint prodi_id FK
+                bigint ajaran_id FK
+                bigint dosen_ketua FK
+                enum jenis_laporan
+                string file_laporan
+                enum status_laporan
+                bigint reviewed_by FK
+                }
+
+                LAPORAN_GJM {
+                bigint id PK
+                bigint ajaran_id FK
+                enum jenis_laporan
+                string file_laporan
+                string file_ppt
+                enum status_laporan
+                bigint reviewed_by FK
+                }
+
+                KUISIONER {
+                bigint id PK
+                bigint ajaran_id FK
+                string judul
+                enum target
+                enum status
+                }
+
+                PERTANYAAN_KUISIONER {
+                bigint id PK
+                bigint kuisioner_id FK
+                int urutan_pertanyaan
+                text pertanyaan
+                enum tipe_pertanyaan
+                }
+
+                JAWABAN_KUISIONER {
+                bigint id PK
+                bigint pertanyaan_kuisioner_id FK
+                bigint dosen_id FK
+                text jawaban
+                }
+
+                EVALUASI_ARTEFAK {
+                bigint id PK
+                bigint rps_id FK
+                bigint materi_id FK
+                bigint evaluator_id FK
+                enum jenis_artefak
+                int skor_evaluasi
+                enum status_evaluasi
+                }
+
+                PERWALIAAN {
+                bigint id PK
+                bigint dosen_id FK
+                bigint ajaran_id FK
+                int jumlah_mahasiswa
+                enum status_perwalian
+                }
+
+                PENCAPAIAN_KPI {
+                bigint id PK
+                bigint prodi_id FK
+                bigint ajaran_id FK
+                string nama_kpi
+                decimal target_nilai
+                decimal nilai_realisasi
+                enum status_kpi
+                }
+
+                KELAS {
+                bigint id PK
+                bigint prodi_id FK
+                string kode_kelas
+                int tingkat
+                int tahun_angkatan
+                enum status
+                }
+
+                KUESIONER_UPLOADS {
+                bigint id PK
+                string nama_file
+                string file_path
+                string periode
+                bigint prodi_id FK
+                int total_responden
+                json hasil_analisis
+                enum status
+                }
+
+                DOCUMENT_CHUNKS {
+                bigint id PK
+                bigint kuesioner_upload_id FK
+                bigint template_id FK
+                text chunk_text
+                int chunk_index
+                json embedding
+                }
+
+                EMBEDDINGS_CACHE {
+                bigint id PK
+                string text_hash UK
+                json embedding
+                string model
+                }
+
+                TEMPLATE_LAPORAN {
+                bigint id PK
+                bigint prodi_id FK
+                string nama_template
+                string file_path
+                json structure_data
+                boolean is_indexed
+                bigint uploaded_by FK
+                }
+
+                LAPORAN_BULANAN {
+                bigint id PK
+                string periode
+                bigint prodi_id FK
+                bigint user_id FK
+                bigint template_id FK
+                int total_kuesioner
+                json hasil_laporan
+                string file_word
+                string file_pdf
+                enum status
+                }
+            </div>
+        </div>
+
+        <div class="legend">
+            <h3>📖 Legenda</h3>
+            <ul>
+                <li><strong>PK</strong> = Primary Key</li>
+                <li><strong>FK</strong> = Foreign Key</li>
+                <li><strong>UK</strong> = Unique Key</li>
+                <li><strong>||--o{</strong> = One to Many</li>
+                <li><strong>}o--o{</strong> = Many to Many</li>
+                <li><strong>||--o|</strong> = One to One</li>
+            </ul>
+            <h4>Modul Utama:</h4>
+            <ul>
+                <li>🎓 <strong>Akademik:</strong> PRODI, USERS, DOSEN, MATAKULIAH, AJARAN</li>
+                <li>📚 <strong>RPS & Materi:</strong> RPS, MATERI, EVALUASI_ARTEFAK</li>
+                <li>📝 <strong>Kuisioner:</strong> KUISIONER, PERTANYAAN_KUISIONER, JAWABAN_KUISIONER</li>
+                <li>🔔 <strong>Reminder:</strong> REMINDER, JADWAL_REMINDER, LOG_EMAIL</li>
+                <li>📊 <strong>Laporan:</strong> LAPORAN_GKM, LAPORAN_GJM, LAPORAN_BULANAN</li>
+                <li>🤖 <strong>AI & RAG:</strong> KUESIONER_UPLOADS, DOCUMENT_CHUNKS, EMBEDDINGS_CACHE, TEMPLATE_LAPORAN
+                </li>
+                <li>📈 <strong>Monitoring:</strong> MONITORING, PENCAPAIAN_KPI, PERWALIAAN</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        mermaid.initialize({
+            startOnLoad: true,
+            theme: 'default',
+            er: {
+                fontSize: 12,
+                useMaxWidth: true
+            }
+        });
+
+        let currentZoom = 1;
+        const container = document.getElementById('diagram-container');
+
+        function zoomIn() {
+            currentZoom += 0.1;
+            container.style.transform = `scale(${currentZoom})`;
+        }
+
+        function zoomOut() {
+            if (currentZoom > 0.3) {
+                currentZoom -= 0.1;
+                container.style.transform = `scale(${currentZoom})`;
+            }
+        }
+
+        function resetZoom() {
+            currentZoom = 1;
+            container.style.transform = `scale(1)`;
+        }
+    </script>
+</body>
+
+</html>

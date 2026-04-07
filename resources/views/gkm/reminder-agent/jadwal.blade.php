@@ -4,41 +4,42 @@
 
 @section('content')
     <div style="padding: 1.5rem;">
-        <div class="row">
-            <div class="col-12">
-                <div class="alert alert-info" role="alert">
-                    <h6 class="alert-heading"><i class="bi bi-info-circle"></i> Cara Kerja Reminder Agent</h6>
-                    <p class="mb-0">
-                        Reminder Agent akan otomatis mengirim email reminder ke dosen sesuai dengan jadwal yang Anda atur.
-                        Sistem akan menggunakan template pesan yang sudah tersedia di halaman masing-masing tipe reminder.
-                    </p>
+        <div class="alert-gkm info" style="margin-bottom: 1.5rem;">
+            <h6 style="margin-bottom: 0.5rem; font-weight: 600;"><i class="bi bi-info-circle"></i> Cara Kerja Reminder Agent</h6>
+            <p class="mb-0" style="font-size: 0.9rem;">
+                Reminder Agent akan otomatis mengirim email reminder ke dosen sesuai dengan jadwal yang Anda atur.
+                Sistem akan menggunakan template pesan yang sudah tersedia di halaman masing-masing tipe reminder.
+            </p>
+        </div>
+
+        <div class="monitoring-card">
+            <div class="monitoring-header">
+                <i class="bi bi-calendar-plus"></i>
+                <h6>Tambah Jadwal Reminder Baru</h6>
+                <div style="margin-left: auto;">
+                    <a href="{{ route('gkm.reminder-agent.index') }}" class="btn btn-sm btn-outline-secondary">
+                        <i class="bi bi-arrow-left"></i> Kembali
+                    </a>
                 </div>
-
-                <div class="card border-0 shadow-sm">
-                    <div class="card-header bg-light border-0 d-flex justify-content-between align-items-center">
-                        <h5 class="mb-0">Tambah Jadwal Reminder Baru</h5>
-                        <a href="{{ route('gkm.reminder-agent.index') }}" class="btn btn-sm btn-outline-secondary">
-                            <i class="bi bi-arrow-left"></i> Kembali
-                        </a>
+            </div>
+            <div style="padding: 1.5rem;">
+                @if (session('success'))
+                    <div class="alert-gkm success alert-dismissible fade show" role="alert">
+                        {{ session('success') }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                     </div>
-                    <div class="card-body">
-                        @if (session('success'))
-                            <div class="alert alert-success alert-dismissible fade show" role="alert">
-                                {{ session('success') }}
-                                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                            </div>
-                        @endif
+                @endif
 
-                        @if ($errors->any())
-                            <div class="alert alert-danger alert-dismissible fade show" role="alert">
-                                <ul class="mb-0">
-                                    @foreach ($errors->all() as $error)
-                                        <li>{{ $error }}</li>
-                                    @endforeach
-                                </ul>
-                                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                            </div>
-                        @endif
+                @if ($errors->any())
+                    <div class="alert-gkm danger alert-dismissible fade show" role="alert">
+                        <ul class="mb-0">
+                            @foreach ($errors->all() as $error)
+                                <li>{{ $error }}</li>
+                            @endforeach
+                        </ul>
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                @endif
 
                         <form action="{{ route('gkm.reminder-agent.jadwal.store') }}" method="POST">
                             @csrf
@@ -108,13 +109,13 @@
                                 </div>
                             </div>
 
-                            <div class="alert alert-info" role="alert">
+                            <div class="alert-gkm info" role="alert">
                                 <i class="bi bi-calendar-check"></i>
                                 <strong>Pengiriman Otomatis:</strong> Email akan terkirim otomatis pada tanggal <strong
                                     id="preview-tanggal">-</strong> pukul <strong id="preview-jam">-</strong>.
                             </div>
 
-                            <div class="alert alert-success" role="alert">
+                            <div class="alert-gkm success" role="alert">
                                 <i class="bi bi-robot"></i>
                                 <strong>AI Agent Aktif:</strong> Sistem akan menggunakan AI untuk menghasilkan pesan
                                 reminder yang personal,
@@ -155,8 +156,6 @@
                                 </button>
                             </div>
                         </form>
-                    </div>
-                </div>
             </div>
         </div>
     </div>

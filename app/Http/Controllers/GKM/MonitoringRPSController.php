@@ -18,23 +18,399 @@ use Illuminate\Support\Facades\Log;
 
 class MonitoringRPSController extends Controller
 {
-    public function index()
+    public function index(Request $request)
+    {
+        try {
+            $user = Auth::user();
+
+            // Ambil data tahun ajaran dari API (dengan cache)
+            $apiService = new \App\Services\ExternalAPIService();
+            
+            // Cache tahun ajaran selama 10 menit - dengan fallback jika API gagal
+            $tahunAjaranList = \Cache::remember('tahun_ajaran_list', 600, function() use ($apiService) {
+                $result = $apiService->getTahunAjaran();
+                // Jika API gagal atau kosong, return default
+                if (empty($result)) {
+                    return [
+                        ['id_thn_ajaran' => '2020', 'nm_thn_ajaran' => '2020'],
+                        ['id_thn_ajaran' => '2021', 'nm_thn_ajaran' => '2021'],
+                        ['id_thn_ajaran' => '2022', 'nm_thn_ajaran' => '2022'],
+                        ['id_thn_ajaran' => '2023', 'nm_thn_ajaran' => '2023'],
+                        ['id_thn_ajaran' => '2024', 'nm_thn_ajaran' => '2024'],
+                    ];
+                }
+                return $result;
+            });
+
+            // Get filter values
+            $selectedSemester = $request->input('semester', '');
+            $selectedTahunAjaran = $request->input('tahun_ajaran', '');
+
+            // Check if filter is applied
+            $filterApplied = !empty($selectedSemester) && !empty($selectedTahunAjaran);
+
+            // If no filter applied, return empty pagination
+            if (!$filterApplied) {
+                return view('gkm.monitoring-rps.index', [
+                    'user' => $user,
+                    'pagination' => new \Illuminate\Pagination\LengthAwarePaginator(
+                        [],
+                        0,
+                        15,
+                        1,
+                        ['path' => $request->url(), 'query' => $request->query()]
+                    ),
+                    'tahunAjaranList' => $tahunAjaranList,
+                    'selectedSemester' => $selectedSemester,
+                    'selectedTahunAjaran' => $selectedTahunAjaran
+                ]);
+            }
+
+        // Log filter values for debugging
+        \Log::info('MonitoringRPS Filter', [
+            'semester' => $selectedSemester,
+            'tahun_ajaran' => $selectedTahunAjaran,
+            'user_prodi' => $user->prodi ? $user->prodi->kode_prodi : 'N/A'
+        ]);
+
+        // Map prodi_id berdasarkan kode prodi user yang login
+        $prodiKode = $user->prodi ? $user->prodi->kode_prodi : 'TRPL';
+        
+        $prodiIdMap = [
+            'TRPL' => 4,  // DIV Teknologi Rekayasa Perangkat Lunak
+            'TI' => 1,    // DIII Teknologi Informasi
+            'NM' => 3,    // DIII Teknologi Komputer
+        ];
+
+        $prodiId = $prodiIdMap[$prodiKode] ?? 4; // Default TRPL
+
+        // Cache key untuk data monitoring RPS - PENTING: Include semester di cache key
+        $cacheKey = "monitoring_rps_{$prodiId}_{$selectedSemester}_{$selectedTahunAjaran}";
+        
+        // Cache selama 10 menit (600 detik)
+        $matkulList = \Cache::remember($cacheKey, 600, function() use ($apiService, $prodiId, $selectedSemester, $selectedTahunAjaran) {
+            $matkulList = [];
+            
+            try {
+                // 1. Ambil data matakuliah dari API (dengan cache per prodi/semester/ta)
+                $matkulData = \Cache::remember(
+                    "matkul_{$prodiId}_{$selectedSemester}_{$selectedTahunAjaran}",
+                    600, // 10 menit
+                    function() use ($apiService, $prodiId, $selectedSemester, $selectedTahunAjaran) {
+                        return $apiService->getMatkulByProdiSemTa($prodiId, $selectedSemester, $selectedTahunAjaran);
+                    }
+                );
+                
+                if (empty($matkulData)) {
+                    \Log::warning('No matakuliah data from API', [
+                        'prodi_id' => $prodiId,
+                        'semester' => $selectedSemester,
+                        'tahun_ajaran' => $selectedTahunAjaran
+                    ]);
+                    return [];
+                }
+            } catch (\Exception $e) {
+                \Log::error('Failed to get matakuliah data', [
+                    'error' => $e->getMessage(),
+                    'prodi_id' => $prodiId,
+                    'semester' => $selectedSemester,
+                    'tahun_ajaran' => $selectedTahunAjaran
+                ]);
+                return [];
+            }
+            
+            // 2. Ambil dosen yang sudah ter-filter dari API (dengan cache per prodi)
+            // OPTIMASI: Hanya ambil dosen dari prodi yang sedang login
+            $dosenApiList = \Cache::remember("dosen_filtered_{$prodiId}", 600, function() use ($apiService, $prodiId) {
+                $allDosen = $apiService->getFilteredDosen();
+                
+                // Filter dosen by prodi_id untuk mengurangi beban API
+                return array_filter($allDosen, function($dosen) use ($prodiId) {
+                    return isset($dosen['prodi_id']) && $dosen['prodi_id'] == $prodiId;
+                });
+            });
+            
+            // Log untuk debugging - TAMBAHAN
+            \Log::info('MonitoringRPS - Building matkulDosenMap', [
+                'total_dosen' => count($dosenApiList),
+                'semester' => $selectedSemester,
+                'tahun_ajaran' => $selectedTahunAjaran,
+                'prodi_id' => $prodiId,
+                'prodi_kode' => $prodiKode
+            ]);
+            
+            // Build mapping: kode_mk => [dosen names]
+            // Cache mapping untuk menghindari rebuild berulang
+            $matkulDosenMap = \Cache::remember(
+                "matkul_dosen_map_{$prodiId}_{$selectedSemester}_{$selectedTahunAjaran}",
+                600,
+                function() use ($dosenApiList, $apiService, $selectedSemester, $selectedTahunAjaran) {
+                    $map = [];
+                    $dosenProcessed = 0;
+                    
+                    // 3. Process dosen - DENGAN CACHE PER DOSEN
+                    foreach ($dosenApiList as $dosen) {
+                        $pegawaiId = $dosen['pegawai_id'] ?? null;
+                        $namaDosen = $dosen['nama'] ?? null;
+                        
+                        if ($pegawaiId && $namaDosen) {
+                            try {
+                                // Cache jadwal per dosen (KEY OPTIMIZATION!)
+                                $jadwalList = \Cache::remember(
+                                    "jadwal_{$pegawaiId}_{$selectedSemester}_{$selectedTahunAjaran}",
+                                    600, // 10 menit
+                                    function() use ($apiService, $pegawaiId, $selectedSemester, $selectedTahunAjaran) {
+                                        return $apiService->getJadwalByDosen($pegawaiId, $selectedSemester, $selectedTahunAjaran);
+                                    }
+                                );
+                                
+                                // Map each matkul to this dosen
+                                if (!empty($jadwalList)) {
+                                    $dosenProcessed++;
+                                    foreach ($jadwalList as $jadwal) {
+                                        $kodeMk = $jadwal['kode_mk'] ?? null;
+                                        if ($kodeMk) {
+                                            if (!isset($map[$kodeMk])) {
+                                                $map[$kodeMk] = [];
+                                            }
+                                            if (!in_array($namaDosen, $map[$kodeMk])) {
+                                                $map[$kodeMk][] = $namaDosen;
+                                            }
+                                        }
+                                    }
+                                }
+                            } catch (\Exception $e) {
+                                \Log::warning("Failed to get jadwal for dosen {$namaDosen}: " . $e->getMessage());
+                                continue;
+                            }
+                        }
+                    }
+                    
+                    // Log hasil mapping
+                    \Log::info('MonitoringRPS - Mapping completed', [
+                        'dosen_with_jadwal' => $dosenProcessed,
+                        'matkul_with_dosen' => count($map),
+                        'sample_mapping' => array_slice($map, 0, 3, true)
+                    ]);
+                    
+                    return $map;
+                }
+            );
+            
+            // 4. Process each matakuliah - DENGAN CACHE PER MATKUL
+            foreach ($matkulData as $matkul) {
+                $kuliahId = $matkul['kuliah_id'] ?? null;
+                $kodeMk = $matkul['kode_mk'] ?? '-';
+                
+                if ($kuliahId) {
+                    try {
+                        // Cache monitoring per matkul (KEY OPTIMIZATION!)
+                        $monitoring = \Cache::remember(
+                            "monitoring_{$kuliahId}_{$selectedSemester}_{$selectedTahunAjaran}",
+                            600, // 10 menit
+                            function() use ($apiService, $kuliahId, $selectedTahunAjaran, $selectedSemester) {
+                                return $apiService->getMonitoringMateri($kuliahId, $selectedTahunAjaran, $selectedSemester);
+                            }
+                        );
+                        
+                        // Get dosen pengampu from mapping
+                        $dosenPengampu = '-';
+                        if (isset($matkulDosenMap[$kodeMk]) && !empty($matkulDosenMap[$kodeMk])) {
+                            $dosenPengampu = implode(', ', $matkulDosenMap[$kodeMk]);
+                        }
+                        
+                        // Log untuk debugging dosen
+                        if ($dosenPengampu === '-') {
+                            \Log::debug('MonitoringRPS - No dosen for matkul', [
+                                'kode_mk' => $kodeMk,
+                                'kuliah_id' => $kuliahId,
+                                'semester' => $selectedSemester
+                            ]);
+                        }
+                        
+                        // Determine status RPS dari API monitoring materi
+                        $statusRPS = 'BELUM UPLOAD'; // Default
+                        if ($monitoring) {
+                            $statusRPS = $monitoring['status_file_silabus'] ?? 'BELUM UPLOAD';
+                            
+                            // Log untuk debugging
+                            \Log::debug('RPS Status', [
+                                'kode_mk' => $kodeMk,
+                                'kuliah_id' => $kuliahId,
+                                'semester' => $selectedSemester,
+                                'status' => $statusRPS
+                            ]);
+                        }
+                        
+                        $matkulList[] = [
+                            'kode_mk' => $kodeMk,
+                            'nama_matkul' => $matkul['nama_matkul'] ?? '-',
+                            'dosen_pengampu' => $dosenPengampu,
+                            'status_rps' => $statusRPS,
+                            'kuliah_id' => $kuliahId
+                        ];
+                    } catch (\Exception $e) {
+                        \Log::warning("Failed to get monitoring for matkul {$kodeMk}: " . $e->getMessage());
+                        
+                        // Add matkul with default status
+                        $dosenPengampu = '-';
+                        if (isset($matkulDosenMap[$kodeMk]) && !empty($matkulDosenMap[$kodeMk])) {
+                            $dosenPengampu = implode(', ', $matkulDosenMap[$kodeMk]);
+                        }
+                        
+                        $matkulList[] = [
+                            'kode_mk' => $kodeMk,
+                            'nama_matkul' => $matkul['nama_matkul'] ?? '-',
+                            'dosen_pengampu' => $dosenPengampu,
+                            'status_rps' => 'ERROR',
+                            'kuliah_id' => $kuliahId
+                        ];
+                    }
+                }
+            }
+            
+            return $matkulList;
+        });
+
+        // Log hasil akhir untuk debugging
+        $withDosen = 0;
+        $withoutDosen = 0;
+        foreach ($matkulList as $matkul) {
+            if (($matkul['dosen_pengampu'] ?? '-') !== '-') {
+                $withDosen++;
+            } else {
+                $withoutDosen++;
+            }
+        }
+        
+        \Log::info('MonitoringRPS - Final result', [
+            'total_matkul' => count($matkulList),
+            'with_dosen' => $withDosen,
+            'without_dosen' => $withoutDosen,
+            'semester' => $selectedSemester,
+            'tahun_ajaran' => $selectedTahunAjaran,
+            'sample_data' => array_slice($matkulList, 0, 3)
+        ]);
+
+        // Pagination manual
+        $perPage = 15; // Increased from 10 to 15
+        $currentPage = $request->input('page', 1);
+        $offset = ($currentPage - 1) * $perPage;
+        
+        $totalItems = count($matkulList);
+        $matkulPaginated = array_slice($matkulList, $offset, $perPage);
+        
+        $pagination = new \Illuminate\Pagination\LengthAwarePaginator(
+            $matkulPaginated,
+            $totalItems,
+            $perPage,
+            $currentPage,
+            ['path' => $request->url(), 'query' => $request->query()]
+        );
+
+        return view('gkm.monitoring-rps.index', compact(
+            'user', 
+            'pagination',
+            'tahunAjaranList',
+            'selectedSemester',
+            'selectedTahunAjaran'
+        ));
+        
+        } catch (\Exception $e) {
+            \Log::error('MonitoringRPS Index Error', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            // Return view dengan data kosong dan pesan error
+            return view('gkm.monitoring-rps.index', [
+                'user' => Auth::user(),
+                'pagination' => new \Illuminate\Pagination\LengthAwarePaginator(
+                    [],
+                    0,
+                    15,
+                    1,
+                    ['path' => $request->url(), 'query' => $request->query()]
+                ),
+                'tahunAjaranList' => [
+                    ['id_thn_ajaran' => '2020', 'nm_thn_ajaran' => '2020'],
+                    ['id_thn_ajaran' => '2021', 'nm_thn_ajaran' => '2021'],
+                    ['id_thn_ajaran' => '2022', 'nm_thn_ajaran' => '2022'],
+                    ['id_thn_ajaran' => '2023', 'nm_thn_ajaran' => '2023'],
+                    ['id_thn_ajaran' => '2024', 'nm_thn_ajaran' => '2024'],
+                ],
+                'selectedSemester' => $request->input('semester', ''),
+                'selectedTahunAjaran' => $request->input('tahun_ajaran', '')
+            ])->with('error', 'Terjadi kesalahan saat memuat data. Silakan coba lagi atau hubungi administrator.');
+        }
+    }
+
+    /**
+     * Clear cache for monitoring RPS data
+     */
+    public function clearCache(Request $request)
     {
         $user = Auth::user();
 
-        // Filter dosen berdasarkan prodi GKM
-        $query = \App\Models\Dosen::with('matakuliah')
-            ->where('status', 'aktif');
+        // Map prodi_id
+        $prodiKode = $user->prodi ? $user->prodi->kode_prodi : 'TRPL';
+        $prodiIdMap = [
+            'TRPL' => 4,
+            'TI' => 1,
+            'NM' => 3,
+        ];
+        $prodiId = $prodiIdMap[$prodiKode] ?? 4;
 
-        // Jika GKM punya prodi_id, filter hanya dosen dari prodi tersebut
-        if ($user->prodi_id) {
-            $query->where('prodi_id', $user->prodi_id);
+        // Get filter values
+        $selectedSemester = $request->input('semester', '1');
+        $selectedTahunAjaran = $request->input('tahun_ajaran', '2020');
+
+        // Clear main cache
+        $cacheKey = "monitoring_rps_{$prodiId}_{$selectedSemester}_{$selectedTahunAjaran}";
+        \Cache::forget($cacheKey);
+        
+        // Clear related caches for better refresh
+        \Cache::forget("matkul_{$prodiId}_{$selectedSemester}_{$selectedTahunAjaran}");
+        \Cache::forget('dosen_filtered');
+        \Cache::forget('tahun_ajaran_list');
+        
+        // PENTING: Clear cache untuk monitoring materi per kuliah_id
+        // Ambil semua matakuliah untuk clear cache monitoring-nya
+        $apiService = new \App\Services\ExternalAPIService();
+        $matkulData = $apiService->getMatkulByProdiSemTa($prodiId, $selectedSemester, $selectedTahunAjaran);
+        
+        if (!empty($matkulData)) {
+            foreach ($matkulData as $matkul) {
+                $kuliahId = $matkul['kuliah_id'] ?? null;
+                if ($kuliahId) {
+                    // Clear cache monitoring untuk setiap kuliah_id
+                    \Cache::forget("monitoring_{$kuliahId}_{$selectedSemester}_{$selectedTahunAjaran}");
+                }
+            }
         }
+        
+        // Clear cache jadwal dosen juga
+        $dosenApiList = $apiService->getFilteredDosen();
+        foreach ($dosenApiList as $dosen) {
+            $pegawaiId = $dosen['pegawai_id'] ?? null;
+            if ($pegawaiId) {
+                \Cache::forget("jadwal_{$pegawaiId}_{$selectedSemester}_{$selectedTahunAjaran}");
+            }
+        }
+        
+        \Log::info('Monitoring RPS cache cleared (including per-kuliah cache)', [
+            'prodi_id' => $prodiId,
+            'semester' => $selectedSemester,
+            'tahun_ajaran' => $selectedTahunAjaran,
+            'matkul_count' => count($matkulData ?? [])
+        ]);
 
-        $dosenList = $query->paginate(10);
-
-        return view('gkm.monitoring-rps.index', compact('user', 'dosenList'));
+        return redirect()->route('gkm.monitoring-rps.index', [
+            'semester' => $selectedSemester,
+            'tahun_ajaran' => $selectedTahunAjaran
+        ])->with('cache_cleared', true);
     }
+
 
     public function ceklistRPS()
     {

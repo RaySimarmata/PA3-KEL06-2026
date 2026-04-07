@@ -4,35 +4,40 @@
 
 @section('content')
 <div style="padding: 1.5rem;">
-    <div class="d-flex justify-content-between align-items-center mb-3">
-        <div>
-            <h4 class="mb-1">Data Kelas</h4>
-            <p class="text-muted small mb-0">Kelola daftar kelas untuk perwalian</p>
+    <div class="filter-card mb-4">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h5 class="mb-1 font-semibold">Data Kelas</h5>
+                <p class="text-secondary mb-0">Kelola daftar kelas untuk perwalian</p>
+            </div>
+            <button type="button" class="btn-action-primary" data-bs-toggle="modal" data-bs-target="#addKelasModal">
+                <i class="bi bi-plus-circle"></i> Tambah Kelas
+            </button>
         </div>
-        <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addKelasModal">
-            <i class="bi bi-plus-circle"></i> Tambah Kelas
-        </button>
     </div>
 
     @if(session('success'))
-    <div class="alert alert-success alert-dismissible fade show" role="alert">
+    <div class="alert-gkm success alert-dismissible fade show" role="alert">
         {{ session('success') }}
         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
     </div>
     @endif
 
     @if(session('error'))
-    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+    <div class="alert-gkm danger alert-dismissible fade show" role="alert">
         {{ session('error') }}
         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
     </div>
     @endif
 
-    <div class="card border-0 shadow-sm">
-        <div class="card-body">
-            <div class="table-responsive">
-                <table class="table table-hover mb-0">
-                    <thead class="table-light">
+    <div class="monitoring-card">
+        <div class="monitoring-header">
+            <i class="bi bi-table"></i>
+            <h6>Daftar Kelas</h6>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-monitoring">
+                <thead>
                         <tr>
                             <th>No</th>
                             <th>Kode Kelas</th>
@@ -46,16 +51,16 @@
                     <tbody>
                         @forelse($kelasList as $index => $kelas)
                         <tr>
-                            <td>{{ $kelasList->firstItem() + $index }}</td>
-                            <td><strong>{{ $kelas->kode_kelas }}</strong></td>
-                            <td>Tingkat {{ $kelas->tingkat }}</td>
-                            <td>{{ $kelas->program_studi }}</td>
-                            <td>{{ $kelas->tahun_angkatan }}</td>
+                            <td class="code-mk">{{ $kelasList->firstItem() + $index }}</td>
+                            <td class="code-mk">{{ $kelas->kode_kelas }}</td>
+                            <td class="text-secondary">Tingkat {{ $kelas->tingkat }}</td>
+                            <td class="dosen-name">{{ $kelas->program_studi }}</td>
+                            <td class="text-secondary">{{ $kelas->tahun_angkatan }}</td>
                             <td>
                                 @if($kelas->status == 'aktif')
-                                    <span class="badge bg-success">Aktif</span>
+                                    <span class="badge-gkm success">Aktif</span>
                                 @else
-                                    <span class="badge bg-secondary">Tidak Aktif</span>
+                                    <span class="badge-gkm" style="background-color: #e9ecef; color: #6c757d;">Tidak Aktif</span>
                                 @endif
                             </td>
                             <td>
@@ -135,19 +140,24 @@
                         </div>
                         @empty
                         <tr>
-                            <td colspan="7" class="text-center text-muted">Belum ada data kelas</td>
+                            <td colspan="7" class="text-center py-5">
+                                <div class="text-muted">
+                                    <i class="bi bi-inbox" style="font-size: 3rem;"></i>
+                                    <p class="mt-2 mb-0">Belum ada data kelas</p>
+                                </div>
+                            </td>
                         </tr>
                         @endforelse
                     </tbody>
                 </table>
             </div>
-
-            @if($kelasList->hasPages())
-            <div class="mt-3">
-                {{ $kelasList->links() }}
-            </div>
-            @endif
         </div>
+        
+        @if($kelasList->hasPages())
+        <div class="mt-4 d-flex justify-content-center" style="padding: 0 1.5rem 1.5rem;">
+            {{ $kelasList->links() }}
+        </div>
+        @endif
     </div>
 </div>
 

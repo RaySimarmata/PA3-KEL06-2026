@@ -5,165 +5,153 @@
 @section('content')
 <div style="padding: 1.5rem;">
     @if(session('success'))
-    <div class="alert-gkm success alert-dismissible fade show" role="alert">
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
         {{ session('success') }}
         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
     </div>
     @endif
 
     @if(session('error'))
-    <div class="alert-gkm danger alert-dismissible fade show" role="alert">
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
         {{ session('error') }}
         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
     </div>
     @endif
 
-    <!-- Header Card -->
-    <div class="filter-card mb-4">
-        <div class="d-flex align-items-start gap-3">
-            <i class="bi bi-send" style="color: #5B9BD5; font-size: 2rem;"></i>
-            <div>
-                <h5 class="mb-1" style="font-weight: 600; color: #333;">Pengiriman Laporan</h5>
-                <p class="text-muted mb-0" style="font-size: 0.875rem;">Kelola dan kirim pesan pengingat kepada penerima terkait laporan.</p>
-            </div>
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-body">
+            <h5 class="mb-1">Pengiriman Laporan GJM</h5>
+            <p class="text-muted mb-0">Kelola dan kirim pesan pengingat kepada penerima terkait laporan GJM.</p>
         </div>
     </div>
 
     <form id="laporanForm">
         @csrf
-        <div class="monitoring-card mb-4">
-            <div class="monitoring-header">
-                <i class="bi bi-envelope" style="color: #5B9BD5;"></i>
-                <h6>Informasi Penerima</h6>
-            </div>
-            <div style="padding: 1.5rem;">
-                <div class="mb-4">
-                    <label class="filter-label">Penerima <span class="text-danger">*</span></label>
+        <div class="card border-0 shadow-sm mb-4">
+            <div class="card-body">
+                <h6 class="mb-3">Informasi Penerima</h6>
+                
+                <div class="mb-3">
+                    <label class="form-label">Penerima <span class="text-danger">*</span></label>
                     <input type="text" class="form-control" name="recipients" id="recipients"
-                           placeholder="Contoh: dekan@example.com, kaprodi@example.com" required>
-                    <small class="text-muted" style="font-size: 0.8rem;">
-                        <i class="bi bi-info-circle"></i> Masukkan alamat email penerima. Pisahkan dengan koma untuk beberapa penerima.
+                           placeholder="Contoh: rektor@example.com, dekan@example.com" required>
+                    <small class="text-muted">
+                        Masukkan alamat email penerima. Pisahkan dengan koma untuk beberapa penerima.
                     </small>
                 </div>
 
-                <div class="mb-4">
-                    <label class="filter-label">CC</label>
+                <div class="mb-3">
+                    <label class="form-label">CC</label>
                     <input type="text" class="form-control" name="cc" id="cc"
                            placeholder="Contoh: spm@example.com">
-                    <small class="text-muted" style="font-size: 0.8rem;">
-                        <i class="bi bi-info-circle"></i> Masukkan alamat email CC. Pisahkan dengan koma untuk beberapa email.
+                    <small class="text-muted">
+                        Masukkan alamat email CC. Pisahkan dengan koma untuk beberapa email.
                     </small>
                 </div>
 
-                <div class="mb-4">
-                    <label class="filter-label">Subjek Email <span class="text-danger">*</span></label>
+                <div class="mb-3">
+                    <label class="form-label">Subjek email <span class="text-danger">*</span></label>
                     <input type="text" class="form-control" name="subject" id="subject"
-                           placeholder="Contoh: Pengingat Pengumpulan Laporan Bulanan" required>
+                           placeholder="Contoh: Pengiriman Laporan GJM Triwulan I 2024" required>
                 </div>
 
-                <div class="mb-4">
-                    <label class="filter-label">Isi Pesan <span class="text-danger">*</span></label>
+                <div class="mb-3">
+                    <label class="form-label">Isi Pesan <span class="text-danger">*</span></label>
                     <textarea class="form-control" name="message" id="message" rows="10" 
                               placeholder="Tuliskan pesan Anda di sini..." required></textarea>
                 </div>
 
-                <div class="mb-4">
-                    <label class="filter-label">Lampiran Berkas</label>
+                <div class="mb-3">
+                    <label class="form-label">Lampiran Berkas</label>
                     <div class="d-flex gap-2 mb-3">
                         <button type="button" class="btn btn-outline-primary" onclick="showUploadExternal()">
                             <i class="bi bi-upload"></i> Upload File Eksternal
                         </button>
                         <button type="button" class="btn btn-outline-primary" onclick="showPilihLaporan()">
-                            <i class="bi bi-file-earmark-text"></i> Pilih dari Pelaporan
+                            <i class="bi bi-file-earmark-text"></i> Pilih dari Laporan GJM
                         </button>
                     </div>
                     
                     <!-- Upload File Eksternal -->
                     <div id="uploadExternalSection" style="display: none;">
-                        <div class="monitoring-card mb-3" style="border-left: 4px solid #5B9BD5;">
-                            <div style="padding: 1rem;">
-                                <input type="file" class="form-control" name="temp_attachments[]" id="tempAttachments" multiple>
-                                <small class="text-muted d-block mt-2" style="font-size: 0.8rem;">
-                                    <i class="bi bi-info-circle"></i> Anda dapat melampirkan beberapa file sekaligus
-                                </small>
-                            </div>
+                        <div class="border rounded p-3 mb-3" style="background: #f8f9fa;">
+                            <input type="file" class="form-control" name="temp_attachments[]" id="tempAttachments" multiple>
+                            <small class="text-muted d-block mt-2">
+                                <i class="bi bi-info-circle"></i> Anda dapat melampirkan beberapa file sekaligus
+                            </small>
                         </div>
                         <div id="pendingFileList" class="mt-2"></div>
                     </div>
                     
-                    <!-- Pilih dari Pelaporan -->
+                    <!-- Pilih dari Laporan GJM -->
                     <div id="pilihLaporanSection" style="display: none;">
-                        <div class="monitoring-card" style="border-left: 4px solid #5B9BD5;">
-                            <div style="padding: 1rem;">
-                                <h6 class="mb-3" style="font-weight: 600; color: #333;">Laporan Kuesioner Bulanan</h6>
-                                <div class="table-responsive">
-                                    <table class="table table-monitoring mb-0">
-                                        <thead>
-                                            <tr>
-                                                <th style="width: 50px;">
-                                                    <input type="checkbox" class="form-check-input" id="selectAllLaporan" onchange="toggleAllLaporan(this)">
-                                                </th>
-                                                <th>Periode</th>
-                                                <th>Tanggal</th>
-                                                <th class="text-center">Status</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            @forelse($laporanList as $laporan)
-                                            <tr>
-                                                <td>
-                                                    <input type="checkbox" class="form-check-input laporan-checkbox" 
-                                                           value="{{ $laporan->id }}"
-                                                           data-title="{{ $laporan->bulan }} {{ $laporan->tahun }}"
-                                                           onchange="showLaporanValidation()">
-                                                </td>
-                                                <td class="code-mk">{{ $laporan->bulan }} {{ $laporan->tahun }}</td>
-                                                <td class="text-secondary">{{ $laporan->created_at->format('d M Y') }}</td>
-                                                <td class="text-center">
-                                                    <span class="badge-gkm success">Selesai</span>
-                                                </td>
-                                            </tr>
-                                            @empty
-                                            <tr>
-                                                <td colspan="4" class="text-center py-4">
-                                                    <div class="empty-state">
-                                                        <i class="bi bi-inbox"></i>
-                                                        <p>Belum ada laporan yang tersedia</p>
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                            @endforelse
-                                        </tbody>
-                                    </table>
-                                </div>
-                                <small class="text-muted d-block mt-2" style="font-size: 0.8rem;">
-                                    <i class="bi bi-info-circle"></i> Pilih laporan yang akan dilampirkan dalam email
-                                </small>
+                        <div class="border rounded p-3" style="background: #f8f9fa;">
+                            <h6 class="mb-3">Laporan GJM</h6>
+                            <div class="table-responsive">
+                                <table class="table table-sm table-hover mb-0">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th width="50">
+                                                <input type="checkbox" class="form-check-input" id="selectAllLaporan" onchange="toggleAllLaporan(this)">
+                                            </th>
+                                            <th>Periode</th>
+                                            <th>Jenis Laporan</th>
+                                            <th>Tanggal</th>
+                                            <th>Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @forelse($laporanList as $laporan)
+                                        <tr>
+                                            <td>
+                                                <input type="checkbox" class="form-check-input laporan-checkbox" 
+                                                       value="{{ $laporan->id }}"
+                                                       data-title="{{ $laporan->getPeriodeLabel() }} - {{ $laporan->getJenisLaporanLabel() }}"
+                                                       onchange="showLaporanValidation()">
+                                            </td>
+                                            <td>{{ $laporan->getPeriodeLabel() }}</td>
+                                            <td>{{ $laporan->getJenisLaporanLabel() }}</td>
+                                            <td>{{ $laporan->created_at->format('d M Y') }}</td>
+                                            <td>
+                                                <span class="badge {{ $laporan->getStatusBadgeClass() }}">
+                                                    {{ ucfirst($laporan->status_laporan) }}
+                                                </span>
+                                            </td>
+                                        </tr>
+                                        @empty
+                                        <tr>
+                                            <td colspan="5" class="text-center py-3 text-muted">
+                                                Belum ada laporan yang tersedia
+                                            </td>
+                                        </tr>
+                                        @endforelse
+                                    </tbody>
+                                </table>
                             </div>
+                            <small class="text-muted d-block mt-2">
+                                <i class="bi bi-info-circle"></i> Pilih laporan yang akan dilampirkan dalam email
+                            </small>
                         </div>
                         <div id="pendingLaporanList" class="mt-2"></div>
                     </div>
                     
                     <!-- Daftar File yang Sudah Divalidasi -->
                     <div id="validatedFilesSection" class="mt-3" style="display: none;">
-                        <div class="monitoring-card" style="border-left: 4px solid #28a745;">
-                            <div style="padding: 1rem;">
-                                <h6 class="mb-3" style="color: #28a745; font-weight: 600;">
-                                    <i class="bi bi-check-circle"></i> File yang Akan Dikirim
-                                </h6>
-                                <div id="validatedFilesList"></div>
-                            </div>
+                        <div class="border rounded p-3" style="background: #e8f5e9;">
+                            <h6 class="mb-3 text-success">
+                                <i class="bi bi-check-circle"></i> File yang Akan Dikirim
+                            </h6>
+                            <div id="validatedFilesList"></div>
                         </div>
                     </div>
                 </div>
 
                 <div class="d-flex gap-2">
-                    <button type="button" class="btn btn-outline-primary" onclick="generateMessage()">
-                        <i class="bi bi-magic"></i> Generate Pesan AI
+                    <button type="button" class="btn btn-primary" onclick="generateMessage()">
+                        <i class="bi bi-magic"></i> Generate Pesan
                     </button>
-                    <button type="button" class="btn-reminder" onclick="sendLaporan()">
-                        <i class="bi bi-send"></i>
-                        <span>Kirim Reminder</span>
+                    <button type="button" class="btn btn-success" onclick="sendLaporan()">
+                        <i class="bi bi-send"></i> Kirim Laporan
                     </button>
                     <button type="button" class="btn btn-outline-secondary" onclick="previewMessage()">
                         <i class="bi bi-eye"></i> Preview
@@ -178,36 +166,32 @@
 <div class="modal fade" id="previewModal" tabindex="-1">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
-            <div class="modal-header" style="background: #f8f9fa; border-bottom: 2px solid #5B9BD5;">
-                <h5 class="modal-title" style="color: #333; font-weight: 600;">
-                    <i class="bi bi-eye" style="color: #5B9BD5;"></i> Preview Pesan
-                </h5>
+            <div class="modal-header">
+                <h5 class="modal-title">Preview Pesan</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
-            <div class="modal-body" style="padding: 1.5rem;">
+            <div class="modal-body">
                 <div class="mb-3">
-                    <label class="filter-label">Penerima</label>
-                    <p id="previewRecipients" class="mb-0" style="color: #495057;"></p>
+                    <strong>Penerima:</strong>
+                    <p id="previewRecipients" class="mb-0"></p>
                 </div>
                 <div class="mb-3">
-                    <label class="filter-label">CC</label>
-                    <p id="previewCC" class="mb-0" style="color: #495057;"></p>
+                    <strong>CC:</strong>
+                    <p id="previewCC" class="mb-0"></p>
                 </div>
                 <div class="mb-3">
-                    <label class="filter-label">Subjek</label>
-                    <p id="previewSubject" class="mb-0" style="color: #495057; font-weight: 600;"></p>
+                    <strong>Subjek:</strong>
+                    <p id="previewSubject" class="mb-0"></p>
                 </div>
-                <hr style="border-color: #e9ecef;">
+                <hr>
                 <div>
-                    <label class="filter-label">Isi Pesan</label>
-                    <pre id="previewMessage" class="mt-2" style="white-space: pre-wrap; font-family: inherit; background: #f8f9fa; padding: 1rem; border-radius: 6px; border: 1px solid #e9ecef;"></pre>
+                    <strong>Isi Pesan:</strong>
+                    <pre id="previewMessage" class="mt-2" style="white-space: pre-wrap; font-family: inherit;"></pre>
                 </div>
                 <div class="mt-3" id="previewAttachments"></div>
             </div>
-            <div class="modal-footer" style="background: #f8f9fa;">
-                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">
-                    <i class="bi bi-x-circle"></i> Tutup
-                </button>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Tutup</button>
             </div>
         </div>
     </div>
@@ -243,20 +227,17 @@ document.getElementById('tempAttachments').addEventListener('change', function(e
     
     if (this.files.length > 0) {
         const filesDiv = document.createElement('div');
-        filesDiv.className = 'monitoring-card mt-2';
-        filesDiv.style.borderLeft = '4px solid #ffc107';
-        filesDiv.innerHTML = '<div style="padding: 1rem;"><h6 class="mb-3" style="font-weight: 600; color: #333;">File yang Dipilih - Validasi:</h6></div>';
-        
-        const contentDiv = filesDiv.querySelector('div');
+        filesDiv.className = 'border rounded p-3 bg-light';
+        filesDiv.innerHTML = '<h6 class="mb-3">File yang Dipilih - Validasi:</h6>';
         
         Array.from(this.files).forEach((file, index) => {
             const fileItem = document.createElement('div');
             fileItem.className = 'd-flex align-items-center justify-content-between p-2 mb-2 bg-white rounded border';
             fileItem.innerHTML = `
                 <div class="d-flex align-items-center gap-2">
-                    <i class="bi bi-file-earmark" style="color: #5B9BD5; font-size: 1.25rem;"></i>
+                    <i class="bi bi-file-earmark text-primary"></i>
                     <div>
-                        <div class="small fw-bold" style="color: #333;">${file.name}</div>
+                        <div class="small fw-bold">${file.name}</div>
                         <div class="text-muted" style="font-size: 0.75rem;">${formatFileSize(file.size)}</div>
                     </div>
                 </div>
@@ -269,7 +250,7 @@ document.getElementById('tempAttachments').addEventListener('change', function(e
                     </button>
                 </div>
             `;
-            contentDiv.appendChild(fileItem);
+            filesDiv.appendChild(fileItem);
         });
         
         pendingList.appendChild(filesDiv);
@@ -301,21 +282,18 @@ function showLaporanValidation() {
     
     if (selectedCheckboxes.length > 0) {
         const laporanDiv = document.createElement('div');
-        laporanDiv.className = 'monitoring-card mt-2';
-        laporanDiv.style.borderLeft = '4px solid #ffc107';
-        laporanDiv.innerHTML = '<div style="padding: 1rem;"><h6 class="mb-3" style="font-weight: 600; color: #333;">Laporan yang Dipilih - Validasi:</h6></div>';
-        
-        const contentDiv = laporanDiv.querySelector('div');
+        laporanDiv.className = 'border rounded p-3 bg-light mt-2';
+        laporanDiv.innerHTML = '<h6 class="mb-3">Laporan yang Dipilih - Validasi:</h6>';
         
         selectedCheckboxes.forEach(checkbox => {
             const laporanItem = document.createElement('div');
             laporanItem.className = 'd-flex align-items-center justify-content-between p-2 mb-2 bg-white rounded border';
             laporanItem.innerHTML = `
                 <div class="d-flex align-items-center gap-2">
-                    <i class="bi bi-file-earmark-text" style="color: #5B9BD5; font-size: 1.25rem;"></i>
+                    <i class="bi bi-file-earmark-text text-success"></i>
                     <div>
-                        <div class="small fw-bold" style="color: #333;">Laporan ${checkbox.dataset.title}</div>
-                        <div class="text-muted" style="font-size: 0.75rem;">Dari database pelaporan</div>
+                        <div class="small fw-bold">Laporan ${checkbox.dataset.title}</div>
+                        <div class="text-muted" style="font-size: 0.75rem;">Dari database laporan GJM</div>
                     </div>
                 </div>
                 <div class="d-flex gap-2">
@@ -327,7 +305,7 @@ function showLaporanValidation() {
                     </button>
                 </div>
             `;
-            contentDiv.appendChild(laporanItem);
+            laporanDiv.appendChild(laporanItem);
         });
         
         pendingList.innerHTML = '';
@@ -399,7 +377,7 @@ function updateValidatedFilesDisplay() {
     // Display laporan files
     if (validatedFiles.laporan.length > 0) {
         const laporanDiv = document.createElement('div');
-        laporanDiv.innerHTML = '<strong class="text-success"><i class="bi bi-file-earmark-text"></i> Laporan dari Pelaporan:</strong>';
+        laporanDiv.innerHTML = '<strong class="text-success"><i class="bi bi-file-earmark-text"></i> Laporan GJM:</strong>';
         
         const laporanList = document.createElement('div');
         laporanList.className = 'mt-2';
@@ -461,7 +439,7 @@ function generateMessage() {
     generateBtn.disabled = true;
     generateBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Generating...';
 
-    fetch('{{ route("gkm.kirim-laporan.generate") }}', {
+    fetch('{{ route("gjm.kirim-laporan.generate") }}', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -561,7 +539,7 @@ function previewMessage() {
     }
     
     if (validatedFiles.laporan.length > 0) {
-        attachmentHtml += '<strong>Laporan Terpilih:</strong><ul class="mt-2">';
+        attachmentHtml += '<strong>Laporan GJM Terpilih:</strong><ul class="mt-2">';
         validatedFiles.laporan.forEach(laporan => {
             attachmentHtml += `<li>Laporan ${laporan.title}</li>`;
         });
@@ -613,7 +591,7 @@ function sendLaporan() {
     sendBtn.disabled = true;
     sendBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Mengirim...';
     
-    fetch('{{ route("gkm.kirim-laporan.send") }}', {
+    fetch('{{ route("gjm.kirim-laporan.send") }}', {
         method: 'POST',
         body: formData
     })
@@ -644,7 +622,7 @@ function sendLaporan() {
     .catch(error => {
         alert('Error: ' + error.message);
         sendBtn.disabled = false;
-        sendBtn.innerHTML = '<i class="bi bi-send"></i> Kirim Reminder';
+        sendBtn.innerHTML = '<i class="bi bi-send"></i> Kirim Laporan';
     });
 }
 </script>

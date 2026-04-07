@@ -1,291 +1,230 @@
 @extends('layouts.app')
 
-@section('page-title', 'Monitoring RPS & Materi')
-
-@section('styles')
-<style>
-    .stats-card {
-        border-left: 4px solid;
-        transition: transform 0.2s;
-    }
-    .stats-card:hover {
-        transform: translateY(-2px);
-    }
-    .stats-card.success {
-        border-left-color: #28a745;
-    }
-    .stats-card.warning {
-        border-left-color: #ffc107;
-    }
-    .stats-card.danger {
-        border-left-color: #dc3545;
-    }
-    .filter-section {
-        background: #f8f9fa;
-        border-radius: 8px;
-        padding: 1.5rem;
-        margin-bottom: 1.5rem;
-    }
-    .filter-section .form-label {
-        font-weight: 600;
-        margin-bottom: 0.5rem;
-    }
-    .status-badge {
-        padding: 0.5rem 1rem;
-        border-radius: 6px;
-        font-size: 0.875rem;
-        font-weight: 500;
-    }
-    .table-custom thead th {
-        background-color: #f8f9fa;
-        color: var(--primary-color);
-        font-weight: 600;
-        border-bottom: 2px solid #dee2e6;
-        padding: 1rem;
-    }
-    .table-custom tbody td {
-        padding: 1rem;
-        vertical-align: middle;
-    }
-    .dosen-info {
-        display: flex;
-        flex-direction: column;
-        gap: 0.25rem;
-    }
-    .dosen-name {
-        font-weight: 600;
-        color: #333;
-    }
-    .dosen-email {
-        font-size: 0.875rem;
-        color: #6c757d;
-    }
-    .mk-badge {
-        display: inline-block;
-        padding: 0.35rem 0.75rem;
-        margin: 0.15rem;
-        background: #e9ecef;
-        border-radius: 4px;
-        font-size: 0.875rem;
-        color: #495057;
-    }
-    .btn-primary {
-        font-weight: 500;
-        transition: all 0.3s ease;
-    }
-    .btn-primary:hover {
-        transform: translateY(-1px);
-        box-shadow: 0 4px 12px rgba(30, 60, 114, 0.3);
-    }
-</style>
-@endsection
+@section('page-title', 'Monitoring RPS')
 
 @section('content')
 <div style="padding: 1.5rem;">
-    <!-- Header Section -->
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <div>
-            <h4 class="mb-1">MONITORING MATERI & RPS</h4>
-            <p class="text-muted mb-0">
-                <i class="bi bi-calendar3"></i> Periode: {{ date('F Y') }} - Minggu ke-4
-            </p>
-        </div>
-    </div>
-
-    <!-- Statistics Cards -->
-    <div class="row mb-4">
-        <div class="col-md-4">
-            <div class="card stats-card success border-0 shadow-sm">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <div>
-                            <h3 class="mb-0 text-success">0</h3>
-                            <small class="text-muted">Sudah Upload Lengkap</small>
-                        </div>
-                        <div class="text-success" style="font-size: 2rem;">
-                            <i class="bi bi-check-circle-fill"></i>
-                        </div>
-                    </div>
+    <!-- Filter Section -->
+    <div class="filter-card">
+        <form method="GET" id="filterForm">
+            <div class="row g-3 align-items-end">
+                <div class="col-md-3">
+                    <label class="filter-label">Semester</label>
+                    <select name="semester" class="form-select">
+                        <option value="">Semua Semester</option>
+                        <option value="1" {{ request('semester') == '1' ? 'selected' : '' }}>Ganjil</option>
+                        <option value="2" {{ request('semester') == '2' ? 'selected' : '' }}>Genap</option>
+                    </select>
                 </div>
-            </div>
-        </div>
-        <div class="col-md-4">
-            <div class="card stats-card warning border-0 shadow-sm">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <div>
-                            <h3 class="mb-0 text-warning">{{ $dosenList->total() }}</h3>
-                            <small class="text-muted">Sedang Proses</small>
-                        </div>
-                        <div class="text-warning" style="font-size: 2rem;">
-                            <i class="bi bi-clock-fill"></i>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-4">
-            <div class="card stats-card danger border-0 shadow-sm">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <div>
-                            <h3 class="mb-0 text-danger">0</h3>
-                            <small class="text-muted">Belum Upload</small>
-                        </div>
-                        <div class="text-danger" style="font-size: 2rem;">
-                            <i class="bi bi-x-circle-fill"></i>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Filter & Action Section -->
-    <div class="filter-section">
-        <div class="row g-3">
-            <div class="col-md-7">
-                <label class="form-label small text-muted mb-2">
-                    <i class="bi bi-funnel"></i> Filter Dosen
-                </label>
-                <form method="GET">
-                    <div class="input-group">
-                        <span class="input-group-text bg-white">
-                            <i class="bi bi-search"></i>
-                        </span>
-                        <select name="dosen_id" class="form-select" onchange="this.form.submit()">
-                            <option value="">Cari dosen atau mata kuliah...</option>
-                            @foreach($dosenList as $dos)
-                                <option value="{{ $dos->id }}" @if(request('dosen_id') == $dos->id) selected @endif>
-                                    {{ $dos->nama_lengkap }}
+                <div class="col-md-3">
+                    <label class="filter-label">Tahun Ajaran</label>
+                    <select name="tahun_ajaran" class="form-select">
+                        <option value="">Semua Tahun Ajaran</option>
+                        @if(isset($tahunAjaranList) && count($tahunAjaranList) > 0)
+                            @foreach($tahunAjaranList as $ta)
+                                <option value="{{ $ta['id_thn_ajaran'] }}" 
+                                    {{ request('tahun_ajaran') == $ta['id_thn_ajaran'] ? 'selected' : '' }}>
+                                    {{ $ta['nm_thn_ajaran'] }}
                                 </option>
                             @endforeach
-                        </select>
-                    </div>
-                </form>
+                        @else
+                            <option value="2020" {{ request('tahun_ajaran') == '2020' ? 'selected' : '' }}>2020</option>
+                            <option value="2021" {{ request('tahun_ajaran') == '2021' ? 'selected' : '' }}>2021</option>
+                            <option value="2022" {{ request('tahun_ajaran') == '2022' ? 'selected' : '' }}>2022</option>
+                            <option value="2023" {{ request('tahun_ajaran') == '2023' ? 'selected' : '' }}>2023</option>
+                            <option value="2024" {{ request('tahun_ajaran') == '2024' ? 'selected' : '' }}>2024</option>
+                        @endif
+                    </select>
+                    <small class="text-muted">💡 Tip: Coba tahun 2020 jika tahun lain tidak ada data</small>
+                </div>
+                <div class="col-md-3">
+                    <button type="submit" class="btn btn-primary w-100" style="padding: 0.6rem;">
+                        <i class="bi bi-funnel"></i> Filter
+                    </button>
+                </div>
+                <div class="col-md-3">
+                    <form method="POST" action="{{ route('gkm.monitoring-rps.clear-cache') }}" style="display: inline;">
+                        @csrf
+                        <button type="submit" class="btn btn-warning w-100" style="padding: 0.6rem;" 
+                                onclick="return confirm('Refresh data dari API? Proses ini membutuhkan waktu.')">
+                            <i class="bi bi-arrow-clockwise"></i> Refresh Data
+                        </button>
+                    </form>
+                </div>
             </div>
-            <div class="col-md-5">
-                <label class="form-label small text-muted mb-2">
-                    <i class="bi bi-send"></i> Aksi Cepat
-                </label>
-                <a href="{{ route('gkm.monitoring-rps.ceklist') }}" class="btn btn-primary w-100 d-flex align-items-center justify-content-center gap-2" style="padding: 0.6rem 1rem;">
+        </form>
+        
+        @if(session('cache_cleared'))
+        <div class="alert alert-success mt-3 mb-0">
+            <i class="bi bi-check-circle"></i> Cache berhasil dihapus. Data telah diperbarui dari API.
+        </div>
+        @endif
+        
+        @if(session('error'))
+        <div class="alert alert-danger mt-3 mb-0">
+            <i class="bi bi-exclamation-triangle"></i> {{ session('error') }}
+        </div>
+        @endif
+        
+        @if(request()->has('semester') && request()->has('tahun_ajaran') && request('semester') != '' && request('tahun_ajaran') != '')
+            @if(count($pagination) === 0)
+            <div class="alert alert-warning mt-3 mb-0">
+                <i class="bi bi-info-circle"></i> 
+                <strong>Tidak ada data matakuliah untuk filter yang dipilih.</strong>
+                <br>
+                <small>
+                    Semester: <strong>{{ request('semester') == '1' ? 'Ganjil' : 'Genap' }}</strong>, 
+                    Tahun Ajaran: <strong>{{ request('tahun_ajaran') }}</strong>
+                </small>
+                <br>
+                <small class="text-muted">
+                    Kemungkinan penyebab: Data belum tersedia di API untuk kombinasi filter ini. 
+                    Silakan coba filter lain atau hubungi administrator jika masalah berlanjut.
+                </small>
+            </div>
+            @endif
+            
+            @php
+                $prodiKode = auth()->user()->prodi ? auth()->user()->prodi->kode_prodi : 'TRPL';
+                $prodiIdMap = ['TRPL' => 4, 'TI' => 1, 'NM' => 3];
+                $prodiId = $prodiIdMap[$prodiKode] ?? 4;
+                $cacheKey = "monitoring_rps_{$prodiId}_" . request('semester', '1') . "_" . request('tahun_ajaran', '2020');
+                $cacheExists = Cache::has($cacheKey);
+                $cacheExpiry = $cacheExists ? Cache::get($cacheKey . '_time', now()) : null;
+            @endphp
+            
+            <div class="alert alert-info mt-3 mb-0">
+                <i class="bi bi-info-circle"></i> 
+                @if($cacheExists)
+                    Data di-cache dan akan diperbarui otomatis dalam 10 menit. Gunakan tombol "Refresh Data" untuk memperbarui sekarang.
+                @else
+                    Data akan di-cache selama 10 menit setelah dimuat. Gunakan tombol "Refresh Data" untuk memperbarui dari API.
+                @endif
+            </div>
+        @endif
+    </div>
+
+    <!-- Monitoring Table - Only show after filter is applied -->
+    @if(request()->has('semester') && request()->has('tahun_ajaran') && request('semester') != '' && request('tahun_ajaran') != '')
+    <div class="monitoring-card">
+        <div class="monitoring-header">
+            <i class="bi bi-eye"></i>
+            <h6>Monitoring Status</h6>
+            <div style="margin-left: auto;">
+                <a href="{{ route('gkm.monitoring-rps.ceklist') }}" class="btn-reminder">
                     <i class="bi bi-send-fill"></i>
-                    <span>Kirim Reminder ke yang Belum Upload</span>
+                    <span>Kirim Reminder</span>
                 </a>
             </div>
         </div>
-    </div>
-
-    <!-- Table Dosen per Mata Kuliah -->
-    <div class="card border-0 shadow-sm">
-        <div class="card-body p-0">
-            <div class="table-responsive">
-                <table class="table table-custom table-hover mb-0">
-                    <thead>
+        <div class="table-responsive">
+            <table class="table table-monitoring">
+                <thead>
+                    <tr>
+                        <th style="width: 15%;">Kode MK</th>
+                        <th style="width: 35%;">Nama Matakuliah</th>
+                        <th style="width: 35%;">Dosen Pengampu</th>
+                        <th style="width: 15%;" class="text-center">RPS</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @forelse($pagination as $matkul)
                         <tr>
-                            <th style="width: 5%;">No</th>
-                            <th style="width: 25%;">Dosen</th>
-                            <th style="width: 30%;">Mata Kuliah</th>
-                            <th style="width: 20%;">Status Upload Materi</th>
-                            <th style="width: 20%;">Status RPS</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @forelse($dosenList as $i => $dos)
-                            <tr>
-                                <td class="text-center">{{ $dosenList->firstItem() + $i }}</td>
-                                <td>
-                                    <div class="dosen-info">
-                                        <span class="dosen-name">{{ $dos->nama_lengkap }}</span>
-                                        <span class="dosen-email">
-                                            <i class="bi bi-envelope"></i> {{ $dos->kontak_email }}
+                            <td class="code-mk">{{ $matkul['kode_mk'] }}</td>
+                            <td class="nama-mk">{{ $matkul['nama_matkul'] }}</td>
+                            <td class="dosen-name">{{ $matkul['dosen_pengampu'] }}</td>
+                            <td class="text-center">
+                                @if(isset($matkul['status_rps']))
+                                    @if($matkul['status_rps'] === 'SUDAH UPLOAD')
+                                        <span class="status-icon success" title="RPS Sudah Upload">
+                                            <i class="bi bi-check-lg"></i>
                                         </span>
-                                    </div>
-                                </td>
-                                <td>
-                                    @if($dos->matakuliah && $dos->matakuliah->count() > 0)
-                                        <div class="d-flex flex-wrap gap-1">
-                                            @foreach($dos->matakuliah->take(3) as $mk)
-                                                <span class="mk-badge">{{ $mk->nama_mk }}</span>
-                                            @endforeach
-                                            @if($dos->matakuliah->count() > 3)
-                                                <span class="mk-badge" style="background: #dee2e6; font-weight: 600;">
-                                                    +{{ $dos->matakuliah->count() - 3 }} lainnya
-                                                </span>
-                                            @endif
-                                        </div>
+                                    @elseif($matkul['status_rps'] === 'ERROR')
+                                        <span class="status-icon warning" title="Error mengambil data">
+                                            <i class="bi bi-exclamation-triangle"></i>
+                                        </span>
                                     @else
-                                        <span class="text-muted">
-                                            <i class="bi bi-dash-circle"></i> Belum ada mata kuliah
+                                        <span class="status-icon danger" title="RPS Belum Upload">
+                                            <i class="bi bi-x-lg"></i>
                                         </span>
                                     @endif
-                                </td>
-                                <td>
-                                    <span class="badge bg-warning status-badge">
-                                        <i class="bi bi-clock"></i> Sedang Proses
+                                @else
+                                    <span class="status-icon danger" title="Status tidak tersedia">
+                                        <i class="bi bi-question-lg"></i>
                                     </span>
-                                </td>
-                                <td>
-                                    <span class="badge bg-warning status-badge">
-                                        <i class="bi bi-clock"></i> Belum Upload
-                                    </span>
-                                </td>
-                            </tr>
-                        @empty
-                            <tr>
-                                <td colspan="5" class="text-center py-5">
-                                    <div class="text-muted">
-                                        <i class="bi bi-inbox" style="font-size: 3rem;"></i>
-                                        <p class="mt-2 mb-0">Tidak ada data dosen</p>
-                                    </div>
-                                </td>
-                            </tr>
-                        @endforelse
-                    </tbody>
-                </table>
-            </div>
+                                @endif
+                            </td>
+                        </tr>
+                    @empty
+                        <tr>
+                            <td colspan="4" class="text-center py-5">
+                                <div class="text-muted">
+                                    <i class="bi bi-inbox" style="font-size: 3rem;"></i>
+                                    <p class="mt-2 mb-0">Tidak ada data monitoring</p>
+                                </div>
+                            </td>
+                        </tr>
+                    @endforelse
+                </tbody>
+            </table>
         </div>
     </div>
-
-    <!-- Pagination -->
-    @if($dosenList->hasPages())
-    <div class="mt-4 d-flex justify-content-between align-items-center">
-        <div class="text-muted small">
-            Menampilkan {{ $dosenList->firstItem() }} - {{ $dosenList->lastItem() }} dari {{ $dosenList->total() }} dosen
-        </div>
-        <nav>
-            {{ $dosenList->links() }}
-        </nav>
+    @else
+    <!-- Message when no filter is applied -->
+    <div class="alert alert-info mt-4">
+        <i class="bi bi-info-circle"></i> 
+        Silakan pilih Semester dan Tahun Ajaran, kemudian klik tombol Filter untuk menampilkan data monitoring RPS.
     </div>
     @endif
 
-    <!-- Legend -->
-    <div class="card border-0 shadow-sm mt-4">
-        <div class="card-body">
-            <h6 class="mb-3">
-                <i class="bi bi-info-circle"></i> Keterangan Status
-            </h6>
-            <div class="d-flex flex-wrap gap-3">
-                <div class="d-flex align-items-center gap-2">
-                    <span class="badge bg-success status-badge">
-                        <i class="bi bi-check-circle"></i> Lengkap
-                    </span>
-                    <small class="text-muted">Sudah upload semua</small>
-                </div>
-                <div class="d-flex align-items-center gap-2">
-                    <span class="badge bg-warning status-badge">
-                        <i class="bi bi-clock"></i> Sedang Proses
-                    </span>
-                    <small class="text-muted">Dalam proses upload</small>
-                </div>
-                <div class="d-flex align-items-center gap-2">
-                    <span class="badge bg-danger status-badge">
-                        <i class="bi bi-x-circle"></i> Belum Upload
-                    </span>
-                    <small class="text-muted">Belum ada upload</small>
-                </div>
-            </div>
-        </div>
+    <!-- Pagination -->
+    @if($pagination->hasPages())
+    <div class="mt-4 d-flex justify-content-center">
+        {{ $pagination->links() }}
     </div>
+    @endif
 </div>
+
+<script>
+// Show loading overlay when filter form is submitted
+document.getElementById('filterForm').addEventListener('submit', function() {
+    showLoadingOverlay('Memuat data dari API...');
+});
+
+// Show loading overlay when refresh button is clicked
+document.querySelectorAll('form[action*="clear-cache"]').forEach(form => {
+    form.addEventListener('submit', function() {
+        showLoadingOverlay('Memperbarui data dari API... Mohon tunggu, proses ini membutuhkan waktu.');
+    });
+});
+
+function showLoadingOverlay(message) {
+    const overlay = document.createElement('div');
+    overlay.id = 'loadingOverlay';
+    overlay.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.7);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 9999;
+    `;
+    
+    overlay.innerHTML = `
+        <div style="background: white; padding: 2rem; border-radius: 10px; text-align: center; max-width: 400px;">
+            <div class="spinner-border text-primary mb-3" role="status" style="width: 3rem; height: 3rem;">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <h5 class="mb-2">Mohon Tunggu</h5>
+            <p class="text-muted mb-0">${message}</p>
+        </div>
+    `;
+    
+    document.body.appendChild(overlay);
+}
+</script>
 @endsection

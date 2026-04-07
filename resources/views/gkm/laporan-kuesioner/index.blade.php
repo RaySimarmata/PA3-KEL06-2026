@@ -3,155 +3,148 @@
 @section('page-title', 'Laporan Kuesioner Bulanan')
 
 @section('content')
-<div class="container-fluid">
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="d-flex justify-content-between align-items-center">
-                <div>
-                    <h4>Laporan Kuesioner Bulanan</h4>
-                    <p class="text-muted">Laporan bulanan yang dihasilkan oleh AI Agent</p>
+    <div style="padding: 1.5rem;">
+        <!-- Filter Section -->
+        <div class="filter-card mb-4">
+            <form method="GET" action="{{ route('gkm.laporan-kuesioner.index') }}">
+                <div class="row g-3 align-items-end">
+                    <div class="col-md-4">
+                        <label class="filter-label">Periode</label>
+                        <select name="periode" class="form-select">
+                            <option value="">Semua Periode</option>
+                            @foreach($periodes as $p)
+                                <option value="{{ $p->periode }}" {{ request('periode') == $p->periode ? 'selected' : '' }}>
+                                    {{ $p->bulan }} {{ $p->tahun }}
+                                </option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="filter-label">Status</label>
+                        <select name="status" class="form-select">
+                            <option value="">Semua Status</option>
+                            <option value="pending" {{ request('status') == 'pending' ? 'selected' : '' }}>Menunggu</option>
+                            <option value="processing" {{ request('status') == 'processing' ? 'selected' : '' }}>Sedang Diproses</option>
+                            <option value="completed" {{ request('status') == 'completed' ? 'selected' : '' }}>Selesai</option>
+                            <option value="error" {{ request('status') == 'error' ? 'selected' : '' }}>Error</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <button type="submit" class="btn btn-primary w-100" style="padding: 0.6rem;">
+                            <i class="bi bi-funnel"></i> Filter
+                        </button>
+                    </div>
                 </div>
-                <div>
-                    <a href="{{ route('gkm.laporan-kuesioner.template.index') }}" class="btn btn-outline-primary me-2">
+            </form>
+        </div>
+
+        <!-- Monitoring Table -->
+        <div class="monitoring-card">
+            <div class="monitoring-header">
+                <i class="bi bi-file-earmark-text" style="color: #5B9BD5;"></i>
+                <h6>Laporan Kuesioner Bulanan</h6>
+                <div style="margin-left: auto; display: flex; gap: 0.5rem;">
+                    <a href="{{ route('gkm.laporan-kuesioner.template.index') }}" class="btn btn-sm btn-outline-primary">
                         <i class="bi bi-file-earmark-text"></i> Kelola Template
                     </a>
-                    <a href="{{ route('gkm.laporan-kuesioner.create') }}" class="btn btn-primary">
-                        <i class="bi bi-plus-circle"></i> Generate Laporan Baru
+                    <a href="{{ route('gkm.laporan-kuesioner.create') }}" class="btn-reminder">
+                        <i class="bi bi-plus-circle"></i>
+                        <span>Generate Laporan Baru</span>
                     </a>
                 </div>
             </div>
-        </div>
-    </div>
 
-    <!-- Filter -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="card">
-                <div class="card-body">
-                    <form method="GET" action="{{ route('gkm.laporan-kuesioner.index') }}">
-                        <div class="row">
-                            <div class="col-md-4">
-                                <label class="form-label">Periode</label>
-                                <select name="periode" class="form-select">
-                                    <option value="">Semua Periode</option>
-                                    @foreach($periodes as $p)
-                                        <option value="{{ $p->periode }}" {{ request('periode') == $p->periode ? 'selected' : '' }}>
-                                            {{ $p->bulan }} {{ $p->tahun }}
-                                        </option>
-                                    @endforeach
-                                </select>
-                            </div>
-                            <div class="col-md-4">
-                                <label class="form-label">Status</label>
-                                <select name="status" class="form-select">
-                                    <option value="">Semua Status</option>
-                                    <option value="pending" {{ request('status') == 'pending' ? 'selected' : '' }}>Menunggu</option>
-                                    <option value="processing" {{ request('status') == 'processing' ? 'selected' : '' }}>Sedang Diproses</option>
-                                    <option value="completed" {{ request('status') == 'completed' ? 'selected' : '' }}>Selesai</option>
-                                    <option value="error" {{ request('status') == 'error' ? 'selected' : '' }}>Error</option>
-                                </select>
-                            </div>
-                            <div class="col-md-4">
-                                <label class="form-label">&nbsp;</label>
-                                <button type="submit" class="btn btn-primary w-100">
-                                    <i class="bi bi-search"></i> Filter
-                                </button>
-                            </div>
-                        </div>
-                    </form>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- List Laporan -->
-    <div class="row">
-        <div class="col-12">
-            <div class="card">
-                <div class="card-body">
-                    <div class="table-responsive">
-                        <table class="table table-hover">
-                            <thead>
-                                <tr>
-                                    <th>Periode</th>
-                                    <th>Program Studi</th>
-                                    <th>Total Kuesioner</th>
-                                    <th>Index Kepuasan</th>
-                                    <th>Status</th>
-                                    <th>Dibuat</th>
-                                    <th>Aksi</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @forelse($laporanList as $laporan)
-                                <tr>
-                                    <td>
-                                        <strong>{{ $laporan->formatted_periode }}</strong>
-                                    </td>
-                                    <td>{{ $laporan->prodi->nama_prodi ?? '-' }}</td>
-                                    <td>{{ $laporan->total_kuesioner }}</td>
-                                    <td>
-                                        @if($laporan->index_kepuasan_rata_rata)
-                                            <span class="badge bg-primary">
+            <div class="table-responsive">
+                <table class="table table-monitoring">
+                    <thead>
+                        <tr>
+                            <th style="width: 15%;">Periode</th>
+                            <th style="width: 15%;">Program Studi</th>
+                            <th style="width: 10%;" class="text-center">Total Kuesioner</th>
+                            <th style="width: 15%;" class="text-center">Index Kepuasan</th>
+                            <th style="width: 12%;" class="text-center">Status</th>
+                            <th style="width: 13%;">Dibuat</th>
+                            <th style="width: 20%;" class="text-center">Aksi</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @forelse($laporanList as $laporan)
+                            <tr>
+                                <td class="code-mk">{{ $laporan->formatted_periode }}</td>
+                                <td class="text-secondary">{{ $laporan->prodi->nama_prodi ?? '-' }}</td>
+                                <td class="text-center">
+                                    <span class="badge-gkm info">{{ $laporan->total_kuesioner }}</span>
+                                </td>
+                                <td class="text-center">
+                                    @if($laporan->index_kepuasan_rata_rata)
+                                        <div>
+                                            <span class="badge-gkm success" style="font-size: 0.9rem;">
                                                 {{ number_format($laporan->index_kepuasan_rata_rata, 2) }}
                                             </span>
-                                            <small class="text-muted">({{ number_format($laporan->persen_kepuasan_rata_rata, 1) }}%)</small>
-                                        @else
-                                            -
-                                        @endif
-                                    </td>
-                                    <td>
-                                        <span class="badge bg-{{ $laporan->status_badge }}">
-                                            {{ $laporan->status_label }}
-                                        </span>
-                                    </td>
-                                    <td>{{ $laporan->created_at->format('d/m/Y H:i') }}</td>
-                                    <td>
-                                        <div class="btn-group" role="group">
-                                            <a href="{{ route('gkm.laporan-kuesioner.show', $laporan->id) }}" 
-                                               class="btn btn-sm btn-outline-primary"
-                                               title="Lihat Detail">
-                                                <i class="bi bi-eye"></i> Detail
-                                            </a>
-                                            
-                                            @if($laporan->status == 'completed' && $laporan->file_word)
-                                                <a href="{{ route('gkm.laporan-kuesioner.download', [$laporan->id, 'word']) }}" 
-                                                   class="btn btn-sm btn-outline-success"
-                                                   title="Download Word">
-                                                    <i class="bi bi-download"></i> Word
-                                                </a>
-                                            @endif
-                                            
-                                            <form action="{{ route('gkm.laporan-kuesioner.destroy', $laporan->id) }}" 
-                                                  method="POST" class="d-inline"
-                                                  onsubmit="return confirm('Yakin ingin menghapus laporan ini?')">
-                                                @csrf
-                                                @method('DELETE')
-                                                <button type="submit" class="btn btn-sm btn-outline-danger" title="Hapus">
-                                                    <i class="bi bi-trash"></i>
-                                                </button>
-                                            </form>
+                                            <div class="text-muted" style="font-size: 0.75rem; margin-top: 0.25rem;">
+                                                ({{ number_format($laporan->persen_kepuasan_rata_rata, 1) }}%)
+                                            </div>
                                         </div>
-                                    </td>
-                                </tr>
-                                @empty
-                                <tr>
-                                    <td colspan="7" class="text-center text-muted py-4">
-                                        <i class="bi bi-inbox fs-1 d-block mb-2"></i>
-                                        Belum ada laporan. <a href="{{ route('gkm.laporan-kuesioner.create') }}" class="fw-bold">Generate laporan baru</a>
-                                    </td>
-                                </tr>
-                                @endforelse
-                            </tbody>
-                        </table>
-                    </div>
-
-                    <div class="mt-3">
-                        {{ $laporanList->links() }}
-                    </div>
-                </div>
+                                    @else
+                                        <span class="text-muted">-</span>
+                                    @endif
+                                </td>
+                                <td class="text-center">
+                                    <span class="badge-gkm {{ $laporan->status_badge == 'success' ? 'success' : ($laporan->status_badge == 'warning' ? 'warning' : ($laporan->status_badge == 'danger' ? 'danger' : 'info')) }}">
+                                        {{ $laporan->status_label }}
+                                    </span>
+                                </td>
+                                <td class="text-secondary" style="font-size: 0.85rem;">
+                                    {{ $laporan->created_at->format('d/m/Y H:i') }}
+                                </td>
+                                <td class="text-center">
+                                    <div class="btn-group" role="group">
+                                        <a href="{{ route('gkm.laporan-kuesioner.show', $laporan->id) }}" 
+                                           class="btn btn-sm btn-outline-primary"
+                                           title="Lihat Detail">
+                                            <i class="bi bi-eye"></i>
+                                        </a>
+                                        
+                                        @if($laporan->status == 'completed' && $laporan->file_word)
+                                            <a href="{{ route('gkm.laporan-kuesioner.download', [$laporan->id, 'word']) }}" 
+                                               class="btn btn-sm btn-outline-success"
+                                               title="Download Word">
+                                                <i class="bi bi-download"></i>
+                                            </a>
+                                        @endif
+                                        
+                                        <form action="{{ route('gkm.laporan-kuesioner.destroy', $laporan->id) }}" 
+                                              method="POST" class="d-inline"
+                                              onsubmit="return confirm('Yakin ingin menghapus laporan ini?')">
+                                            @csrf
+                                            @method('DELETE')
+                                            <button type="submit" class="btn btn-sm btn-outline-danger" title="Hapus">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                        @empty
+                            <tr>
+                                <td colspan="7" class="text-center py-5">
+                                    <div class="empty-state">
+                                        <i class="bi bi-inbox"></i>
+                                        <p>Belum ada laporan. <a href="{{ route('gkm.laporan-kuesioner.create') }}" style="color: #5B9BD5; font-weight: 600;">Generate laporan baru</a></p>
+                                    </div>
+                                </td>
+                            </tr>
+                        @endforelse
+                    </tbody>
+                </table>
             </div>
         </div>
+
+        <!-- Pagination -->
+        @if($laporanList->hasPages())
+            <div class="mt-4 d-flex justify-content-center">
+                {{ $laporanList->links() }}
+            </div>
+        @endif
     </div>
-</div>
 @endsection
