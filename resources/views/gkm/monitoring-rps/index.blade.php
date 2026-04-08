@@ -35,7 +35,6 @@
                             <option value="2024" {{ request('tahun_ajaran') == '2024' ? 'selected' : '' }}>2024</option>
                         @endif
                     </select>
-                    <small class="text-muted">💡 Tip: Coba tahun 2020 jika tahun lain tidak ada data</small>
                 </div>
                 <div class="col-md-3">
                     <button type="submit" class="btn btn-primary w-100" style="padding: 0.6rem;">
@@ -67,9 +66,9 @@
         @endif
         
         @if(request()->has('semester') && request()->has('tahun_ajaran') && request('semester') != '' && request('tahun_ajaran') != '')
-            @if(count($pagination) === 0)
+            @if(isset($noDataFromAPI) && $noDataFromAPI)
             <div class="alert alert-warning mt-3 mb-0">
-                <i class="bi bi-info-circle"></i> 
+                <i class="bi bi-exclamation-circle"></i> 
                 <strong>Tidak ada data matakuliah untuk filter yang dipilih.</strong>
                 <br>
                 <small>
@@ -96,9 +95,9 @@
             <div class="alert alert-info mt-3 mb-0">
                 <i class="bi bi-info-circle"></i> 
                 @if($cacheExists)
-                    Data di-cache dan akan diperbarui otomatis dalam 10 menit. Gunakan tombol "Refresh Data" untuk memperbarui sekarang.
+                    Data di-cache dan akan diperbarui otomatis dalam 30 menit. Gunakan tombol "Refresh Data" untuk memperbarui sekarang.
                 @else
-                    Data akan di-cache selama 10 menit setelah dimuat. Gunakan tombol "Refresh Data" untuk memperbarui dari API.
+                    Data akan di-cache selama 30 menit setelah dimuat. Gunakan tombol "Refresh Data" untuk memperbarui dari API.
                 @endif
             </div>
         @endif
@@ -178,7 +177,7 @@
     @endif
 
     <!-- Pagination -->
-    @if($pagination->hasPages())
+    @if(isset($pagination) && $pagination->hasPages())
     <div class="mt-4 d-flex justify-content-center">
         {{ $pagination->links() }}
     </div>

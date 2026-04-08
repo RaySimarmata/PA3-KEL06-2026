@@ -43,4 +43,10 @@ return [
         'model' => env('LLM_MODEL', 'openai/gpt-oss-20b'),
     ],
 
+    'library' => [
+        'url' => env('LIBRARY_API_URL', 'https://cis-dev.del.ac.id/api'),
+        'username' => env('LIBRARY_API_USERNAME'),
+        'password' => env('LIBRARY_API_PASSWORD'),
+    ],
+
 ];

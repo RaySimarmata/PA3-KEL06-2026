@@ -10,14 +10,110 @@ class ExternalAPIService
     protected $baseUrl;
     protected $token;
     protected $timeout;
-    protected $tokenManager;
 
     public function __construct()
     {
-        $this->baseUrl = env('API_BASE_URL', 'http://localhost');
-        $this->tokenManager = new \App\Services\APITokenManager();
-        $this->token = $this->tokenManager->getToken(); // Auto get/refresh token
+        $this->baseUrl = config('services.library.url');
         $this->timeout = 120; // seconds - increased for monitoring RPS
+        $this->token = $this->getToken();
+    }
+
+    /**
+     * Get token with auto-refresh capability
+     * Cache token for ~58 minutes (3500 seconds)
+     * 
+     * @param bool $forceRefresh Force refresh token
+     * @return string|null
+     */
+    private function getToken($forceRefresh = false)
+    {
+        if ($forceRefresh) {
+            \Cache::forget('library_api_token');
+        }
+
+        return \Cache::remember('library_api_token', 3500, function () {
+            $baseUrl = config('services.library.url');
+            
+            try {
+                $response = Http::asForm()->post($baseUrl . '/jwt-api/do-auth', [
+                    'username' => config('services.library.username'),
+                    'password' => config('services.library.password'),
+                ]);
+
+                $data = $response->json();
+
+                if ($response->successful() && isset($data['token'])) {
+                    Log::info('Library API token refreshed successfully');
+                    return $data['token'];
+                }
+
+                Log::error('Failed to get library API token', [
+                    'status' => $response->status(),
+                    'response' => $data
+                ]);
+
+                return null;
+            } catch (\Exception $e) {
+                Log::error('Library API token exception', [
+                    'error' => $e->getMessage()
+                ]);
+                return null;
+            }
+        });
+    }
+
+    /**
+     * Call API with automatic token refresh on 401
+     * 
+     * @param string $url
+     * @param array $params
+     * @param string $method
+     * @return array|null
+     */
+    private function callApi($url, $params = [], $method = 'GET')
+    {
+        $token = $this->token;
+        
+        if (!$token) {
+            Log::error('No API token available');
+            return null;
+        }
+
+        try {
+            $request = Http::withToken($token)->timeout($this->timeout);
+            
+            $response = $method === 'POST' 
+                ? $request->post($url, $params)
+                : $request->get($url, $params);
+
+            // Token expired - refresh and retry
+            if ($response->status() === 401) {
+                Log::info('Token expired (401), refreshing...');
+                
+                $token = $this->getToken(true);
+                $this->token = $token;
+                
+                if (!$token) {
+                    Log::error('Failed to refresh token');
+                    return null;
+                }
+
+                // Retry with new token
+                $request = Http::withToken($token)->timeout($this->timeout);
+                $response = $method === 'POST' 
+                    ? $request->post($url, $params)
+                    : $request->get($url, $params);
+            }
+
+            return $response->successful() ? $response->json() : null;
+            
+        } catch (\Exception $e) {
+            Log::error('API call exception', [
+                'url' => $url,
+                'error' => $e->getMessage()
+            ]);
+            return null;
+        }
     }
 
     /**
@@ -28,25 +124,14 @@ class ExternalAPIService
     public function getDosen()
     {
         try {
-            $response = Http::withHeaders([
-                'Authorization' => 'Bearer ' . $this->token,
-                'Accept' => 'application/json',
-            ])
-            ->timeout($this->timeout)
-            ->get($this->baseUrl . '/library-api/dosen');
-
-            if ($response->successful()) {
-                $responseData = $response->json();
-                
+            $data = $this->callApi($this->baseUrl . '/library-api/dosen');
+            
+            if ($data) {
                 // Extract dosen array from nested structure
-                return $responseData['data']['dosen'] ?? [];
+                return $data['data']['dosen'] ?? [];
             }
 
-            Log::warning('API Dosen failed', [
-                'status' => $response->status(),
-                'body' => $response->body()
-            ]);
-
+            Log::warning('API Dosen failed - no data returned');
             return [];
 
         } catch (\Exception $e) {
@@ -102,6 +187,54 @@ class ExternalAPIService
     }
 
     /**
+     * Get dosen by specific prodi IDs only (optimized for monitoring RPS)
+     * Only fetch dosen with prodi_id 1, 3, or 4
+     * 
+     * @param array $prodiIds Array of prodi IDs to filter (default: [1, 3, 4])
+     * @return array
+     */
+    public function getDosenByProdiIds($prodiIds = [1, 3, 4])
+    {
+        try {
+            // Build query parameters to filter by prodi_id
+            $params = [
+                'limit' => 1000, // Increase limit to get all dosen
+            ];
+
+            $data = $this->callApi($this->baseUrl . '/library-api/dosen', $params);
+            
+            if ($data) {
+                $dosenList = $data['data']['dosen'] ?? [];
+                
+                // Filter by prodi_id
+                $filteredDosen = array_filter($dosenList, function($dosen) use ($prodiIds) {
+                    $prodiId = $dosen['prodi_id'] ?? null;
+                    return $prodiId && in_array($prodiId, $prodiIds);
+                });
+                
+                Log::info('Filtered dosen by prodi_id', [
+                    'total_dosen' => count($dosenList),
+                    'filtered_dosen' => count($filteredDosen),
+                    'prodi_ids' => $prodiIds
+                ]);
+                
+                return array_values($filteredDosen);
+            }
+
+            Log::warning('API Dosen by prodi IDs failed - no data returned');
+            return [];
+
+        } catch (\Exception $e) {
+            Log::error('API Dosen by prodi IDs exception', [
+                'message' => $e->getMessage(),
+                'prodi_ids' => $prodiIds
+            ]);
+
+            return [];
+        }
+    }
+
+    /**
      * Get dosen by ID
      * 
      * @param int $id
@@ -110,19 +243,7 @@ class ExternalAPIService
     public function getDosenById($id)
     {
         try {
-            $response = Http::withHeaders([
-                'Authorization' => 'Bearer ' . $this->token,
-                'Accept' => 'application/json',
-            ])
-            ->timeout($this->timeout)
-            ->get($this->baseUrl . '/library-api/dosen/' . $id);
-
-            if ($response->successful()) {
-                return $response->json();
-            }
-
-            return null;
-
+            return $this->callApi($this->baseUrl . '/library-api/dosen/' . $id);
         } catch (\Exception $e) {
             Log::error('API Dosen by ID exception', [
                 'id' => $id,
@@ -140,20 +261,13 @@ class ExternalAPIService
      */
     public function isAvailable()
     {
-        if (!$this->token || $this->token === 'your_api_token_here') {
+        if (!$this->token) {
             return false;
         }
 
         try {
-            $response = Http::withHeaders([
-                'Authorization' => 'Bearer ' . $this->token,
-                'Accept' => 'application/json',
-            ])
-            ->timeout(5)
-            ->get($this->baseUrl . '/library-api/dosen');
-
-            return $response->successful();
-
+            $data = $this->callApi($this->baseUrl . '/library-api/dosen');
+            return $data !== null;
         } catch (\Exception $e) {
             return false;
         }
@@ -166,7 +280,7 @@ class ExternalAPIService
      */
     public function refreshToken()
     {
-        $newToken = $this->tokenManager->refreshToken();
+        $newToken = $this->getToken(true);
         
         if ($newToken) {
             $this->token = $newToken;
@@ -179,11 +293,41 @@ class ExternalAPIService
     /**
      * Get token info
      * 
-     * @return array|null
+     * @return array
      */
     public function getTokenInfo()
     {
-        return $this->tokenManager->getTokenInfo();
+        $token = $this->token;
+        
+        if (!$token) {
+            return [
+                'valid' => false,
+                'message' => 'No token available'
+            ];
+        }
+
+        // Decode JWT token to get expiration
+        try {
+            $parts = explode('.', $token);
+            if (count($parts) === 3) {
+                $payload = json_decode(base64_decode($parts[1]), true);
+                
+                return [
+                    'valid' => true,
+                    'token' => substr($token, 0, 20) . '...',
+                    'expires_at' => isset($payload['exp']) ? date('Y-m-d H:i:s', $payload['exp']) : 'Unknown',
+                    'issued_at' => isset($payload['iat']) ? date('Y-m-d H:i:s', $payload['iat']) : 'Unknown',
+                ];
+            }
+        } catch (\Exception $e) {
+            // Ignore decode errors
+        }
+
+        return [
+            'valid' => true,
+            'token' => substr($token, 0, 20) . '...',
+            'message' => 'Token available but cannot decode'
+        ];
     }
 
     /**
@@ -240,40 +384,59 @@ class ExternalAPIService
                 'params' => $params
             ]);
 
-            $response = Http::withHeaders([
-                'Authorization' => 'Bearer ' . $this->token,
-                'Accept' => 'application/json',
-            ])
-            ->timeout($this->timeout)
-            ->get($url, $params);
+            $data = $this->callApi($url, $params);
 
-            Log::info('API Response: Matkul by Prodi Sem TA', [
-                'status' => $response->status(),
-                'body' => $response->body()
-            ]);
-
-            if ($response->successful()) {
-                $data = $response->json();
+            if ($data) {
+                $rawData = null;
                 
                 // Check if data is wrapped in a 'data' key
                 if (isset($data['data']) && is_array($data['data'])) {
-                    return $data['data'];
+                    $rawData = $data['data'];
+                } elseif (is_array($data)) {
+                    $rawData = $data;
                 }
                 
-                // If it's already an array, return it
-                if (is_array($data)) {
-                    return $data;
+                // Filter berdasarkan digit ke-5 dari kode_mk
+                // Digit ke-5 = 1 untuk Ganjil, Digit ke-5 = 2 untuk Genap
+                // Contoh: 1141105 (digit ke-5 = 1) = Ganjil
+                //         1144201 (digit ke-5 = 2) = Genap
+                if ($rawData && is_array($rawData)) {
+                    $filteredData = array_filter($rawData, function($matkul) use ($semTa) {
+                        $kodeMk = $matkul['kode_mk'] ?? '';
+                        
+                        // Skip jika kode_mk kosong atau kurang dari 5 digit
+                        if (strlen($kodeMk) < 5) {
+                            return true; // Keep data tanpa kode valid
+                        }
+                        
+                        // Ambil digit ke-5 (index 4)
+                        $digitSemester = substr($kodeMk, 4, 1);
+                        
+                        // Filter: semTa=1 (Ganjil) hanya tampilkan digit=1
+                        //         semTa=2 (Genap) hanya tampilkan digit=2
+                        if ($semTa == 1) {
+                            return $digitSemester == '1';
+                        } elseif ($semTa == 2) {
+                            return $digitSemester == '2';
+                        }
+                        
+                        return true; // Keep jika semTa tidak valid
+                    });
+                    
+                    Log::info('API Response: Matkul by Prodi Sem TA (Filtered)', [
+                        'raw_count' => count($rawData),
+                        'filtered_count' => count($filteredData),
+                        'semester' => $semTa == 1 ? 'Ganjil' : 'Genap'
+                    ]);
+                    
+                    return array_values($filteredData); // Re-index array
                 }
-                
-                return [];
             }
 
             Log::warning('API Matkul by Prodi Sem TA failed', [
                 'prodi_id' => $prodiId,
                 'sem_ta' => $semTa,
-                'ta' => $ta,
-                'status' => $response->status(),
-                'body' => $response->body()
+                'ta' => $ta
             ]);
 
             return [];
@@ -301,20 +464,13 @@ class ExternalAPIService
     public function getMonitoringMateri($kuliahId, $ta, $semTa)
     {
         try {
-            $response = Http::withHeaders([
-                'Authorization' => 'Bearer ' . $this->token,
-                'Accept' => 'application/json',
-            ])
-            ->timeout($this->timeout)
-            ->get($this->baseUrl . '/library-api/get-monitoring-materi', [
+            $data = $this->callApi($this->baseUrl . '/library-api/get-monitoring-materi', [
                 'kuliah_id' => $kuliahId,
                 'ta' => $ta,
                 'sem_ta' => $semTa
             ]);
 
-            if ($response->successful()) {
-                $data = $response->json();
-                
+            if ($data) {
                 // Log raw response untuk debugging
                 Log::debug('API Monitoring Materi Response', [
                     'kuliah_id' => $kuliahId,
@@ -357,9 +513,7 @@ class ExternalAPIService
             Log::warning('API Monitoring Materi failed', [
                 'kuliah_id' => $kuliahId,
                 'ta' => $ta,
-                'sem_ta' => $semTa,
-                'status' => $response->status(),
-                'body' => $response->body()
+                'sem_ta' => $semTa
             ]);
 
             return null;
@@ -384,21 +538,13 @@ class ExternalAPIService
     public function getTahunAjaran()
     {
         try {
-            $response = Http::withHeaders([
-                'Authorization' => 'Bearer ' . $this->token,
-                'Accept' => 'application/json',
-            ])
-            ->timeout($this->timeout)
-            ->get($this->baseUrl . '/library-api/tahun-ajaran');
+            $data = $this->callApi($this->baseUrl . '/library-api/tahun-ajaran');
 
-            if ($response->successful()) {
-                return $response->json();
+            if ($data) {
+                return $data;
             }
 
-            Log::warning('API Tahun Ajaran failed', [
-                'status' => $response->status(),
-                'body' => $response->body()
-            ]);
+            Log::warning('API Tahun Ajaran failed');
 
             // Return default 2020 if API fails
             return [
@@ -431,22 +577,13 @@ class ExternalAPIService
     public function getKelas()
     {
         try {
-            $response = Http::withHeaders([
-                'Authorization' => 'Bearer ' . $this->token,
-                'Accept' => 'application/json',
-            ])
-            ->timeout($this->timeout)
-            ->get($this->baseUrl . '/library-api/kelas');
+            $data = $this->callApi($this->baseUrl . '/library-api/kelas');
 
-            if ($response->successful()) {
-                return $response->json();
+            if ($data) {
+                return $data;
             }
 
-            Log::warning('API Kelas failed', [
-                'status' => $response->status(),
-                'body' => $response->body()
-            ]);
-
+            Log::warning('API Kelas failed');
             return [];
 
         } catch (\Exception $e) {
@@ -479,16 +616,9 @@ class ExternalAPIService
                 $params['ta'] = $ta;
             }
 
-            $response = Http::withHeaders([
-                'Authorization' => 'Bearer ' . $this->token,
-                'Accept' => 'application/json',
-            ])
-            ->timeout($this->timeout)
-            ->get($this->baseUrl . '/library-api/get-jadwal-by-dosen', $params);
+            $responseData = $this->callApi($this->baseUrl . '/library-api/get-jadwal-by-dosen', $params);
 
-            if ($response->successful()) {
-                $responseData = $response->json();
-                
+            if ($responseData) {
                 Log::info('API Jadwal Response', [
                     'pegawai_id' => $pegawaiId,
                     'response' => $responseData
@@ -529,9 +659,7 @@ class ExternalAPIService
             }
 
             Log::warning('API Jadwal Dosen failed', [
-                'pegawai_id' => $pegawaiId,
-                'status' => $response->status(),
-                'body' => $response->body()
+                'pegawai_id' => $pegawaiId
             ]);
 
             return [];

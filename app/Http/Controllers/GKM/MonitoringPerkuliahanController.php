@@ -29,6 +29,7 @@ class MonitoringPerkuliahanController extends Controller
         // Initialize empty data
         $materiTeori = [];
         $materiPraktikum = [];
+        $noDataFromAPI = false;
         
         // If filter applied, fetch data from API
         if ($filterApplied) {
@@ -46,6 +47,16 @@ class MonitoringPerkuliahanController extends Controller
                 
                 // Get matakuliah list
                 $matkulData = $apiService->getMatkulByProdiSemTa($prodiId, $selectedSemester, $selectedTahunAjaran);
+                
+                if (empty($matkulData)) {
+                    $noDataFromAPI = true;
+                    Log::info('MonitoringPerkuliahan - No matakuliah data', [
+                        'prodi_id' => $prodiId,
+                        'prodi_kode' => $prodiKode,
+                        'semester' => $selectedSemester,
+                        'tahun_ajaran' => $selectedTahunAjaran
+                    ]);
+                }
                 
                 if (!empty($matkulData)) {
                     // Get dosen list - FILTERED BY PRODI untuk mengurangi beban API
@@ -135,15 +146,59 @@ class MonitoringPerkuliahanController extends Controller
                             try {
                                 $monitoring = $apiService->getMonitoringMateri($kuliahId, $selectedTahunAjaran, $selectedSemester);
                                 
-                                if ($monitoring && isset($monitoring['materi'])) {
-                                    $materiData = $monitoring['materi'];
+                                if ($monitoring && isset($monitoring['check_materi']['detail'])) {
+                                    $detailMateri = $monitoring['check_materi']['detail'];
                                     
-                                    // Process weeks 1-16
-                                    for ($i = 1; $i <= 16; $i++) {
-                                        $weekKey = "w{$i}";
-                                        if (isset($materiData[$weekKey])) {
-                                            $weeks[$i - 1] = $materiData[$weekKey] === 'SUDAH UPLOAD' ? 1 : 0;
+                                    // Group by week number
+                                    $weekData = [];
+                                    foreach ($detailMateri as $sesi) {
+                                        // Extract week number from sesi (e.g., "W1-S1" -> 1, "W10-S1" -> 10)
+                                        if (preg_match('/W(\d+)-S\d+/', $sesi['sesi'], $matches)) {
+                                            $weekNum = (int)$matches[1];
+                                            
+                                            if ($weekNum >= 1 && $weekNum <= 16) {
+                                                // Initialize week if not exists
+                                                if (!isset($weekData[$weekNum])) {
+                                                    $weekData[$weekNum] = [
+                                                        'has_ok' => false,
+                                                        'has_partial' => false,
+                                                        'has_empty' => false
+                                                    ];
+                                                }
+                                                
+                                                $statusTeks = $sesi['status_teks'] ?? 'KOSONG';
+                                                $statusFile = $sesi['status_file'] ?? 'KOSONG';
+                                                
+                                                // Determine status for this sesi
+                                                if ($statusTeks === 'OK' && strpos($statusFile, 'OK') !== false) {
+                                                    // Both OK - green check
+                                                    $weekData[$weekNum]['has_ok'] = true;
+                                                } elseif ($statusTeks === 'KOSONG' && $statusFile === 'KOSONG') {
+                                                    // Both empty - red X
+                                                    $weekData[$weekNum]['has_empty'] = true;
+                                                } else {
+                                                    // One OK, one empty - yellow hazard
+                                                    $weekData[$weekNum]['has_partial'] = true;
+                                                }
+                                            }
                                         }
+                                    }
+                                    
+                                    // Determine final status for each week (W1-W16)
+                                    for ($i = 1; $i <= 16; $i++) {
+                                        if (isset($weekData[$i])) {
+                                            // Priority: if any sesi is empty -> red X
+                                            // if any sesi is partial -> yellow hazard
+                                            // if all sesi are OK -> green check
+                                            if ($weekData[$i]['has_empty']) {
+                                                $weeks[$i - 1] = 0; // Red X
+                                            } elseif ($weekData[$i]['has_partial']) {
+                                                $weeks[$i - 1] = 2; // Yellow hazard
+                                            } elseif ($weekData[$i]['has_ok']) {
+                                                $weeks[$i - 1] = 1; // Green check
+                                            }
+                                        }
+                                        // else remains null (no data)
                                     }
                                 }
                             } catch (\Exception $e) {
@@ -176,7 +231,8 @@ class MonitoringPerkuliahanController extends Controller
             'selectedTahunAjaran' => $selectedTahunAjaran,
             'filterApplied' => $filterApplied,
             'materiTeori' => $materiTeori,
-            'materiPraktikum' => $materiPraktikum
+            'materiPraktikum' => $materiPraktikum,
+            'noDataFromAPI' => $noDataFromAPI
         ]);
     }
 

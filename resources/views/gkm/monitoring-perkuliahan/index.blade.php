@@ -118,6 +118,21 @@
                                             </div>
                                         </td>
                                     </tr>
+                                @elseif($noDataFromAPI)
+                                    <tr>
+                                        <td colspan="19" class="text-center py-5">
+                                            <div class="empty-state">
+                                                <i class="bi bi-exclamation-circle" style="color: #ffc107;"></i>
+                                                <p style="margin-bottom: 0.5rem;">Tidak ada data matakuliah untuk periode ini</p>
+                                                <small class="text-muted">
+                                                    Semester: {{ $selectedSemester == 1 ? 'Ganjil' : 'Genap' }} | 
+                                                    Tahun Ajaran: {{ $selectedTahunAjaran }}
+                                                </small>
+                                                <br>
+                                                <small class="text-muted">Coba pilih semester atau tahun ajaran yang berbeda</small>
+                                            </div>
+                                        </td>
+                                    </tr>
                                 @else
                                     @forelse($materiTeori as $mk)
                                         <tr>
@@ -126,20 +141,23 @@
                                             <td class="dosen-name">{{ $mk['dosen'] }}</td>
                                             @foreach ($mk['weeks'] as $status)
                                                 <td class="text-center" style="padding: 0.5rem;">
-                                                    @if ($status == 1)
+                                                    @if ($status === 1)
+                                                        {{-- Green check: Both teks and file OK --}}
                                                         <span class="status-icon success"
                                                             style="width: 20px; height: 20px; font-size: 0.7rem;">
                                                             <i class="bi bi-check-lg"></i>
                                                         </span>
-                                                    @elseif($status == 0)
-                                                        <span class="status-icon danger"
-                                                            style="width: 20px; height: 20px; font-size: 0.7rem;">
-                                                            <i class="bi bi-x-lg"></i>
-                                                        </span>
-                                                    @else
+                                                    @elseif($status === 2)
+                                                        {{-- Yellow hazard: One OK, one empty --}}
                                                         <span class="status-icon warning"
                                                             style="width: 20px; height: 20px; font-size: 0.7rem;">
                                                             <i class="bi bi-exclamation-triangle-fill"></i>
+                                                        </span>
+                                                    @else
+                                                        {{-- Red X: Empty or no data --}}
+                                                        <span class="status-icon danger"
+                                                            style="width: 20px; height: 20px; font-size: 0.7rem;">
+                                                            <i class="bi bi-x-lg"></i>
                                                         </span>
                                                     @endif
                                                 </td>
@@ -198,6 +216,21 @@
                                             </div>
                                         </td>
                                     </tr>
+                                @elseif($noDataFromAPI)
+                                    <tr>
+                                        <td colspan="19" class="text-center py-5">
+                                            <div class="empty-state">
+                                                <i class="bi bi-exclamation-circle" style="color: #ffc107;"></i>
+                                                <p style="margin-bottom: 0.5rem;">Tidak ada data matakuliah untuk periode ini</p>
+                                                <small class="text-muted">
+                                                    Semester: {{ $selectedSemester == 1 ? 'Ganjil' : 'Genap' }} | 
+                                                    Tahun Ajaran: {{ $selectedTahunAjaran }}
+                                                </small>
+                                                <br>
+                                                <small class="text-muted">Coba pilih semester atau tahun ajaran yang berbeda</small>
+                                            </div>
+                                        </td>
+                                    </tr>
                                 @else
                                     @forelse($materiPraktikum as $mk)
                                         <tr>
@@ -206,20 +239,23 @@
                                             <td class="dosen-name">{{ $mk['dosen'] }}</td>
                                             @foreach ($mk['weeks'] as $status)
                                                 <td class="text-center" style="padding: 0.5rem;">
-                                                    @if ($status == 1)
+                                                    @if ($status === 1)
+                                                        {{-- Green check: Both teks and file OK --}}
                                                         <span class="status-icon success"
                                                             style="width: 20px; height: 20px; font-size: 0.7rem;">
                                                             <i class="bi bi-check-lg"></i>
                                                         </span>
-                                                    @elseif($status == 0)
-                                                        <span class="status-icon danger"
-                                                            style="width: 20px; height: 20px; font-size: 0.7rem;">
-                                                            <i class="bi bi-x-lg"></i>
-                                                        </span>
-                                                    @else
+                                                    @elseif($status === 2)
+                                                        {{-- Yellow hazard: One OK, one empty --}}
                                                         <span class="status-icon warning"
                                                             style="width: 20px; height: 20px; font-size: 0.7rem;">
                                                             <i class="bi bi-exclamation-triangle-fill"></i>
+                                                        </span>
+                                                    @else
+                                                        {{-- Red X: Empty or no data --}}
+                                                        <span class="status-icon danger"
+                                                            style="width: 20px; height: 20px; font-size: 0.7rem;">
+                                                            <i class="bi bi-x-lg"></i>
                                                         </span>
                                                     @endif
                                                 </td>
