@@ -41,7 +41,7 @@
 
         <form id="reminderForm">
             @csrf
-            
+
             <!-- Table Card -->
             <div class="monitoring-card mb-4">
                 <div class="monitoring-header">
@@ -76,22 +76,15 @@
                             @forelse($dosenList as $index => $dosen)
                                 <tr>
                                     <td class="text-center">
-                                        <input type="checkbox" class="form-check-input dosen-checkbox"
-                                            name="dosen_ids[]" value="{{ $dosen->id }}">
+                                        <input type="checkbox" class="form-check-input dosen-checkbox" name="dosen_ids[]"
+                                            value="{{ $dosen->id }}">
                                     </td>
                                     <td class="text-center">{{ $index + 1 }}</td>
                                     <td class="dosen-name">{{ $dosen->nama_lengkap }}</td>
                                     <td class="text-secondary">{{ $dosen->kontak_email }}</td>
                                     <td>
-                                        @if ($dosen->matakuliah && $dosen->matakuliah->count() > 0)
-                                            @foreach ($dosen->matakuliah->take(2) as $mk)
-                                                <span class="badge-gkm info">{{ $mk->nama_mk }}</span>
-                                            @endforeach
-                                            @if ($dosen->matakuliah->count() > 2)
-                                                <span class="badge-gkm" style="background: #e9ecef; color: #495057;">
-                                                    +{{ $dosen->matakuliah->count() - 2 }}
-                                                </span>
-                                            @endif
+                                        @if ($dosen->nama_matkul)
+                                            <span class="badge-gkm info">{{ $dosen->nama_matkul }}</span>
                                         @else
                                             <span class="text-muted">-</span>
                                         @endif

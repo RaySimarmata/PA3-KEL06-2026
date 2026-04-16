@@ -47,7 +47,7 @@ class GKMProdiSeeder extends Seeder
             [
                 'name' => 'GKM TRPL',
                 'username' => 'gkm_trpl',
-                'email' => 'gkm.trpl@example.com',
+                'email' => 'gkmtrpl@gmail.com',
                 'password' => Hash::make('password'),
                 'role' => 'GKM',
                 'prodi_id' => $prodiTRPL->id,
@@ -56,7 +56,7 @@ class GKMProdiSeeder extends Seeder
             [
                 'name' => 'GKM TI',
                 'username' => 'gkm_ti',
-                'email' => 'gkm.ti@example.com',
+                'email' => 'gkmti@gmail.com',
                 'password' => Hash::make('password'),
                 'role' => 'GKM',
                 'prodi_id' => $prodiTI->id,
@@ -65,7 +65,7 @@ class GKMProdiSeeder extends Seeder
             [
                 'name' => 'GKM NM',
                 'username' => 'gkm_nm',
-                'email' => 'gkm.nm@example.com',
+                'email' => 'gkmnm@gmail.com',
                 'password' => Hash::make('password'),
                 'role' => 'GKM',
                 'prodi_id' => $prodiNM->id,

@@ -4,6 +4,7 @@ namespace App\Services;
 
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use App\Models\Dosenn;
 
 class ExternalAPIService
 {
@@ -61,6 +62,10 @@ class ExternalAPIService
             }
         });
     }
+    public function getAccessToken()
+{
+    return $this->token;
+}
 
     /**
      * Call API with automatic token refresh on 401
@@ -121,70 +126,87 @@ class ExternalAPIService
      * 
      * @return array|null
      */
-    public function getDosen()
-    {
-        try {
-            $data = $this->callApi($this->baseUrl . '/library-api/dosen');
+    // public function getDosen()
+    // {
+    //     try {
+    //         $data = $this->callApi($this->baseUrl . '/library-api/dosen');
             
-            if ($data) {
-                // Extract dosen array from nested structure
-                return $data['data']['dosen'] ?? [];
-            }
+    //         if ($data) {
+    //             // Extract dosen array from nested structure
+    //             return $data['data']['dosen'] ?? [];
+    //         }
 
-            Log::warning('API Dosen failed - no data returned');
-            return [];
+    //         Log::warning('API Dosen failed - no data returned');
+    //         return [];
 
-        } catch (\Exception $e) {
-            Log::error('API Dosen exception', [
-                'message' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
-            ]);
+    //     } catch (\Exception $e) {
+    //         Log::error('API Dosen exception', [
+    //             'message' => $e->getMessage(),
+    //             'trace' => $e->getTraceAsString()
+    //         ]);
 
-            return [];
-        }
-    }
+    //         return [];
+    //     }
+    // }
+    public function getDosen()
+{
+    return Dosenn::all()->toArray();
+}
 
     /**
      * Get filtered dosen (only TI, TK, TRPL and Tenaga Pengajar)
      * 
      * @return array
      */
+    // public function getFilteredDosen()
+    // {
+    //     $dosenList = $this->getDosen();
+        
+    //     if (empty($dosenList)) {
+    //         return [];
+    //     }
+        
+    //     // Filter by prodi only (remove jabatan filter for now)
+    //     $allowedProdi = [
+    //         'DIII Teknologi Informasi',
+    //         'DIII Teknologi Komputer',
+    //         'DIV Teknologi Rekayasa Perangkat Lunak'
+    //     ];
+        
+    //     $filteredDosen = array_filter($dosenList, function($dosen) use ($allowedProdi) {
+    //         $prodiDosen = $dosen['prodi'] ?? '';
+            
+    //         return in_array($prodiDosen, $allowedProdi);
+    //     });
+        
+    //     // Remove duplicates based on pegawai_id
+    //     $uniqueDosen = [];
+    //     $seenIds = [];
+        
+    //     foreach ($filteredDosen as $dosen) {
+    //         $pegawaiId = $dosen['pegawai_id'] ?? null;
+            
+    //         if ($pegawaiId && !in_array($pegawaiId, $seenIds)) {
+    //             $uniqueDosen[] = $dosen;
+    //             $seenIds[] = $pegawaiId;
+    //         }
+    //     }
+        
+    //     return array_values($uniqueDosen);
+    // }
+
     public function getFilteredDosen()
-    {
-        $dosenList = $this->getDosen();
-        
-        if (empty($dosenList)) {
-            return [];
-        }
-        
-        // Filter by prodi only (remove jabatan filter for now)
-        $allowedProdi = [
-            'DIII Teknologi Informasi',
-            'DIII Teknologi Komputer',
-            'DIV Teknologi Rekayasa Perangkat Lunak'
-        ];
-        
-        $filteredDosen = array_filter($dosenList, function($dosen) use ($allowedProdi) {
-            $prodiDosen = $dosen['prodi'] ?? '';
-            
-            return in_array($prodiDosen, $allowedProdi);
-        });
-        
-        // Remove duplicates based on pegawai_id
-        $uniqueDosen = [];
-        $seenIds = [];
-        
-        foreach ($filteredDosen as $dosen) {
-            $pegawaiId = $dosen['pegawai_id'] ?? null;
-            
-            if ($pegawaiId && !in_array($pegawaiId, $seenIds)) {
-                $uniqueDosen[] = $dosen;
-                $seenIds[] = $pegawaiId;
-            }
-        }
-        
-        return array_values($uniqueDosen);
-    }
+{
+    return Dosenn::whereIn('prodi', [
+        'DIII Teknologi Informasi',
+        'DIII Teknologi Komputer',
+        'DIV Teknologi Rekayasa Perangkat Lunak'
+    ])
+    ->get()
+    ->unique('pegawai_id')
+    ->values()
+    ->toArray();
+}
 
     /**
      * Get dosen by specific prodi IDs only (optimized for monitoring RPS)
@@ -193,46 +215,53 @@ class ExternalAPIService
      * @param array $prodiIds Array of prodi IDs to filter (default: [1, 3, 4])
      * @return array
      */
-    public function getDosenByProdiIds($prodiIds = [1, 3, 4])
-    {
-        try {
-            // Build query parameters to filter by prodi_id
-            $params = [
-                'limit' => 1000, // Increase limit to get all dosen
-            ];
+    // public function getDosenByProdiIds($prodiIds = [1, 3, 4])
+    // {
+    //     try {
+    //         // Build query parameters to filter by prodi_id
+    //         $params = [
+    //             'limit' => 1000, // Increase limit to get all dosen
+    //         ];
 
-            $data = $this->callApi($this->baseUrl . '/library-api/dosen', $params);
+    //         $data = $this->callApi($this->baseUrl . '/library-api/dosen', $params);
             
-            if ($data) {
-                $dosenList = $data['data']['dosen'] ?? [];
+    //         if ($data) {
+    //             $dosenList = $data['data']['dosen'] ?? [];
                 
-                // Filter by prodi_id
-                $filteredDosen = array_filter($dosenList, function($dosen) use ($prodiIds) {
-                    $prodiId = $dosen['prodi_id'] ?? null;
-                    return $prodiId && in_array($prodiId, $prodiIds);
-                });
+    //             // Filter by prodi_id
+    //             $filteredDosen = array_filter($dosenList, function($dosen) use ($prodiIds) {
+    //                 $prodiId = $dosen['prodi_id'] ?? null;
+    //                 return $prodiId && in_array($prodiId, $prodiIds);
+    //             });
                 
-                Log::info('Filtered dosen by prodi_id', [
-                    'total_dosen' => count($dosenList),
-                    'filtered_dosen' => count($filteredDosen),
-                    'prodi_ids' => $prodiIds
-                ]);
+    //             Log::info('Filtered dosen by prodi_id', [
+    //                 'total_dosen' => count($dosenList),
+    //                 'filtered_dosen' => count($filteredDosen),
+    //                 'prodi_ids' => $prodiIds
+    //             ]);
                 
-                return array_values($filteredDosen);
-            }
+    //             return array_values($filteredDosen);
+    //         }
 
-            Log::warning('API Dosen by prodi IDs failed - no data returned');
-            return [];
+    //         Log::warning('API Dosen by prodi IDs failed - no data returned');
+    //         return [];
 
-        } catch (\Exception $e) {
-            Log::error('API Dosen by prodi IDs exception', [
-                'message' => $e->getMessage(),
-                'prodi_ids' => $prodiIds
-            ]);
+    //     } catch (\Exception $e) {
+    //         Log::error('API Dosen by prodi IDs exception', [
+    //             'message' => $e->getMessage(),
+    //             'prodi_ids' => $prodiIds
+    //         ]);
 
-            return [];
-        }
-    }
+    //         return [];
+    //     }
+    // }
+
+    public function getDosenByProdiIds($prodiIds = [1, 3, 4, 10, 8])
+{
+    return Dosenn::whereIn('prodi_id', $prodiIds)
+        ->get()
+        ->toArray();
+}
 
     /**
      * Get dosen by ID
@@ -240,20 +269,24 @@ class ExternalAPIService
      * @param int $id
      * @return array|null
      */
+    // public function getDosenById($id)
+    // {
+    //     try {
+    //         return $this->callApi($this->baseUrl . '/library-api/dosen/' . $id);
+    //     } catch (\Exception $e) {
+    //         Log::error('API Dosen by ID exception', [
+    //             'id' => $id,
+    //             'message' => $e->getMessage()
+    //         ]);
+
+    //         return null;
+    //     }
+    // }
+
     public function getDosenById($id)
-    {
-        try {
-            return $this->callApi($this->baseUrl . '/library-api/dosen/' . $id);
-        } catch (\Exception $e) {
-            Log::error('API Dosen by ID exception', [
-                'id' => $id,
-                'message' => $e->getMessage()
-            ]);
-
-            return null;
-        }
-    }
-
+{
+    return Dosenn::where('pegawai_id', $id)->first();
+}
     /**
      * Check if API is available
      * 
@@ -337,13 +370,17 @@ class ExternalAPIService
      * @param int $prodiId
      * @return array
      */
-    public function filterByProdi(array $dosenList, $prodiId)
-    {
-        return array_filter($dosenList, function($dosen) use ($prodiId) {
-            return isset($dosen['prodi_id']) && $dosen['prodi_id'] == $prodiId;
-        });
-    }
+    // public function filterByProdi(array $dosenList, $prodiId)
+    // {
+    //     return array_filter($dosenList, function($dosen) use ($prodiId) {
+    //         return isset($dosen['prodi_id']) && $dosen['prodi_id'] == $prodiId;
+    //     });
+    // }
 
+    public function filterByProdi($prodiId)
+{
+    return Dosenn::where('prodi_id', $prodiId)->get();
+}
     /**
      * Search dosen by name
      * 
@@ -351,16 +388,20 @@ class ExternalAPIService
      * @param string $search
      * @return array
      */
-    public function searchByName(array $dosenList, $search)
-    {
-        $searchTerm = strtolower($search);
+    // public function searchByName(array $dosenList, $search)
+    // {
+    //     $searchTerm = strtolower($search);
         
-        return array_filter($dosenList, function($dosen) use ($searchTerm) {
-            return isset($dosen['nama']) && 
-                   str_contains(strtolower($dosen['nama']), $searchTerm);
-        });
-    }
+    //     return array_filter($dosenList, function($dosen) use ($searchTerm) {
+    //         return isset($dosen['nama']) && 
+    //                str_contains(strtolower($dosen['nama']), $searchTerm);
+    //     });
+    // }
 
+    public function searchByName($search)
+{
+    return Dosen::where('nama', 'like', '%' . $search . '%')->get();
+}
     /**
      * Get matakuliah by prodi, semester, and tahun ajaran
      * 
@@ -462,73 +503,176 @@ class ExternalAPIService
      * @return array|null
      */
     public function getMonitoringMateri($kuliahId, $ta, $semTa)
-    {
-        try {
-            $data = $this->callApi($this->baseUrl . '/library-api/get-monitoring-materi', [
+{
+    try {
+        $data = $this->callApi($this->baseUrl . '/library-api/get-monitoring-materi-teori', [
+            'kuliah_id' => $kuliahId,
+            'ta' => $ta,
+            'sem_ta' => $semTa
+        ]);
+
+        if ($data) {
+
+            // 🔍 Debug log (optional)
+            Log::debug('API Monitoring Materi TEORI RAW', [
                 'kuliah_id' => $kuliahId,
-                'ta' => $ta,
-                'sem_ta' => $semTa
+                'response' => $data
             ]);
 
-            if ($data) {
-                // Log raw response untuk debugging
-                Log::debug('API Monitoring Materi Response', [
-                    'kuliah_id' => $kuliahId,
-                    'ta' => $ta,
-                    'sem_ta' => $semTa,
-                    'raw_response' => $data
-                ]);
-                
-                // Check if data is wrapped
-                if (isset($data['data']) && is_array($data['data'])) {
-                    $data = $data['data'];
-                }
-                
-                // Flatten nested structure for easier access
-                // API returns: check_silabus.status_file_silabus
-                // We want: status_file_silabus (at root level)
-                if (isset($data['check_silabus'])) {
-                    $data['status_file_silabus'] = $data['check_silabus']['status_file_silabus'] ?? 'BELUM UPLOAD';
-                    $data['nama_file_silabus'] = $data['check_silabus']['nama_file'] ?? null;
-                    $data['keterangan_silabus'] = $data['check_silabus']['keterangan'] ?? null;
-                    
-                    // Log mapped data
-                    Log::debug('API Monitoring Materi Mapped', [
-                        'kuliah_id' => $kuliahId,
-                        'status_file_silabus' => $data['status_file_silabus']
-                    ]);
-                } else {
-                    // Log jika check_silabus tidak ada
-                    Log::warning('API Monitoring Materi: check_silabus not found', [
-                        'kuliah_id' => $kuliahId,
-                        'ta' => $ta,
-                        'sem_ta' => $semTa,
-                        'response_keys' => array_keys($data)
-                    ]);
-                }
-                
-                return $data;
+            // 🔥 unwrap data
+            if (isset($data['data']) && is_array($data['data'])) {
+                $data = $data['data'];
             }
 
-            Log::warning('API Monitoring Materi failed', [
-                'kuliah_id' => $kuliahId,
-                'ta' => $ta,
-                'sem_ta' => $semTa
-            ]);
+            // =========================
+            // 🔥 MAPPING SILABUS
+            // =========================
+            if (isset($data['check_silabus'])) {
+                $data['status_file_silabus'] = $data['check_silabus']['status_file_silabus'] ?? 'BELUM UPLOAD';
+                $data['nama_file_silabus']   = $data['check_silabus']['nama_file'] ?? null;
+                $data['keterangan_silabus'] = $data['check_silabus']['keterangan'] ?? null;
+            }
 
-            return null;
+            // =========================
+            // 🔥 MAPPING DETAIL TEORI
+            // =========================
+            if (isset($data['check_materi']['detail']) && is_array($data['check_materi']['detail'])) {
 
-        } catch (\Exception $e) {
-            Log::error('API Monitoring Materi exception', [
-                'kuliah_id' => $kuliahId,
-                'ta' => $ta,
-                'sem_ta' => $semTa,
-                'message' => $e->getMessage()
-            ]);
+                foreach ($data['check_materi']['detail'] as &$sesi) {
 
-            return null;
+                    // 🔥 Ambil created_at dari daftar_file pertama
+                    $createdAt = null;
+
+                    if (isset($sesi['daftar_file']) && is_array($sesi['daftar_file']) && count($sesi['daftar_file']) > 0) {
+                        $createdAt = $sesi['daftar_file'][0]['created_at'] ?? null;
+                    }
+
+                    // 🔥 simpan final
+                    $sesi['created_at_final'] = $createdAt;
+
+                    // 🔥 tandai upload
+                    $sesi['is_uploaded'] = strpos($sesi['status_file'] ?? '', 'OK') !== false;
+
+                    // 🔍 Debug per sesi (optional)
+                    Log::debug('Mapping sesi teori', [
+                        'sesi' => $sesi['sesi'] ?? null,
+                        'status_file' => $sesi['status_file'] ?? null,
+                        'created_at_final' => $sesi['created_at_final']
+                    ]);
+                }
+
+                $data['check_materi']['detail'] = $data['check_materi']['detail'];
+            }
+
+            return $data;
         }
+
+        Log::warning('API Monitoring Materi TEORI EMPTY', [
+            'kuliah_id' => $kuliahId,
+            'ta' => $ta,
+            'sem_ta' => $semTa
+        ]);
+
+        return null;
+
+    } catch (\Exception $e) {
+        Log::error('API Monitoring Materi TEORI ERROR', [
+            'kuliah_id' => $kuliahId,
+            'ta' => $ta,
+            'sem_ta' => $semTa,
+            'message' => $e->getMessage()
+        ]);
+
+        return null;
     }
+}
+
+    public function getMonitoringMateriPraktikum($kuliahId, $ta, $semTa)
+{
+    try {
+        $data = $this->callApi($this->baseUrl . '/library-api/get-monitoring-materi-praktikum', [
+            'kuliah_id' => $kuliahId,
+            'ta' => $ta,
+            'sem_ta' => $semTa
+        ]);
+
+        if ($data) {
+
+            // 🔍 Debug log (optional, bisa kamu matikan nanti)
+            Log::debug('API Monitoring Materi Praktikum RAW', [
+                'kuliah_id' => $kuliahId,
+                'response' => $data
+            ]);
+
+            // 🔥 unwrap jika ada key 'data'
+            if (isset($data['data']) && is_array($data['data'])) {
+                $data = $data['data'];
+            }
+
+            // =========================
+            // 🔥 MAPPING SILABUS
+            // =========================
+            if (isset($data['check_silabus'])) {
+                $data['status_file_silabus'] = $data['check_silabus']['status_file_silabus'] ?? 'BELUM UPLOAD';
+                $data['nama_file_silabus']   = $data['check_silabus']['nama_file'] ?? null;
+                $data['keterangan_silabus'] = $data['check_silabus']['keterangan'] ?? null;
+            }
+
+            // =========================
+            // 🔥 MAPPING DETAIL PRAKTIKUM
+            // =========================
+            if (isset($data['check_praktikum']['detail']) && is_array($data['check_praktikum']['detail'])) {
+
+                foreach ($data['check_praktikum']['detail'] as &$sesi) {
+
+                    // 🔥 Ambil created_at dari waktu_praktikum
+                    $createdAt = $sesi['waktu_praktikum']['created_at'] ?? null;
+
+                    // 🔥 fallback ke daftar_file jika kosong
+                    if (!$createdAt && isset($sesi['daftar_file'][0]['created_at'])) {
+                        $createdAt = $sesi['daftar_file'][0]['created_at'];
+                    }
+
+                    // 🔥 simpan hasil final
+                    $sesi['created_at_final'] = $createdAt;
+
+                    // 🔥 optional: tandai apakah ada file
+                    $sesi['is_uploaded'] = strpos($sesi['status_file'] ?? '', 'OK') !== false;
+
+                    // 🔍 Debug per sesi (optional)
+                    Log::debug('Mapping sesi praktikum', [
+                        'sesi' => $sesi['sesi'] ?? null,
+                        'status_file' => $sesi['status_file'] ?? null,
+                        'created_at_final' => $sesi['created_at_final']
+                    ]);
+                }
+
+                // simpan kembali
+                $data['check_praktikum']['detail'] = $data['check_praktikum']['detail'];
+            }
+
+            return $data;
+        }
+
+        Log::warning('API Monitoring Materi Praktikum EMPTY', [
+            'kuliah_id' => $kuliahId,
+            'ta' => $ta,
+            'sem_ta' => $semTa
+        ]);
+
+        return null;
+
+    } catch (\Exception $e) {
+        Log::error('API Monitoring Materi Praktikum ERROR', [
+            'kuliah_id' => $kuliahId,
+            'ta' => $ta,
+            'sem_ta' => $semTa,
+            'message' => $e->getMessage()
+        ]);
+
+        return null;
+    }
+}
 
     /**
      * Get tahun ajaran from external API

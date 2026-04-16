@@ -12,6 +12,8 @@ use App\Services\ExternalAPIService;
 use App\Mail\ReminderPerwalianMail;
 use App\Mail\ReminderUploadMateriMail;
 use App\Mail\ReminderReviewSoalMail;
+use App\Models\PeriodeAkademik;
+use Carbon\Carbon;
 
 class MonitoringPerkuliahanController extends Controller
 {
@@ -22,9 +24,13 @@ class MonitoringPerkuliahanController extends Controller
         // Get filter values
         $selectedSemester = $request->input('semester', '');
         $selectedTahunAjaran = $request->input('tahun_ajaran', '');
+        $selectedTingkat = $request->input('tingkat', '');
+        $periode = \App\Models\PeriodeAkademik::where('is_active', true)->first();
+$startDate = $periode ? \Carbon\Carbon::parse($periode->start_date) : null;
         
         // Check if filter is applied
-        $filterApplied = !empty($selectedSemester) && !empty($selectedTahunAjaran);
+        $filterApplied = !empty($selectedSemester) && 
+                 !empty($selectedTahunAjaran);
         
         // Initialize empty data
         $materiTeori = [];
@@ -132,6 +138,15 @@ class MonitoringPerkuliahanController extends Controller
                         $kuliahId = $matkul['kuliah_id'] ?? null;
                         $kodeMk = $matkul['kode_mk'] ?? '-';
                         $namaMk = $matkul['nama_matkul'] ?? '-';
+
+                        // 🔥 Ambil tingkat dari kode MK (AMAN pakai regex)
+if (!$kuliahId || strlen($kodeMk) < 5) continue;
+
+// filter tingkat
+$tingkatMk = substr($kodeMk, 3, 1);
+if (!empty($selectedTingkat) && $tingkatMk != $selectedTingkat) {
+    continue;
+}
                         
                         // Get dosen pengampu
                         $dosenPengampu = '-';
@@ -170,16 +185,34 @@ class MonitoringPerkuliahanController extends Controller
                                                 $statusFile = $sesi['status_file'] ?? 'KOSONG';
                                                 
                                                 // Determine status for this sesi
-                                                if ($statusTeks === 'OK' && strpos($statusFile, 'OK') !== false) {
-                                                    // Both OK - green check
-                                                    $weekData[$weekNum]['has_ok'] = true;
-                                                } elseif ($statusTeks === 'KOSONG' && $statusFile === 'KOSONG') {
-                                                    // Both empty - red X
-                                                    $weekData[$weekNum]['has_empty'] = true;
-                                                } else {
-                                                    // One OK, one empty - yellow hazard
-                                                    $weekData[$weekNum]['has_partial'] = true;
-                                                }
+
+
+$now = Carbon::now();
+
+$deadline = $startDate
+    ->copy()
+    ->addWeeks($weekNum)
+    ->startOfWeek(Carbon::MONDAY)
+    ->setTime(23, 59, 59);
+
+// ================= LOGIKA FINAL =================
+
+if (strpos($sesi['status_file'] ?? '', 'OK') !== false && $uploadTime && $startDate) {
+
+    if ($uploadTime->lte($deadline)) {
+        $weekData[$weekNum]['has_ok'] = true; // tepat waktu
+    } else {
+        $weekData[$weekNum]['has_partial'] = true; // terlambat
+    }
+
+} else {
+
+    if ($now->gt($deadline)) {
+        // sudah lewat deadline dan belum upload
+        $weekData[$weekNum]['has_empty'] = true;
+    }
+    // kalau belum lewat deadline → biarkan null (abu-abu UI)
+}
                                             }
                                         }
                                     }
@@ -205,6 +238,88 @@ class MonitoringPerkuliahanController extends Controller
                                 Log::warning("Failed to get monitoring for matkul {$kodeMk}: " . $e->getMessage());
                             }
                         }
+
+                        // ================= PRAKTIKUM =================
+$weeksPraktikum = array_fill(0, 16, null);
+
+if ($kuliahId) {
+    try {
+        $monitoringPraktikum = $apiService->getMonitoringMateriPraktikum(
+            $kuliahId,
+            $selectedTahunAjaran,
+            $selectedSemester
+        );
+
+        if ($monitoringPraktikum && isset($monitoringPraktikum['check_praktikum']['detail'])) {
+            $detailMateri = $monitoringPraktikum['check_praktikum']['detail'];
+
+            $weekData = [];
+
+            foreach ($detailMateri as $sesi) {
+                if (preg_match('/W(\d+)-S\d+/', $sesi['sesi'], $matches)) {
+                    $weekNum = (int)$matches[1];
+
+                    if ($weekNum >= 1 && $weekNum <= 16) {
+
+                        if (!isset($weekData[$weekNum])) {
+                            $weekData[$weekNum] = [
+                                'has_ok' => false,
+                                'has_partial' => false,
+                                'has_empty' => false
+                            ];
+                        }
+
+                        $statusTeks = $sesi['status_teks'] ?? 'KOSONG';
+                        $statusFile = $sesi['status_file'] ?? 'KOSONG';
+
+                        $uploadTime = null; // WAJIB RESET
+
+// Ambil dari daftar_file (prioritas)
+if (!empty($sesi['daftar_file'][0]['created_at'])) {
+    $uploadTime = Carbon::parse($sesi['daftar_file'][0]['created_at']);
+}
+// fallback ke waktu_praktikum
+elseif (!empty($sesi['waktu_praktikum']['created_at'])) {
+    $uploadTime = Carbon::parse($sesi['waktu_praktikum']['created_at']);
+}
+
+if (strpos($statusFile, 'OK') !== false && $uploadTime && $startDate) {
+
+    $deadline = $startDate
+        ->copy()
+        ->addWeeks($weekNum)
+        ->startOfWeek(Carbon::MONDAY)
+        ->setTime(23, 59, 59);
+
+    if ($uploadTime->lte($deadline)) {
+        $weekData[$weekNum]['has_ok'] = true; // ✅ tepat waktu
+    } else {
+        $weekData[$weekNum]['has_partial'] = true; // ⚠️ terlambat
+    }
+
+} else {
+    $weekData[$weekNum]['has_empty'] = true; // ❌ tidak upload
+}
+                    }
+                }
+            }
+
+            for ($i = 1; $i <= 16; $i++) {
+                if (isset($weekData[$i])) {
+                    if ($weekData[$i]['has_empty']) {
+                        $weeksPraktikum[$i - 1] = 0;
+                    } elseif ($weekData[$i]['has_partial']) {
+                        $weeksPraktikum[$i - 1] = 2;
+                    } elseif ($weekData[$i]['has_ok']) {
+                        $weeksPraktikum[$i - 1] = 1;
+                    }
+                }
+            }
+        }
+    } catch (\Exception $e) {
+        Log::warning("Failed to get monitoring praktikum for {$kodeMk}: " . $e->getMessage());
+    }
+}
                         
                         $mkData = [
                             'kode' => $kodeMk,
@@ -212,10 +327,19 @@ class MonitoringPerkuliahanController extends Controller
                             'dosen' => $dosenPengampu,
                             'weeks' => $weeks
                         ];
+                        $mkPraktikumData = [
+    'kode' => $kodeMk,
+    'nama' => $namaMk,
+    'dosen' => $dosenPengampu,
+    'weeks' => $weeksPraktikum
+];
+
+
                         
                         // Categorize by type (for now, all go to teori)
                         // You can add logic to separate praktikum based on matkul name or other criteria
                         $materiTeori[] = $mkData;
+                        $materiPraktikum[] = $mkPraktikumData;
                     }
                 }
             } catch (\Exception $e) {
@@ -229,6 +353,7 @@ class MonitoringPerkuliahanController extends Controller
             'user' => $user,
             'selectedSemester' => $selectedSemester,
             'selectedTahunAjaran' => $selectedTahunAjaran,
+            'selectedTingkat' => $selectedTingkat,
             'filterApplied' => $filterApplied,
             'materiTeori' => $materiTeori,
             'materiPraktikum' => $materiPraktikum,

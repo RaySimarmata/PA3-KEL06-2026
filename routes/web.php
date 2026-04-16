@@ -18,6 +18,7 @@ use App\Http\Controllers\GJM\LaporanGJMController;
 use App\Http\Controllers\GJM\BuatLaporanController;
 use App\Http\Controllers\GJM\BuatPPTController;
 use App\Http\Controllers\GJM\KirimLaporanController as GJMKirimLaporanController;
+use App\Http\Controllers\PeriodeAkademikController;
 
 // Auth Routes
 Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
@@ -65,6 +66,9 @@ Route::middleware('auth')->group(function () {
             Route::post('/template-laporan', [DataMasterController::class, 'storeTemplate'])->name('template.store');
             Route::get('/template-laporan/{id}/download', [DataMasterController::class, 'downloadTemplate'])->name('template.download');
             Route::delete('/template-laporan/{id}', [DataMasterController::class, 'destroyTemplate'])->name('template.destroy');
+            Route::get('/periode', [PeriodeAkademikController::class, 'index'])->name('periode.index');
+            Route::post('/periode', [PeriodeAkademikController::class, 'store'])->name('periode.store');
+            Route::get('/periode/active', [PeriodeAkademikController::class, 'getActive'])->name('periode.active');
         });
 
         // Monitoring RPS & Materi
@@ -150,6 +154,15 @@ Route::middleware('auth')->group(function () {
             Route::post('/generate', [KirimLaporanController::class, 'generateMessage'])->name('generate');
             Route::post('/send', [KirimLaporanController::class, 'send'])->name('send');
         });
+
+        // halaman utama (list + form)
+Route::get('/periode', [PeriodeAkademikController::class, 'index'])->name('periode.index');
+
+// simpan data
+Route::post('/periode', [PeriodeAkademikController::class, 'store'])->name('periode.store');
+
+// ambil periode aktif (optional, biasanya dipakai API / ajax)
+Route::get('/periode/active', [PeriodeAkademikController::class, 'getActive'])->name('periode.active');
     });
 
     // GJM Routes

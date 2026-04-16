@@ -29,6 +29,16 @@
                         </select>
                     </div>
                     <div class="col-md-4">
+                        <label class="filter-label">TINGKAT</label>
+                        <select name="tingkat" class="form-select">
+    <option value="">Semua Tingkat </option>
+    <option value="1" {{ $selectedTingkat == 1 ? 'selected' : '' }}>Tingkat 1</option>
+    <option value="2" {{ $selectedTingkat == 2 ? 'selected' : '' }}>Tingkat 2</option>
+    <option value="3" {{ $selectedTingkat == 3 ? 'selected' : '' }}>Tingkat 3</option>
+    <option value="4" {{ $selectedTingkat == 4 ? 'selected' : '' }}>Tingkat 4</option>
+</select>
+                    </div>
+                    <div class="col-md-4">
                         <div class="d-flex gap-2">
                             <button type="submit" class="btn btn-primary flex-fill" style="padding: 0.6rem;">
                                 <i class="bi bi-funnel"></i> Filter
@@ -142,24 +152,29 @@
                                             @foreach ($mk['weeks'] as $status)
                                                 <td class="text-center" style="padding: 0.5rem;">
                                                     @if ($status === 1)
-                                                        {{-- Green check: Both teks and file OK --}}
-                                                        <span class="status-icon success"
-                                                            style="width: 20px; height: 20px; font-size: 0.7rem;">
-                                                            <i class="bi bi-check-lg"></i>
-                                                        </span>
-                                                    @elseif($status === 2)
-                                                        {{-- Yellow hazard: One OK, one empty --}}
-                                                        <span class="status-icon warning"
-                                                            style="width: 20px; height: 20px; font-size: 0.7rem;">
-                                                            <i class="bi bi-exclamation-triangle-fill"></i>
-                                                        </span>
-                                                    @else
-                                                        {{-- Red X: Empty or no data --}}
-                                                        <span class="status-icon danger"
-                                                            style="width: 20px; height: 20px; font-size: 0.7rem;">
-                                                            <i class="bi bi-x-lg"></i>
-                                                        </span>
-                                                    @endif
+    {{-- ✅ Tepat waktu --}}
+    <span class="status-icon success" title="Tepat waktu">
+        <i class="bi bi-check-lg"></i>
+    </span>
+
+@elseif ($status === 2)
+    {{-- ⚠️ Terlambat --}}
+    <span class="status-icon warning" title="Terlambat upload">
+        <i class="bi bi-exclamation-triangle"></i>
+    </span>
+
+@elseif ($status === 0)
+    {{-- ❌ Tidak upload --}}
+    <span class="status-icon danger" title="Belum upload">
+        <i class="bi bi-x-lg"></i>
+    </span>
+
+@else
+    {{-- ⚪ Belum ada data --}}
+    <span class="status-icon secondary" title="Belum ada data">
+        <i class="bi bi-dash-lg"></i>
+    </span>
+@endif
                                                 </td>
                                             @endforeach
                                         </tr>
@@ -240,24 +255,16 @@
                                             @foreach ($mk['weeks'] as $status)
                                                 <td class="text-center" style="padding: 0.5rem;">
                                                     @if ($status === 1)
-                                                        {{-- Green check: Both teks and file OK --}}
-                                                        <span class="status-icon success"
-                                                            style="width: 20px; height: 20px; font-size: 0.7rem;">
-                                                            <i class="bi bi-check-lg"></i>
-                                                        </span>
-                                                    @elseif($status === 2)
-                                                        {{-- Yellow hazard: One OK, one empty --}}
-                                                        <span class="status-icon warning"
-                                                            style="width: 20px; height: 20px; font-size: 0.7rem;">
-                                                            <i class="bi bi-exclamation-triangle-fill"></i>
-                                                        </span>
-                                                    @else
-                                                        {{-- Red X: Empty or no data --}}
-                                                        <span class="status-icon danger"
-                                                            style="width: 20px; height: 20px; font-size: 0.7rem;">
-                                                            <i class="bi bi-x-lg"></i>
-                                                        </span>
-                                                    @endif
+    {{-- Green: File sudah upload --}}
+    <span class="status-icon success">
+        <i class="bi bi-check-lg"></i>
+    </span>
+@else
+    {{-- Red: File belum ada --}}
+    <span class="status-icon danger">
+        <i class="bi bi-x-lg"></i>
+    </span>
+@endif
                                                 </td>
                                             @endforeach
                                         </tr>
