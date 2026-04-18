@@ -36,19 +36,19 @@
 
                 <div class="tab-content" id="reminderTabContent">
                     <!-- Perwalian Tab -->
-                    <div class="tab-pane fade show active" id="perwalian" role="tabpanel">
+                    {{-- <div class="tab-pane fade show active" id="perwalian" role="tabpanel">
                         @include('gkm.monitoring-perkuliahan.perwalian', ['dosenWali' => $dosenWali])
-                    </div>
+                    </div> --}}
 
                     <!-- Materi Tab -->
-                    <div class="tab-pane fade" id="materi" role="tabpanel">
+                    {{-- <div class="tab-pane fade" id="materi" role="tabpanel">
                         @include('gkm.monitoring-perkuliahan.materi', ['dosenMateri' => $dosenMateri])
-                    </div>
+                    </div> --}}
 
                     <!-- Soal Tab -->
-                    <div class="tab-pane fade" id="soal" role="tabpanel">
+                    {{-- <div class="tab-pane fade" id="soal" role="tabpanel">
                         @include('gkm.monitoring-perkuliahan.soal', ['dosenKaprodi' => $dosenKaprodi])
-                    </div>
+                    </div> --}}
                 </div>
             </div>
         </div>

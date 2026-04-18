@@ -513,7 +513,6 @@ class ExternalAPIService
 
         if ($data) {
 
-            // 🔍 Debug log (optional)
             Log::debug('API Monitoring Materi TEORI RAW', [
                 'kuliah_id' => $kuliahId,
                 'response' => $data
@@ -540,28 +539,55 @@ class ExternalAPIService
 
                 foreach ($data['check_materi']['detail'] as &$sesi) {
 
-                    // 🔥 Ambil created_at dari daftar_file pertama
+                    // 🔥 Ambil created_at dari file pertama
                     $createdAt = null;
-
                     if (isset($sesi['daftar_file']) && is_array($sesi['daftar_file']) && count($sesi['daftar_file']) > 0) {
                         $createdAt = $sesi['daftar_file'][0]['created_at'] ?? null;
                     }
 
-                    // 🔥 simpan final
                     $sesi['created_at_final'] = $createdAt;
 
                     // 🔥 tandai upload
                     $sesi['is_uploaded'] = strpos($sesi['status_file'] ?? '', 'OK') !== false;
-
-                    // 🔍 Debug per sesi (optional)
-                    Log::debug('Mapping sesi teori', [
-                        'sesi' => $sesi['sesi'] ?? null,
-                        'status_file' => $sesi['status_file'] ?? null,
-                        'created_at_final' => $sesi['created_at_final']
-                    ]);
                 }
 
-                $data['check_materi']['detail'] = $data['check_materi']['detail'];
+                // =========================
+                // 🔥 STATUS PER WEEK (FINAL LOGIC)
+                // =========================
+                $weekStatus = [];
+
+                foreach ($data['check_materi']['detail'] as $sesi) {
+
+                    // 🔥 Ambil week dari sesi (W1-S1 → W1)
+                    $week = null;
+                    if (isset($sesi['sesi'])) {
+                        $parts = explode('-', $sesi['sesi']);
+                        $week = $parts[0] ?? null;
+                    }
+
+                    if (!$week) continue;
+
+                    // 🔥 default
+                    if (!isset($weekStatus[$week])) {
+                        $weekStatus[$week] = [
+                            'status' => 'BELUM UPLOAD',
+                            'tanggal_upload' => null
+                        ];
+                    }
+
+                    // 🔥 jika ada salah satu sesi upload → langsung SUDAH
+                    if (!empty($sesi['is_uploaded'])) {
+                        $weekStatus[$week]['status'] = 'SUDAH UPLOAD';
+
+                        // ambil tanggal pertama ditemukan
+                        if (!empty($sesi['created_at_final']) && !$weekStatus[$week]['tanggal_upload']) {
+                            $weekStatus[$week]['tanggal_upload'] = $sesi['created_at_final'];
+                        }
+                    }
+                }
+
+                // 🔥 inject tanpa ganggu struktur lama
+                $data['check_materi']['week_status'] = $weekStatus;
             }
 
             return $data;
@@ -817,4 +843,13 @@ class ExternalAPIService
             return [];
         }
     }
+    public function getRekapKuesioner($ta, $kodeMk)
+{
+    $url = $this->baseUrl . '/library-api/get-rekap-kuesioner';
+
+    return $this->callApi($url, [
+        'ta' => $ta,
+        'kode_mk' => $kodeMk
+    ]);
+}
 }

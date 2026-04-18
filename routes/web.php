@@ -20,6 +20,7 @@ use App\Http\Controllers\GJM\BuatPPTController;
 use App\Http\Controllers\GJM\KirimLaporanController as GJMKirimLaporanController;
 use App\Http\Controllers\PeriodeAkademikController;
 
+
 // Auth Routes
 Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
 Route::post('/login', [AuthController::class, 'login'])->name('login.store');
@@ -100,7 +101,10 @@ Route::middleware('auth')->group(function () {
         // Monitoring Kuesioner
         Route::prefix('monitoring-kuesioner')->name('monitoring-kuesioner.')->group(function () {
             Route::get('/', [MonitoringKuesioneController::class, 'index'])->name('index');
-            Route::get('/create', [MonitoringKuesioneController::class, 'create'])->name('create');
+             Route::get('/create-api', [MonitoringKuesioneController::class, 'createApi'])->name('create-api');
+    Route::post('/process-api', [MonitoringKuesioneController::class, 'processFromApi'])->name('processFromApi');
+
+            Route::get('/create', [MonitoringKuesioneController::class, 'create'])->name('create'); 
             Route::post('/store', [MonitoringKuesioneController::class, 'store'])->name('store');
             Route::get('/{id}', [MonitoringKuesioneController::class, 'show'])->name('show');
             Route::delete('/{id}', [MonitoringKuesioneController::class, 'destroy'])->name('destroy');

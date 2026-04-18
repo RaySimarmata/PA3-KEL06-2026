@@ -9,15 +9,22 @@ use App\Services\AIAgentService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use PhpOffice\PhpSpreadsheet\IOFactory;
+use Illuminate\Support\Facades\Http;
+use App\Services\ExternalApiService;
 
 class MonitoringKuesioneController extends Controller
 {
     protected $aiAgent;
+    protected $apiService;
+    
 
-    public function __construct(AIAgentService $aiAgent)
-    {
-        $this->aiAgent = $aiAgent;
-    }
+    public function __construct(
+    AIAgentService $aiAgent,
+    ExternalApiService $apiService
+) {
+    $this->aiAgent = $aiAgent;
+    $this->apiService = $apiService;
+}
 
     public function index()
     {
@@ -171,6 +178,137 @@ class MonitoringKuesioneController extends Controller
 
         return view('gkm.monitoring-kuesioner.report', compact('kuesioner'));
     }
+
+   public function createApi()
+{
+    return view('gkm.monitoring-kuesioner.create-api');
+}
+
+/**
+ * Ambil data dari API via service
+ */
+private function fetchApi($ta, $kodeMk)
+{
+    $response = $this->apiService->getRekapKuesioner($ta, $kodeMk);
+
+    if (!$response) {
+        \Log::error('API gagal', [
+            'ta' => $ta,
+            'kode_mk' => $kodeMk
+        ]);
+
+        throw new \Exception('API gagal atau token tidak valid');
+    }
+
+    return $response;
+}
+
+/**
+ * Mapping API → format RAG kamu
+ */
+private function mapApiToIndexedData($apiData)
+{
+    $metadata = [
+        'total_responden' => $apiData['statistik']['total_responden_aktif'],
+        'total_pertanyaan' => count($apiData['statistik']['rekapitulasi']),
+        'pertanyaan' => []
+    ];
+
+    $statistik = [];
+    $no = 1;
+
+    foreach ($apiData['statistik']['rekapitulasi'] as $item) {
+
+        $qId = 'Q' . $no;
+
+        $counts = ['TS'=>0,'CS'=>0,'S'=>0,'SS'=>0];
+
+        foreach ($item['rincian_jawaban'] as $j) {
+            match ($j['jawaban']) {
+                '1' => $counts['STS'] = (int)$j['jumlah'],
+                '2' => $counts['TS'] = (int)$j['jumlah'],
+                '3' => $counts['CS']  = (int)$j['jumlah'],
+                '4' => $counts['S'] = (int)$j['jumlah'],
+                '5' => $counts['SS'] = (int)$j['jumlah'], 
+            };
+        }
+
+        $metadata['pertanyaan'][] = [
+            'id' => $qId,
+            'teks' => strip_tags($item['pertanyaan'])
+        ];
+
+        $statistik[$qId] = [
+            'teks_pertanyaan' => strip_tags($item['pertanyaan']),
+            'distribusi' => $counts,
+            'total_responden' => $item['total_suara']
+        ];
+
+        $no++;
+    }
+
+    return [
+        'metadata' => $metadata,
+        'statistik_per_pertanyaan' => $statistik,
+        'sample_responses' => []
+    ];
+}
+
+/**
+ * PROSES UTAMA ANALISIS DARI API
+ */
+public function processFromApi(Request $request)
+{
+    $request->validate([
+        'ta' => 'required',
+        'kode_mk' => 'required'
+    ]);
+
+    try {
+        // 1. ambil API (pakai token otomatis)
+        $apiData = $this->fetchApi($request->ta, $request->kode_mk);
+
+        // 2. mapping ke format RAG
+        $indexedData = $this->mapApiToIndexedData($apiData);
+
+        // 3. simpan ke DB
+        $kuesioner = KuesioneUpload::create([
+            'nama_file' => $apiData['metadata']['judul_kuesioner'] ?? 'Kuesioner API',
+            'kode_matakuliah' => $request->kode_mk,
+            'periode' => $request->ta,
+            'total_responden' => $apiData['statistik']['total_responden_aktif'],
+            'status' => 'processing',
+            'file_path' => 'from-api',
+            'source' => 'api',
+            'user_id' => auth()->id()
+        ]);
+
+        // 4. ANALISIS AI
+        $hasil = $this->aiAgent->analyzeFromApi($kuesioner, $indexedData);
+
+        // 5. update hasil
+        $kuesioner->update([
+            'hasil_analisis' => $hasil,
+            'index_kepuasan' => $hasil['statistik']['index_kepuasan'] ?? 0,
+            'persen_kepuasan' => $hasil['statistik']['persen_kepuasan'] ?? 0,
+            'status' => 'completed'
+        ]);
+
+        return redirect()
+            ->route('gkm.monitoring-kuesioner.show', $kuesioner->id)
+            ->with('success', 'Analisis dari API berhasil');
+
+    } catch (\Exception $e) {
+
+        \Log::error('Process API gagal', [
+            'error' => $e->getMessage()
+        ]);
+
+        return back()->withErrors([
+            'error' => 'Gagal proses API: ' . $e->getMessage()
+        ]);
+    }
+}
 
     private function processKuesioneAnalysis($kuesioneId)
     {

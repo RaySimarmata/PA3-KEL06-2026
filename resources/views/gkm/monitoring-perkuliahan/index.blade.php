@@ -152,26 +152,22 @@
                                             @foreach ($mk['weeks'] as $status)
                                                 <td class="text-center" style="padding: 0.5rem;">
                                                     @if ($status === 1)
-    {{-- ✅ Tepat waktu --}}
     <span class="status-icon success" title="Tepat waktu">
         <i class="bi bi-check-lg"></i>
     </span>
 
 @elseif ($status === 2)
-    {{-- ⚠️ Terlambat --}}
     <span class="status-icon warning" title="Terlambat upload">
         <i class="bi bi-exclamation-triangle"></i>
     </span>
 
 @elseif ($status === 0)
-    {{-- ❌ Tidak upload --}}
     <span class="status-icon danger" title="Belum upload">
         <i class="bi bi-x-lg"></i>
     </span>
 
 @else
-    {{-- ⚪ Belum ada data --}}
-    <span class="status-icon secondary" title="Belum ada data">
+    <span class="status-icon secondary" title="Belum waktunya atau belum ada data">
         <i class="bi bi-dash-lg"></i>
     </span>
 @endif

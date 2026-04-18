@@ -142,6 +142,18 @@ class AIAgentService
             'raw_headers' => $headers
         ];
     }
+
+    public function analyzeFromApi($kuesioner, $indexedData)
+{
+    // SKIP extractExcel
+    // langsung masuk ke step 2 (retrieve)
+
+    $retrievedContext = $this->retrieveRelevantContext($indexedData);
+
+    $prompt = $this->augmentPromptWithContext($kuesioner, $retrievedContext);
+
+    // lanjut sama seperti analyzeKuesioner()
+}
     
     /**
      * RAG STEP 2: Retrieve relevant context

@@ -23,7 +23,10 @@ class KuesioneUpload extends Model
         'deskripsi',
         'total_responden',
         'hasil_analisis',
-        'status'
+        'status',
+        'source',              
+        'index_kepuasan',      
+        'persen_kepuasan',
     ];
 
     protected $casts = [

@@ -644,7 +644,7 @@ private function saveSnapshotToDB(
         $user = Auth::user();
 
         // Ambil dosen untuk filter
-        $dosenList = Dosenn::where('status', 'aktif')->get();
+        $dosenList = Dosenn::get();
         
         // Ambil log email
         $logEmailList = LogEmail::when($dosenId, function ($query) use ($dosenId) {
