@@ -13,6 +13,11 @@ class PeriodeAkademik extends Model
         'semester',
         'semester_label',
         'start_date',
-        'is_active'
+        'is_active',
+    ];
+
+    protected $casts = [
+        'is_active' => 'boolean',
+        'start_date' => 'date',
     ];
 }

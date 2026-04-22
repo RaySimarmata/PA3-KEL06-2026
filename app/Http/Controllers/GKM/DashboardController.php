@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\GKM;
 
 use App\Http\Controllers\Controller;
-use App\Models\Dosen;
 use App\Models\Materi;
 use App\Models\RPS;
 use App\Models\Reminder;
@@ -16,34 +15,30 @@ class DashboardController extends Controller
     {
         $user = Auth::user();
 
-        // Statistik untuk dashboard GKM - Filtered by prodi
+        // Statistik untuk dashboard GKM
+        // Status Upload Materi
+        $totalMateri = Materi::count();
+        $materiUploaded = Materi::where('status', 'sudah_upload')->count();
+        $materiBelum = $totalMateri - $materiUploaded;
+
+        // Status RPS
+        $totalRPS = RPS::count();
+        $rpsLengkap = RPS::where('status_rps', 'sudah_divalidasi')->count();
+        $rpsBelum = $totalRPS - $rpsLengkap;
+
+        // Status Reminder
+        $remindersPending = Reminder::where('status', 'belum_kirim')->count();
+
+        // Status Kuisioner
+        $kuisionerAktif = Kuisioner::where('status', 'aktif')->count();
+
         $stats = [
-            'materi_uploaded' => Materi::where('status_upload_materi', 'Sudah Upload')
-                ->when($user->prodi_id, function($q) use ($user) {
-                    $q->whereHas('rps.dosen', function($query) use ($user) {
-                        $query->where('prodi_id', $user->prodi_id);
-                    });
-                })->count(),
-            'materi_belum' => Materi::where('status_upload_materi', 'Belum Upload')
-                ->when($user->prodi_id, function($q) use ($user) {
-                    $q->whereHas('rps.dosen', function($query) use ($user) {
-                        $query->where('prodi_id', $user->prodi_id);
-                    });
-                })->count(),
-            'rps_lengkap' => RPS::where('status_review_rps', 'Lengkap')
-                ->when($user->prodi_id, function($q) use ($user) {
-                    $q->whereHas('dosen', function($query) use ($user) {
-                        $query->where('prodi_id', $user->prodi_id);
-                    });
-                })->count(),
-            'rps_belum' => RPS::where('status_review_rps', 'Belum Lengkap')
-                ->when($user->prodi_id, function($q) use ($user) {
-                    $q->whereHas('dosen', function($query) use ($user) {
-                        $query->where('prodi_id', $user->prodi_id);
-                    });
-                })->count(),
-            'kuisioner_pengisi' => Kuisioner::where('status_kuisioner', 'Sedang Berjalan')->count(),
-            'reminders_pending' => Reminder::where('status_pengiriman', 'pending')->count(),
+            'materi_uploaded' => $materiUploaded,
+            'materi_belum' => $materiBelum,
+            'rps_lengkap' => $rpsLengkap,
+            'rps_belum' => $rpsBelum,
+            'reminders_pending' => $remindersPending,
+            'kuisioner_pengisi' => $kuisionerAktif,
         ];
 
         $periode = date('F Y');

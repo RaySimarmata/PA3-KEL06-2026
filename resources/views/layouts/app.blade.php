@@ -4,6 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>@yield('title', 'Sistem GJK & GKM')</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
@@ -11,6 +12,11 @@
     <!-- GKM Global Styles -->
     @if(auth()->check() && auth()->user()->isGKM())
         <link rel="stylesheet" href="{{ asset('css/gkm-style.css') }}">
+    @endif
+    
+    <!-- GJM Global Styles -->
+    @if(auth()->check() && auth()->user()->isGJM())
+        <link rel="stylesheet" href="{{ asset('css/gjm-style.css') }}">
     @endif
     
     <style>
@@ -544,20 +550,24 @@
                             <i class="bi bi-speedometer2"></i> Dashboard
                         </a>
 
-                        <div class="nav-dropdown {{ request()->routeIs('gjm.buat-laporan.*') || request()->routeIs('gjm.laporan.*') ? 'open' : '' }}">
+                        <div class="nav-dropdown {{ request()->routeIs('gjm.buat-laporan.*') || request()->routeIs('gjm.laporan-gjm.*') ? 'open' : '' }}">
                             <a href="javascript:void(0)"
-                                class="nav-item {{ request()->routeIs('gjm.buat-laporan.*') || request()->routeIs('gjm.laporan.*') ? 'active' : '' }}"
+                                class="nav-item {{ request()->routeIs('gjm.buat-laporan.*') || request()->routeIs('gjm.laporan-gjm.*') ? 'active' : '' }}"
                                 onclick="toggleDropdown(this)">
                                 <span><i class="bi bi-file-earmark-text"></i> Pelaporan</span>
                                 <i class="bi bi-chevron-down dropdown-icon"></i>
                             </a>
                             <div class="dropdown-submenu">
-                                <a href="{{ route('gjm.buat-laporan.index') }}"
-                                    class="nav-item {{ request()->routeIs('gjm.buat-laporan.*') ? 'active' : '' }}">
-                                    <i class="bi bi-file-earmark-plus"></i> Buat Laporan
+                                <a href="{{ route('gjm.buat-laporan.triwulan') }}"
+                                    class="nav-item {{ request()->routeIs('gjm.buat-laporan.triwulan') ? 'active' : '' }}">
+                                    <i class="bi bi-calendar3"></i> Buat Laporan Triwulan
                                 </a>
-                                <a href="{{ route('gjm.laporan.index') }}"
-                                    class="nav-item {{ request()->routeIs('gjm.laporan.index') ? 'active' : '' }}">
+                                <a href="{{ route('gjm.buat-laporan.semester') }}"
+                                    class="nav-item {{ request()->routeIs('gjm.buat-laporan.semester') ? 'active' : '' }}">
+                                    <i class="bi bi-file-earmark-plus"></i> Buat Laporan Semester
+                                </a>
+                                <a href="{{ route('gjm.laporan-gjm.index') }}"
+                                    class="nav-item {{ request()->routeIs('gjm.laporan-gjm.index') ? 'active' : '' }}">
                                     <i class="bi bi-archive"></i> Arsip Laporan
                                 </a>
                             </div>

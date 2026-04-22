@@ -17,33 +17,13 @@ class SyncDosen extends Command
         $this->info('Mulai sync dosen...');
 
         try {
-            $baseUrl = config('services.library.url');
-            $url = $baseUrl . '/library-api/dosen';
+            // Use the service's getDosen method which handles token refresh automatically
+            $data = $apiService->getDosenFromAPI();
 
-            // ambil token dari service
-            $token = $apiService->getAccessToken();
-
-            if (!$token) {
-                $this->error('Token tidak tersedia ❌');
+            if ($data === null) {
+                $this->error('Gagal ambil data dari API - service returned null');
                 return;
             }
-
-            $this->info('Token OK ✅');
-
-            // request ke API
-            $response = Http::withToken($token)
-                ->timeout(20)
-                ->get($url);
-
-            if (!$response->successful()) {
-                $this->error('Gagal ambil data dari API');
-                $this->error('Status: ' . $response->status());
-                $this->error('Response: ' . $response->body());
-                return;
-            }
-
-            // 🔥 FIX UTAMA DI SINI
-            $data = $response->json()['data']['dosen'] ?? [];
 
             if (empty($data)) {
                 $this->warn('Data dosen kosong ⚠️');

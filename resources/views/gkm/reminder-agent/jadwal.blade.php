@@ -67,9 +67,6 @@
                                         <option value="Upload Materi"
                                             {{ old('tipe_reminder') == 'Upload Materi' ? 'selected' : '' }}>Reminder Upload
                                             Materi</option>
-                                        <option value="Perwalian"
-                                            {{ old('tipe_reminder') == 'Perwalian' ? 'selected' : '' }}>Reminder Perwalian
-                                        </option>
                                         <option value="Review Soal"
                                             {{ old('tipe_reminder') == 'Review Soal' ? 'selected' : '' }}>Reminder Review
                                             Soal</option>

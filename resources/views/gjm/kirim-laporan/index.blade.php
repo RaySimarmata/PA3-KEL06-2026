@@ -5,64 +5,70 @@
 @section('content')
 <div style="padding: 1.5rem;">
     @if(session('success'))
-    <div class="alert alert-success alert-dismissible fade show" role="alert">
-        {{ session('success') }}
+    <div class="alert-gjm success alert-dismissible fade show" role="alert">
+        <i class="bi bi-check-circle"></i> {{ session('success') }}
         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
     </div>
     @endif
 
     @if(session('error'))
-    <div class="alert alert-danger alert-dismissible fade show" role="alert">
-        {{ session('error') }}
+    <div class="alert-gjm danger alert-dismissible fade show" role="alert">
+        <i class="bi bi-exclamation-triangle"></i> {{ session('error') }}
         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
     </div>
     @endif
 
-    <div class="card border-0 shadow-sm mb-4">
-        <div class="card-body">
-            <h5 class="mb-1">Pengiriman Laporan GJM</h5>
-            <p class="text-muted mb-0">Kelola dan kirim pesan pengingat kepada penerima terkait laporan GJM.</p>
+    <!-- Header Card -->
+    <div class="filter-card mb-4">
+        <div class="d-flex align-items-start gap-3">
+            <i class="bi bi-send" style="color: #5B9BD5; font-size: 2rem;"></i>
+            <div>
+                <h5 class="mb-1" style="font-weight: 600; color: #333;">Pengiriman Laporan GJM</h5>
+                <p class="text-muted mb-0" style="font-size: 0.875rem;">Kelola dan kirim pesan pengingat kepada penerima terkait laporan GJM.</p>
+            </div>
         </div>
     </div>
 
     <form id="laporanForm">
         @csrf
-        <div class="card border-0 shadow-sm mb-4">
-            <div class="card-body">
-                <h6 class="mb-3">Informasi Penerima</h6>
-                
-                <div class="mb-3">
-                    <label class="form-label">Penerima <span class="text-danger">*</span></label>
+        <div class="monitoring-card mb-4">
+            <div class="monitoring-header">
+                <i class="bi bi-envelope" style="color: #5B9BD5;"></i>
+                <h6>Informasi Penerima</h6>
+            </div>
+            <div style="padding: 1.5rem;">
+                <div class="mb-4">
+                    <label class="filter-label">Penerima <span class="text-danger">*</span></label>
                     <input type="text" class="form-control" name="recipients" id="recipients"
                            placeholder="Contoh: rektor@example.com, dekan@example.com" required>
-                    <small class="text-muted">
-                        Masukkan alamat email penerima. Pisahkan dengan koma untuk beberapa penerima.
+                    <small class="text-muted" style="font-size: 0.8rem;">
+                        <i class="bi bi-info-circle"></i> Masukkan alamat email penerima. Pisahkan dengan koma untuk beberapa penerima.
                     </small>
                 </div>
 
-                <div class="mb-3">
-                    <label class="form-label">CC</label>
+                <div class="mb-4">
+                    <label class="filter-label">CC</label>
                     <input type="text" class="form-control" name="cc" id="cc"
                            placeholder="Contoh: spm@example.com">
-                    <small class="text-muted">
-                        Masukkan alamat email CC. Pisahkan dengan koma untuk beberapa email.
+                    <small class="text-muted" style="font-size: 0.8rem;">
+                        <i class="bi bi-info-circle"></i> Masukkan alamat email CC. Pisahkan dengan koma untuk beberapa email.
                     </small>
                 </div>
 
-                <div class="mb-3">
-                    <label class="form-label">Subjek email <span class="text-danger">*</span></label>
+                <div class="mb-4">
+                    <label class="filter-label">Subjek Email <span class="text-danger">*</span></label>
                     <input type="text" class="form-control" name="subject" id="subject"
                            placeholder="Contoh: Pengiriman Laporan GJM Triwulan I 2024" required>
                 </div>
 
-                <div class="mb-3">
-                    <label class="form-label">Isi Pesan <span class="text-danger">*</span></label>
+                <div class="mb-4">
+                    <label class="filter-label">Isi Pesan <span class="text-danger">*</span></label>
                     <textarea class="form-control" name="message" id="message" rows="10" 
                               placeholder="Tuliskan pesan Anda di sini..." required></textarea>
                 </div>
 
-                <div class="mb-3">
-                    <label class="form-label">Lampiran Berkas</label>
+                <div class="mb-4">
+                    <label class="filter-label">Lampiran Berkas</label>
                     <div class="d-flex gap-2 mb-3">
                         <button type="button" class="btn btn-outline-primary" onclick="showUploadExternal()">
                             <i class="bi bi-upload"></i> Upload File Eksternal
@@ -74,84 +80,94 @@
                     
                     <!-- Upload File Eksternal -->
                     <div id="uploadExternalSection" style="display: none;">
-                        <div class="border rounded p-3 mb-3" style="background: #f8f9fa;">
-                            <input type="file" class="form-control" name="temp_attachments[]" id="tempAttachments" multiple>
-                            <small class="text-muted d-block mt-2">
-                                <i class="bi bi-info-circle"></i> Anda dapat melampirkan beberapa file sekaligus
-                            </small>
+                        <div class="monitoring-card mb-3" style="border-left: 4px solid #5B9BD5;">
+                            <div style="padding: 1rem;">
+                                <input type="file" class="form-control" name="temp_attachments[]" id="tempAttachments" multiple>
+                                <small class="text-muted d-block mt-2" style="font-size: 0.8rem;">
+                                    <i class="bi bi-info-circle"></i> Anda dapat melampirkan beberapa file sekaligus
+                                </small>
+                            </div>
                         </div>
                         <div id="pendingFileList" class="mt-2"></div>
                     </div>
                     
                     <!-- Pilih dari Laporan GJM -->
                     <div id="pilihLaporanSection" style="display: none;">
-                        <div class="border rounded p-3" style="background: #f8f9fa;">
-                            <h6 class="mb-3">Laporan GJM</h6>
-                            <div class="table-responsive">
-                                <table class="table table-sm table-hover mb-0">
-                                    <thead class="table-light">
-                                        <tr>
-                                            <th width="50">
-                                                <input type="checkbox" class="form-check-input" id="selectAllLaporan" onchange="toggleAllLaporan(this)">
-                                            </th>
-                                            <th>Periode</th>
-                                            <th>Jenis Laporan</th>
-                                            <th>Tanggal</th>
-                                            <th>Status</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        @forelse($laporanList as $laporan)
-                                        <tr>
-                                            <td>
-                                                <input type="checkbox" class="form-check-input laporan-checkbox" 
-                                                       value="{{ $laporan->id }}"
-                                                       data-title="{{ $laporan->getPeriodeLabel() }} - {{ $laporan->getJenisLaporanLabel() }}"
-                                                       onchange="showLaporanValidation()">
-                                            </td>
-                                            <td>{{ $laporan->getPeriodeLabel() }}</td>
-                                            <td>{{ $laporan->getJenisLaporanLabel() }}</td>
-                                            <td>{{ $laporan->created_at->format('d M Y') }}</td>
-                                            <td>
-                                                <span class="badge {{ $laporan->getStatusBadgeClass() }}">
-                                                    {{ ucfirst($laporan->status_laporan) }}
-                                                </span>
-                                            </td>
-                                        </tr>
-                                        @empty
-                                        <tr>
-                                            <td colspan="5" class="text-center py-3 text-muted">
-                                                Belum ada laporan yang tersedia
-                                            </td>
-                                        </tr>
-                                        @endforelse
-                                    </tbody>
-                                </table>
+                        <div class="monitoring-card" style="border-left: 4px solid #5B9BD5;">
+                            <div style="padding: 1rem;">
+                                <h6 class="mb-3" style="font-weight: 600; color: #333;">Laporan GJM</h6>
+                                <div class="table-responsive">
+                                    <table class="table table-monitoring mb-0">
+                                        <thead>
+                                            <tr>
+                                                <th style="width: 50px;">
+                                                    <input type="checkbox" class="form-check-input" id="selectAllLaporan" onchange="toggleAllLaporan(this)">
+                                                </th>
+                                                <th>Periode</th>
+                                                <th>Jenis Laporan</th>
+                                                <th>Tanggal</th>
+                                                <th class="text-center">Status</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @forelse($laporanList as $laporan)
+                                            <tr>
+                                                <td>
+                                                    <input type="checkbox" class="form-check-input laporan-checkbox" 
+                                                           value="{{ $laporan->id }}"
+                                                           data-title="{{ $laporan->getPeriodeLabel() }} - {{ $laporan->getJenisLaporanLabel() }}"
+                                                           onchange="showLaporanValidation()">
+                                                </td>
+                                                <td class="code-mk">{{ $laporan->getPeriodeLabel() }}</td>
+                                                <td class="text-secondary">{{ $laporan->getJenisLaporanLabel() }}</td>
+                                                <td class="text-secondary">{{ $laporan->created_at->format('d M Y') }}</td>
+                                                <td class="text-center">
+                                                    <span class="badge-gjm {{ $laporan->status_laporan == 'draft' ? 'warning' : 'success' }}">
+                                                        {{ ucfirst($laporan->status_laporan) }}
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                            @empty
+                                            <tr>
+                                                <td colspan="5" class="text-center py-4">
+                                                    <div class="empty-state">
+                                                        <i class="bi bi-inbox"></i>
+                                                        <p>Belum ada laporan yang tersedia</p>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                            @endforelse
+                                        </tbody>
+                                    </table>
+                                </div>
+                                <small class="text-muted d-block mt-2" style="font-size: 0.8rem;">
+                                    <i class="bi bi-info-circle"></i> Pilih laporan yang akan dilampirkan dalam email
+                                </small>
                             </div>
-                            <small class="text-muted d-block mt-2">
-                                <i class="bi bi-info-circle"></i> Pilih laporan yang akan dilampirkan dalam email
-                            </small>
                         </div>
                         <div id="pendingLaporanList" class="mt-2"></div>
                     </div>
                     
                     <!-- Daftar File yang Sudah Divalidasi -->
                     <div id="validatedFilesSection" class="mt-3" style="display: none;">
-                        <div class="border rounded p-3" style="background: #e8f5e9;">
-                            <h6 class="mb-3 text-success">
-                                <i class="bi bi-check-circle"></i> File yang Akan Dikirim
-                            </h6>
-                            <div id="validatedFilesList"></div>
+                        <div class="monitoring-card" style="border-left: 4px solid #28a745;">
+                            <div style="padding: 1rem;">
+                                <h6 class="mb-3" style="color: #28a745; font-weight: 600;">
+                                    <i class="bi bi-check-circle"></i> File yang Akan Dikirim
+                                </h6>
+                                <div id="validatedFilesList"></div>
+                            </div>
                         </div>
                     </div>
                 </div>
 
                 <div class="d-flex gap-2">
-                    <button type="button" class="btn btn-primary" onclick="generateMessage()">
-                        <i class="bi bi-magic"></i> Generate Pesan
+                    <button type="button" class="btn btn-outline-primary" onclick="generateMessage()">
+                        <i class="bi bi-magic"></i> Generate Pesan AI
                     </button>
-                    <button type="button" class="btn btn-success" onclick="sendLaporan()">
-                        <i class="bi bi-send"></i> Kirim Laporan
+                    <button type="button" class="btn-reminder" onclick="sendLaporan()">
+                        <i class="bi bi-send"></i>
+                        <span>Kirim Laporan</span>
                     </button>
                     <button type="button" class="btn btn-outline-secondary" onclick="previewMessage()">
                         <i class="bi bi-eye"></i> Preview
@@ -166,32 +182,36 @@
 <div class="modal fade" id="previewModal" tabindex="-1">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Preview Pesan</h5>
+            <div class="modal-header" style="background: #f8f9fa; border-bottom: 2px solid #5B9BD5;">
+                <h5 class="modal-title" style="color: #333; font-weight: 600;">
+                    <i class="bi bi-eye" style="color: #5B9BD5;"></i> Preview Pesan
+                </h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
-            <div class="modal-body">
+            <div class="modal-body" style="padding: 1.5rem;">
                 <div class="mb-3">
-                    <strong>Penerima:</strong>
-                    <p id="previewRecipients" class="mb-0"></p>
+                    <label class="filter-label">Penerima</label>
+                    <p id="previewRecipients" class="mb-0" style="color: #495057;"></p>
                 </div>
                 <div class="mb-3">
-                    <strong>CC:</strong>
-                    <p id="previewCC" class="mb-0"></p>
+                    <label class="filter-label">CC</label>
+                    <p id="previewCC" class="mb-0" style="color: #495057;"></p>
                 </div>
                 <div class="mb-3">
-                    <strong>Subjek:</strong>
-                    <p id="previewSubject" class="mb-0"></p>
+                    <label class="filter-label">Subjek</label>
+                    <p id="previewSubject" class="mb-0" style="color: #495057; font-weight: 600;"></p>
                 </div>
-                <hr>
+                <hr style="border-color: #e9ecef;">
                 <div>
-                    <strong>Isi Pesan:</strong>
-                    <pre id="previewMessage" class="mt-2" style="white-space: pre-wrap; font-family: inherit;"></pre>
+                    <label class="filter-label">Isi Pesan</label>
+                    <pre id="previewMessage" class="mt-2" style="white-space: pre-wrap; font-family: inherit; background: #f8f9fa; padding: 1rem; border-radius: 6px; border: 1px solid #e9ecef;"></pre>
                 </div>
                 <div class="mt-3" id="previewAttachments"></div>
             </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Tutup</button>
+            <div class="modal-footer" style="background: #f8f9fa;">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">
+                    <i class="bi bi-x-circle"></i> Tutup
+                </button>
             </div>
         </div>
     </div>

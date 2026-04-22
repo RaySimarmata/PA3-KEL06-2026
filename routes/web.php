@@ -18,8 +18,11 @@ use App\Http\Controllers\GJM\LaporanGJMController;
 use App\Http\Controllers\GJM\BuatLaporanController;
 use App\Http\Controllers\GJM\BuatPPTController;
 use App\Http\Controllers\GJM\KirimLaporanController as GJMKirimLaporanController;
-use App\Http\Controllers\PeriodeAkademikController;
-
+use App\Http\Controllers\GJM\TemplateLaporanController;
+use App\Http\Controllers\GJM\LaporanSemesterController;
+use App\Http\Controllers\GJM\PromptSemesterController;
+use App\Http\Controllers\GJM\LaporanTriwulanController;
+use App\Http\Controllers\GJM\PromptTriwulanController;
 
 // Auth Routes
 Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
@@ -67,9 +70,6 @@ Route::middleware('auth')->group(function () {
             Route::post('/template-laporan', [DataMasterController::class, 'storeTemplate'])->name('template.store');
             Route::get('/template-laporan/{id}/download', [DataMasterController::class, 'downloadTemplate'])->name('template.download');
             Route::delete('/template-laporan/{id}', [DataMasterController::class, 'destroyTemplate'])->name('template.destroy');
-            Route::get('/periode', [PeriodeAkademikController::class, 'index'])->name('periode.index');
-            Route::post('/periode', [PeriodeAkademikController::class, 'store'])->name('periode.store');
-            Route::get('/periode/active', [PeriodeAkademikController::class, 'getActive'])->name('periode.active');
         });
 
         // Monitoring RPS & Materi
@@ -87,9 +87,6 @@ Route::middleware('auth')->group(function () {
             Route::get('/', [MonitoringPerkuliahanController::class, 'index'])->name('index');
             Route::post('/clear-cache', [MonitoringPerkuliahanController::class, 'clearCache'])->name('clear-cache');
             Route::get('/kirim-pengingat', [MonitoringPerkuliahanController::class, 'kirimPengingat'])->name('kirim-pengingat');
-            Route::get('/reminder-perwalian', [MonitoringPerkuliahanController::class, 'reminderPerwalian'])->name('perwalian');
-            Route::post('/reminder-perwalian/send', [MonitoringPerkuliahanController::class, 'kirimReminderPerwalian'])->name('perwalian.send');
-            Route::post('/reminder-perwalian/generate', [MonitoringPerkuliahanController::class, 'generateMessagePerwalian'])->name('perwalian.generate');
             Route::get('/reminder-materi', [MonitoringPerkuliahanController::class, 'reminderMateri'])->name('materi');
             Route::post('/reminder-materi/send', [MonitoringPerkuliahanController::class, 'kirimReminderUploadMateri'])->name('materi.send');
             Route::post('/reminder-materi/generate', [MonitoringPerkuliahanController::class, 'generateMessageMateri'])->name('materi.generate');
@@ -101,14 +98,14 @@ Route::middleware('auth')->group(function () {
         // Monitoring Kuesioner
         Route::prefix('monitoring-kuesioner')->name('monitoring-kuesioner.')->group(function () {
             Route::get('/', [MonitoringKuesioneController::class, 'index'])->name('index');
-             Route::get('/create-api', [MonitoringKuesioneController::class, 'createApi'])->name('create-api');
-    Route::post('/process-api', [MonitoringKuesioneController::class, 'processFromApi'])->name('processFromApi');
-
-            Route::get('/create', [MonitoringKuesioneController::class, 'create'])->name('create'); 
+            Route::get('/create', [MonitoringKuesioneController::class, 'create'])->name('create');
+            Route::get('/create-api', [MonitoringKuesioneController::class, 'createApi'])->name('create-api');
             Route::post('/store', [MonitoringKuesioneController::class, 'store'])->name('store');
+            Route::post('/process-from-api', [MonitoringKuesioneController::class, 'processFromApi'])->name('process-from-api');
             Route::get('/{id}', [MonitoringKuesioneController::class, 'show'])->name('show');
             Route::delete('/{id}', [MonitoringKuesioneController::class, 'destroy'])->name('destroy');
             Route::get('/{id}/report', [MonitoringKuesioneController::class, 'generateReport'])->name('report');
+            Route::post('/{id}/reprocess', [MonitoringKuesioneController::class, 'reprocess'])->name('reprocess');
         });
 
         // Laporan Kuesioner (NEW - AI Generated Reports)
@@ -158,20 +155,36 @@ Route::middleware('auth')->group(function () {
             Route::post('/generate', [KirimLaporanController::class, 'generateMessage'])->name('generate');
             Route::post('/send', [KirimLaporanController::class, 'send'])->name('send');
         });
-
-        // halaman utama (list + form)
-Route::get('/periode', [PeriodeAkademikController::class, 'index'])->name('periode.index');
-
-// simpan data
-Route::post('/periode', [PeriodeAkademikController::class, 'store'])->name('periode.store');
-
-// ambil periode aktif (optional, biasanya dipakai API / ajax)
-Route::get('/periode/active', [PeriodeAkademikController::class, 'getActive'])->name('periode.active');
     });
 
     // GJM Routes
     Route::prefix('gjm')->name('gjm.')->group(function () {
         Route::get('/dashboard', [GJMDashboardController::class, 'index'])->name('dashboard');
+
+        // Test AI endpoint
+        Route::post('/test-ai', function(Request $request) {
+            try {
+                $aiService = app(\App\Services\ClaudeAIService::class);
+                
+                $response = $aiService->ask(
+                    "Anda adalah asisten AI untuk sistem laporan akademik.",
+                    "Test: " . ($request->input('message', 'Hello'))
+                );
+                
+                return response()->json([
+                    'success' => true,
+                    'response' => $response,
+                    'model' => $aiService->getModelInfo()
+                ]);
+                
+            } catch (\Exception $e) {
+                return response()->json([
+                    'success' => false,
+                    'error' => $e->getMessage(),
+                    'trace' => $e->getTraceAsString()
+                ], 500);
+            }
+        })->name('test-ai');
 
         // Recap Laporan
         Route::prefix('recap-laporan')->name('recap.')->group(function () {
@@ -194,16 +207,53 @@ Route::get('/periode/active', [PeriodeAkademikController::class, 'getActive'])->
             Route::get('/archive', [BuatPPTController::class, 'archive'])->name('archive');
             Route::post('/generate', [BuatPPTController::class, 'generate'])->name('generate');
             Route::get('/{id}/download', [BuatPPTController::class, 'download'])->name('download');
+            Route::delete('/{id}/delete', [BuatPPTController::class, 'delete'])->name('delete');
         });
 
-        // Buat Laporan (NEW)
+        // Buat Laporan (Simplified - No AI Agent)
         Route::prefix('buat-laporan')->name('buat-laporan.')->group(function () {
             Route::get('/', [BuatLaporanController::class, 'index'])->name('index');
+            
+            // Triwulan
+            Route::get('/triwulan', [LaporanTriwulanController::class, 'create'])->name('triwulan');
+            Route::post('/triwulan', [LaporanTriwulanController::class, 'store'])->name('triwulan.store');
+            Route::post('/triwulan/ai-prompt', [LaporanTriwulanController::class, 'aiPrompt'])->name('triwulan.ai-prompt');
+            Route::post('/triwulan/save-preview', [LaporanTriwulanController::class, 'savePreview'])->name('triwulan.save-preview');
+            Route::post('/triwulan/prompt', [PromptTriwulanController::class, 'chat'])->name('triwulan.prompt');
+            Route::post('/triwulan/read-file', [PromptTriwulanController::class, 'readFile'])->name('triwulan.read-file');
+            
+            // Semester
+            Route::get('/semester', [LaporanSemesterController::class, 'create'])->name('semester');
+            Route::post('/semester', [LaporanSemesterController::class, 'store'])->name('semester.store');
+            Route::post('/semester/ai-prompt', [LaporanSemesterController::class, 'aiPrompt'])->name('semester.ai-prompt');
+            Route::post('/semester/prompt', [PromptSemesterController::class, 'chat'])->name('semester.prompt');
+            Route::post('/semester/read-file', [PromptSemesterController::class, 'readFile'])->name('semester.read-file');
+            
+            // Download
+            Route::get('/download/{id}', [LaporanGJMController::class, 'download'])->name('download.pdf');
+            
+            // Legacy route for backward compatibility
             Route::post('/store', [BuatLaporanController::class, 'store'])->name('store');
-            Route::post('/generate', [BuatLaporanController::class, 'generateReport'])->name('generate');
             Route::get('/{id}', [BuatLaporanController::class, 'show'])->name('show');
-            Route::get('/{id}/download-pdf', [BuatLaporanController::class, 'downloadPDF'])->name('download.pdf');
-            Route::get('/{id}/download-ppt', [BuatLaporanController::class, 'downloadPPT'])->name('download.ppt');
+        });
+
+        // Template Laporan Management
+        Route::prefix('template-laporan')->name('template-laporan.')->group(function () {
+            // Triwulan Templates
+            Route::get('/triwulan', [TemplateLaporanController::class, 'indexTriwulan'])->name('triwulan.index');
+            Route::get('/triwulan/upload', [TemplateLaporanController::class, 'uploadTriwulan'])->name('triwulan.upload');
+            Route::post('/triwulan', [TemplateLaporanController::class, 'storeTriwulan'])->name('triwulan.store');
+            
+            // Semester Templates
+            Route::get('/semester', [TemplateLaporanController::class, 'indexSemester'])->name('semester.index');
+            Route::get('/semester/upload', [TemplateLaporanController::class, 'uploadSemester'])->name('semester.upload');
+            Route::post('/semester', [TemplateLaporanController::class, 'storeSemester'])->name('semester.store');
+            
+            // Common Actions
+            Route::get('/{id}/download', [TemplateLaporanController::class, 'download'])->name('download');
+            Route::post('/{id}/toggle/{type}', [TemplateLaporanController::class, 'toggle'])->name('toggle');
+            Route::post('/{id}/reindex/{type}', [TemplateLaporanController::class, 'reindex'])->name('reindex');
+            Route::delete('/{id}/{type}', [TemplateLaporanController::class, 'destroy'])->name('destroy');
         });
 
         // Kirim Laporan
@@ -214,12 +264,14 @@ Route::get('/periode/active', [PeriodeAkademikController::class, 'getActive'])->
         });
 
         // Laporan GJM Fakultas (Arsip)
-        Route::prefix('laporan-gjm')->name('laporan.')->group(function () {
+        Route::prefix('laporan-gjm')->name('laporan-gjm.')->group(function () {
             Route::get('/', [LaporanGJMController::class, 'index'])->name('index');
             Route::get('/create', [LaporanGJMController::class, 'create'])->name('create');
             Route::get('/bulanan', [LaporanGJMController::class, 'laporanBulanan'])->name('bulanan');
             Route::get('/tahunan', [LaporanGJMController::class, 'laporanTahunan'])->name('tahunan');
             Route::post('/generate', [LaporanGJMController::class, 'generate'])->name('generate');
+            Route::get('/{id}', [LaporanGJMController::class, 'show'])->name('show');
+            Route::delete('/{id}', [LaporanGJMController::class, 'destroy'])->name('destroy');
         });
     });
 });

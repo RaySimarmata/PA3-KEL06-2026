@@ -22,15 +22,6 @@ class JadwalReminderSeeder extends Seeder
 
         $jadwalReminders = [
             [
-                'nama_jadwal' => 'Reminder Perwalian & Persiapan Perkuliahan',
-                'tipe_reminder' => 'Perwalian',
-                'jam_pengiriman' => '08:00:00',
-                'tanggal_mulai' => now()->addDays(1),
-                'tanggal_selesai' => null,
-                'is_active' => true,
-                'dibuat_oleh' => $gkmUser->id,
-            ],
-            [
                 'nama_jadwal' => 'Reminder Upload Materi di CIS',
                 'tipe_reminder' => 'Upload Materi',
                 'jam_pengiriman' => '14:00:00',

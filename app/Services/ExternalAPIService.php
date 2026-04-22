@@ -122,6 +122,34 @@ class ExternalAPIService
     }
 
     /**
+     * Get all dosen from external API (for sync command)
+     * 
+     * @return array|null
+     */
+    public function getDosenFromAPI()
+    {
+        try {
+            $data = $this->callApi($this->baseUrl . '/library-api/dosen');
+            
+            if ($data) {
+                // Extract dosen array from nested structure
+                return $data['data']['dosen'] ?? [];
+            }
+
+            Log::warning('API Dosen failed - no data returned');
+            return [];
+
+        } catch (\Exception $e) {
+            Log::error('API Dosen exception', [
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return [];
+        }
+    }
+
+    /**
      * Get all dosen from external API
      * 
      * @return array|null
@@ -149,9 +177,9 @@ class ExternalAPIService
     //     }
     // }
     public function getDosen()
-{
-    return Dosenn::all()->toArray();
-}
+    {
+        return Dosenn::all()->toArray();
+    }
 
     /**
      * Get filtered dosen (only TI, TK, TRPL and Tenaga Pengajar)
@@ -196,17 +224,17 @@ class ExternalAPIService
     // }
 
     public function getFilteredDosen()
-{
-    return Dosenn::whereIn('prodi', [
-        'DIII Teknologi Informasi',
-        'DIII Teknologi Komputer',
-        'DIV Teknologi Rekayasa Perangkat Lunak'
-    ])
-    ->get()
-    ->unique('pegawai_id')
-    ->values()
-    ->toArray();
-}
+    {
+        return Dosenn::whereIn('prodi', [
+            'DIII Teknologi Informasi',
+            'DIII Teknologi Komputer',
+            'DIV Teknologi Rekayasa Perangkat Lunak'
+        ])
+        ->get()
+        ->unique('pegawai_id')
+        ->values()
+        ->toArray();
+    }
 
     /**
      * Get dosen by specific prodi IDs only (optimized for monitoring RPS)
@@ -399,9 +427,10 @@ class ExternalAPIService
     // }
 
     public function searchByName($search)
-{
-    return Dosen::where('nama', 'like', '%' . $search . '%')->get();
-}
+    {
+        return Dosenn::where('nama', 'like', '%' . $search . '%')
+            ->get();
+    }
     /**
      * Get matakuliah by prodi, semester, and tahun ajaran
      * 

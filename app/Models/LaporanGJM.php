@@ -13,6 +13,7 @@ class LaporanGJM extends Model
 
     protected $fillable = [
         'ajaran_id',
+        'template_id',
         'periode_mulai',
         'periode_akhir',
         'jenis_laporan',
@@ -24,6 +25,9 @@ class LaporanGJM extends Model
         'rencana_tindakan',
         'file_laporan',
         'dokumen_path',
+        'dokumen_hasil_path',
+        'ppt_path',
+        'ppt_generated_at',
         'status_laporan',
         'tanggal_submit',
         'reviewed_by',
@@ -33,6 +37,10 @@ class LaporanGJM extends Model
         'jumlah_laporan_gkm_diterima',
         'created_by',
         'instruksi_prompt',
+        'ai_preview_draft',
+        'ai_sections',
+        'ai_preview_created_at',
+        'ai_preview_used_for_generation',
     ];
 
     protected $casts = [
@@ -40,11 +48,20 @@ class LaporanGJM extends Model
         'periode_akhir' => 'date',
         'tanggal_submit' => 'date',
         'tanggal_review' => 'date',
+        'ppt_generated_at' => 'datetime',
+        'ai_sections' => 'array',
+        'ai_preview_created_at' => 'datetime',
+        'ai_preview_used_for_generation' => 'boolean',
     ];
 
     public function ajaran()
     {
         return $this->belongsTo(Ajaran::class);
+    }
+
+    public function template()
+    {
+        return $this->belongsTo(TemplateLaporan::class, 'template_id');
     }
 
     public function reviewedBy()
@@ -62,9 +79,12 @@ class LaporanGJM extends Model
     {
         return match($this->status_laporan) {
             'draft' => 'bg-secondary',
+            'processing' => 'bg-info',
+            'completed' => 'bg-success',
             'menunggu_review' => 'bg-warning',
             'approved' => 'bg-success',
             'revisi' => 'bg-danger',
+            'failed' => 'bg-danger',
             default => 'bg-secondary'
         };
     }

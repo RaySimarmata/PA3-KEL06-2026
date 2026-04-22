@@ -66,7 +66,7 @@ class ReminderAgentController extends Controller
     {
         $validated = $request->validate([
             'nama_jadwal' => 'required|string|max:255',
-            'tipe_reminder' => 'required|in:Perwalian,Upload Materi,Review Soal,RPS',
+            'tipe_reminder' => 'required|in:Upload Materi,Review Soal,RPS',
             'jam_pengiriman' => 'required|date_format:H:i',
             'tanggal_kirim' => 'required|date',
         ]);
@@ -109,7 +109,7 @@ class ReminderAgentController extends Controller
     {
         $validated = $request->validate([
             'nama_jadwal' => 'required|string|max:255',
-            'tipe_reminder' => 'required|in:Perwalian,Upload Materi,Review Soal,RPS',
+            'tipe_reminder' => 'required|in:Upload Materi,Review Soal,RPS',
             'jam_pengiriman' => 'required|date_format:H:i',
             'tanggal_kirim' => 'required|date',
             'is_active' => 'boolean',

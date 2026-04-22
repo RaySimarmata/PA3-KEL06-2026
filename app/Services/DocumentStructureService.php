@@ -107,13 +107,28 @@ class DocumentStructureService
             return true;
         }
 
-        // Pattern 2: Numbering (I., II., 1., 2., a., b.)
-        if (preg_match('/^(I{1,3}|IV|V|VI{0,3}|IX|X|\d+|[a-z])\.?\s+[A-Z]/', $line)) {
+        // Pattern 2: Numbering (I., II., 1., 2., a., b., A., B.)
+        if (preg_match('/^(I{1,3}|IV|V|VI{0,3}|IX|X|\d+|[a-zA-Z])\.?\s+[A-Z]/', $line)) {
             return true;
         }
 
-        // Pattern 3: DAFTAR ISI, Contents, dll
-        if (preg_match('/^(DAFTAR ISI|Contents|PENDAHULUAN|HASIL|KESIMPULAN)/i', $line)) {
+        // Pattern 3: Roman numerals with text (I. PENDAHULUAN, II. HASIL, etc)
+        if (preg_match('/^(I{1,3}|IV|V|VI{0,3}|IX|X)\.\s+[A-Z]/', $line)) {
+            return true;
+        }
+
+        // Pattern 4: Sub-sections (Tingkat I, Tingkat II, etc)
+        if (preg_match('/^(Tingkat|BAB|Bagian|Section)\s+(I{1,3}|IV|V|VI{0,3}|IX|X|\d+)/i', $line)) {
+            return true;
+        }
+
+        // Pattern 5: Lowercase roman numerals (i., ii., iii., iv.)
+        if (preg_match('/^(i{1,3}|iv|v|vi{0,3}|ix|x)\.\s+/i', $line)) {
+            return true;
+        }
+
+        // Pattern 6: DAFTAR ISI, Contents, dll
+        if (preg_match('/^(DAFTAR ISI|Contents|PENDAHULUAN|HASIL|KESIMPULAN|LATAR BELAKANG|METODOLOGI|PEMBAHASAN)/i', $line)) {
             return true;
         }
 

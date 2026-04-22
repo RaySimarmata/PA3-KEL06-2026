@@ -4,7 +4,7 @@
 <div class="container">
     <h4>Analisis Kuesioner dari API</h4>
 
-    <form method="POST" action="{{ route('gkm.monitoring-kuesioner.processFromApi') }}">
+    <form method="POST" action="{{ route('gkm.monitoring-kuesioner.process-from-api') }}">
         @csrf
 
         <div class="mb-3">

@@ -1,12 +1,43 @@
-<!-- Header Card -->
-<div class="filter-card mb-4">
-    <div class="d-flex justify-content-between align-items-center">
-        <div>
-            <h5 class="mb-1" style="font-weight: 600; color: #333;">Reminder Kaprodi Review Soal</h5>
-            <p class="text-muted mb-0" style="font-size: 0.875rem;">Kirimkan reminder kepada Kepala Program Studi untuk review soal ujian</p>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reminder Review Soal</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css">
+    <link href="{{ asset('css/gkm-style.css') }}" rel="stylesheet">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+</head>
+<body style="background-color: #f8f9fa; margin: 0; padding: 1rem;">
+    <div>
+    @if (session('success'))
+        <script>
+            window.parent.postMessage({
+                type: 'success',
+                message: '{{ session("success") }}'
+            }, '*');
+        </script>
+    @endif
+
+    @if (session('error'))
+        <script>
+            window.parent.postMessage({
+                type: 'error',
+                message: '{{ session("error") }}'
+            }, '*');
+        </script>
+    @endif
+
+    <!-- Header Card -->
+    <div class="filter-card mb-4">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h5 class="mb-1" style="font-weight: 600; color: #333;">Reminder Kaprodi Review Soal</h5>
+                <p class="text-muted mb-0" style="font-size: 0.875rem;">Kirimkan reminder kepada Kepala Program Studi untuk review soal ujian</p>
+            </div>
         </div>
     </div>
-</div>
 
 <form id="reminderFormSoal">
     @csrf
@@ -142,7 +173,10 @@
     </div>
 </div>
 
-<script>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
 function toggleAllSoal(checkbox) {
     const checkboxes = document.querySelectorAll('.dosen-checkbox-soal');
     checkboxes.forEach(cb => cb.checked = checkbox.checked);
@@ -269,4 +303,6 @@ function sendReminderSoal() {
     document.body.appendChild(form);
     form.submit();
 }
-</script>
+    </script>
+</body>
+</html>

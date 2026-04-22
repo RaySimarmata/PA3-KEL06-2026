@@ -8,16 +8,10 @@ class Dosenn extends Model
 {
     protected $table = 'dosenn';
 
-    // primary key dari API
     protected $primaryKey = 'dosen_id';
 
-    // karena bukan auto increment default Laravel
     public $incrementing = false;
 
-    // tipe primary key
-    protected $keyType = 'int';
-
-    // mass assign
     protected $fillable = [
         'dosen_id',
         'pegawai_id',
@@ -34,8 +28,10 @@ class Dosenn extends Model
         'jenjang_pendidikan',
     ];
 
-    public function matakuliah()
-{
-    return $this->belongsToMany(Matakuliah::class, 'dosen_matakuliah', 'dosen_id', 'matakuliah_id');
-}
+    protected $casts = [
+        'dosen_id' => 'integer',
+        'pegawai_id' => 'integer',
+        'user_id' => 'integer',
+        'prodi_id' => 'integer',
+    ];
 }

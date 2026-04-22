@@ -37,10 +37,16 @@ return [
 
     'llm' => [
         'enabled' => env('LLM_ENABLED', false),
-        'provider' => env('LLM_PROVIDER', 'grok'),
+        'provider' => env('LLM_PROVIDER', 'groq'),
         'api_key' => env('LLM_API_KEY'),
         'base_url' => env('LLM_BASE_URL', 'https://api.groq.com/openai/v1'),
-        'model' => env('LLM_MODEL', 'openai/gpt-oss-20b'),
+        'model' => env('LLM_MODEL', 'llama-3.3-70b-versatile'),
+    ],
+
+    'anthropic' => [
+        'api_key' => env('ANTHROPIC_API_KEY'),
+        'model'   => env('ANTHROPIC_MODEL', 'claude-3-5-sonnet-20241022'),
+        'version' => '2023-06-01',
     ],
 
     'library' => [

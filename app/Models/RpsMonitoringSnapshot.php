@@ -2,10 +2,13 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 class RpsMonitoringSnapshot extends Model
 {
+    use HasFactory;
+
     protected $table = 'rps_monitoring_snapshots';
 
     protected $fillable = [
@@ -25,71 +28,65 @@ class RpsMonitoringSnapshot extends Model
     protected $casts = [
         'raw_data' => 'array',
         'reminder_sent' => 'boolean',
+        'pegawai_id' => 'integer',
+        'prodi_id' => 'integer',
+        'semester' => 'integer',
     ];
 
-    /*
-    |--------------------------------------------------------------------------
-    | SCOPES
-    |--------------------------------------------------------------------------
-    */
-
-    // Filter berdasarkan dosen
-    public function scopeByDosen($query, $pegawaiId)
+    /**
+     * Relationship with Dosen model
+     */
+    public function dosen()
     {
-        return $query->where('pegawai_id', $pegawaiId);
+        return $this->belongsTo(Dosenn::class, 'pegawai_id', 'pegawai_id');
     }
 
-    // Filter periode
+    /**
+     * Relationship with Prodi model
+     */
+    public function prodi()
+    {
+        return $this->belongsTo(Prodi::class, 'prodi_id', 'id');
+    }
+
+    /**
+     * Scope for filtering by semester and tahun ajaran
+     */
     public function scopeByPeriode($query, $semester, $tahunAjaran)
     {
         return $query->where('semester', $semester)
                     ->where('tahun_ajaran', $tahunAjaran);
     }
 
-    // Filter belum upload RPS
-    public function scopeBelumUpload($query)
+    /**
+     * Scope for filtering by prodi
+     */
+    public function scopeByProdi($query, $prodiId)
     {
-        return $query->where('status_rps', 'BELUM UPLOAD');
+        return $query->where('prodi_id', $prodiId);
     }
 
-    // Filter yang belum dikirim reminder
-    public function scopeBelumDireminder($query)
+    /**
+     * Scope for filtering by status RPS
+     */
+    public function scopeByStatus($query, $status)
+    {
+        return $query->where('status_rps', $status);
+    }
+
+    /**
+     * Scope for filtering by reminder sent status
+     */
+    public function scopeReminderNotSent($query)
     {
         return $query->where('reminder_sent', false);
     }
-    public function matakuliah()
-{
-    return $this->belongsToMany(Matakuliah::class, 'dosen_matakuliah', 'dosen_id', 'matakuliah_id');
-}
-public function rps()
-{
-    return $this->hasMany(RpsMonitoringSnapshot::class, 'pegawai_id', 'pegawai_id');
-}
 
-    /*
-    |--------------------------------------------------------------------------
-    | HELPERS
-    |--------------------------------------------------------------------------
-    */
-
-    // Cek apakah sudah pernah direminder
-    public static function alreadyReminded($pegawaiId, $semester, $tahunAjaran)
+    /**
+     * Mark reminder as sent
+     */
+    public function markReminderSent()
     {
-        return self::where('pegawai_id', $pegawaiId)
-            ->where('semester', $semester)
-            ->where('tahun_ajaran', $tahunAjaran)
-            ->where('reminder_sent', true)
-            ->exists();
-    }
-
-    // Mark sudah dikirim reminder
-    public static function markReminded($pegawaiId, $semester, $tahunAjaran)
-    {
-        return self::where('pegawai_id', $pegawaiId)
-            ->where('semester', $semester)
-            ->where('tahun_ajaran', $tahunAjaran)
-            ->update([
-                'reminder_sent' => true
-            ]);
+        $this->update(['reminder_sent' => true]);
     }
 }

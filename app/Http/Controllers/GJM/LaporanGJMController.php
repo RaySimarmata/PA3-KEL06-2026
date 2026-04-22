@@ -34,6 +34,40 @@ class LaporanGJMController extends Controller
         return view('gjm.laporan-gjm.create', compact('user'));
     }
 
+    /**
+     * Show single laporan detail
+     */
+    public function show($id)
+    {
+        $user = Auth::user();
+        $laporan = LaporanGJM::with(['ajaran', 'reviewedBy', 'createdBy', 'template'])
+            ->findOrFail($id);
+        
+        return view('gjm.laporan-gjm.show', compact('user', 'laporan'));
+    }
+
+    /**
+     * Download laporan document (Word/PDF)
+     */
+    public function download($id)
+    {
+        $laporan = LaporanGJM::findOrFail($id);
+        
+        if (!$laporan->dokumen_hasil_path) {
+            return redirect()->back()->with('error', 'Dokumen belum tersedia');
+        }
+        
+        $filePath = storage_path('app/' . $laporan->dokumen_hasil_path);
+        
+        if (!file_exists($filePath)) {
+            return redirect()->back()->with('error', 'File tidak ditemukan');
+        }
+        
+        $fileName = 'Laporan_' . $laporan->getJenisLaporanLabel() . '_' . $laporan->id . '.docx';
+        
+        return response()->download($filePath, $fileName);
+    }
+
     public function laporanBulanan()
     {
         $user = Auth::user();
@@ -94,7 +128,31 @@ class LaporanGJMController extends Controller
 
         $message = $status === 'draft' ? 'Laporan berhasil disimpan sebagai draft' : 'Laporan berhasil dibuat dan menunggu review';
 
-        return redirect()->route('gjm.laporan.index')
+        return redirect()->route('gjm.laporan-gjm.index')
             ->with('success', $message);
+    }
+
+    /**
+     * Delete laporan from database
+     */
+    public function destroy($id)
+    {
+        try {
+            $laporan = LaporanGJM::findOrFail($id);
+            
+            // Delete file if exists
+            if ($laporan->dokumen_hasil_path && file_exists(storage_path('app/' . $laporan->dokumen_hasil_path))) {
+                unlink(storage_path('app/' . $laporan->dokumen_hasil_path));
+            }
+            
+            // Delete the record
+            $laporan->delete();
+            
+            return redirect()->route('gjm.laporan-gjm.index')
+                ->with('success', 'Laporan berhasil dihapus');
+        } catch (\Exception $e) {
+            return redirect()->route('gjm.laporan-gjm.index')
+                ->with('error', 'Gagal menghapus laporan: ' . $e->getMessage());
+        }
     }
 }

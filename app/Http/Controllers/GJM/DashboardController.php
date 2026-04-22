@@ -4,8 +4,8 @@ namespace App\Http\Controllers\GJM;
 
 use App\Http\Controllers\Controller;
 use App\Models\Prodi;
-use App\Models\LaporanGKM;
-use App\Models\Kuisioner;
+use App\Models\LaporanGJM;
+use App\Models\TemplateLaporan;
 use Illuminate\Support\Facades\Auth;
 
 class DashboardController extends Controller
@@ -14,22 +14,16 @@ class DashboardController extends Controller
     {
         $user = Auth::user();
 
-        // Statistik untuk dashboard GJM
-        $totalProdi = Prodi::count();
-        $prodiSesuaiStandar = Prodi::count(); // Dapat dihitung dari laporan GKM
-
-        // Ambil data terbaru
-        $laporanGKMTerbaru = LaporanGKM::orderBy('tanggal_buat_laporan', 'desc')->first();
-
+        // Simple stats for GJM dashboard
         $stats = [
-            'temuan_aktif' => 2,
-            'total_prodi' => $totalProdi,
-            'prodi_sesuai' => $prodiSesuaiStandar,
-            'kuisioner_rata_rata' => 3.5,
+            'total_prodi' => Prodi::count(),
+            'laporan_gjm' => LaporanGJM::count(),
+            'template_aktif' => TemplateLaporan::where('is_active', true)->count(),
+            'template_total' => TemplateLaporan::count(),
         ];
 
         $periode = date('F Y');
 
-        return view('gjm.dashboard.index', compact('user', 'stats', 'periode', 'laporanGKMTerbaru'));
+        return view('gjm.dashboard.index', compact('user', 'stats', 'periode'));
     }
 }

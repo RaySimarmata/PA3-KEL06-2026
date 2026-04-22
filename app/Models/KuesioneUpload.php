@@ -24,9 +24,7 @@ class KuesioneUpload extends Model
         'total_responden',
         'hasil_analisis',
         'status',
-        'source',              
-        'index_kepuasan',      
-        'persen_kepuasan',
+        'source'
     ];
 
     protected $casts = [
@@ -36,11 +34,5 @@ class KuesioneUpload extends Model
     public function user()
     {
         return $this->belongsTo(User::class);
-    }
-
-    // Helper method untuk mendapatkan prodi dari user
-    public function getProdiAttribute()
-    {
-        return $this->user->prodi ?? null;
     }
 }

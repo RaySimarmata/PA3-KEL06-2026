@@ -67,6 +67,23 @@ class TextExtractionService
                     $result = $this->extractFromDoc($fullPath);
                     break;
                 
+                case 'xlsx':
+                case 'xls':
+                    $result = $this->extractFromExcel($fullPath);
+                    break;
+                
+                // Image files - use OCR
+                case 'jpg':
+                case 'jpeg':
+                case 'png':
+                case 'gif':
+                case 'bmp':
+                case 'webp':
+                case 'tiff':
+                case 'tif':
+                    $result = $this->extractFromImage($fullPath);
+                    break;
+                
                 default:
                     Log::warning("Unsupported file type", ['extension' => $extension]);
                     $result['metadata']['error'] = "Unsupported file type: {$extension}";
@@ -273,36 +290,116 @@ class TextExtractionService
 
     /**
      * Extract dari PDF
+     * Mencoba berbagai metode: pdftotext, smalot/pdfparser, atau fallback
+     * Windows-compatible version
      */
     private function extractFromPdf(string $fullPath): array
     {
-        // Try using pdftotext command if available
-        if ($this->commandExists('pdftotext')) {
-            $outputPath = $fullPath . '.txt';
-            exec("pdftotext -layout '{$fullPath}' '{$outputPath}'", $output, $returnCode);
-            
-            if ($returnCode === 0 && file_exists($outputPath)) {
-                $text = file_get_contents($outputPath);
-                unlink($outputPath);
+        // Method 1: Try using smalot/pdfparser library (works on all platforms)
+        if (class_exists('\Smalot\PdfParser\Parser')) {
+            try {
+                $parser = new \Smalot\PdfParser\Parser();
+                $pdf = $parser->parseFile($fullPath);
+                $text = $pdf->getText();
                 
-                return [
-                    'text' => $text,
-                    'metadata' => [
-                        'file_path' => $fullPath,
-                        'extraction_method' => 'pdftotext'
-                    ],
-                    'success' => true
-                ];
+                if (!empty($text)) {
+                    return [
+                        'text' => $text,
+                        'metadata' => [
+                            'file_path' => $fullPath,
+                            'extraction_method' => 'smalot_pdfparser',
+                            'file_size' => filesize($fullPath)
+                        ],
+                        'success' => true
+                    ];
+                }
+            } catch (\Exception $e) {
+                Log::warning('smalot/pdfparser extraction failed', ['error' => $e->getMessage()]);
             }
         }
 
-        // Fallback: basic extraction
+        // Method 2: Try using pdftotext command if available
+        if ($this->commandExists('pdftotext')) {
+            try {
+                $outputPath = $fullPath . '.txt';
+                $command = "pdftotext -layout \"{$fullPath}\" \"{$outputPath}\"";
+                exec($command, $output, $returnCode);
+                
+                if ($returnCode === 0 && file_exists($outputPath)) {
+                    $text = file_get_contents($outputPath);
+                    @unlink($outputPath);
+                    
+                    if (!empty($text)) {
+                        return [
+                            'text' => $text,
+                            'metadata' => [
+                                'file_path' => $fullPath,
+                                'extraction_method' => 'pdftotext',
+                                'file_size' => filesize($fullPath)
+                            ],
+                            'success' => true
+                        ];
+                    }
+                }
+            } catch (\Exception $e) {
+                Log::warning('pdftotext extraction failed', ['error' => $e->getMessage()]);
+            }
+        }
+
+        // Method 3: Try using pdfbox command if available
+        if ($this->commandExists('pdfbox')) {
+            try {
+                $outputPath = $fullPath . '.txt';
+                $command = "pdfbox ExtractText \"{$fullPath}\" \"{$outputPath}\"";
+                exec($command, $output, $returnCode);
+                
+                if ($returnCode === 0 && file_exists($outputPath)) {
+                    $text = file_get_contents($outputPath);
+                    @unlink($outputPath);
+                    
+                    if (!empty($text)) {
+                        return [
+                            'text' => $text,
+                            'metadata' => [
+                                'file_path' => $fullPath,
+                                'extraction_method' => 'pdfbox',
+                                'file_size' => filesize($fullPath)
+                            ],
+                            'success' => true
+                        ];
+                    }
+                }
+            } catch (\Exception $e) {
+                Log::warning('pdfbox extraction failed', ['error' => $e->getMessage()]);
+            }
+        }
+
+        // Fallback: Return error with helpful message
+        $fileSize = filesize($fullPath);
+        $errorMsg = 'PDF extraction tidak tersedia di sistem ini. ';
+        
+        $errorMsg .= 'Solusi: ';
+        $errorMsg .= '(1) Install smalot/pdfparser: composer require smalot/pdfparser (RECOMMENDED untuk Windows), ';
+        $errorMsg .= '(2) Install pdftotext (poppler-utils), ';
+        $errorMsg .= '(3) Konversi PDF ke DOCX/TXT menggunakan online converter.';
+        
+        Log::warning('PDF extraction failed - no method available', [
+            'file' => $fullPath,
+            'file_size' => $fileSize,
+            'pdftotext_available' => $this->commandExists('pdftotext'),
+            'pdfbox_available' => $this->commandExists('pdfbox'),
+            'smalot_available' => class_exists('\Smalot\PdfParser\Parser'),
+            'os' => PHP_OS
+        ]);
+
         return [
             'text' => '',
             'metadata' => [
                 'file_path' => $fullPath,
                 'extraction_method' => 'none',
-                'error' => 'PDF extraction requires pdftotext command'
+                'error' => $errorMsg,
+                'file_size' => $fileSize,
+                'os' => PHP_OS
             ],
             'success' => false
         ];
@@ -343,6 +440,94 @@ class TextExtractionService
     }
 
     /**
+     * Extract dari Excel (XLSX/XLS)
+     */
+    private function extractFromExcel(string $fullPath): array
+    {
+        // Check if PhpSpreadsheet is available
+        if (!class_exists('\PhpOffice\PhpSpreadsheet\IOFactory')) {
+            return [
+                'text' => '',
+                'metadata' => [
+                    'file_path' => $fullPath,
+                    'extraction_method' => 'none',
+                    'error' => 'PhpSpreadsheet library not available'
+                ],
+                'success' => false
+            ];
+        }
+
+        try {
+            $spreadsheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($fullPath);
+            $text = '';
+            
+            // Iterate through all sheets
+            foreach ($spreadsheet->getSheetNames() as $sheetName) {
+                $sheet = $spreadsheet->getSheetByName($sheetName);
+                $text .= "=== SHEET: {$sheetName} ===\n";
+                
+                // Get the highest row and column
+                $highestRow = $sheet->getHighestRow();
+                $highestColumn = $sheet->getHighestColumn();
+                
+                // Iterate through rows
+                for ($row = 1; $row <= $highestRow; $row++) {
+                    $rowData = [];
+                    
+                    // Iterate through columns
+                    for ($col = 'A'; $col <= $highestColumn; $col++) {
+                        $cell = $sheet->getCell($col . $row);
+                        $value = $cell->getValue();
+                        
+                        // Handle different value types
+                        if ($value instanceof \DateTime) {
+                            $value = $value->format('Y-m-d H:i:s');
+                        } elseif (is_object($value)) {
+                            $value = (string)$value;
+                        }
+                        
+                        $rowData[] = trim((string)$value);
+                    }
+                    
+                    // Join row data with pipe separator
+                    $rowText = implode(' | ', array_filter($rowData));
+                    if (!empty($rowText)) {
+                        $text .= $rowText . "\n";
+                    }
+                }
+                
+                $text .= "\n";
+            }
+            
+            return [
+                'text' => $text,
+                'metadata' => [
+                    'file_path' => $fullPath,
+                    'extraction_method' => 'phpspreadsheet',
+                    'sheet_count' => count($spreadsheet->getSheetNames())
+                ],
+                'success' => !empty($text)
+            ];
+            
+        } catch (\Exception $e) {
+            Log::error('Excel extraction failed', [
+                'error' => $e->getMessage(),
+                'file' => $fullPath
+            ]);
+            
+            return [
+                'text' => '',
+                'metadata' => [
+                    'file_path' => $fullPath,
+                    'extraction_method' => 'none',
+                    'error' => 'Failed to extract Excel: ' . $e->getMessage()
+                ],
+                'success' => false
+            ];
+        }
+    }
+
+    /**
      * Check if command exists
      */
     private function commandExists(string $command): bool
@@ -372,9 +557,74 @@ class TextExtractionService
         // Remove more than 2 consecutive line breaks
         $text = preg_replace('/\n{3,}/', "\n\n", $text);
         
+        // IMPORTANT: Escape curly braces to prevent template string errors
+        // This prevents "Unclosed '{' on line X" errors when PDF content contains { or }
+        $text = str_replace(['{', '}'], ['{{', '}}'], $text);
+        
         // Trim
         $text = trim($text);
         
         return $text;
+    }
+
+    /**
+     * Backward compatibility method - calls extractFromFile and returns just the text
+     */
+    public function extractText(string $filePath): string
+    {
+        $result = $this->extractFromFile($filePath);
+        return $result['text'] ?? '';
+    }
+
+    /**
+     * Extract text from image using OCR
+     */
+    private function extractFromImage(string $fullPath): array
+    {
+        try {
+            $ocrService = app(\App\Services\OCRService::class);
+            $ocrResult = $ocrService->extractTextFromImage($fullPath);
+            
+            if ($ocrResult['success']) {
+                return [
+                    'text' => $ocrResult['text'],
+                    'metadata' => [
+                        'file_path' => $fullPath,
+                        'extraction_method' => 'ocr_' . $ocrResult['method'],
+                        'ocr_confidence' => $ocrResult['confidence'],
+                        'file_size' => filesize($fullPath)
+                    ],
+                    'success' => true
+                ];
+            } else {
+                return [
+                    'text' => '',
+                    'metadata' => [
+                        'file_path' => $fullPath,
+                        'extraction_method' => 'ocr_failed',
+                        'error' => $ocrResult['error'] ?? 'OCR extraction failed',
+                        'file_size' => filesize($fullPath)
+                    ],
+                    'success' => false
+                ];
+            }
+            
+        } catch (\Exception $e) {
+            Log::error('Image OCR extraction failed', [
+                'file' => $fullPath,
+                'error' => $e->getMessage()
+            ]);
+            
+            return [
+                'text' => '',
+                'metadata' => [
+                    'file_path' => $fullPath,
+                    'extraction_method' => 'ocr_error',
+                    'error' => 'OCR service error: ' . $e->getMessage(),
+                    'file_size' => filesize($fullPath)
+                ],
+                'success' => false
+            ];
+        }
     }
 }

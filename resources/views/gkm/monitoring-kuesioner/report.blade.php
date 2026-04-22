@@ -73,9 +73,9 @@
                                             <div class="col-md-6">
                                                 <div class="card bg-primary text-white text-center">
                                                     <div class="card-body">
-                                                        <h2>{{ number_format($kuesioner->hasil_analisis['statistik']['index_kepuasan'] ?? 0, 5) }}
+                                                        <h2 style="color: white !important;">{{ number_format($kuesioner->hasil_analisis['statistik']['index_kepuasan'] ?? 0, 5) }}
                                                         </h2>
-                                                        <p class="mb-0">Index Kepuasan (skala 0-4)</p>
+                                                        <p class="mb-0" style="color: white !important;">Index Kepuasan (skala 0-4)</p>
                                                     </div>
                                                 </div>
                                             </div>
@@ -89,8 +89,8 @@
                                                                 ] ?? 0;
                                                             $persenKepuasan = ($indexKepuasan / 4) * 100;
                                                         @endphp
-                                                        <h2>{{ number_format($persenKepuasan, 2) }}%</h2>
-                                                        <p class="mb-0">Persen Kepuasan</p>
+                                                        <h2 style="color: white !important;">{{ number_format($persenKepuasan, 2) }}%</h2>
+                                                        <p class="mb-0" style="color: white !important;">Persen Kepuasan</p>
                                                     </div>
                                                 </div>
                                             </div>

@@ -1,12 +1,48 @@
-<!-- Header Card -->
-<div class="filter-card mb-4">
-    <div class="d-flex justify-content-between align-items-center">
-        <div>
-            <h5 class="mb-1" style="font-weight: 600; color: #333;">Reminder Upload Materi di CIS</h5>
-            <p class="text-muted mb-0" style="font-size: 0.875rem;">Pilih dosen yang akan dikirim reminder untuk upload materi perkuliahan</p>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reminder Upload Materi</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css">
+    <link href="{{ asset('css/gkm-style.css') }}" rel="stylesheet">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+</head>
+<body style="background-color: #f8f9fa; margin: 0; padding: 1rem;">
+    <div>
+    @if (session('success'))
+        <script>
+            window.parent.postMessage({
+                type: 'success',
+                message: '{{ session("success") }}'
+            }, '*');
+        </script>
+    @endif
+
+    @if (session('error'))
+        <script>
+            window.parent.postMessage({
+                type: 'error',
+                message: '{{ session("error") }}'
+            }, '*');
+        </script>
+    @endif
+
+    <!-- Header Card -->
+    <div class="filter-card mb-4">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h5 class="mb-1" style="font-weight: 600; color: #333;">Reminder Upload Materi di CIS</h5>
+                <p class="text-muted mb-0" style="font-size: 0.875rem;">
+                    <i class="bi bi-info-circle"></i> 
+                    Data dosen yang belum upload materi <strong>Teori dan Praktikum</strong> untuk 
+                    <strong>semua semester (Ganjil & Genap)</strong> dan 
+                    <strong>semua tingkat (1-4)</strong> berdasarkan hasil monitoring perkuliahan
+                </p>
+            </div>
         </div>
     </div>
-</div>
 
 <form id="reminderFormMateri">
     @csrf
@@ -30,15 +66,17 @@
             <table class="table table-monitoring">
                 <thead>
                     <tr>
-                        <th style="width: 5%;">
+                        <th style="width: 4%;">
                             <input type="checkbox" class="form-check-input" id="selectAllCheckboxMateri"
                                 onchange="toggleAllMateri(this)">
                         </th>
-                        <th style="width: 5%;">No</th>
-                        <th style="width: 25%;">Nama Dosen</th>
-                        <th style="width: 25%;">Email</th>
-                        <th style="width: 30%;">Mata Kuliah</th>
-                        <th style="width: 10%;" class="text-center">Status</th>
+                        <th style="width: 4%;">No</th>
+                        <th style="width: 20%;">Nama Dosen</th>
+                        <th style="width: 20%;">Email</th>
+                        <th style="width: 25%;">Mata Kuliah</th>
+                        <th style="width: 12%;" class="text-center">Jenis Materi</th>
+                        <th style="width: 8%;" class="text-center">Semester</th>
+                        <th style="width: 7%;" class="text-center">Status</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -46,19 +84,37 @@
                         <tr>
                             <td class="text-center">
                                 <input type="checkbox" class="form-check-input dosen-checkbox-materi"
-                                    name="dosen_ids[]" value="{{ $dosen->id }}">
+                                    name="dosen_ids[]" value="{{ $dosen['pegawai_id'] }}">
                             </td>
                             <td class="text-center">{{ $index + 1 }}</td>
-                            <td class="dosen-name">{{ $dosen->nama_lengkap }}</td>
-                            <td class="text-secondary">{{ $dosen->kontak_email }}</td>
+                            <td class="dosen-name">{{ $dosen['nama_lengkap'] }}</td>
+                            <td class="text-secondary">{{ $dosen['kontak_email'] }}</td>
                             <td>
-                                @if($dosen->matakuliah && $dosen->matakuliah->count() > 0)
-                                    @foreach($dosen->matakuliah->take(2) as $mk)
-                                        <span class="badge-gkm info">{{ $mk->nama_mk }}</span>
-                                    @endforeach
-                                    @if($dosen->matakuliah->count() > 2)
-                                        <span class="badge-gkm" style="background: #e9ecef; color: #495057;">
-                                            +{{ $dosen->matakuliah->count() - 2 }}
+                                @if($dosen['nama_matkul'])
+                                    <div class="mb-1">
+                                        <strong>{{ $dosen['nama_matkul'] }}</strong>
+                                    </div>
+                                    @if(isset($dosen['kode_mk']))
+                                        <small class="text-muted">
+                                            <i class="bi bi-tag"></i> {{ $dosen['kode_mk'] }}
+                                            @if(isset($dosen['tingkat']))
+                                                | Tingkat {{ $dosen['tingkat'] }}
+                                            @endif
+                                        </small>
+                                    @endif
+                                @else
+                                    <span class="text-muted">-</span>
+                                @endif
+                            </td>
+                            <td class="text-center">
+                                @if(isset($dosen['jenis']))
+                                    @if($dosen['jenis'] == 'Materi Teori')
+                                        <span class="badge bg-primary">
+                                            <i class="bi bi-book"></i> Teori
+                                        </span>
+                                    @else
+                                        <span class="badge bg-info">
+                                            <i class="bi bi-laptop"></i> Praktikum
                                         </span>
                                     @endif
                                 @else
@@ -66,17 +122,27 @@
                                 @endif
                             </td>
                             <td class="text-center">
-                                <span class="status-icon warning">
-                                    <i class="bi bi-clock"></i>
+                                @if(isset($dosen['semester']))
+                                    <span class="badge bg-secondary">
+                                        {{ $dosen['semester'] == '1' ? 'Ganjil' : 'Genap' }}
+                                    </span>
+                                @else
+                                    <span class="text-muted">-</span>
+                                @endif
+                            </td>
+                            <td class="text-center">
+                                <span class="status-icon danger" title="Belum upload materi">
+                                    <i class="bi bi-x-lg"></i>
                                 </span>
                             </td>
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="6" class="text-center py-5">
+                            <td colspan="8" class="text-center py-5">
                                 <div class="empty-state">
-                                    <i class="bi bi-inbox"></i>
-                                    <p>Tidak ada data dosen</p>
+                                    <i class="bi bi-check-circle" style="color: #28a745;"></i>
+                                    <p>Semua dosen sudah upload materi</p>
+                                    <small class="text-muted">Tidak ada dosen yang perlu diingatkan untuk semua semester (Ganjil & Genap) dan semua tingkat (1-4)</small>
                                 </div>
                             </td>
                         </tr>
@@ -148,8 +214,10 @@
         </div>
     </div>
 </div>
+    </div>
 
-<script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
 function toggleAllMateri(checkbox) {
     const checkboxes = document.querySelectorAll('.dosen-checkbox-materi');
     checkboxes.forEach(cb => cb.checked = checkbox.checked);
@@ -276,4 +344,6 @@ function sendReminderMateri() {
     document.body.appendChild(form);
     form.submit();
 }
-</script>
+    </script>
+</body>
+</html>

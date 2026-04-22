@@ -16,6 +16,16 @@
                                 <i class="bi bi-file-earmark-text"></i> Lihat Laporan AI
                             </a>
                         @endif
+                        @if(in_array($kuesioner->status, ['error', 'uploaded']))
+                            <form action="{{ route('gkm.monitoring-kuesioner.reprocess', $kuesioner->id) }}" 
+                                  method="POST" class="d-inline"
+                                  onsubmit="return confirm('Yakin ingin memproses ulang kuesioner ini dengan AI?')">
+                                @csrf
+                                <button type="submit" class="btn btn-warning me-2">
+                                    <i class="bi bi-arrow-clockwise"></i> Proses Ulang dengan AI
+                                </button>
+                            </form>
+                        @endif
                         <a href="{{ route('gkm.monitoring-kuesioner.index') }}" class="btn btn-secondary">
                             <i class="bi bi-arrow-left"></i> Kembali
                         </a>
@@ -152,9 +162,12 @@
                     @if($kuesioner->status === 'error')
                         <div class="alert alert-danger">
                             <h6><i class="bi bi-exclamation-triangle"></i> Error dalam Analisis</h6>
-                            <p class="mb-0">
-                                Terjadi kesalahan saat memproses data dengan AI. Silakan coba upload ulang atau hubungi administrator.
+                            <p class="mb-2">
+                                Terjadi kesalahan saat memproses data dengan AI. Silakan coba proses ulang dengan klik tombol "Proses Ulang dengan AI" di atas.
                             </p>
+                            @if(isset($kuesioner->hasil_analisis['error']))
+                                <small class="text-muted">Detail error: {{ $kuesioner->hasil_analisis['error'] }}</small>
+                            @endif
                         </div>
                     @endif
                 </div>

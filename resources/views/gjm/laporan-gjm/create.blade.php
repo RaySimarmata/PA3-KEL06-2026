@@ -14,7 +14,7 @@
                 </div>
                 
                 <div class="d-flex gap-2">
-                    <a href="{{ route('gjm.laporan.index') }}" class="btn btn-outline-secondary d-flex align-items-center gap-2">
+                    <a href="{{ route('gjm.laporan-gjm.index') }}" class="btn btn-outline-secondary d-flex align-items-center gap-2">
                         <i class="bi bi-arrow-left"></i>
                         <span>Kembali ke Arsip</span>
                     </a>
@@ -32,7 +32,7 @@
                 </div>
                 
                 <div class="card-body p-4">
-                    <form action="{{ route('gjm.laporan.generate') }}" method="POST">
+                    <form action="{{ route('gjm.laporan-gjm.generate') }}" method="POST">
                         @csrf
                         
                         <!-- Jenis Laporan -->
@@ -156,7 +156,7 @@
 
                         <!-- Action Buttons -->
                         <div class="d-flex flex-column flex-sm-row gap-3 justify-content-end">
-                            <a href="{{ route('gjm.laporan.index') }}" class="btn btn-outline-secondary">
+                            <a href="{{ route('gjm.laporan-gjm.index') }}" class="btn btn-outline-secondary">
                                 <i class="bi bi-x-circle me-1"></i> Batal
                             </a>
                             <button type="submit" name="action" value="draft" class="btn btn-outline-primary">

@@ -12,14 +12,16 @@ class DatabaseSeeder extends Seeder
     {
         // Seed Prodi first
         $this->call([
-    ProdiSeeder::class,
-    DosenKaprodiWaliSeeder::class,
-    GKMProdiSeeder::class,
-    JadwalReminderSeeder::class,
-    KelasSeeder::class,
-    KuesionerUploadSeeder::class,
-    ResetAdminPasswordSeeder::class,
-]);
+            ProdiSeeder::class,
+            DosenKaprodiWaliSeeder::class,
+            GKMProdiSeeder::class,
+            JadwalReminderSeeder::class,
+            KelasSeeder::class,
+            KuesionerUploadSeeder::class,
+            TemplateLaporanSeeder::class,
+            LaporanGJMSeeder::class,
+            ResetAdminPasswordSeeder::class,
+        ]);
 
         // Admin
         User::firstOrCreate(

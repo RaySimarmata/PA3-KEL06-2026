@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Panduan Konfigurasi AI - Quick Guide</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 2rem;
+        }
+        
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+            color: white;
+            padding: 2rem;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 2rem;
+            margin-bottom: 0.5rem;
+        }
+        
+        .header p {
+            opacity: 0.9;
+            font-size: 1.1rem;
+        }
+        
+        .content {
+            padding: 2rem;
+        }
+        
+        .alert {
+            background: #fef2f2;
+            border-left: 4px solid #dc2626;
+            padding: 1rem 1.5rem;
+            margin-bottom: 2rem;
+            border-radius: 8px;
+        }
+        
+        .alert h3 {
+            color: #dc2626;
+            margin-bottom: 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .provider-card {
+            border: 2px solid #e5e7eb;
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            transition: all 0.3s;
+        }
+        
+        .provider-card:hover {
+            border-color: #2563eb;
+            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.1);
+        }
+        
+        .provider-card.recommended {
+            border-color: #16a34a;
+            background: #f0fdf4;
+        }
+        
+        .provider-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+        
+        .provider-header h3 {
+            color: #1e293b;
+            font-size: 1.3rem;
+        }
+        
+        .badge {
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        
+        .badge.recommended {
+            background: #16a34a;
+            color: white;
+        }
+        
+        .badge.free {
+            background: #0891b2;
+            color: white;
+        }
+        
+        .badge.paid {
+            background: #f59e0b;
+            color: white;
+        }
+        
+        .steps {
+            margin-top: 1rem;
+        }
+        
+        .step {
+            margin-bottom: 1rem;
+        }
+        
+        .step-number {
+            display: inline-block;
+            width: 24px;
+            height: 24px;
+            background: #2563eb;
+            color: white;
+            border-radius: 50%;
+            text-align: center;
+            line-height: 24px;
+            font-size: 0.875rem;
+            font-weight: 600;
+            margin-right: 0.5rem;
+        }
+        
+        .code-block {
+            background: #1e293b;
+            color: #e2e8f0;
+            padding: 1rem;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.875rem;
+            overflow-x: auto;
+            margin: 0.5rem 0;
+        }
+        
+        .code-block code {
+            color: #10b981;
+        }
+        
+        .link-button {
+            display: inline-block;
+            background: #2563eb;
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 600;
+            transition: all 0.3s;
+            margin-top: 0.5rem;
+        }
+        
+        .link-button:hover {
+            background: #1d4ed8;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+        }
+        
+        .features {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+            margin-top: 0.5rem;
+        }
+        
+        .feature {
+            background: #eff6ff;
+            color: #1e40af;
+            padding: 0.25rem 0.75rem;
+            border-radius: 6px;
+            font-size: 0.875rem;
+        }
+        
+        .footer {
+            background: #f8fafc;
+            padding: 1.5rem 2rem;
+            border-top: 1px solid #e5e7eb;
+            text-align: center;
+            color: #64748b;
+        }
+        
+        .troubleshooting {
+            background: #fef9c3;
+            border-left: 4px solid #eab308;
+            padding: 1rem 1.5rem;
+            margin-top: 2rem;
+            border-radius: 8px;
+        }
+        
+        .troubleshooting h3 {
+            color: #854d0e;
+            margin-bottom: 0.5rem;
+        }
+        
+        ul {
+            margin-left: 1.5rem;
+            margin-top: 0.5rem;
+        }
+        
+        li {
+            margin-bottom: 0.5rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🤖 Panduan Konfigurasi AI</h1>
+            <p>Setup API Key untuk Fitur AI Assistant</p>
+        </div>
+        
+        <div class="content">
+            <div class="alert">
+                <h3>⚠️ Masalah: AI Tidak Merespons</h3>
+                <p>Jika Anda melihat pesan error ini, berarti API key belum dikonfigurasi. Pilih salah satu provider di bawah ini untuk memulai.</p>
+            </div>
+            
+            <!-- Anthropic Claude -->
+            <div class="provider-card recommended">
+                <div class="provider-header">
+                    <h3>1. Anthropic Claude</h3>
+                    <div>
+                        <span class="badge recommended">Direkomendasikan</span>
+                        <span class="badge paid">Paid</span>
+                    </div>
+                </div>
+                <p><strong>Kualitas terbaik</strong> untuk analisis dokumen dan pembuatan laporan. Kredit gratis $5 untuk akun baru.</p>
+                
+                <div class="features">
+                    <span class="feature">✨ Kualitas Terbaik</span>
+                    <span class="feature">📄 Analisis Dokumen</span>
+                    <span class="feature">🎯 Akurat</span>
+                </div>
+                
+                <div class="steps">
+                    <div class="step">
+                        <span class="step-number">1</span>
+                        <strong>Dapatkan API Key:</strong>
+                        <a href="https://console.anthropic.com/" target="_blank" class="link-button">
+                            Buka Console Anthropic →
+                        </a>
+                    </div>
+                    
+                    <div class="step">
+                        <span class="step-number">2</span>
+                        <strong>Tambahkan ke file <code>.env</code>:</strong>
+                        <div class="code-block">
+ANTHROPIC_API_KEY=<code>sk-ant-api03-xxxxxxxxxxxxxxxxxxxxx</code>
+ANTHROPIC_MODEL=claude-3-5-sonnet-20241022
+                        </div>
+                    </div>
+                    
+                    <div class="step">
+                        <span class="step-number">3</span>
+                        <strong>Restart aplikasi:</strong>
+                        <div class="code-block">
+php artisan config:clear
+php artisan cache:clear
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Groq -->
+            <div class="provider-card">
+                <div class="provider-header">
+                    <h3>2. Groq</h3>
+                    <div>
+                        <span class="badge free">100% Gratis</span>
+                    </div>
+                </div>
+                <p><strong>Inference super cepat</strong> dengan model Llama 3.1. Gratis dengan rate limit yang cukup untuk development.</p>
+                
+                <div class="features">
+                    <span class="feature">⚡ Super Cepat</span>
+                    <span class="feature">🆓 Gratis</span>
+                    <span class="feature">🚀 Llama 3.1</span>
+                </div>
+                
+                <div class="steps">
+                    <div class="step">
+                        <span class="step-number">1</span>
+                        <strong>Dapatkan API Key:</strong>
+                        <a href="https://console.groq.com/" target="_blank" class="link-button">
+                            Buka Console Groq →
+                        </a>
+                    </div>
+                    
+                    <div class="step">
+                        <span class="step-number">2</span>
+                        <strong>Tambahkan ke file <code>.env</code>:</strong>
+                        <div class="code-block">
+LLM_ENABLED=true
+LLM_PROVIDER=groq
+LLM_API_KEY=<code>gsk_xxxxxxxxxxxxxxxxxxxxx</code>
+LLM_BASE_URL=https://api.groq.com/openai/v1
+LLM_MODEL=llama-3.1-8b-instant
+                        </div>
+                    </div>
+                    
+                    <div class="step">
+                        <span class="step-number">3</span>
+                        <strong>Restart aplikasi:</strong>
+                        <div class="code-block">
+php artisan config:clear
+php artisan cache:clear
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- OpenRouter -->
+            <div class="provider-card">
+                <div class="provider-header">
+                    <h3>3. OpenRouter</h3>
+                    <div>
+                        <span class="badge free">Model Gratis</span>
+                    </div>
+                </div>
+                <p><strong>Akses ke banyak model</strong> termasuk opsi gratis. Cocok untuk eksperimen dengan berbagai model AI.</p>
+                
+                <div class="features">
+                    <span class="feature">🎨 Banyak Model</span>
+                    <span class="feature">🆓 Ada Opsi Gratis</span>
+                    <span class="feature">🔄 Fleksibel</span>
+                </div>
+                
+                <div class="steps">
+                    <div class="step">
+                        <span class="step-number">1</span>
+                        <strong>Dapatkan API Key:</strong>
+                        <a href="https://openrouter.ai/" target="_blank" class="link-button">
+                            Buka OpenRouter →
+                        </a>
+                    </div>
+                    
+                    <div class="step">
+                        <span class="step-number">2</span>
+                        <strong>Tambahkan ke file <code>.env</code>:</strong>
+                        <div class="code-block">
+OPENROUTER_API_KEY=<code>sk-or-v1-xxxxxxxxxxxxxxxxxxxxx</code>
+OPENROUTER_MODEL=meta-llama/llama-3.2-3b-instruct:free
+                        </div>
+                    </div>
+                    
+                    <div class="step">
+                        <span class="step-number">3</span>
+                        <strong>Restart aplikasi:</strong>
+                        <div class="code-block">
+php artisan config:clear
+php artisan cache:clear
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="troubleshooting">
+                <h3>💡 Tips & Troubleshooting</h3>
+                <ul>
+                    <li><strong>Anda hanya perlu 1 provider</strong> - Pilih salah satu yang paling sesuai</li>
+                    <li><strong>Rate limit exceeded?</strong> - Tunggu beberapa menit atau gunakan provider lain</li>
+                    <li><strong>Invalid API key?</strong> - Periksa kembali API key, pastikan tidak ada spasi</li>
+                    <li><strong>Masih error?</strong> - Clear cache dengan: <code>php artisan config:clear && php artisan cache:clear</code></li>
+                </ul>
+            </div>
+        </div>
+        
+        <div class="footer">
+            <p>📚 Dokumentasi lengkap: <code>AI_CONFIGURATION_GUIDE.md</code></p>
+            <p style="margin-top: 0.5rem; font-size: 0.875rem;">Sistem GKM-GJM © 2026</p>
+        </div>
+    </div>
+</body>
+</html>

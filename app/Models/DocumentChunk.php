@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class DocumentChunk extends Model
 {
     protected $fillable = [
+        'template_id',
         'kuesioner_upload_id',
         'chunk_text',
         'chunk_index',
@@ -19,6 +20,14 @@ class DocumentChunk extends Model
         'embedding' => 'array',
         'metadata' => 'array',
     ];
+
+    /**
+     * Relasi ke TemplateLaporan
+     */
+    public function template(): BelongsTo
+    {
+        return $this->belongsTo(TemplateLaporan::class, 'template_id');
+    }
 
     /**
      * Relasi ke KuesioneUpload

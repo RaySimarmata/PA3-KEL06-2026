@@ -14,7 +14,8 @@
                                 <i class="bi bi-cloud-upload" style="color: #5B9BD5;"></i>
                                 Upload File Kuesioner
                             </h5>
-                            <p class="text-muted mb-0" style="font-size: 0.875rem;">Upload dan analisis kuesioner mahasiswa dengan AI Agent</p>
+                            <p class="text-muted mb-0" style="font-size: 0.875rem;">Upload dan analisis kuesioner mahasiswa
+                                dengan AI Agent</p>
                         </div>
                         <a href="{{ route('gkm.monitoring-kuesioner.index') }}" class="btn btn-outline-secondary">
                             <i class="bi bi-arrow-left"></i> Kembali
@@ -80,7 +81,8 @@
                     <div class="monitoring-card mb-4">
                         <div class="monitoring-header">
                             <i class="bi bi-book" style="color: #5B9BD5;"></i>
-                            <h6>Informasi Matakuliah <span style="font-weight: 400; font-size: 0.85rem; color: #6c757d;">(Opsional)</span></h6>
+                            <h6>Informasi Matakuliah <span
+                                    style="font-weight: 400; font-size: 0.85rem; color: #6c757d;"></span></h6>
                         </div>
                         <div style="padding: 1.5rem;">
                             <div class="row g-3">
@@ -88,18 +90,16 @@
                                     <label for="nama_matakuliah" class="filter-label">
                                         Nama Matakuliah
                                     </label>
-                                    <input type="text" class="form-control" id="nama_matakuliah"
-                                        name="nama_matakuliah" value="{{ old('nama_matakuliah') }}"
-                                        placeholder="Contoh: Pemrograman Web">
+                                    <input type="text" class="form-control" id="nama_matakuliah" name="nama_matakuliah"
+                                        value="{{ old('nama_matakuliah') }}" placeholder="Contoh: Pemrograman Web">
                                 </div>
 
                                 <div class="col-md-4">
                                     <label for="kode_matakuliah" class="filter-label">
                                         Kode Matakuliah
                                     </label>
-                                    <input type="text" class="form-control" id="kode_matakuliah"
-                                        name="kode_matakuliah" value="{{ old('kode_matakuliah') }}"
-                                        placeholder="Contoh: TIF101">
+                                    <input type="text" class="form-control" id="kode_matakuliah" name="kode_matakuliah"
+                                        value="{{ old('kode_matakuliah') }}" placeholder="Contoh: TIF101">
                                 </div>
 
                                 <div class="col-md-4">
@@ -152,7 +152,8 @@
                     <div class="monitoring-card mb-4" style="border-left: 4px solid #5B9BD5;">
                         <div style="padding: 1.5rem;">
                             <div class="d-flex align-items-start">
-                                <i class="bi bi-info-circle" style="color: #5B9BD5; font-size: 2rem; margin-right: 1rem;"></i>
+                                <i class="bi bi-info-circle"
+                                    style="color: #5B9BD5; font-size: 2rem; margin-right: 1rem;"></i>
                                 <div>
                                     <h6 class="mb-2" style="font-weight: 600; color: #333;">Informasi AI Agent</h6>
                                     <p class="mb-0" style="font-size: 0.875rem; color: #495057; line-height: 1.6;">

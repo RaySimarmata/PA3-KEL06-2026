@@ -14,16 +14,21 @@
                 </div>
                 
                 <div class="d-flex gap-2">
-                    <a href="{{ route('gjm.laporan.index') }}" class="btn btn-outline-secondary d-flex align-items-center gap-2">
+                    <a href="{{ route('gjm.laporan-gjm.index') }}" class="btn btn-outline-secondary d-flex align-items-center gap-2">
                         <i class="bi bi-arrow-left"></i>
                         <span>Kembali</span>
                     </a>
-                    @if($laporan->dokumen_path)
+                    @if($laporan->dokumen_hasil_path && $laporan->status_laporan === 'completed')
                     <a href="{{ route('gjm.buat-laporan.download.pdf', $laporan->id) }}" 
                        class="btn btn-success d-flex align-items-center gap-2">
-                        <i class="bi bi-download"></i>
-                        <span>Download PDF</span>
+                        <i class="bi bi-file-word"></i>
+                        <span>Download Word</span>
                     </a>
+                    @else
+                    <button class="btn btn-secondary d-flex align-items-center gap-2" disabled>
+                        <i class="bi bi-file-word"></i>
+                        <span>Dokumen Belum Tersedia</span>
+                    </button>
                     @endif
                 </div>
             </div>
@@ -48,17 +53,6 @@
                             </p>
                         </div>
                         <div class="col-md-6">
-                            <label class="form-label fw-semibold text-muted">Program Studi</label>
-                            <p class="mb-0">{{ $laporan->program_studi ?? '-' }}</p>
-                        </div>
-                    </div>
-
-                    <div class="row mb-3">
-                        <div class="col-md-6">
-                            <label class="form-label fw-semibold text-muted">Periode</label>
-                            <p class="mb-0">{{ $laporan->getPeriodeLabel() }}</p>
-                        </div>
-                        <div class="col-md-6">
                             <label class="form-label fw-semibold text-muted">Status</label>
                             <p class="mb-0">
                                 <span class="badge {{ $laporan->getStatusBadgeClass() }}">
@@ -70,8 +64,10 @@
 
                     @if($laporan->ringkasan_mutu_institusi)
                     <div class="mb-3">
-                        <label class="form-label fw-semibold text-muted">Judul Laporan</label>
-                        <p class="mb-0">{{ $laporan->ringkasan_mutu_institusi }}</p>
+                        <label class="form-label fw-semibold text-muted">Konten Laporan</label>
+                        <div class="bg-light p-4 rounded" style="max-height: 600px; overflow-y: auto;">
+                            <div style="white-space: pre-wrap; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.8;">{{ $laporan->ringkasan_mutu_institusi }}</div>
+                        </div>
                     </div>
                     @endif
 
@@ -85,10 +81,57 @@
                     @endif
 
                     @if($laporan->instruksi_prompt)
-                    <div class="mb-3">
-                        <label class="form-label fw-semibold text-muted">Instruksi Prompt</label>
-                        <div class="bg-light p-3 rounded">
-                            <p class="mb-0 font-monospace">{{ $laporan->instruksi_prompt }}</p>
+                    <div class="mb-4">
+                        <label class="form-label fw-semibold text-muted mb-3">
+                            Instruksi Prompt AI
+                        </label>
+                        <div class="instruksi-prompt-card">
+                            @php
+                                $instruksi = json_decode($laporan->instruksi_prompt, true);
+                            @endphp
+                            
+                            @if(is_array($instruksi))
+                                <!-- Metadata Row -->
+                                <div class="metadata-row">
+                                    @if(isset($instruksi['periode']))
+                                    <div class="metadata-item">
+                                        <div class="metadata-label">Periode</div>
+                                        <div class="metadata-value">{{ $instruksi['periode'] }}</div>
+                                    </div>
+                                    @endif
+                                    
+                                    @if(isset($instruksi['tahun']))
+                                    <div class="metadata-item">
+                                        <div class="metadata-label">Tahun Akademik</div>
+                                        <div class="metadata-value">{{ $instruksi['tahun'] }}</div>
+                                    </div>
+                                    @endif
+                                    
+                                    @if(isset($instruksi['judul']))
+                                    <div class="metadata-item">
+                                        <div class="metadata-label">Judul Laporan</div>
+                                        <div class="metadata-value">{{ $instruksi['judul'] }}</div>
+                                    </div>
+                                    @endif
+                                </div>
+                                
+                                <!-- AI Draft Section -->
+                                @if(isset($instruksi['ai_draft']) && !empty($instruksi['ai_draft']))
+                                <div class="draft-section">
+                                    <div class="draft-label">Draft yang Dihasilkan AI</div>
+                                    <div style="max-height: 500px; overflow-y: auto; padding-right: 0.5rem;">
+                                        <div class="markdown-content">
+                                            {!! \Illuminate\Support\Str::markdown($instruksi['ai_draft']) !!}
+                                        </div>
+                                    </div>
+                                </div>
+                                @endif
+                            @else
+                                <!-- Fallback untuk format lama -->
+                                <div class="bg-white rounded p-3">
+                                    <p class="mb-0 font-monospace small text-muted">{{ $laporan->instruksi_prompt }}</p>
+                                </div>
+                            @endif
                         </div>
                     </div>
                     @endif
@@ -210,9 +253,6 @@
                         @endif
                         <button type="button" class="btn btn-outline-primary">
                             <i class="bi bi-file-ppt me-2"></i>Download PPT
-                        </button>
-                        <button type="button" class="btn btn-outline-secondary">
-                            <i class="bi bi-share me-2"></i>Bagikan
                         </button>
                     </div>
                 </div>

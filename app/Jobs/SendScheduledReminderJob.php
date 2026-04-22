@@ -154,10 +154,6 @@ class SendScheduledReminderJob implements ShouldQueue
             case 'review_soal':
                 return EmailHelper::sendReminderReviewSoal($dosen);
             
-            case 'perwalian':
-            case 'perwaliaan':
-                return EmailHelper::sendReminderPerwalian($dosen);
-            
             default:
                 Log::error("Unknown reminder type", ['tipe' => $tipe]);
                 return false;
