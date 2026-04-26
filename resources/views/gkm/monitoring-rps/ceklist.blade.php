@@ -47,6 +47,9 @@
                 <div class="monitoring-header">
                     <i class="bi bi-people"></i>
                     <h6>Pilih Dosen</h6>
+                    <input type="text" id="searchInput" class="form-control w-25"
+        placeholder="masukkan kata kunci ....."
+        value="{{ request('search') }}">
                     <div style="margin-left: auto; display: flex; gap: 0.5rem;">
                         <button type="button" class="btn btn-sm btn-outline-primary" onclick="selectAll()">
                             Pilih Semua
@@ -175,6 +178,16 @@
     </div>
 
     <script>
+        let timeout = null;
+        document.getElementById('searchInput').addEventListener('keyup', function () {
+            clearTimeout(timeout);
+
+            timeout = setTimeout(() => {
+                const url = new URL(window.location.href);
+                url.searchParams.set('search', this.value);
+                window.location.href = url.toString();
+            }, 400);
+        });
         function toggleAll(checkbox) {
             const checkboxes = document.querySelectorAll('.dosen-checkbox');
             checkboxes.forEach(cb => cb.checked = checkbox.checked);

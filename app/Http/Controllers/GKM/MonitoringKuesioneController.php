@@ -5,6 +5,7 @@ namespace App\Http\Controllers\GKM;
 use App\Http\Controllers\Controller;
 use App\Models\KuesioneUpload;
 use App\Models\Prodi;
+use App\Models\Dosenn;
 use App\Services\AIAgentService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -179,11 +180,75 @@ class MonitoringKuesioneController extends Controller
         return view('gkm.monitoring-kuesioner.report', compact('kuesioner'));
     }
 
-   public function createApi()
+   public function indexApi(Request $request)
 {
-    return view('gkm.monitoring-kuesioner.create-api');
-}
+    $ta = $request->ta;
+    $semester = $request->semester;
+    $tingkat = $request->tingkat;
+    $tahunList = range(2020, date('Y'));
 
+    $list = collect();
+
+    if ($ta && $semester) {
+
+        // 🔥 ambil user
+        $user = auth()->user();
+
+        // 🔥 mapping prodi (dari kode_prodi → id API)
+        $prodiKode = $user->prodi ? $user->prodi->kode_prodi : 'TRPL';
+
+        $prodiIdMap = [
+            'TRPL' => 4,
+            'TI'   => 1,
+            'NM'   => 3,
+        ];
+
+        $prodiId = $prodiIdMap[$prodiKode] ?? 4;
+
+        // 🔥 ambil data dari API
+        $data = $this->apiService->getMatkulByProdiSemTa(
+            $prodiId,
+            $semester,
+            $ta
+        );
+
+        if (!empty($data)) {
+
+            $list = collect($data)
+
+                // 🔥 FILTER TINGKAT
+                ->filter(function ($item) use ($tingkat) {
+
+                    if (!$tingkat) return true;
+
+                    $kodeMk = $item['kode_mk'] ?? '';
+
+                    if (strlen($kodeMk) < 4) return false;
+
+                    $tingkatMk = substr($kodeMk, 3, 1);
+
+                    return $tingkatMk == $tingkat;
+                })
+
+                // 🔥 MAP DATA KE VIEW
+                ->map(function ($item) use ($ta) {
+                    return [
+                        'kode_mk' => $item['kode_mk'] ?? '-',
+                        'nama_mk' => $item['nama_matkul'] ?? '-',
+                        'ta' => $ta
+                    ];
+                });
+        }
+    }
+
+    return view('gkm.monitoring-kuesioner.create-api', [
+        'list' => $list,
+        'ta' => $ta,
+        'semester' => $semester,
+        'tahunList' => $tahunList,
+        'tingkat' => $tingkat
+    ]);
+}
 /**
  * Ambil data dari API via service
  */
@@ -203,6 +268,42 @@ private function fetchApi($ta, $kodeMk)
     return $response;
 }
 
+public function listKuesioner(Request $request)
+{
+    $kodeMk = $request->kode_mk;
+    $ta = $request->ta;
+
+    $list = [];
+
+    try {
+        // 🔥 ambil dari API (sementara 1 dulu)
+        $apiData = $this->fetchApi($ta, $kodeMk);
+
+        // 👉 karena API kamu cuma kasih 1
+        // kita bungkus jadi array
+        if ($apiData && isset($apiData['metadata'])) {
+            $list[] = [
+                'judul' => $apiData['metadata']['judul_kuesioner'] ?? 'Kuesioner',
+                'kode_mk' => $kodeMk,
+                'ta' => $ta
+            ];
+        }
+
+    } catch (\Exception $e) {
+        \Log::error('List kuesioner gagal', [
+            'error' => $e->getMessage()
+        ]);
+    }
+
+    return view('gkm.monitoring-kuesioner.list-kuesioner', [
+        'list' => $list,
+        'kode_mk' => $kodeMk,
+        'ta' => $ta
+    ]);
+}
+
+
+
 /**
  * Mapping API → format RAG kamu
  */
@@ -221,15 +322,23 @@ private function mapApiToIndexedData($apiData)
 
         $qId = 'Q' . $no;
 
-        $counts = ['TS'=>0,'CS'=>0,'S'=>0,'SS'=>0];
+        // ✅ FIX BUG (lengkap)
+        $counts = [
+            'STS' => 0,
+            'TS' => 0,
+            'CS' => 0,
+            'S' => 0,
+            'SS' => 0
+        ];
 
         foreach ($item['rincian_jawaban'] as $j) {
             match ($j['jawaban']) {
-                '1' => $counts['STS'] = (int)$j['jumlah'],
-                '2' => $counts['TS'] = (int)$j['jumlah'],
+                '5' => $counts['STS'] = (int)$j['jumlah'],
+                '4' => $counts['TS']  = (int)$j['jumlah'],
                 '3' => $counts['CS']  = (int)$j['jumlah'],
-                '4' => $counts['S'] = (int)$j['jumlah'],
-                '5' => $counts['SS'] = (int)$j['jumlah'], 
+                '2' => $counts['S']   = (int)$j['jumlah'],
+                '1' => $counts['SS']  = (int)$j['jumlah'],
+                default => null
             };
         }
 
@@ -253,10 +362,54 @@ private function mapApiToIndexedData($apiData)
         'sample_responses' => []
     ];
 }
+private function extractKuesionerInfo($nama, $kodeMk)
+{
+    // 1. Ambil nama MK
+    preg_match('/Evaluasi Matakuliah (.*?) Semester/', $nama, $matchMk);
+    $nama_mk = $matchMk[1] ?? '-';
 
-/**
- * PROSES UTAMA ANALISIS DARI API
- */
+    // 2. Ambil inisial dosen
+    preg_match('/\((.*?)\)/', $nama, $matchDosen);
+
+    $inisial = $matchDosen[1] ?? null;
+
+    if ($inisial) {
+    // 🔥 ambil sebelum "/"
+    $inisial = explode('/', $inisial)[0];
+
+    // bersihkan
+    $inisial = strtoupper(trim($inisial));
+}
+
+    // 3. Cari dosen
+    $dosen = null;
+    if ($inisial) {
+        $dosen = \App\Models\Dosenn::whereRaw('TRIM(UPPER(inisial_nama)) = ?', [$inisial])->first();
+    }
+    \Log::info('DEBUG DOSEN', [
+        'judul' => $nama,
+        'inisial' => $inisial,
+        'dosen_found' => $dosen
+    ]);
+
+    // 4. Ambil tingkat
+    $tingkat = '-';
+    if (strlen($kodeMk) >= 4) {
+        $tingkat = substr($kodeMk, 3, 1);
+    }
+
+    return [
+        'nama_mk' => $nama_mk,
+        'tingkat' => $tingkat,
+
+        // 🔥 PAKAI PEGAWAI ID
+        'pegawai_id' => $dosen->pegawai_id ?? null,
+
+        // optional (buat tampilan langsung)
+        'dosen_nama' => $dosen->nama ?? $inisial ?? '-'
+    ];
+}
+
 public function processFromApi(Request $request)
 {
     $request->validate([
@@ -265,48 +418,112 @@ public function processFromApi(Request $request)
     ]);
 
     try {
-        // 1. ambil API (pakai token otomatis)
-        $apiData = $this->fetchApi($request->ta, $request->kode_mk);
 
-        // 2. mapping ke format RAG
-        $indexedData = $this->mapApiToIndexedData($apiData);
-
-        // 3. simpan ke DB
+        // 🔥 simpan dulu
         $kuesioner = KuesioneUpload::create([
-            'nama_file' => $apiData['metadata']['judul_kuesioner'] ?? 'Kuesioner API',
+            'nama_file' => 'Kuesioner API',
             'kode_matakuliah' => $request->kode_mk,
             'periode' => $request->ta,
-            'total_responden' => $apiData['statistik']['total_responden_aktif'],
+            'semester' => $request->semester ?? null,
             'status' => 'processing',
             'file_path' => 'from-api',
             'source' => 'api',
             'user_id' => auth()->id()
         ]);
 
-        // 4. ANALISIS AI
-        $hasil = $this->aiAgent->analyzeFromApi($kuesioner, $indexedData);
-
-        // 5. update hasil
-        $kuesioner->update([
-            'hasil_analisis' => $hasil,
-            'index_kepuasan' => $hasil['statistik']['index_kepuasan'] ?? 0,
-            'persen_kepuasan' => $hasil['statistik']['persen_kepuasan'] ?? 0,
-            'status' => 'completed'
-        ]);
+        // 🔥 lempar ke function proses
+        $this->processKuesionerFromApi($kuesioner->id);
 
         return redirect()
             ->route('gkm.monitoring-kuesioner.show', $kuesioner->id)
-            ->with('success', 'Analisis dari API berhasil');
+            ->with('success', 'Analisis sedang diproses');
 
     } catch (\Exception $e) {
 
-        \Log::error('Process API gagal', [
+        return back()->with('error', $e->getMessage());
+    }
+}
+
+private function processKuesionerFromApi($kuesioneId)
+{
+    try {
+        $kuesioner = KuesioneUpload::findOrFail($kuesioneId);
+
+        $kuesioner->update(['status' => 'processing']);
+
+        // =========================
+        // 1. HIT API
+        // =========================
+        $apiData = $this->fetchApi(
+            $kuesioner->periode,
+            $kuesioner->kode_matakuliah
+        );
+
+        if (!isset($apiData['statistik'])) {
+            throw new \Exception('Data API tidak valid');
+        }
+
+        // =========================
+        // 2. MAPPING
+        // =========================
+        $indexedData = $this->mapApiToIndexedData($apiData);
+
+        // =========================
+        // 3. AI ANALYSIS
+        // =========================
+        $analysisResult = $this->aiAgent->analyzeFromApi(
+            $kuesioner,
+            $indexedData
+        );
+        
+        // =========================
+// EXTRACTION (BARU 🔥)
+// =========================
+$parsed = $this->extractKuesionerInfo(
+    $apiData['metadata']['judul_kuesioner'] ?? '',
+    $kuesioner->kode_matakuliah
+);
+
+        // =========================
+        // 4. UPDATE
+        // =========================
+        $kuesioner->update([
+    'nama_file' => $apiData['metadata']['judul_kuesioner'] ?? 'Kuesioner API',
+
+    // 🔥 HASIL PARSING
+    'nama_matakuliah' => $parsed['nama_mk'],
+    'tingkat' => $parsed['tingkat'],
+    'pegawai_id' => $parsed['pegawai_id'],
+
+    // 🔥 EXISTING
+    'total_responden' => $apiData['statistik']['total_responden_aktif'] ?? 0,
+    'hasil_analisis' => $analysisResult,
+    'index_kepuasan' => $analysisResult['statistik']['index_kepuasan'] ?? 0,
+    'persen_kepuasan' => $analysisResult['statistik']['persen_kepuasan'] ?? 0,
+    'status' => 'completed'
+]);
+
+        \Log::info("API Analysis Success", [
+            'id' => $kuesioner->id
+        ]);
+
+    } catch (\Exception $e) {
+
+        \Log::error("API Analysis Failed", [
+            'id' => $kuesioneId,
             'error' => $e->getMessage()
         ]);
 
-        return back()->withErrors([
-            'error' => 'Gagal proses API: ' . $e->getMessage()
-        ]);
+        $kuesioner = KuesioneUpload::find($kuesioneId);
+
+        if ($kuesioner) {
+            $kuesioner->update([
+                'status' => 'error',
+                'hasil_analisis' => [
+                    'error' => $e->getMessage()
+                ]
+            ]);
+        }
     }
 }
 

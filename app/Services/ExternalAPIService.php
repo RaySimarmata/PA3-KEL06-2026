@@ -224,17 +224,17 @@ class ExternalAPIService
     // }
 
     public function getFilteredDosen()
-    {
-        return Dosenn::whereIn('prodi', [
-            'DIII Teknologi Informasi',
-            'DIII Teknologi Komputer',
-            'DIV Teknologi Rekayasa Perangkat Lunak'
-        ])
-        ->get()
-        ->unique('pegawai_id')
-        ->values()
-        ->toArray();
-    }
+{
+    return Dosenn::whereIn('prodi', [
+    'DIII Teknologi Informasi',
+    'DIII Teknologi Komputer',
+    'DIV Teknologi Rekayasa Perangkat Lunak'
+])
+->get()
+->unique('pegawai_id')
+->values()
+->toArray();
+}
 
     /**
      * Get dosen by specific prodi IDs only (optimized for monitoring RPS)

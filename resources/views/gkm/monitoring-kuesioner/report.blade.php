@@ -299,19 +299,28 @@
 
                             <!-- Rekomendasi -->
                             @if (isset($kuesioner->hasil_analisis['rekomendasi']))
-                                <div class="mb-4">
-                                    <h5>Rekomendasi Tindakan</h5>
-                                    <div class="card border-info">
-                                        <div class="card-body">
-                                            <ol>
-                                                @foreach ($kuesioner->hasil_analisis['rekomendasi'] as $rekomendasi)
-                                                    <li>{{ $rekomendasi }}</li>
-                                                @endforeach
-                                            </ol>
-                                        </div>
-                                    </div>
-                                </div>
-                            @endif
+    <div class="mb-4">
+        <h5>Rekomendasi Tindakan</h5>
+        <div class="card border-info">
+            <div class="card-body">
+                <ol>
+                    @php
+                        $rekomendasiList = $kuesioner->hasil_analisis['rekomendasi'];
+
+                        // 🔥 kalau string → ubah jadi array
+                        if (is_string($rekomendasiList)) {
+                            $rekomendasiList = [$rekomendasiList];
+                        }
+                    @endphp
+
+                    @foreach ($rekomendasiList as $rekomendasi)
+                        <li>{{ $rekomendasi }}</li>
+                    @endforeach
+                </ol>
+            </div>
+        </div>
+    </div>
+@endif  
                         @endif
 
                         <!-- Footer Laporan -->

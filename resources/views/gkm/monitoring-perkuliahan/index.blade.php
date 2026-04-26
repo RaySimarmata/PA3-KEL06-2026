@@ -47,6 +47,17 @@
                                 onclick="document.getElementById('refreshForm').submit()">
                                 <i class="bi bi-arrow-clockwise"></i> Refresh Data
                             </button>
+                            <button type="button" 
+    class="btn btn-danger flex-fill" 
+    style="padding: 0.6rem;"
+    onclick="window.location.href='{{ route('gkm.monitoring-perkuliahan.export', [
+        'semester' => $selectedSemester,
+        'tahun_ajaran' => $selectedTahunAjaran,
+        'tingkat' => $selectedTingkat
+    ]) }}'">
+    
+    <i class="bi bi-file-earmark-pdf"></i> Download PDF
+</button>
                         </div>
                     </div>
                 </div>

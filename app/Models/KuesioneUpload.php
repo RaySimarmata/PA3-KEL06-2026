@@ -19,6 +19,7 @@ class KuesioneUpload extends Model
         'kode_matakuliah',
         'dosen_pengampu',
         'tingkat',
+        'pegawai_id',
         'user_id',
         'deskripsi',
         'total_responden',

@@ -128,7 +128,9 @@
                     <td>{{ $k->nama_matakuliah ?? '-' }}</td>
                     <td>{{ $k->kode_matakuliah ?? '-' }}</td>
                     <td class="text-center">{{ $k->tingkat ?? '-' }}</td>
-                    <td>{{ $k->dosen_pengampu ?? '-' }}</td>
+                    <td>
+    {{ \App\Models\Dosenn::where('pegawai_id', $k->pegawai_id)->first()->nama ?? '-' }}
+</td>
                     <td>{{ $k->user->prodi->nama_prodi ?? '-' }}</td>
 
                     {{-- SUMBER --}}

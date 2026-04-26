@@ -24,6 +24,7 @@ use App\Http\Controllers\GJM\PromptSemesterController;
 use App\Http\Controllers\GJM\LaporanTriwulanController;
 use App\Http\Controllers\GJM\PromptTriwulanController;
 use App\Http\Controllers\GJM\OCRUploadController;
+use App\Http\Controllers\PeriodeAkademikController;
 
 // Auth Routes
 Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
@@ -55,6 +56,8 @@ Route::middleware('auth')->group(function () {
             Route::put('/dosen-pengajar/{id}', [DataMasterController::class, 'updateDosen'])->name('dosen.update');
             Route::delete('/dosen-pengajar/{id}', [DataMasterController::class, 'destroyDosen'])->name('dosen.destroy');
             Route::get('/matakuliah', [DataMasterController::class, 'matakuliah'])->name('matakuliah');
+            Route::post('/dosen/update-email', [DataMasterController::class, 'updateEmail'])
+    ->name('dosen.update.email');
             Route::post('/matakuliah', [DataMasterController::class, 'storeMatakuliah'])->name('matakuliah.store');
             Route::put('/matakuliah/{id}', [DataMasterController::class, 'updateMatakuliah'])->name('matakuliah.update');
             Route::delete('/matakuliah/{id}', [DataMasterController::class, 'destroyMatakuliah'])->name('matakuliah.destroy');
@@ -71,6 +74,9 @@ Route::middleware('auth')->group(function () {
             Route::post('/template-laporan', [DataMasterController::class, 'storeTemplate'])->name('template.store');
             Route::get('/template-laporan/{id}/download', [DataMasterController::class, 'downloadTemplate'])->name('template.download');
             Route::delete('/template-laporan/{id}', [DataMasterController::class, 'destroyTemplate'])->name('template.destroy');
+            Route::get('/periodeA', [PeriodeAkademikController::class, 'index'])->name('periodeA');
+            Route::post('/periodeA', [PeriodeAkademikController::class, 'store'])->name('periodeA.store');
+            Route::get('/periode/active', [PeriodeAkademikController::class, 'getActive'])->name('periode.active');
         });
 
         // Monitoring RPS & Materi
@@ -81,6 +87,8 @@ Route::middleware('auth')->group(function () {
             Route::post('/generate-message', [MonitoringRPSController::class, 'generateReminderMessage'])->name('generate-message');
             Route::post('/send-reminder', [MonitoringRPSController::class, 'sendReminder'])->name('send-reminder');
             Route::get('/history-reminder', [MonitoringRPSController::class, 'historyReminder'])->name('history');
+            Route::get('/monitoring-rps/export', [MonitoringRPSController::class, 'exportPdf'])
+    ->name('export');
         });
 
         // Monitoring Perkuliahan
@@ -94,19 +102,28 @@ Route::middleware('auth')->group(function () {
             Route::get('/reminder-review-soal', [MonitoringPerkuliahanController::class, 'reminderReviewSoal'])->name('soal');
             Route::post('/reminder-review-soal/send', [MonitoringPerkuliahanController::class, 'kirimReminderReviewSoal'])->name('soal.send');
             Route::post('/reminder-review-soal/generate', [MonitoringPerkuliahanController::class, 'generateMessageSoal'])->name('soal.generate');
+            Route::get('/monitoring-perkuliahan/export', [MonitoringPerkuliahanController::class, 'exportPdf'])
+    ->name('export');
         });
 
         // Monitoring Kuesioner
         Route::prefix('monitoring-kuesioner')->name('monitoring-kuesioner.')->group(function () {
             Route::get('/', [MonitoringKuesioneController::class, 'index'])->name('index');
-            Route::get('/create', [MonitoringKuesioneController::class, 'create'])->name('create');
-            Route::get('/create-api', [MonitoringKuesioneController::class, 'createApi'])->name('create-api');
+             Route::get('/create-api', [MonitoringKuesioneController::class, 'indexApi'])->name('create-api');
+    Route::post('/process-api', [MonitoringKuesioneController::class, 'processFromApi'])->name('processFromApi');
+    // 🔹 list mata kuliah (filter TA + semester)
+    Route::get('/create-api', [MonitoringKuesioneController::class, 'indexApi'])
+        ->name('create-api');
+
+    // 🔹 list kuesioner per mata kuliah
+    Route::get('/kuesioner', [MonitoringKuesioneController::class, 'listKuesioner'])
+        ->name('listKuesioner');
+        
+            Route::get('/create', [MonitoringKuesioneController::class, 'create'])->name('create'); 
             Route::post('/store', [MonitoringKuesioneController::class, 'store'])->name('store');
-            Route::post('/process-from-api', [MonitoringKuesioneController::class, 'processFromApi'])->name('process-from-api');
             Route::get('/{id}', [MonitoringKuesioneController::class, 'show'])->name('show');
             Route::delete('/{id}', [MonitoringKuesioneController::class, 'destroy'])->name('destroy');
             Route::get('/{id}/report', [MonitoringKuesioneController::class, 'generateReport'])->name('report');
-            Route::post('/{id}/reprocess', [MonitoringKuesioneController::class, 'reprocess'])->name('reprocess');
         });
 
         // Laporan Kuesioner (NEW - AI Generated Reports)

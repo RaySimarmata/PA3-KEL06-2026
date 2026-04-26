@@ -379,48 +379,14 @@ class LaporanKuesioneController extends Controller
     /**
      * Template Management - Delete
      */
-    public function templateDestroy($id, Request $request)
+    public function templateDestroy($id)
     {
         $template = TemplateLaporan::findOrFail($id);
 
         // Check if template is being used
         $usageCount = LaporanBulanan::where('template_id', $id)->count();
-        
         if ($usageCount > 0) {
-            // Check if force delete is requested
-            $forceDelete = $request->input('force_delete', false);
-            
-            if (!$forceDelete) {
-                // Return error with option to force delete
-                return redirect()->back()
-                    ->with('warning', [
-                        'message' => "Template sedang digunakan oleh {$usageCount} laporan.",
-                        'template_id' => $id,
-                        'usage_count' => $usageCount
-                    ]);
-            }
-            
-            // Force delete: Set template_id to NULL for all related laporan
-            Log::info("Force deleting template", [
-                'template_id' => $id,
-                'affected_laporan' => $usageCount
-            ]);
-            
-            LaporanBulanan::where('template_id', $id)->update(['template_id' => null]);
-        }
-
-        // Delete associated document chunks from vector DB
-        try {
-            $deletedChunks = \App\Models\DocumentChunk::where('template_id', $id)->delete();
-            Log::info("Deleted document chunks", [
-                'template_id' => $id,
-                'chunks_deleted' => $deletedChunks
-            ]);
-        } catch (\Exception $e) {
-            Log::warning("Failed to delete document chunks", [
-                'template_id' => $id,
-                'error' => $e->getMessage()
-            ]);
+            return redirect()->back()->with('error', "Template tidak dapat dihapus karena sedang digunakan oleh {$usageCount} laporan.");
         }
 
         // Delete file

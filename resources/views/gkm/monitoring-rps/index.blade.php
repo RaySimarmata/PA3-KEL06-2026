@@ -58,8 +58,23 @@
                                 onclick="return confirm('Refresh data dari API? Proses ini membutuhkan waktu.')">
                             <i class="bi bi-arrow-clockwise"></i> Refresh Data
                         </button>
+                        
                     </form>
                 </div>
+                <div class="col-md-3">
+                    <button type="button" 
+    class="btn btn-danger flex-fill" 
+    style="padding: 0.6rem;"
+    onclick="window.location.href='{{ route('gkm.monitoring-rps.export', [
+        'semester' => $selectedSemester,
+        'tahun_ajaran' => $selectedTahunAjaran,
+        'tingkat' => $selectedTingkat
+    ]) }}'">
+    
+    <i class="bi bi-file-earmark-pdf"></i> Download PDF
+</button>
+                </div>
+
             </div>
         </form>
         
