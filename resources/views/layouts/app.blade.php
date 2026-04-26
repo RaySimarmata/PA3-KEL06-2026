@@ -455,7 +455,7 @@
                             class="nav-item {{ request()->routeIs('gkm.dashboard') ? 'active' : '' }}">
                             <i class="bi bi-speedometer2"></i> Dashboard
                         </a>
-                        <a href="{{ route('gkm.data-master.penugasan-dosen') }}"
+                        <a href="{{ route('gkm.data-master.index') }}"
                             class="nav-item {{ request()->routeIs('gkm.data-master.*') ? 'active' : '' }}">
                             <i class="bi bi-database"></i> Data Master
                         </a>

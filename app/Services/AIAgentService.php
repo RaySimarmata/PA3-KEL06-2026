@@ -143,16 +143,173 @@ class AIAgentService
         ];
     }
 
+   private function hitungStatistikDariApi($apiData)
+{
+    // 🔥 1. Pastikan data bukan string (decode kalau perlu)
+    if (is_string($apiData)) {
+        $decoded = json_decode($apiData, true);
+
+        if (json_last_error() === JSON_ERROR_NONE) {
+            $apiData = $decoded;
+        } else {
+            Log::error("JSON ERROR", [
+                'error' => json_last_error_msg(),
+                'raw' => $apiData
+            ]);
+
+            return [
+                'index_kepuasan' => 0,
+                'persen_kepuasan' => 0,
+            ];
+        }
+    }
+
+    // 🔥 2. Ambil data distribusi (format API baru)
+    $data = $apiData['statistik_per_pertanyaan'] ?? [];
+
+    if (!is_array($data) || empty($data)) {
+        Log::error("DATA KOSONG / FORMAT SALAH!", [
+            'apiData' => $apiData
+        ]);
+
+        return [
+            'index_kepuasan' => 0,
+            'persen_kepuasan' => 0,
+        ];
+    }
+
+    // 🔥 3. Bobot standar (setelah normalisasi)
+    $bobot = [
+        'STS' => 1,
+        'TS'  => 2,
+        'CS'  => 3,
+        'S'   => 4,
+        'SS'  => 5,
+    ];
+
+    $totalSkor = 0;
+    $totalRespon = 0;
+
+    // 🔥 4. Loop semua pertanyaan
+    foreach ($data as $kode => $item) {
+
+        if (!isset($item['distribusi']) || !is_array($item['distribusi'])) {
+            continue;
+        }
+
+        foreach ($item['distribusi'] as $label => $jumlah) {
+
+            $nilai = $bobot[$label] ?? 0;
+            $jumlah = (int) $jumlah;
+
+            $totalSkor += $nilai * $jumlah;
+            $totalRespon += $jumlah;
+        }
+    }
+
+    // 🔥 5. Hindari pembagian nol
+    if ($totalRespon === 0) {
+        Log::warning("TOTAL RESPON 0!");
+
+        return [
+            'index_kepuasan' => 0,
+            'persen_kepuasan' => 0,
+        ];
+    }
+
+    // ✅ 6. Hitung index (skala 1–5)
+    $index = $totalSkor / $totalRespon;
+
+    // 🔥 7. Konversi ke skala 0–4 (sesuai UI kamu)
+    $index_0_4 = $index - 1;
+
+    // 🔥 8. Hitung persen
+    $persen = ($index_0_4 / 4) * 100;
+
+    // 🔥 9. Guard biar gak aneh
+    if ($persen > 100) {
+        Log::warning("PERSEN > 100%", [
+            'index_asli' => $index,
+            'index_0_4' => $index_0_4,
+            'persen' => $persen
+        ]);
+    }
+
+    return [
+        'index_kepuasan' => round($index_0_4, 2),
+        'persen_kepuasan' => round($persen, 2),
+    ];
+}
     public function analyzeFromApi($kuesioner, $indexedData)
 {
-    // SKIP extractExcel
-    // langsung masuk ke step 2 (retrieve)
+    try {
+        Log::info("=== RAG API PROCESS START ===", ['id' => $kuesioner->id]);
 
-    $retrievedContext = $this->retrieveRelevantContext($indexedData);
+        // STEP 1: Hitung statistik manual
+        $statistik = $this->hitungStatistikDariApi($indexedData);
 
-    $prompt = $this->augmentPromptWithContext($kuesioner, $retrievedContext);
+        // STEP 2: Retrieve
+        $retrievedContext = $this->retrieveRelevantContext($indexedData);
 
-    // lanjut sama seperti analyzeKuesioner()
+        // STEP 3: Augment
+        $augmentedPrompt = $this->augmentPromptWithContext($kuesioner, $retrievedContext);
+
+        $augmentedPrompt .= "
+        Data Statistik:
+        - Index Kepuasan: {$statistik['index_kepuasan']}
+        - Persen Kepuasan: {$statistik['persen_kepuasan']}%
+
+        Berikan analisis dan rekomendasi.
+
+        Output JSON:
+        {
+          \"analisis\": string,
+          \"rekomendasi\": string
+        }
+        ";
+
+        // STEP 4: Call AI
+        $response = $this->callAI([
+            'role' => 'system',
+            'content' => 'Anda adalah AI analis kuesioner. Output JSON saja.'
+        ], $augmentedPrompt, 1500);
+
+        if (!$response) {
+            throw new \Exception("AI tidak merespon");
+        }
+
+        // CLEAN JSON
+        $clean = trim($response);
+        $first = strpos($clean, '{');
+        $last = strrpos($clean, '}');
+
+        if ($first !== false && $last !== false) {
+            $clean = substr($clean, $first, $last - $first + 1);
+        }
+
+        $result = json_decode($clean, true);
+
+        if (!$result) {
+            throw new \Exception("JSON tidak valid");
+        }
+
+        // VALIDASI FIELD
+        $result['analisis'] = $result['analisis'] ?? '-';
+        $result['rekomendasi'] = $result['rekomendasi'] ?? '-';
+
+        // GABUNGKAN STATISTIK
+        $result['statistik'] = $statistik;
+
+        Log::info("=== RAG API DONE ===");
+
+        return $result;
+
+    } catch (\Exception $e) {
+        Log::error("API AI ERROR", [
+            'msg' => $e->getMessage()
+        ]);
+        throw $e;
+    }
 }
     
     /**

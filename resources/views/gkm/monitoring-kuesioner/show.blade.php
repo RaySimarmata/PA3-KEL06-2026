@@ -16,7 +16,7 @@
                                 <i class="bi bi-file-earmark-text"></i> Lihat Laporan AI
                             </a>
                         @endif
-                        @if(in_array($kuesioner->status, ['error', 'uploaded']))
+                        {{-- @if(in_array($kuesioner->status, ['error', 'uploaded']))
                             <form action="{{ route('gkm.monitoring-kuesioner.reprocess', $kuesioner->id) }}" 
                                   method="POST" class="d-inline"
                                   onsubmit="return confirm('Yakin ingin memproses ulang kuesioner ini dengan AI?')">
@@ -25,7 +25,7 @@
                                     <i class="bi bi-arrow-clockwise"></i> Proses Ulang dengan AI
                                 </button>
                             </form>
-                        @endif
+                        @endif --}}
                         <a href="{{ route('gkm.monitoring-kuesioner.index') }}" class="btn btn-secondary">
                             <i class="bi bi-arrow-left"></i> Kembali
                         </a>

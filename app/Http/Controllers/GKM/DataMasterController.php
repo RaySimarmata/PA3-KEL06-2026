@@ -9,6 +9,7 @@ use App\Models\Ajaran;
 use App\Models\User;
 use App\Models\Prodi;
 use App\Models\Kelas;
+use App\Models\Dosenn;
 use App\Models\TemplateLaporan;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -16,6 +17,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Http;
+
 
 class DataMasterController extends Controller
 {
@@ -219,6 +221,24 @@ class DataMasterController extends Controller
                 ->withInput();
         }
     }
+    public function updateEmail(Request $request)
+{
+    $request->validate([
+        'nidn' => 'required',
+        'email' => 'required|email'
+    ]);
+
+    $dosen = Dosenn::where('nidn', $request->nidn)->first();
+
+    if (!$dosen) {
+        return back()->with('error', 'Dosen tidak ditemukan');
+    }
+
+    $dosen->email = $request->email;
+    $dosen->save();
+
+    return back()->with('success', 'Email berhasil disimpan');
+}
 
     public function updateDosen(Request $request, $id)
     {
@@ -980,7 +1000,7 @@ class DataMasterController extends Controller
                     // Remove duplicates based on kode_mk
                     $uniqueJadwal = [];
                     $seenKodeMk = [];
-                    
+            
                     foreach ($jadwal as $mk) {
                         $kodeMk = $mk['kode_mk'] ?? null;
                         

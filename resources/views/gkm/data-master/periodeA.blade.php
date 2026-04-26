@@ -19,7 +19,7 @@
         </div>
 
         <div class="card-body">
-            <form action="{{ route('gkm.periode.store') }}" method="POST">
+            <form action="{{ route('gkm.data-master.periode.store') }}" method="POST">
                 @csrf
 
                 <div class="row g-3">

@@ -1,7 +1,7 @@
 <?php
 
 namespace App\Http\Controllers\GKM;
-
+use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
 use App\Models\RPS;
 use App\Models\Materi;
@@ -13,11 +13,11 @@ use App\Models\LogEmail;
 use App\Mail\ReminderRPSMail;
 use App\Services\AIAgentService;
 use App\Helpers\EmailHelper;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
+use Barryvdh\DomPDF\Facade\Pdf;
 
 class MonitoringRPSController extends Controller
 {
@@ -28,6 +28,7 @@ class MonitoringRPSController extends Controller
 
         // Ambil data tahun ajaran dari API (dengan cache)
         $apiService = new \App\Services\ExternalAPIService();
+        
         
         // Cache tahun ajaran selama 10 menit - dengan fallback jika API gagal
         $tahunAjaranList = \Cache::remember('tahun_ajaran_list', 600, function() use ($apiService) {
@@ -202,6 +203,7 @@ if ($matkulList === null || $forceRefreshDB) {
         return view('gkm.monitoring-rps.index', compact(
             'user',
             'pagination',
+            'matkulList',
             'tahunAjaranList',
             'selectedSemester',
             'selectedTahunAjaran',
@@ -239,6 +241,45 @@ if ($matkulList === null || $forceRefreshDB) {
     /**
      * Build monitoring data from API
      */
+
+    private function getMonitoringRpsData($semester, $tahun, $tingkat)
+{
+    $request = new Request([
+        'semester' => $semester,
+        'tahun_ajaran' => $tahun,
+        'tingkat' => $tingkat
+    ]);
+
+    $response = $this->index($request);
+    $data = $response->getData();
+
+    return $data['matkulList'] ?? []; // 🔥 BUKAN pagination
+}
+public function exportPdf(Request $request)
+{
+    $semester = $request->semester;
+    $tahun = $request->tahun_ajaran;
+    $tingkat = $request->tingkat;
+
+    // 🔥 ambil data yang sama seperti halaman
+    $data = $this->getMonitoringRpsData($semester, $tahun, $tingkat);
+
+    $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('pdf.monitoring-rps', [
+        'data' => $data,
+        'semester' => $semester,
+        'tahun' => $tahun,
+        'tingkat' => $tingkat
+    ])->setPaper('a4', 'portrait');
+
+    // 🔥 nama file dinamis
+    $semesterText = $semester == 1 ? 'Ganjil' : 'Genap';
+    $tanggal = now()->format('Ymd');
+
+    $namaFile = "Monitoring-RPS-{$tahun}-{$semesterText}-Tingkat{$tingkat}-{$tanggal}.pdf";
+
+    return $pdf->download($namaFile);
+}
+
         private function buildMonitoringData(
     $apiService,
     $prodiId,
@@ -497,13 +538,22 @@ private function saveSnapshotToDB(
         }
     }
 
-    public function ceklistRPS()
+    public function ceklistRPS(Request $request)
 {
     $user = Auth::user();
+    $search = $request->input('search');
 
     $dosenList = DB::table('dosenn as d')
         ->leftJoin('rps_monitoring_snapshots as r', 'd.pegawai_id', '=', 'r.pegawai_id')
         ->where('r.prodi_id', 4)
+
+        ->when($search, function ($query, $search) {
+            $query->where(function ($q) use ($search) {
+                $q->where('d.nama', 'like', "%{$search}%")
+                  ->orWhere('r.nama_matkul', 'like', "%{$search}%");
+            });
+        })
+
         ->select(
             'd.pegawai_id as id',
             'd.pegawai_id',
@@ -512,7 +562,8 @@ private function saveSnapshotToDB(
             'r.nama_matkul',
             'r.status_rps'
         )
-        ->get();
+        ->paginate(10)
+        ->withQueryString();
 
     return view('gkm.monitoring-rps.ceklist', compact('user', 'dosenList'));
 }

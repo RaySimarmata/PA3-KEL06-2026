@@ -14,6 +14,7 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use App\Models\PeriodeAkademik;
+use Barryvdh\DomPDF\Facade\Pdf;
 
 class MonitoringPerkuliahanController extends Controller
 {
@@ -416,6 +417,50 @@ class MonitoringPerkuliahanController extends Controller
             'noDataFromAPI' => $noDataFromAPI,
         ]);
     }
+    private function getMonitoringData($semester, $tahun, $tingkat)
+{
+    $request = new \Illuminate\Http\Request([
+        'semester' => $semester,
+        'tahun_ajaran' => $tahun,
+        'tingkat' => $tingkat
+    ]);
+
+    // Panggil index logic tapi ambil datanya saja
+    $data = $this->index($request)->getData();
+
+    return [
+        'materiTeori' => $data['materiTeori'] ?? [],
+        'materiPraktikum' => $data['materiPraktikum'] ?? [],
+    ];
+}
+
+
+public function exportPdf(Request $request)
+{
+    $semester = $request->semester;
+    $tahun = $request->tahun_ajaran;
+    $tingkat = $request->tingkat;
+
+    $data = $this->getMonitoringData($semester, $tahun, $tingkat);
+
+    $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('pdf.monitoring-perkuliahan', [
+        'materiTeori' => $data['materiTeori'],
+        'materiPraktikum' => $data['materiPraktikum'],
+        'semester' => $semester,
+        'tahun' => $tahun,
+        'tingkat' => $tingkat
+    ])->setPaper('a4', 'landscape');
+
+    // 🔥 Format nama semester
+    $semesterText = $semester == 1 ? 'Ganjil' : 'Genap';
+
+    $tanggal = now()->format('Ymd');
+
+    $namaFile = "Monitoring-Perkuliahan-{$tahun}-{$semesterText}-Tingkat{$tingkat}-{$tanggal}.pdf";
+
+    return $pdf->download($namaFile);
+}
+
 
     public function clearCache(Request $request)
     {

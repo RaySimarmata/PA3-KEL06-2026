@@ -95,10 +95,22 @@
                                     <i class="bi bi-hash"></i> NIDN: {{ $nidn }}
                                 </span>
                                 @if ($email)
-                                    <span class="text-secondary" style="font-size: 0.85rem;">
-                                        <i class="bi bi-envelope"></i> {{ $email }}
-                                    </span>
-                                @endif
+    <span class="text-secondary">
+        <i class="bi bi-envelope"></i> {{ $email }}
+    </span>
+@else
+    <form method="POST" action="{{ route('gkm.data-master.dosen.update.email') }}" style="display:inline;">
+        @csrf
+        <input type="hidden" name="nidn" value="{{ $nidn }}">
+
+        <input type="email" name="email" placeholder="Isi email..."
+               style="font-size: 0.75rem; padding: 2px 6px; width: 150px;" required>
+
+        <button type="submit" class="btn btn-sm btn-primary">
+            Save
+        </button>
+    </form>
+@endif
                             </div>
                         </div>
                     </div>
