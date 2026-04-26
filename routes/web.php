@@ -23,6 +23,7 @@ use App\Http\Controllers\GJM\LaporanSemesterController;
 use App\Http\Controllers\GJM\PromptSemesterController;
 use App\Http\Controllers\GJM\LaporanTriwulanController;
 use App\Http\Controllers\GJM\PromptTriwulanController;
+use App\Http\Controllers\GJM\OCRUploadController;
 use App\Http\Controllers\PeriodeAkademikController;
 
 // Auth Routes
@@ -236,18 +237,29 @@ Route::middleware('auth')->group(function () {
             Route::post('/triwulan', [LaporanTriwulanController::class, 'store'])->name('triwulan.store');
             Route::post('/triwulan/ai-prompt', [LaporanTriwulanController::class, 'aiPrompt'])->name('triwulan.ai-prompt');
             Route::post('/triwulan/save-preview', [LaporanTriwulanController::class, 'savePreview'])->name('triwulan.save-preview');
+            Route::post('/triwulan/save-images', [LaporanTriwulanController::class, 'saveUploadedImages'])->name('triwulan.save-images');
             Route::post('/triwulan/prompt', [PromptTriwulanController::class, 'chat'])->name('triwulan.prompt');
             Route::post('/triwulan/read-file', [PromptTriwulanController::class, 'readFile'])->name('triwulan.read-file');
             
             // Semester
             Route::get('/semester', [LaporanSemesterController::class, 'create'])->name('semester');
             Route::post('/semester', [LaporanSemesterController::class, 'store'])->name('semester.store');
+            Route::post('/semester/create-draft', [LaporanSemesterController::class, 'createDraft'])->name('semester.create-draft');
             Route::post('/semester/ai-prompt', [LaporanSemesterController::class, 'aiPrompt'])->name('semester.ai-prompt');
             Route::post('/semester/prompt', [PromptSemesterController::class, 'chat'])->name('semester.prompt');
             Route::post('/semester/read-file', [PromptSemesterController::class, 'readFile'])->name('semester.read-file');
+            Route::get('/semester/diagnostic', [PromptSemesterController::class, 'diagnostic'])->name('semester.diagnostic');
             
             // Download
             Route::get('/download/{id}', [LaporanGJMController::class, 'download'])->name('download.pdf');
+            
+            // OCR Upload & Enhanced AI Integration (NEW)
+            Route::post('/ocr/upload', [OCRUploadController::class, 'uploadImages'])->name('ocr.upload');
+            Route::post('/ocr/enhanced-preview', [OCRUploadController::class, 'generateEnhancedPreview'])->name('ocr.enhanced-preview');
+            Route::get('/ocr/laporan-stats', [OCRUploadController::class, 'getLaporanStats'])->name('ocr.laporan-stats');
+            Route::delete('/ocr/clear-data', [OCRUploadController::class, 'clearLaporanData'])->name('ocr.clear-data');
+            Route::get('/ocr/stats', [OCRUploadController::class, 'getOCRStats'])->name('ocr.stats');
+            Route::get('/ocr/usage', [OCRUploadController::class, 'getUsageStats'])->name('ocr.usage');
             
             // Legacy route for backward compatibility
             Route::post('/store', [BuatLaporanController::class, 'store'])->name('store');
@@ -287,6 +299,8 @@ Route::middleware('auth')->group(function () {
             Route::get('/bulanan', [LaporanGJMController::class, 'laporanBulanan'])->name('bulanan');
             Route::get('/tahunan', [LaporanGJMController::class, 'laporanTahunan'])->name('tahunan');
             Route::post('/generate', [LaporanGJMController::class, 'generate'])->name('generate');
+            Route::get('/{id}/detail', [LaporanGJMController::class, 'detail'])->name('detail');
+            Route::get('/{id}/download', [LaporanGJMController::class, 'download'])->name('download');
             Route::get('/{id}', [LaporanGJMController::class, 'show'])->name('show');
             Route::delete('/{id}', [LaporanGJMController::class, 'destroy'])->name('destroy');
         });

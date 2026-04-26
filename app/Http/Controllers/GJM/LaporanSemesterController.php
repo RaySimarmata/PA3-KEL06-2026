@@ -10,6 +10,7 @@ use App\Jobs\GenerateLaporanSemesterJob;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 use Carbon\Carbon;
 
 class LaporanSemesterController extends Controller
@@ -51,12 +52,16 @@ class LaporanSemesterController extends Controller
                 'template_id' => 'nullable|exists:template_laporan,id',
             ]);
 
-            $claudeService = app(\App\Services\ClaudeAIService::class);
+            $aiService = app(\App\Services\UnifiedAIService::class);
             $textExtraction = app(\App\Services\TextExtractionService::class);
+            $ocrService = app(\App\Services\OCRService::class);
+            $vectorDbService = app(\App\Services\VectorDatabaseService::class);
+            $ragService = app(\App\Services\RAGRetrievalService::class);
 
             $userPrompt = $request->input('prompt');
             $conversationHistory = $request->input('conversation_history', []);
             $templateId = $request->input('template_id');
+            $laporanId = $request->input('laporan_id');
             
             // Get template structure if template is selected
             $templateStructure = $this->extractTemplateStructure($templateId);
@@ -103,6 +108,7 @@ class LaporanSemesterController extends Controller
             // Extract file content if uploaded
             $filesContext = [];
             $imageContents = [];
+            $ocrTexts = [];
             
             if ($request->hasFile('file_referensi')) {
                 $files = $request->file('file_referensi');
@@ -113,9 +119,52 @@ class LaporanSemesterController extends Controller
                     
                     // Check if it's an image
                     if (in_array($fileExtension, ['jpg', 'jpeg', 'png', 'gif', 'webp'])) {
-                        // Process image with Claude Vision
+                        // Process image with OCR first
                         try {
-                            $imageData = base64_encode(file_get_contents($file->getPathname()));
+                            $imagePath = $file->store('temp_uploads', 'local');
+                            $fullImagePath = storage_path('app/' . $imagePath);
+                            
+                            // Extract text using OCR
+                            $ocrResult = $ocrService->extractText($fullImagePath);
+                            
+                            if ($ocrResult['success'] && !empty($ocrResult['text'])) {
+                                // Ensure text is string
+                                $ocrText = is_array($ocrResult['text']) ? json_encode($ocrResult['text']) : (string)$ocrResult['text'];
+                                
+                                $ocrTexts[] = [
+                                    'filename' => $fileName,
+                                    'text' => $ocrText,
+                                    'method' => $ocrResult['method'],
+                                    'confidence' => $ocrResult['confidence']
+                                ];
+                                
+                                // Index OCR text to vector database if laporan_id exists
+                                if ($laporanId) {
+                                    $vectorDbService->indexDocument([
+                                        'text' => $ocrText,
+                                        'source_type' => 'laporan_gjm_ocr',
+                                        'source_id' => $laporanId,
+                                        'chunk_index' => $index,
+                                        'metadata' => [
+                                            'type' => 'ocr_image',
+                                            'filename' => $fileName,
+                                            'laporan_id' => $laporanId,
+                                            'ocr_method' => $ocrResult['method'],
+                                            'confidence' => $ocrResult['confidence'],
+                                            'indexed_at' => now()->toIso8601String(),
+                                        ]
+                                    ]);
+                                    
+                                    Log::info('OCR text indexed to vector database', [
+                                        'filename' => $fileName,
+                                        'laporan_id' => $laporanId,
+                                        'text_length' => strlen($ocrText)
+                                    ]);
+                                }
+                            }
+                            
+                            // Also prepare for Claude Vision API
+                            $imageData = base64_encode(file_get_contents($fullImagePath));
                             $mimeType = $file->getMimeType();
                             
                             $imageContents[] = [
@@ -124,9 +173,14 @@ class LaporanSemesterController extends Controller
                                 'mime_type' => $mimeType
                             ];
                             
-                            Log::info('Image prepared for Vision API', [
+                            // Clean up temp file
+                            if (file_exists($fullImagePath)) {
+                                @unlink($fullImagePath);
+                            }
+                            
+                            Log::info('Image processed with OCR and Vision API', [
                                 'filename' => $fileName,
-                                'size' => strlen($imageData),
+                                'ocr_text_length' => isset($ocrText) ? strlen($ocrText) : 0,
                                 'mime_type' => $mimeType
                             ]);
                         } catch (\Exception $e) {
@@ -200,10 +254,55 @@ class LaporanSemesterController extends Controller
                 }
             }
             
+            // Get RAG context from vector database if laporan_id exists
+            $ragContext = '';
+            if ($laporanId) {
+                try {
+                    $ragResults = $ragService->retrieveContext($userPrompt, [
+                        'source_type' => 'laporan_gjm_ocr',
+                        'source_id' => $laporanId,
+                        'top_k' => 5
+                    ]);
+                    
+                    if (!empty($ragResults)) {
+                        $ragContext = "Context dari gambar yang telah diupload sebelumnya:\n\n";
+                        foreach ($ragResults as $result) {
+                            $ragContext .= "- " . $result['text'] . "\n";
+                            $ragContext .= "  (Relevance: " . round($result['similarity'] * 100, 1) . "%)\n\n";
+                        }
+                        
+                        Log::info('RAG context retrieved', [
+                            'laporan_id' => $laporanId,
+                            'results_count' => count($ragResults),
+                            'top_similarity' => $ragResults[0]['similarity'] ?? 0
+                        ]);
+                    }
+                } catch (\Exception $e) {
+                    Log::warning('RAG retrieval failed', [
+                        'laporan_id' => $laporanId,
+                        'error' => $e->getMessage()
+                    ]);
+                }
+            }
+            
             // Add GKM monthly reports context
             if (!empty($gkmData)) {
                 $currentMessage .= "Data Laporan GKM Bulanan untuk periode semester ini:\n\n";
                 $currentMessage .= $gkmData . "\n\n";
+            }
+            
+            // Add OCR texts from current upload
+            if (!empty($ocrTexts)) {
+                $currentMessage .= "Teks yang diekstrak dari gambar yang baru diupload:\n\n";
+                foreach ($ocrTexts as $ocrData) {
+                    $currentMessage .= "**{$ocrData['filename']}** (OCR Method: {$ocrData['method']}, Confidence: {$ocrData['confidence']}%):\n";
+                    $currentMessage .= "```\n" . $ocrData['text'] . "\n```\n\n";
+                }
+            }
+            
+            // Add RAG context from previous uploads
+            if (!empty($ragContext)) {
+                $currentMessage .= $ragContext;
             }
             
             // Process uploaded images (will be handled by Claude Vision)
@@ -243,33 +342,21 @@ class LaporanSemesterController extends Controller
                 'content' => $currentMessage
             ];
 
-            // Call Claude AI with Vision support if images are present
-            if (!empty($imageContents)) {
-                $aiResponse = $claudeService->chatWithVision($systemContext, $messages, $imageContents, 4096);
-            } else {
-                $aiResponse = $claudeService->chat($systemContext, $messages, 4096);
+            // Build full prompt for UnifiedAIService
+            $fullPrompt = $systemContext . "\n\n";
+            foreach ($messages as $msg) {
+                $fullPrompt .= strtoupper($msg['role']) . ": " . $msg['content'] . "\n\n";
             }
 
-            // Validate AI response - ensure it's not empty or error message
-            if (!$aiResponse) {
+            // Call AI service (UnifiedAIService doesn't support vision yet)
+            $aiResult = $aiService->generateText($fullPrompt, ['max_tokens' => 4096]);
+            
+            if (!$aiResult['success'] || empty($aiResult['text'])) {
                 Log::error('AI returned empty response', [
                     'prompt_length' => strlen($userPrompt),
                     'files_count' => count($filesContext),
-                    'images_count' => count($imageContents)
-                ]);
-                
-                return response()->json([
-                    'success' => false,
-                    'message' => 'AI tidak memberikan respons. Pastikan koneksi internet stabil dan layanan AI tersedia. Silakan coba lagi.'
-                ], 500);
-            }
-
-            // Check if AI response indicates service unavailability
-            if (str_contains(strtolower($aiResponse), 'sistem ai sedang tidak tersedia') || 
-                str_contains(strtolower($aiResponse), 'semua layanan ai sedang tidak tersedia')) {
-                
-                Log::error('All AI services unavailable', [
-                    'response_preview' => substr($aiResponse, 0, 200)
+                    'images_count' => count($imageContents),
+                    'error' => $aiResult['error'] ?? 'Unknown error'
                 ]);
                 
                 return response()->json([
@@ -277,19 +364,23 @@ class LaporanSemesterController extends Controller
                     'message' => 'Layanan AI sedang tidak tersedia. Silakan coba lagi dalam beberapa menit atau hubungi administrator.'
                 ], 503);
             }
+            
+            $aiResponse = $aiResult['text'];
 
             Log::info('AI Prompt successful', [
                 'prompt_length' => strlen($userPrompt),
                 'response_length' => strlen($aiResponse),
                 'files_count' => count($filesContext),
                 'images_count' => count($imageContents),
-                'has_template' => !empty($templateStructure)
+                'has_template' => !empty($templateStructure),
+                'provider' => $aiResult['provider'],
+                'model' => $aiResult['model']
             ]);
 
             return response()->json([
                 'success' => true,
                 'response' => $aiResponse,
-                'model_info' => $claudeService->getModelInfo(),
+                'model_info' => $aiResult['provider'] . ' (' . $aiResult['model'] . ')',
             ]);
 
         } catch (\Exception $e) {
@@ -400,6 +491,17 @@ class LaporanSemesterController extends Controller
                     // Reload laporan to get updated status
                     $laporan->refresh();
                     
+                    // Check if file exists and return download
+                    if ($laporan->file_path && Storage::disk('public')->exists($laporan->file_path)) {
+                        $filePath = Storage::disk('public')->path($laporan->file_path);
+                        $fileName = 'Laporan_Semester_' . $laporan->id . '.docx';
+                        
+                        return response()->download($filePath, $fileName, [
+                            'Content-Type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                        ]);
+                    }
+                    
+                    // Fallback to JSON if file not found
                     if ($laporan->status_laporan === 'completed') {
                         return response()->json([
                             'success' => true,
@@ -647,6 +749,195 @@ class LaporanSemesterController extends Controller
                 'error' => $e->getMessage()
             ]);
             return '';
+        }
+    }
+
+    /**
+     * Create draft laporan semester
+     * Method untuk membuat draft laporan sebelum AI assistant digunakan
+     */
+    public function createDraft(Request $request)
+    {
+        try {
+            $request->validate([
+                'periode_semester' => 'required|in:ganjil,genap',
+                'judul_laporan' => 'required|string|max:500',
+                'template_id' => 'nullable|exists:template_laporan,id',
+            ]);
+
+            $user = Auth::user();
+            $periodeSemester = $request->periode_semester;
+            $tahunAjaran = date('Y');
+
+            // Determine periode dates
+            $periodeMulai = null;
+            $periodeAkhir = null;
+            $periodeLabel = '';
+            
+            if ($periodeSemester === 'ganjil') {
+                $periodeMulai = Carbon::create($tahunAjaran, 8, 1);
+                $periodeAkhir = Carbon::create($tahunAjaran + 1, 1, 31);
+                $periodeLabel = 'Semester Ganjil';
+            } else {
+                $periodeMulai = Carbon::create($tahunAjaran, 2, 1);
+                $periodeAkhir = Carbon::create($tahunAjaran, 7, 31);
+                $periodeLabel = 'Semester Genap';
+            }
+
+            // Create laporan record
+            $laporan = LaporanGJM::create([
+                'jenis_laporan' => 'semester',
+                'template_id' => $request->template_id,
+                'periode_mulai' => $periodeMulai,
+                'periode_akhir' => $periodeAkhir,
+                'ringkasan_mutu_institusi' => $request->judul_laporan . " - {$periodeLabel} {$tahunAjaran}",
+                'status_laporan' => 'draft',
+                'created_by' => $user->id,
+                'instruksi_prompt' => json_encode([
+                    'periode' => $periodeLabel,
+                    'periode_semester' => $periodeSemester,
+                    'tahun' => $tahunAjaran,
+                    'judul' => $request->judul_laporan,
+                ]),
+            ]);
+
+            Log::info('Draft laporan semester created', [
+                'laporan_id' => $laporan->id,
+                'periode' => $periodeLabel,
+                'tahun' => $tahunAjaran,
+                'user_id' => $user->id
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Draft laporan berhasil dibuat!',
+                'data' => [
+                    'id' => $laporan->id,
+                    'periode' => $periodeLabel,
+                    'tahun' => $tahunAjaran,
+                    'judul' => $request->judul_laporan
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Failed to create draft laporan semester', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal membuat draft laporan: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * AI Assistant endpoint for semester reports
+     * Handles chat-like interactions for semester report assistance
+     */
+    public function aiAssistant(Request $request)
+    {
+        try {
+            $request->validate([
+                'message' => 'required|string|max:2000',
+                'context' => 'nullable|array',
+                'conversation' => 'nullable|array'
+            ]);
+
+            $message = $request->input('message');
+            $context = $request->input('context', []);
+            $conversation = $request->input('conversation', []);
+
+            // Initialize AI service - Use UnifiedAIService for better provider support
+            $aiService = app(\App\Services\UnifiedAIService::class);
+
+            // Build system context for semester report assistant
+            $systemContext = "Anda adalah AI Assistant khusus untuk membantu pembuatan Laporan Semester di Gugus Jaminan Mutu (GJM) Institut Teknologi Del.\n\n";
+            $systemContext .= "Tugas Anda:\n";
+            $systemContext .= "1. Memberikan panduan dan saran untuk pembuatan laporan semester\n";
+            $systemContext .= "2. Membantu menganalisis struktur laporan yang baik\n";
+            $systemContext .= "3. Memberikan template dan format laporan\n";
+            $systemContext .= "4. Membantu menganalisis data semester\n";
+            $systemContext .= "5. Memberikan saran perbaikan dan rekomendasi\n\n";
+            
+            $systemContext .= "Konteks Laporan Semester:\n";
+            $systemContext .= "- Laporan ini mencakup kegiatan selama satu semester (6 bulan)\n";
+            $systemContext .= "- Periode Ganjil: Agustus - Januari\n";
+            $systemContext .= "- Periode Genap: Februari - Juli\n";
+            $systemContext .= "- Laporan harus mencakup: latar belakang, dasar, tujuan, ruang lingkup, program kerja, pelaksanaan, hambatan, pemecahan masalah, evaluasi, dan saran\n\n";
+            
+            $systemContext .= "Gunakan Bahasa Indonesia yang formal dan profesional. Berikan jawaban yang praktis dan actionable.\n";
+
+            // Add page context if available
+            if (!empty($context)) {
+                $systemContext .= "\nKonteks halaman saat ini:\n";
+                $systemContext .= "- Halaman: " . ($context['page'] ?? 'unknown') . "\n";
+                if (isset($context['periode_akademik'])) {
+                    $systemContext .= "- Periode Akademik: " . $context['periode_akademik'] . "\n";
+                }
+                if (isset($context['tables_count'])) {
+                    $systemContext .= "- Jumlah tabel data: " . $context['tables_count'] . "\n";
+                }
+            }
+
+            // Build full prompt with conversation history
+            $fullPrompt = $systemContext . "\n\n";
+            
+            // Add conversation history (last 10 messages)
+            if (!empty($conversation)) {
+                $recentConversation = array_slice($conversation, -10);
+                $fullPrompt .= "RIWAYAT PERCAKAPAN:\n";
+                foreach ($recentConversation as $msg) {
+                    $role = ($msg['type'] === 'user') ? 'USER' : 'ASSISTANT';
+                    $fullPrompt .= "{$role}: {$msg['content']}\n\n";
+                }
+            }
+
+            // Add current user message
+            $fullPrompt .= "USER: {$message}\n\n";
+            $fullPrompt .= "ASSISTANT: ";
+
+            // Call AI service with UnifiedAIService
+            $aiResult = $aiService->generateText($fullPrompt, ['max_tokens' => 1000]);
+
+            if (!$aiResult['success'] || empty($aiResult['text'])) {
+                Log::warning('AI Assistant returned empty response', [
+                    'error' => $aiResult['error'] ?? 'Unknown error',
+                    'provider' => $aiResult['provider'] ?? 'unknown'
+                ]);
+                
+                return response()->json([
+                    'success' => false,
+                    'response' => 'Maaf, layanan AI sedang tidak tersedia. Silakan coba lagi dalam beberapa menit.'
+                ]);
+            }
+
+            Log::info('AI Assistant semester response generated', [
+                'message_length' => strlen($message),
+                'response_length' => strlen($aiResult['text']),
+                'conversation_length' => count($conversation),
+                'provider' => $aiResult['provider'],
+                'model' => $aiResult['model']
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'response' => $aiResult['text'],
+                'model_info' => $aiResult['provider'] . ' (' . $aiResult['model'] . ')'
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('AI Assistant semester failed', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'message' => substr($message ?? '', 0, 100)
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'response' => 'Terjadi kesalahan dalam memproses permintaan Anda. Silakan coba lagi.'
+            ], 500);
         }
     }
 }

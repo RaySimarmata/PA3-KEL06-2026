@@ -3,411 +3,499 @@
 namespace App\Services;
 
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Cache;
 
-/**
- * OCR Service untuk ekstraksi teks dari gambar
- * Mendukung berbagai provider OCR
- */
 class OCRService
 {
-    private string $provider;
-    private array $config;
+    private $supportedFormats = ['png', 'jpg', 'jpeg', 'pdf'];
+    private $languages = ['ind', 'eng']; // Indonesian and English
+    private $cacheEnabled = true;
+    private $cacheTTL = 604800; // 7 days in seconds
 
-    public function __construct()
+    /**
+     * Extract text from image.
+     * Tries Tesseract if available; otherwise returns a descriptive fallback.
+     */
+    public function extractText(string $imagePath): array
     {
-        $this->provider = env('OCR_PROVIDER', 'tesseract'); // tesseract, google_vision, azure_vision
-        $this->config = [
-            'google_vision' => [
-                'api_key' => env('GOOGLE_VISION_API_KEY', ''),
-                'endpoint' => 'https://vision.googleapis.com/v1/images:annotate'
-            ],
-            'azure_vision' => [
-                'api_key' => env('AZURE_VISION_API_KEY', ''),
-                'endpoint' => env('AZURE_VISION_ENDPOINT', ''),
-            ],
-            'tesseract' => [
-                'command' => 'tesseract',
-                'languages' => env('TESSERACT_LANGUAGES', 'eng+ind'), // English + Indonesian
-            ]
+        $startTime = microtime(true);
+
+        try {
+            Log::info("=== OCR Text Extraction Started ===", [
+                'image_path' => $imagePath,
+                'file_exists' => file_exists($imagePath)
+            ]);
+
+            // Validate file exists
+            if (!file_exists($imagePath)) {
+                throw new \Exception("Image file not found: {$imagePath}");
+            }
+
+            // Check file format
+            $extension = strtolower(pathinfo($imagePath, PATHINFO_EXTENSION));
+            if (!in_array($extension, $this->supportedFormats)) {
+                throw new \Exception("Unsupported file format: {$extension}. Supported: " . implode(', ', $this->supportedFormats));
+            }
+
+            // Check cache
+            $cacheKey = $this->getCacheKey($imagePath);
+            if ($this->cacheEnabled && Cache::has($cacheKey)) {
+                $cached = Cache::get($cacheKey);
+                Log::info("OCR cache hit", ['image' => basename($imagePath)]);
+                return $cached;
+            }
+
+            // Try Tesseract if available
+            if ($this->isTesseractAvailable()) {
+                $preprocessedPath = $this->preprocessImage($imagePath);
+                $text = $this->runTesseract($preprocessedPath);
+
+                if ($preprocessedPath !== $imagePath && file_exists($preprocessedPath)) {
+                    @unlink($preprocessedPath);
+                }
+
+                $processingTime = round((microtime(true) - $startTime) * 1000, 2);
+
+                $result = [
+                    'success'            => true,
+                    'text'               => $text,
+                    'method'             => 'tesseract',
+                    'confidence'         => 85,
+                    'length'             => strlen($text),
+                    'word_count'         => str_word_count($text),
+                    'processing_time_ms' => $processingTime,
+                    'image_file'         => basename($imagePath),
+                ];
+
+                if ($this->cacheEnabled) {
+                    Cache::put($cacheKey, $result, $this->cacheTTL);
+                }
+
+                Log::info("OCR (Tesseract) completed", [
+                    'image'      => basename($imagePath),
+                    'text_length'=> strlen($text),
+                ]);
+
+                return $result;
+            }
+
+            // Tesseract not installed — use GD to get image info as fallback
+            $fallbackText = $this->extractWithGDFallback($imagePath);
+            $processingTime = round((microtime(true) - $startTime) * 1000, 2);
+
+            $result = [
+                'success'            => true,
+                'text'               => $fallbackText,
+                'method'             => 'gd_fallback',
+                'confidence'         => 0,
+                'length'             => strlen($fallbackText),
+                'word_count'         => str_word_count($fallbackText),
+                'processing_time_ms' => $processingTime,
+                'image_file'         => basename($imagePath),
+            ];
+
+            if ($this->cacheEnabled) {
+                Cache::put($cacheKey, $result, $this->cacheTTL);
+            }
+
+            Log::info("OCR (GD fallback) completed", [
+                'image'      => basename($imagePath),
+                'text_length'=> strlen($fallbackText),
+            ]);
+
+            return $result;
+
+        } catch (\Exception $e) {
+            $processingTime = round((microtime(true) - $startTime) * 1000, 2);
+
+            Log::error("OCR extraction failed", [
+                'image' => basename($imagePath),
+                'error' => $e->getMessage(),
+            ]);
+
+            return [
+                'success'            => false,
+                'text'               => '',
+                'method'             => 'failed',
+                'confidence'         => 0,
+                'length'             => 0,
+                'word_count'         => 0,
+                'processing_time_ms' => $processingTime,
+                'image_file'         => basename($imagePath),
+                'error'              => $e->getMessage(),
+            ];
+        }
+    }
+
+    /**
+     * Alias used by TextExtractionService::extractFromImage()
+     */
+    public function extractTextFromImage(string $imagePath): array
+    {
+        return $this->extractText($imagePath);
+    }
+
+    /**
+     * Extract text from multiple images (batch processing)
+     */
+    public function extractTextBatch(array $imagePaths): array
+    {
+        $startTime = microtime(true);
+        $results = [];
+        $totalText = '';
+
+        Log::info("=== Batch OCR Started ===", [
+            'total_images' => count($imagePaths)
+        ]);
+
+        foreach ($imagePaths as $index => $imagePath) {
+            $result = $this->extractText($imagePath);
+            $results[] = $result;
+            
+            if ($result['success']) {
+                // Ensure text is string before concatenating
+                $text = $result['text'] ?? '';
+                if (is_array($text)) {
+                    $text = json_encode($text);
+                } elseif (!is_string($text)) {
+                    $text = (string)$text;
+                }
+                $totalText .= $text . "\n\n";
+            }
+        }
+
+        $totalTime = round((microtime(true) - $startTime) * 1000, 2);
+        $successCount = count(array_filter($results, fn($r) => $r['success']));
+
+        Log::info("Batch OCR completed", [
+            'total_images' => count($imagePaths),
+            'successful' => $successCount,
+            'failed' => count($imagePaths) - $successCount,
+            'total_time_ms' => $totalTime,
+            'avg_time_per_image_ms' => round($totalTime / count($imagePaths), 2)
+        ]);
+
+        // Ensure totalText is always a string before strlen
+        if (!is_string($totalText)) {
+            $totalText = '';
+        }
+
+        return [
+            // Always succeed at batch level so upstream doesn't throw hard errors.
+            // Individual image errors are reported in 'results'.
+            'success'                   => true,
+            'results'                   => $results,
+            'combined_text'             => trim($totalText),
+            'total_length'              => strlen($totalText),
+            'successful_count'          => $successCount,
+            'failed_count'              => count($imagePaths) - $successCount,
+            'total_processing_time_ms'  => $totalTime,
         ];
     }
 
     /**
-     * Extract text from image file
-     *
-     * @param string $imagePath Path to image file
-     * @return array ['text' => string, 'confidence' => float, 'success' => bool, 'method' => string]
+     * Preprocess image for better OCR accuracy
      */
-    public function extractTextFromImage(string $imagePath): array
+    private function preprocessImage(string $imagePath): string
     {
-        if (!file_exists($imagePath)) {
-            return [
-                'text' => '',
-                'confidence' => 0.0,
-                'success' => false,
-                'method' => 'none',
-                'error' => 'File not found: ' . $imagePath
-            ];
+        try {
+            // Check if ImageMagick or GD is available
+            if (!extension_loaded('imagick') && !extension_loaded('gd')) {
+                Log::warning("No image processing extension available, skipping preprocessing");
+                return $imagePath;
+            }
+
+            $extension = strtolower(pathinfo($imagePath, PATHINFO_EXTENSION));
+            
+            // Skip preprocessing for PDFs
+            if ($extension === 'pdf') {
+                return $imagePath;
+            }
+
+            // Create temp file for preprocessed image
+            $tempPath = sys_get_temp_dir() . '/ocr_preprocessed_' . time() . '_' . basename($imagePath);
+
+            if (extension_loaded('imagick')) {
+                $this->preprocessWithImageMagick($imagePath, $tempPath);
+            } else {
+                $this->preprocessWithGD($imagePath, $tempPath);
+            }
+
+            if (file_exists($tempPath)) {
+                Log::info("Image preprocessed", [
+                    'original' => basename($imagePath),
+                    'preprocessed' => basename($tempPath)
+                ]);
+                return $tempPath;
+            }
+
+            return $imagePath;
+
+        } catch (\Exception $e) {
+            Log::warning("Image preprocessing failed, using original", [
+                'error' => $e->getMessage()
+            ]);
+            return $imagePath;
         }
+    }
 
-        Log::info('OCR: Starting text extraction', [
-            'file' => $imagePath,
-            'provider' => $this->provider,
-            'file_size' => filesize($imagePath)
-        ]);
-
-        // Try primary provider
-        $result = $this->extractWithProvider($imagePath, $this->provider);
+    /**
+     * Preprocess with ImageMagick
+     */
+    private function preprocessWithImageMagick(string $inputPath, string $outputPath): void
+    {
+        $image = new \Imagick($inputPath);
         
-        // If primary fails, try fallback providers
-        if (!$result['success']) {
-            $fallbackProviders = $this->getFallbackProviders();
-            
-            foreach ($fallbackProviders as $provider) {
-                Log::info("OCR: Trying fallback provider: {$provider}");
-                $result = $this->extractWithProvider($imagePath, $provider);
-                
-                if ($result['success']) {
-                    break;
-                }
-            }
+        // Convert to grayscale
+        $image->transformImageColorspace(\Imagick::COLORSPACE_GRAY);
+        
+        // Increase contrast
+        $image->normalizeImage();
+        $image->contrastImage(1);
+        
+        // Denoise
+        $image->despeckleImage();
+        
+        // Sharpen
+        $image->sharpenImage(0, 1);
+        
+        // Save
+        $image->writeImage($outputPath);
+        $image->clear();
+    }
+
+    /**
+     * Preprocess with GD
+     */
+    private function preprocessWithGD(string $inputPath, string $outputPath): void
+    {
+        $extension = strtolower(pathinfo($inputPath, PATHINFO_EXTENSION));
+        
+        // Load image
+        $image = match($extension) {
+            'png' => imagecreatefrompng($inputPath),
+            'jpg', 'jpeg' => imagecreatefromjpeg($inputPath),
+            default => throw new \Exception("Unsupported format for GD: {$extension}")
+        };
+
+        if (!$image) {
+            throw new \Exception("Failed to load image with GD");
         }
 
-        // Clean and validate extracted text
-        if ($result['success'] && !empty($result['text'])) {
-            $result['text'] = $this->cleanExtractedText($result['text']);
-            
-            // Validate if text extraction was meaningful
-            if (strlen(trim($result['text'])) < 3) {
-                $result['success'] = false;
-                $result['error'] = 'Extracted text too short or empty';
-            }
+        // Convert to grayscale
+        imagefilter($image, IMG_FILTER_GRAYSCALE);
+        
+        // Increase contrast
+        imagefilter($image, IMG_FILTER_CONTRAST, -20);
+        
+        // Sharpen
+        imagefilter($image, IMG_FILTER_MEAN_REMOVAL);
+        
+        // Save
+        imagepng($image, $outputPath);
+        imagedestroy($image);
+    }
+
+    /**
+     * Check if the Tesseract binary is actually available on the system.
+     * We test the real binary, not just whether the PHP wrapper class exists.
+     */
+    private function isTesseractAvailable(): bool
+    {
+        // Cache result per-request to avoid repeated execs
+        static $result = null;
+        if ($result !== null) {
+            return $result;
         }
 
-        Log::info('OCR: Extraction completed', [
-            'success' => $result['success'],
-            'method' => $result['method'],
-            'text_length' => strlen($result['text']),
-            'confidence' => $result['confidence']
+        exec('tesseract --version 2>&1', $out, $code);
+        $result = ($code === 0);
+
+        Log::info('Tesseract availability check', [
+            'available' => $result,
+            'output'   => implode(' ', array_slice($out, 0, 2)),
         ]);
 
         return $result;
     }
 
     /**
-     * Extract text using specific provider
+     * GD-based fallback: returns image metadata as descriptive text so AI
+     * at least knows a file was attached even without Tesseract.
      */
-    private function extractWithProvider(string $imagePath, string $provider): array
+    private function extractWithGDFallback(string $imagePath): string
     {
         try {
-            switch ($provider) {
-                case 'google_vision':
-                    return $this->extractWithGoogleVision($imagePath);
-                
-                case 'azure_vision':
-                    return $this->extractWithAzureVision($imagePath);
-                
-                case 'tesseract':
-                    return $this->extractWithTesseract($imagePath);
-                
-                default:
-                    return [
-                        'text' => '',
-                        'confidence' => 0.0,
-                        'success' => false,
-                        'method' => $provider,
-                        'error' => 'Unknown OCR provider: ' . $provider
-                    ];
+            $info = @getimagesize($imagePath);
+            $filename = basename($imagePath);
+            $filesize = round(filesize($imagePath) / 1024, 1);
+
+            if ($info) {
+                [$width, $height] = $info;
+                return "[Gambar: {$filename} | Ukuran: {$width}x{$height}px | {$filesize}KB | Catatan: OCR (Tesseract) tidak terinstall, teks dari gambar tidak dapat diekstrak secara otomatis. Mohon deskripsikan isi gambar dalam instruksi Anda agar AI dapat membantu membuat laporan.]";
             }
+
+            return "[Gambar: {$filename} | {$filesize}KB | Catatan: OCR tidak tersedia. Mohon deskripsikan isi gambar dalam instruksi Anda.]";
         } catch (\Exception $e) {
-            Log::error("OCR {$provider} failed", [
-                'error' => $e->getMessage(),
-                'file' => $imagePath
-            ]);
-            
-            return [
-                'text' => '',
-                'confidence' => 0.0,
-                'success' => false,
-                'method' => $provider,
-                'error' => $e->getMessage()
-            ];
+            return '[Gambar terlampir — OCR tidak tersedia di sistem ini.]';
         }
     }
 
     /**
-     * Extract text using Google Vision API
+     * Run Tesseract OCR
      */
-    private function extractWithGoogleVision(string $imagePath): array
+    private function runTesseract(string $imagePath): string
     {
-        $apiKey = $this->config['google_vision']['api_key'];
-        
-        if (empty($apiKey)) {
-            return [
-                'text' => '',
-                'confidence' => 0.0,
-                'success' => false,
-                'method' => 'google_vision',
-                'error' => 'Google Vision API key not configured'
-            ];
-        }
+        try {
+            if (class_exists('thiagoalessio\TesseractOCR\TesseractOCR')) {
+                $ocr = new \thiagoalessio\TesseractOCR\TesseractOCR($imagePath);
+                $ocr->lang(implode('+', $this->languages));
+                $ocr->psm(3);
+                $text = $ocr->run();
 
-        // Encode image to base64
-        $imageData = base64_encode(file_get_contents($imagePath));
-        
-        $response = Http::timeout(60)->post($this->config['google_vision']['endpoint'], [
-            'requests' => [
-                [
-                    'image' => [
-                        'content' => $imageData
-                    ],
-                    'features' => [
-                        [
-                            'type' => 'TEXT_DETECTION',
-                            'maxResults' => 1
-                        ]
-                    ]
-                ]
-            ]
-        ], [
-            'key' => $apiKey
-        ]);
-
-        if (!$response->successful()) {
-            throw new \Exception('Google Vision API error: ' . $response->body());
-        }
-
-        $data = $response->json();
-        
-        if (isset($data['responses'][0]['textAnnotations'][0]['description'])) {
-            $text = $data['responses'][0]['textAnnotations'][0]['description'];
-            $confidence = $data['responses'][0]['textAnnotations'][0]['confidence'] ?? 0.8;
-            
-            return [
-                'text' => $text,
-                'confidence' => $confidence,
-                'success' => true,
-                'method' => 'google_vision'
-            ];
-        }
-
-        return [
-            'text' => '',
-            'confidence' => 0.0,
-            'success' => false,
-            'method' => 'google_vision',
-            'error' => 'No text detected by Google Vision'
-        ];
-    }
-
-    /**
-     * Extract text using Azure Computer Vision
-     */
-    private function extractWithAzureVision(string $imagePath): array
-    {
-        $apiKey = $this->config['azure_vision']['api_key'];
-        $endpoint = $this->config['azure_vision']['endpoint'];
-        
-        if (empty($apiKey) || empty($endpoint)) {
-            return [
-                'text' => '',
-                'confidence' => 0.0,
-                'success' => false,
-                'method' => 'azure_vision',
-                'error' => 'Azure Vision API credentials not configured'
-            ];
-        }
-
-        // Read image as binary
-        $imageData = file_get_contents($imagePath);
-        
-        $response = Http::withHeaders([
-            'Ocp-Apim-Subscription-Key' => $apiKey,
-            'Content-Type' => 'application/octet-stream'
-        ])->timeout(60)->post($endpoint . '/vision/v3.2/ocr', $imageData, [
-            'language' => 'unk', // Auto-detect
-            'detectOrientation' => 'true'
-        ]);
-
-        if (!$response->successful()) {
-            throw new \Exception('Azure Vision API error: ' . $response->body());
-        }
-
-        $data = $response->json();
-        $text = '';
-        
-        if (isset($data['regions'])) {
-            foreach ($data['regions'] as $region) {
-                foreach ($region['lines'] as $line) {
-                    foreach ($line['words'] as $word) {
-                        $text .= $word['text'] . ' ';
-                    }
-                    $text .= "\n";
+                if (strlen(trim($text)) < 10) {
+                    Log::warning("OCR extracted very short text", [
+                        'text_length' => strlen($text),
+                    ]);
                 }
+
+                return $this->cleanOCRText($text);
             }
-        }
 
-        if (!empty(trim($text))) {
-            return [
-                'text' => trim($text),
-                'confidence' => 0.85, // Azure doesn't provide word-level confidence in OCR
-                'success' => true,
-                'method' => 'azure_vision'
-            ];
-        }
+            // Fallback to CLI
+            return $this->runTesseractCLI($imagePath);
 
-        return [
-            'text' => '',
-            'confidence' => 0.0,
-            'success' => false,
-            'method' => 'azure_vision',
-            'error' => 'No text detected by Azure Vision'
-        ];
+        } catch (\Exception $e) {
+            Log::error("Tesseract OCR failed", ['error' => $e->getMessage()]);
+            throw $e;
+        }
     }
 
     /**
-     * Extract text using Tesseract OCR (local)
+     * Run Tesseract via command line (fallback)
      */
-    private function extractWithTesseract(string $imagePath): array
+    private function runTesseractCLI(string $imagePath): string
     {
-        // Check if tesseract is available
-        if (!$this->commandExists('tesseract')) {
-            return [
-                'text' => '',
-                'confidence' => 0.0,
-                'success' => false,
-                'method' => 'tesseract',
-                'error' => 'Tesseract OCR not installed. Install with: apt-get install tesseract-ocr (Linux) or brew install tesseract (macOS)'
-            ];
-        }
+        $outputFile = sys_get_temp_dir() . '/ocr_output_' . time();
+        $languages = implode('+', $this->languages);
+        
+        // Build command
+        $command = sprintf(
+            'tesseract %s %s -l %s --psm 3',
+            escapeshellarg($imagePath),
+            escapeshellarg($outputFile),
+            escapeshellarg($languages)
+        );
 
-        $outputPath = $imagePath . '_ocr';
-        $languages = $this->config['tesseract']['languages'];
-        
-        // Build tesseract command
-        $command = "tesseract \"{$imagePath}\" \"{$outputPath}\" -l {$languages} --psm 3";
-        
-        // Execute tesseract
+        Log::info("Running Tesseract CLI", ['command' => $command]);
+
+        // Execute
         exec($command . ' 2>&1', $output, $returnCode);
-        
-        $textFile = $outputPath . '.txt';
-        
-        if ($returnCode === 0 && file_exists($textFile)) {
-            $text = file_get_contents($textFile);
-            
-            // Clean up temp file
-            @unlink($textFile);
-            
-            if (!empty(trim($text))) {
-                return [
-                    'text' => trim($text),
-                    'confidence' => 0.75, // Tesseract doesn't provide confidence easily
-                    'success' => true,
-                    'method' => 'tesseract'
-                ];
-            }
+
+        if ($returnCode !== 0) {
+            throw new \Exception("Tesseract CLI failed: " . implode("\n", $output));
         }
 
-        // Clean up temp file if exists
-        if (file_exists($textFile)) {
-            @unlink($textFile);
+        // Read output
+        $textFile = $outputFile . '.txt';
+        if (!file_exists($textFile)) {
+            throw new \Exception("Tesseract output file not found");
         }
 
-        return [
-            'text' => '',
-            'confidence' => 0.0,
-            'success' => false,
-            'method' => 'tesseract',
-            'error' => 'Tesseract failed to extract text. Output: ' . implode(' ', $output)
+        $text = file_get_contents($textFile);
+        @unlink($textFile);
+
+        return $this->cleanOCRText($text);
+    }
+
+    /**
+     * Clean OCR extracted text
+     */
+    private function cleanOCRText(string $text): string
+    {
+        // Fix common OCR errors
+        $replacements = [
+            // Number/letter confusion
+            '/\b0(?=[a-zA-Z])/' => 'O',  // 0 -> O before letters
+            '/\bl(?=\d)/' => '1',         // l -> 1 before numbers
+            '/\bS(?=\d)/' => '5',         // S -> 5 before numbers
+            
+            // Remove excessive whitespace
+            '/\s+/' => ' ',
+            '/\n{3,}/' => "\n\n",
         ];
-    }
 
-    /**
-     * Get fallback providers in order of preference
-     */
-    private function getFallbackProviders(): array
-    {
-        $all = ['google_vision', 'azure_vision', 'tesseract'];
-        
-        // Remove current provider from fallbacks
-        return array_filter($all, fn($p) => $p !== $this->provider);
-    }
-
-    /**
-     * Check if command exists in system
-     */
-    private function commandExists(string $command): bool
-    {
-        $os = strtoupper(substr(PHP_OS, 0, 3));
-        
-        if ($os === 'WIN') {
-            exec("where {$command}", $output, $returnCode);
-        } else {
-            exec("which {$command}", $output, $returnCode);
+        foreach ($replacements as $pattern => $replacement) {
+            $text = preg_replace($pattern, $replacement, $text);
         }
-        
-        return $returnCode === 0;
-    }
 
-    /**
-     * Clean extracted text
-     */
-    private function cleanExtractedText(string $text): string
-    {
-        // Remove excessive whitespace
-        $text = preg_replace('/[ \t]+/', ' ', $text);
-        
-        // Normalize line breaks
-        $text = preg_replace('/\r\n|\r/', "\n", $text);
-        
-        // Remove more than 2 consecutive line breaks
-        $text = preg_replace('/\n{3,}/', "\n\n", $text);
-        
-        // Escape curly braces to prevent template errors
-        $text = str_replace(['{', '}'], ['{{', '}}'], $text);
-        
         return trim($text);
     }
 
     /**
-     * Get available OCR providers
+     * Parse OCR text into structured format
      */
-    public function getAvailableProviders(): array
+    public function parseStructuredText(string $text): array
     {
-        $providers = [];
-        
-        // Check Google Vision
-        if (!empty($this->config['google_vision']['api_key'])) {
-            $providers[] = 'google_vision';
+        $lines = explode("\n", $text);
+        $paragraphs = [];
+        $currentParagraph = '';
+
+        foreach ($lines as $line) {
+            $line = trim($line);
+            
+            if (empty($line)) {
+                if (!empty($currentParagraph)) {
+                    $paragraphs[] = trim($currentParagraph);
+                    $currentParagraph = '';
+                }
+            } else {
+                $currentParagraph .= $line . ' ';
+            }
         }
-        
-        // Check Azure Vision
-        if (!empty($this->config['azure_vision']['api_key']) && !empty($this->config['azure_vision']['endpoint'])) {
-            $providers[] = 'azure_vision';
+
+        if (!empty($currentParagraph)) {
+            $paragraphs[] = trim($currentParagraph);
         }
-        
-        // Check Tesseract
-        if ($this->commandExists('tesseract')) {
-            $providers[] = 'tesseract';
-        }
-        
-        return $providers;
+
+        return [
+            'paragraphs' => $paragraphs,
+            'paragraph_count' => count($paragraphs),
+            'total_length' => strlen($text),
+        ];
     }
 
     /**
-     * Get current provider info
+     * Get cache key for image
      */
-    public function getProviderInfo(): array
+    private function getCacheKey(string $imagePath): string
+    {
+        $hash = md5_file($imagePath);
+        return "ocr_text_{$hash}";
+    }
+
+    /**
+     * Clear OCR cache
+     */
+    public function clearCache(): void
+    {
+        // This would require a cache tag system or manual tracking
+        Log::info("OCR cache clear requested");
+    }
+
+    /**
+     * Get OCR statistics
+     */
+    public function getStatistics(): array
     {
         return [
-            'current_provider' => $this->provider,
-            'available_providers' => $this->getAvailableProviders(),
-            'config' => [
-                'google_vision_configured' => !empty($this->config['google_vision']['api_key']),
-                'azure_vision_configured' => !empty($this->config['azure_vision']['api_key']) && !empty($this->config['azure_vision']['endpoint']),
-                'tesseract_available' => $this->commandExists('tesseract'),
-            ]
+            'supported_formats'    => $this->supportedFormats,
+            'languages'            => $this->languages,
+            'cache_enabled'        => $this->cacheEnabled,
+            'cache_ttl_days'       => $this->cacheTTL / 86400,
+            'tesseract_available'  => $this->isTesseractAvailable(),
+            'imagick_available'    => extension_loaded('imagick'),
+            'gd_available'         => extension_loaded('gd'),
         ];
     }
 }

@@ -91,7 +91,7 @@ class TextExtractionService
 
             Log::info("Text extraction completed", [
                 'success' => $result['success'],
-                'text_length' => strlen($result['text']),
+                'text_length' => strlen(is_string($result['text']) ? $result['text'] : json_encode($result['text'])),
                 'method' => $result['metadata']['extraction_method']
             ]);
 

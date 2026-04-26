@@ -93,7 +93,7 @@ class EnhancedFileExtractionService
             Log::info("Enhanced extraction completed", [
                 'file' => basename($fullPath),
                 'success' => $result['success'],
-                'text_length' => strlen($result['text']),
+                'text_length' => strlen(is_string($result['text']) ? $result['text'] : json_encode($result['text'])),
                 'structure_items' => count($result['structure']),
                 'details_count' => count($result['details'])
             ]);

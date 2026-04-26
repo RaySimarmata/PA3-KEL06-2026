@@ -39,8 +39,11 @@ class LaporanGJM extends Model
         'instruksi_prompt',
         'ai_preview_draft',
         'ai_sections',
+        'ai_file_details',
         'ai_preview_created_at',
         'ai_preview_used_for_generation',
+        'ocr_data',
+        'has_ocr_data',
     ];
 
     protected $casts = [
@@ -50,8 +53,11 @@ class LaporanGJM extends Model
         'tanggal_review' => 'date',
         'ppt_generated_at' => 'datetime',
         'ai_sections' => 'array',
+        'ai_file_details' => 'array',
         'ai_preview_created_at' => 'datetime',
         'ai_preview_used_for_generation' => 'boolean',
+        'ocr_data' => 'array',
+        'has_ocr_data' => 'boolean',
     ];
 
     public function ajaran()

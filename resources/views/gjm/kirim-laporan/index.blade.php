@@ -58,7 +58,7 @@
                 <div class="mb-4">
                     <label class="filter-label">Subjek Email <span class="text-danger">*</span></label>
                     <input type="text" class="form-control" name="subject" id="subject"
-                           placeholder="Contoh: Pengiriman Laporan GJM Triwulan I 2024" required>
+                           placeholder="Contoh: Pengiriman Laporan GJM Triwulan I 2025" required>
                 </div>
 
                 <div class="mb-4">
@@ -95,7 +95,12 @@
                     <div id="pilihLaporanSection" style="display: none;">
                         <div class="monitoring-card" style="border-left: 4px solid #5B9BD5;">
                             <div style="padding: 1rem;">
-                                <h6 class="mb-3" style="font-weight: 600; color: #333;">Laporan GJM</h6>
+                                <div class="d-flex justify-content-between align-items-center mb-3">
+                                    <h6 class="mb-0" style="font-weight: 600; color: #333;">Laporan GJM yang Selesai</h6>
+                                    <span class="badge bg-success">{{ $laporanList->count() }} Laporan Tersedia</span>
+                                </div>
+                                
+                                @if($laporanList->count() > 0)
                                 <div class="table-responsive">
                                     <table class="table table-monitoring mb-0">
                                         <thead>
@@ -103,14 +108,14 @@
                                                 <th style="width: 50px;">
                                                     <input type="checkbox" class="form-check-input" id="selectAllLaporan" onchange="toggleAllLaporan(this)">
                                                 </th>
-                                                <th>Periode</th>
-                                                <th>Jenis Laporan</th>
-                                                <th>Tanggal</th>
-                                                <th class="text-center">Status</th>
+                                                <th>JUDUL LAPORAN</th>
+                                                <th>TANGGAL DIBUAT</th>
+                                                <th>TIPE LAPORAN</th>
+                                                <th class="text-center">STATUS</th>
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            @forelse($laporanList as $laporan)
+                                            @foreach($laporanList as $laporan)
                                             <tr>
                                                 <td>
                                                     <input type="checkbox" class="form-check-input laporan-checkbox" 
@@ -118,31 +123,41 @@
                                                            data-title="{{ $laporan->getPeriodeLabel() }} - {{ $laporan->getJenisLaporanLabel() }}"
                                                            onchange="showLaporanValidation()">
                                                 </td>
-                                                <td class="code-mk">{{ $laporan->getPeriodeLabel() }}</td>
-                                                <td class="text-secondary">{{ $laporan->getJenisLaporanLabel() }}</td>
+                                                <td>
+                                                    <div class="d-flex align-items-center gap-2">
+                                                        <i class="bi bi-file-earmark-text" style="color: #5B9BD5; font-size: 1.25rem;"></i>
+                                                        <div>
+                                                            <div class="code-mk">Laporan {{ $laporan->getPeriodeLabel() }}</div>
+                                                            <small class="text-muted">{{ $laporan->program_studi ?? 'Fakultas Vokasi' }}</small>
+                                                        </div>
+                                                    </div>
+                                                </td>
                                                 <td class="text-secondary">{{ $laporan->created_at->format('d M Y') }}</td>
+                                                <td>
+                                                    <span class="badge-gjm {{ $laporan->jenis_laporan == 'triwulan' ? 'info' : 'warning' }}">
+                                                        {{ $laporan->getJenisLaporanLabel() }}
+                                                    </span>
+                                                </td>
                                                 <td class="text-center">
-                                                    <span class="badge-gjm {{ $laporan->status_laporan == 'draft' ? 'warning' : 'success' }}">
-                                                        {{ ucfirst($laporan->status_laporan) }}
+                                                    <span class="badge-gjm success">
+                                                        {{ $laporan->status_laporan == 'completed' ? 'Selesai' : 'Approved' }}
                                                     </span>
                                                 </td>
                                             </tr>
-                                            @empty
-                                            <tr>
-                                                <td colspan="5" class="text-center py-4">
-                                                    <div class="empty-state">
-                                                        <i class="bi bi-inbox"></i>
-                                                        <p>Belum ada laporan yang tersedia</p>
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                            @endforelse
+                                            @endforeach
                                         </tbody>
                                     </table>
                                 </div>
                                 <small class="text-muted d-block mt-2" style="font-size: 0.8rem;">
-                                    <i class="bi bi-info-circle"></i> Pilih laporan yang akan dilampirkan dalam email
+                                    <i class="bi bi-info-circle"></i> Pilih laporan yang akan dilampirkan dalam email. Hanya laporan yang sudah selesai yang dapat dikirim.
                                 </small>
+                                @else
+                                <div class="text-center py-4">
+                                    <i class="bi bi-inbox" style="font-size: 3rem; color: #ccc;"></i>
+                                    <p class="text-muted mt-2 mb-0">Belum ada laporan yang selesai</p>
+                                    <small class="text-muted">Laporan yang sudah selesai akan muncul di sini</small>
+                                </div>
+                                @endif
                             </div>
                         </div>
                         <div id="pendingLaporanList" class="mt-2"></div>

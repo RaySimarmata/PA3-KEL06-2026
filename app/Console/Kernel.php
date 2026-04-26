@@ -16,6 +16,9 @@ class Kernel extends ConsoleKernel
     {
         // contoh:
         // $schedule->command('sync:dosen')->daily();
+        
+        // Clean AI cache entries older than 30 days, run daily at 2 AM
+        $schedule->command('ai:clean-cache --days=30')->dailyAt('02:00');
     }
 
     protected function commands()

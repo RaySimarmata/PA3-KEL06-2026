@@ -88,7 +88,7 @@ class PromptSemesterService
 
             Log::info('=== PromptSemesterService::processPrompt SUCCESS ===', [
                 'model'           => $this->claude->getModelInfo(),
-                'response_length' => strlen($rawResponse),
+                'response_length' => safe_strlen($rawResponse),
                 'sections_count'  => count($sections),
             ]);
 
@@ -204,9 +204,9 @@ class PromptSemesterService
 
             Log::info('=== PromptSemesterService::readAndSummarizeFile SUCCESS ===', [
                 'model'            => $this->claude->getModelInfo(),
-                'response_length'  => strlen($rawResponse),
+                'response_length'  => safe_strlen($rawResponse),
                 'sections_count'   => count($sections),
-                'extracted_length' => strlen($extractedText),
+                'extracted_length' => safe_strlen($extractedText),
             ]);
 
             return [
@@ -214,7 +214,7 @@ class PromptSemesterService
                 'preview'        => $rawResponse,
                 'sections'       => $sections,
                 'message'        => "AI (" . $this->claude->getModelInfo() . ") berhasil membaca dan merangkum isi file \"{$file->getClientOriginalName()}\".",
-                'extracted_text' => mb_substr($extractedText, 0, 500) . (strlen($extractedText) > 500 ? '...' : ''),
+                'extracted_text' => mb_substr($extractedText, 0, 500) . (safe_strlen($extractedText) > 500 ? '...' : ''),
             ];
 
         } catch (\Exception $e) {

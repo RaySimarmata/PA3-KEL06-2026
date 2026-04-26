@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Log;
  * 
  * Service untuk menyimpan dan mengambil AI preview/draft dari chat assistant
  * Preview ini akan digunakan untuk generate Laporan Word, Semester, dan PPT
+ * Enhanced dengan OCR data integration
  */
 class AIPreviewCacheService
 {
@@ -19,6 +20,7 @@ class AIPreviewCacheService
      * @param int $laporanId ID dari LaporanGJM
      * @param string $aiPreviewDraft Full AI preview/draft text
      * @param array $sections Parsed sections dari preview
+     * @param array $ocrImages Array of image paths and metadata
      * @param array $fileDetails File details (opsional)
      * @return bool
      */
@@ -26,6 +28,7 @@ class AIPreviewCacheService
         int $laporanId,
         string $aiPreviewDraft,
         array $sections = [],
+        array $ocrImages = [],
         array $fileDetails = []
     ): bool {
         try {
@@ -42,6 +45,18 @@ class AIPreviewCacheService
             if (!empty($fileDetails)) {
                 $updateData['ai_file_details'] = $fileDetails;
             }
+
+            // Store OCR images data if provided
+            if (!empty($ocrImages)) {
+                $ocrData = [
+                    'images' => $ocrImages,
+                    'images_count' => count($ocrImages),
+                    'saved_at' => now()->toIso8601String(),
+                ];
+                
+                $updateData['ocr_data'] = $ocrData;
+                $updateData['has_ocr_data'] = true;
+            }
             
             $laporan->update($updateData);
             
@@ -50,6 +65,8 @@ class AIPreviewCacheService
                 'preview_length' => strlen($aiPreviewDraft),
                 'sections_count' => count($sections),
                 'has_file_details' => !empty($fileDetails),
+                'has_ocr_images' => !empty($ocrImages),
+                'ocr_images_count' => count($ocrImages),
             ]);
             
             return true;
@@ -81,6 +98,8 @@ class AIPreviewCacheService
                 'draft' => $laporan->ai_preview_draft,
                 'sections' => $laporan->ai_sections ?? [],
                 'file_details' => $laporan->ai_file_details ?? [],
+                'ocr_data' => $laporan->ocr_data ?? [],
+                'has_ocr_data' => $laporan->has_ocr_data ?? false,
                 'created_at' => $laporan->ai_preview_created_at,
                 'used_for_generation' => $laporan->ai_preview_used_for_generation,
             ];
@@ -240,6 +259,8 @@ class AIPreviewCacheService
                 'ai_sections' => null,
                 'ai_preview_created_at' => null,
                 'ai_preview_used_for_generation' => false,
+                'ocr_data' => null,
+                'has_ocr_data' => false,
             ]);
             
             Log::info('AI preview cleared', ['laporan_id' => $laporanId]);
@@ -272,19 +293,41 @@ class AIPreviewCacheService
                 'created_at' => null,
                 'used_for_generation' => false,
                 'file_details_count' => 0,
+                'has_ocr_data' => false,
+                'ocr_images_count' => 0,
+                'ocr_text_length' => 0,
             ];
         }
         
-        return [
+        $ocrStats = [];
+        if ($preview['has_ocr_data'] && !empty($preview['ocr_data'])) {
+            $ocrData = $preview['ocr_data'];
+            $ocrText = $ocrData['combined_text'] ?? '';
+            if (is_array($ocrText)) {
+                $ocrText = json_encode($ocrText);
+            } elseif (!is_string($ocrText)) {
+                $ocrText = (string)$ocrText;
+            }
+            $ocrStats = [
+                'ocr_images_count' => $ocrData['images_count'] ?? 0,
+                'ocr_text_length' => strlen($ocrText),
+                'ocr_successful_images' => $ocrData['successful_count'] ?? 0,
+                'ocr_failed_images' => $ocrData['failed_count'] ?? 0,
+                'ocr_processing_time_ms' => $ocrData['total_processing_time_ms'] ?? 0,
+            ];
+        }
+        
+        return array_merge([
             'has_preview' => true,
-            'preview_length' => strlen($preview['draft']),
+            'preview_length' => strlen(is_string($preview['draft']) ? $preview['draft'] : json_encode($preview['draft'])),
             'sections_count' => count($preview['sections']),
             'created_at' => $preview['created_at'],
             'used_for_generation' => $preview['used_for_generation'],
             'sections' => array_keys($preview['sections']),
             'file_details_count' => count($preview['file_details']),
             'has_file_details' => !empty($preview['file_details']),
-        ];
+            'has_ocr_data' => $preview['has_ocr_data'],
+        ], $ocrStats);
     }
 
     /**
@@ -302,5 +345,105 @@ class AIPreviewCacheService
         }
         
         return $preview['file_details'];
+    }
+
+    /**
+     * Get OCR data dari AI preview
+     * 
+     * @param int $laporanId ID dari LaporanGJM
+     * @return array|null
+     */
+    public function getOCRData(int $laporanId): ?array
+    {
+        $preview = $this->getAIPreview($laporanId);
+        
+        if (!$preview || !$preview['has_ocr_data'] || empty($preview['ocr_data'])) {
+            return null;
+        }
+        
+        return $preview['ocr_data'];
+    }
+
+    /**
+     * Save OCR data untuk laporan
+     * 
+     * @param int $laporanId ID dari LaporanGJM
+     * @param array $ocrData OCR data dari gambar
+     * @return bool
+     */
+    public function saveOCRData(int $laporanId, array $ocrData): bool
+    {
+        try {
+            $laporan = LaporanGJM::findOrFail($laporanId);
+            
+            $laporan->update([
+                'ocr_data' => $ocrData,
+                'has_ocr_data' => true,
+            ]);
+            
+            // Ensure combined_text is string for strlen
+            $ocrText = $ocrData['combined_text'] ?? '';
+            if (is_array($ocrText)) {
+                $ocrText = json_encode($ocrText);
+            } elseif (!is_string($ocrText)) {
+                $ocrText = (string)$ocrText;
+            }
+            
+            Log::info('OCR data saved to laporan', [
+                'laporan_id' => $laporanId,
+                'images_count' => $ocrData['images_count'] ?? 0,
+                'text_length' => strlen($ocrText),
+            ]);
+            
+            return true;
+        } catch (\Exception $e) {
+            Log::error('Failed to save OCR data', [
+                'laporan_id' => $laporanId,
+                'error' => $e->getMessage(),
+            ]);
+            return false;
+        }
+    }
+
+    /**
+     * Get combined context (AI preview + OCR data) untuk generate laporan
+     * 
+     * @param int $laporanId ID dari LaporanGJM
+     * @return array
+     */
+    public function getCombinedContext(int $laporanId): array
+    {
+        $preview = $this->getAIPreview($laporanId);
+        
+        if (!$preview) {
+            return [
+                'has_data' => false,
+                'ai_preview' => null,
+                'ocr_data' => null,
+                'combined_text' => '',
+            ];
+        }
+        
+        $combinedText = $preview['draft'];
+        
+        // Add OCR text if available
+        if ($preview['has_ocr_data'] && !empty($preview['ocr_data']['combined_text'])) {
+            $ocrText = $preview['ocr_data']['combined_text'];
+            if (is_array($ocrText)) {
+                $ocrText = json_encode($ocrText);
+            } elseif (!is_string($ocrText)) {
+                $ocrText = (string)$ocrText;
+            }
+            $combinedText .= "\n\n=== DATA DARI GAMBAR (OCR) ===\n\n";
+            $combinedText .= $ocrText;
+        }
+        
+        return [
+            'has_data' => true,
+            'ai_preview' => $preview,
+            'ocr_data' => $preview['ocr_data'] ?? null,
+            'combined_text' => $combinedText,
+            'has_ocr_data' => $preview['has_ocr_data'],
+        ];
     }
 }

@@ -10,6 +10,8 @@ class DocumentChunk extends Model
     protected $fillable = [
         'template_id',
         'kuesioner_upload_id',
+        'source_type',
+        'source_id',
         'chunk_text',
         'chunk_index',
         'embedding',
