@@ -10,6 +10,7 @@ use App\Jobs\GenerateLaporanTriwulanJob;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 use Carbon\Carbon;
 
 class LaporanTriwulanController extends Controller
@@ -51,12 +52,49 @@ class LaporanTriwulanController extends Controller
                 'template_id' => 'nullable|exists:template_laporan,id',
             ]);
 
-            $claudeService = app(\App\Services\ClaudeAIService::class);
+            $aiService = app(\App\Services\UnifiedAIService::class);
             $textExtraction = app(\App\Services\TextExtractionService::class);
+            $ocrService = app(\App\Services\OCRService::class);
+            $vectorDbService = app(\App\Services\VectorDatabaseService::class);
+            $ragService = app(\App\Services\RAGRetrievalService::class);
 
             $userPrompt = $request->input('prompt');
             $conversationHistory = $request->input('conversation_history', []);
             $templateId = $request->input('template_id');
+            $laporanId = $request->input('laporan_id');
+            
+            // Build context for caching
+            $cacheContext = [
+                'type' => 'laporan_triwulan',
+                'template_id' => $templateId,
+                'periode_triwulan' => $request->input('periode_triwulan'),
+                'has_files' => $request->hasFile('file_referensi'),
+                'file_count' => $request->hasFile('file_referensi') ? count($request->file('file_referensi')) : 0,
+            ];
+
+            // Check cache first
+            $cacheService = app(\App\Services\AICacheService::class);
+            $cachedResponse = $cacheService->getCachedResponse($userPrompt, $cacheContext);
+            
+            if ($cachedResponse) {
+                Log::info('AI Prompt: Using cached response', [
+                    'cache_id' => $cachedResponse['cache_id'],
+                    'usage_count' => $cachedResponse['usage_count'],
+                    'similarity' => $cachedResponse['similarity'] ?? 1.0,
+                    'prompt_length' => strlen($userPrompt)
+                ]);
+
+                return response()->json([
+                    'success' => true,
+                    'response' => $cachedResponse['text'],
+                    'model_info' => $cachedResponse['provider'] . ' (' . $cachedResponse['model'] . ') [CACHED]',
+                    'cached' => true,
+                    'cache_info' => [
+                        'usage_count' => $cachedResponse['usage_count'],
+                        'similarity' => $cachedResponse['similarity'] ?? 1.0,
+                    ]
+                ]);
+            }
             
             // Get template structure if template is selected
             $templateStructure = $this->extractTemplateStructure($templateId);
@@ -103,6 +141,7 @@ class LaporanTriwulanController extends Controller
             // Extract file content if uploaded
             $filesContext = [];
             $imageContents = [];
+            $ocrTexts = [];
             
             if ($request->hasFile('file_referensi')) {
                 $files = $request->file('file_referensi');
@@ -113,21 +152,71 @@ class LaporanTriwulanController extends Controller
                     
                     // Check if it's an image
                     if (in_array($fileExtension, ['jpg', 'jpeg', 'png', 'gif', 'webp'])) {
-                        // Process image with Claude Vision
+                        // Process image with OCR first
                         try {
-                            $imageData = base64_encode(file_get_contents($file->getPathname()));
+                            // Store image permanently for later use in Word document
+                            $permanentPath = $file->store('laporan_gjm/images', 'local');
+                            $fullImagePath = storage_path('app/' . $permanentPath);
+                            
+                            // Extract text using OCR
+                            $ocrResult = $ocrService->extractText($fullImagePath);
+                            
+                            if ($ocrResult['success'] && !empty($ocrResult['text'])) {
+                                // Ensure text is string
+                                $ocrText = is_array($ocrResult['text']) ? json_encode($ocrResult['text']) : (string)$ocrResult['text'];
+                                
+                                $ocrTexts[] = [
+                                    'filename' => $fileName,
+                                    'text' => $ocrText,
+                                    'method' => $ocrResult['method'],
+                                    'confidence' => $ocrResult['confidence'],
+                                    'image_path' => $permanentPath
+                                ];
+                                
+                                // Index OCR text to vector database if laporan_id exists
+                                if ($laporanId) {
+                                    $vectorDbService->indexDocument([
+                                        'text' => $ocrText,
+                                        'source_type' => 'laporan_gjm_ocr',
+                                        'source_id' => $laporanId,
+                                        'chunk_index' => $index,
+                                        'metadata' => [
+                                            'type' => 'ocr_image',
+                                            'filename' => $fileName,
+                                            'laporan_id' => $laporanId,
+                                            'laporan_type' => 'triwulan',
+                                            'ocr_method' => $ocrResult['method'],
+                                            'confidence' => $ocrResult['confidence'],
+                                            'image_path' => $permanentPath,
+                                            'indexed_at' => now()->toIso8601String(),
+                                        ]
+                                    ]);
+                                    
+                                    Log::info('OCR text indexed to vector database', [
+                                        'filename' => $fileName,
+                                        'laporan_id' => $laporanId,
+                                        'text_length' => strlen($ocrText),
+                                        'image_path' => $permanentPath
+                                    ]);
+                                }
+                            }
+                            
+                            // Also prepare for Claude Vision API
+                            $imageData = base64_encode(file_get_contents($fullImagePath));
                             $mimeType = $file->getMimeType();
                             
                             $imageContents[] = [
                                 'filename' => $fileName,
                                 'data' => $imageData,
-                                'mime_type' => $mimeType
+                                'mime_type' => $mimeType,
+                                'path' => $permanentPath
                             ];
                             
-                            Log::info('Image prepared for Vision API', [
+                            Log::info('Image processed with OCR and Vision API', [
                                 'filename' => $fileName,
-                                'size' => strlen($imageData),
-                                'mime_type' => $mimeType
+                                'ocr_text_length' => isset($ocrText) ? strlen($ocrText) : 0,
+                                'mime_type' => $mimeType,
+                                'stored_at' => $permanentPath
                             ]);
                         } catch (\Exception $e) {
                             Log::error('Image processing failed', [
@@ -203,7 +292,7 @@ class LaporanTriwulanController extends Controller
                         $content = substr($content, 0, $maxFileContentLength) . "\n\n[DOKUMEN DIPOTONG - HANYA BAGIAN AWAL YANG DIPROSES]";
                         Log::info('File content truncated for AI prompt', [
                             'filename' => $fileData['filename'],
-                            'original_length' => strlen($fileData['content']),
+                            'original_length' => strlen(is_string($fileData['content']) ? $fileData['content'] : json_encode($fileData['content'])),
                             'truncated_length' => strlen($content)
                         ]);
                     }
@@ -213,10 +302,55 @@ class LaporanTriwulanController extends Controller
                 }
             }
             
+            // Get RAG context from vector database if laporan_id exists
+            $ragContext = '';
+            if ($laporanId) {
+                try {
+                    $ragResults = $ragService->retrieveContext($userPrompt, [
+                        'source_type' => 'laporan_gjm_ocr',
+                        'source_id' => $laporanId,
+                        'top_k' => 5
+                    ]);
+                    
+                    if (!empty($ragResults)) {
+                        $ragContext = "Context dari gambar yang telah diupload sebelumnya:\n\n";
+                        foreach ($ragResults as $result) {
+                            $ragContext .= "- " . $result['text'] . "\n";
+                            $ragContext .= "  (Relevance: " . round($result['similarity'] * 100, 1) . "%)\n\n";
+                        }
+                        
+                        Log::info('RAG context retrieved', [
+                            'laporan_id' => $laporanId,
+                            'results_count' => count($ragResults),
+                            'top_similarity' => $ragResults[0]['similarity'] ?? 0
+                        ]);
+                    }
+                } catch (\Exception $e) {
+                    Log::warning('RAG retrieval failed', [
+                        'laporan_id' => $laporanId,
+                        'error' => $e->getMessage()
+                    ]);
+                }
+            }
+            
             // Add GKM monthly reports context
             if (!empty($gkmData)) {
                 $currentMessage .= "Data Laporan GKM Bulanan untuk periode triwulan ini:\n\n";
                 $currentMessage .= $gkmData . "\n\n";
+            }
+            
+            // Add OCR texts from current upload
+            if (!empty($ocrTexts)) {
+                $currentMessage .= "Teks yang diekstrak dari gambar yang baru diupload:\n\n";
+                foreach ($ocrTexts as $ocrData) {
+                    $currentMessage .= "**{$ocrData['filename']}** (OCR Method: {$ocrData['method']}, Confidence: {$ocrData['confidence']}%):\n";
+                    $currentMessage .= "```\n" . $ocrData['text'] . "\n```\n\n";
+                }
+            }
+            
+            // Add RAG context from previous uploads
+            if (!empty($ragContext)) {
+                $currentMessage .= $ragContext;
             }
             
             // Process uploaded images (will be handled by Claude Vision)
@@ -256,33 +390,21 @@ class LaporanTriwulanController extends Controller
                 'content' => $currentMessage
             ];
 
-            // Call Claude AI with Vision support if images are present
-            if (!empty($imageContents)) {
-                $aiResponse = $claudeService->chatWithVision($systemContext, $messages, $imageContents, 4096);
-            } else {
-                $aiResponse = $claudeService->chat($systemContext, $messages, 4096);
+            // Build full prompt for UnifiedAIService
+            $fullPrompt = $systemContext . "\n\n";
+            foreach ($messages as $msg) {
+                $fullPrompt .= strtoupper($msg['role']) . ": " . $msg['content'] . "\n\n";
             }
 
-            // Validate AI response - ensure it's not empty or error message
-            if (!$aiResponse) {
+            // Call AI service (UnifiedAIService doesn't support vision yet)
+            $aiResult = $aiService->generateText($fullPrompt, ['max_tokens' => 4096]);
+            
+            if (!$aiResult['success'] || empty($aiResult['text'])) {
                 Log::error('AI returned empty response', [
                     'prompt_length' => strlen($userPrompt),
                     'files_count' => count($filesContext),
-                    'images_count' => count($imageContents)
-                ]);
-                
-                return response()->json([
-                    'success' => false,
-                    'message' => 'AI tidak memberikan respons. Pastikan koneksi internet stabil dan layanan AI tersedia. Silakan coba lagi.'
-                ], 500);
-            }
-
-            // Check if AI response indicates service unavailability
-            if (str_contains(strtolower($aiResponse), 'sistem ai sedang tidak tersedia') || 
-                str_contains(strtolower($aiResponse), 'semua layanan ai sedang tidak tersedia')) {
-                
-                Log::error('All AI services unavailable', [
-                    'response_preview' => substr($aiResponse, 0, 200)
+                    'images_count' => count($imageContents),
+                    'error' => $aiResult['error'] ?? 'Unknown error'
                 ]);
                 
                 return response()->json([
@@ -290,19 +412,34 @@ class LaporanTriwulanController extends Controller
                     'message' => 'Layanan AI sedang tidak tersedia. Silakan coba lagi dalam beberapa menit atau hubungi administrator.'
                 ], 503);
             }
+            
+            $aiResponse = $aiResult['text'];
+
+            // Cache the response for future use
+            $cacheService->cacheResponse(
+                $userPrompt,
+                $cacheContext,
+                $aiResponse,
+                $aiResult['provider'],
+                $aiResult['model']
+            );
 
             Log::info('AI Prompt successful', [
                 'prompt_length' => strlen($userPrompt),
                 'response_length' => strlen($aiResponse),
                 'files_count' => count($filesContext),
                 'images_count' => count($imageContents),
-                'has_template' => !empty($templateStructure)
+                'has_template' => !empty($templateStructure),
+                'provider' => $aiResult['provider'],
+                'model' => $aiResult['model'],
+                'cached' => false
             ]);
 
             return response()->json([
                 'success' => true,
                 'response' => $aiResponse,
-                'model_info' => $claudeService->getModelInfo(),
+                'model_info' => $aiResult['provider'] . ' (' . $aiResult['model'] . ')',
+                'cached' => false,
             ]);
 
         } catch (\Exception $e) {
@@ -342,11 +479,13 @@ class LaporanTriwulanController extends Controller
                 'laporan_id' => 'required|exists:laporan_gjm,id',
                 'ai_preview_draft' => 'required|string',
                 'ai_sections' => 'nullable|string', // JSON string
+                'ocr_images' => 'nullable|string', // JSON string of image paths
             ]);
 
             $laporanId = $request->input('laporan_id');
             $aiPreviewDraft = $request->input('ai_preview_draft');
             $aiSectionsJson = $request->input('ai_sections', '[]');
+            $ocrImagesJson = $request->input('ocr_images', '[]');
             
             // Parse sections from JSON
             $sections = [];
@@ -368,9 +507,23 @@ class LaporanTriwulanController extends Controller
                 ]);
             }
 
+            // Parse OCR images from JSON
+            $ocrImages = [];
+            try {
+                $ocrImagesArray = json_decode($ocrImagesJson, true);
+                if (is_array($ocrImagesArray)) {
+                    $ocrImages = $ocrImagesArray;
+                }
+            } catch (\Exception $e) {
+                Log::warning('Failed to parse OCR images JSON', [
+                    'laporan_id' => $laporanId,
+                    'error' => $e->getMessage()
+                ]);
+            }
+
             // Use AIPreviewCacheService to save
             $cacheService = app(\App\Services\AIPreviewCacheService::class);
-            $success = $cacheService->saveAIPreview($laporanId, $aiPreviewDraft, $sections);
+            $success = $cacheService->saveAIPreview($laporanId, $aiPreviewDraft, $sections, $ocrImages);
 
             if ($success) {
                 return response()->json([
@@ -521,6 +674,36 @@ class LaporanTriwulanController extends Controller
                     
                     // Reload laporan to get updated status
                     $laporan->refresh();
+                    
+                    // Check if file exists and return download
+                    Log::info('Checking for generated file', [
+                        'laporan_id' => $laporan->id,
+                        'dokumen_hasil_path' => $laporan->dokumen_hasil_path,
+                        'file_exists' => $laporan->dokumen_hasil_path ? Storage::exists($laporan->dokumen_hasil_path) : false
+                    ]);
+                    
+                    if ($laporan->dokumen_hasil_path && Storage::exists($laporan->dokumen_hasil_path)) {
+                        $filePath = Storage::path($laporan->dokumen_hasil_path);
+                        $fileName = 'Laporan_Triwulan_' . $laporan->id . '.docx';
+                        
+                        Log::info('Returning file download', [
+                            'laporan_id' => $laporan->id,
+                            'file_path' => $filePath,
+                            'file_name' => $fileName,
+                            'file_size' => file_exists($filePath) ? filesize($filePath) : 0
+                        ]);
+                        
+                        return response()->download($filePath, $fileName, [
+                            'Content-Type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                        ]);
+                    }
+                    
+                    // Fallback to JSON if file not found
+                    Log::warning('File not found, returning JSON response', [
+                        'laporan_id' => $laporan->id,
+                        'status_laporan' => $laporan->status_laporan,
+                        'dokumen_hasil_path' => $laporan->dokumen_hasil_path
+                    ]);
                     
                     if ($laporan->status_laporan === 'completed') {
                         return response()->json([
@@ -774,6 +957,67 @@ class LaporanTriwulanController extends Controller
                 'error' => $e->getMessage()
             ]);
             return '';
+        }
+    }
+
+    /**
+     * Save uploaded images metadata to laporan
+     * Called from frontend after images are uploaded via aiPrompt
+     */
+    public function saveUploadedImages(Request $request)
+    {
+        try {
+            $request->validate([
+                'laporan_id' => 'required|exists:laporan_gjm,id',
+                'images' => 'required|array',
+                'images.*.path' => 'required|string',
+                'images.*.filename' => 'required|string',
+            ]);
+
+            $laporanId = $request->input('laporan_id');
+            $images = $request->input('images');
+
+            $laporan = LaporanGJM::findOrFail($laporanId);
+
+            // Prepare OCR data structure
+            $ocrData = [
+                'images' => $images,
+                'images_count' => count($images),
+                'saved_at' => now()->toIso8601String(),
+            ];
+
+            // Update laporan with OCR data
+            $laporan->update([
+                'ocr_data' => $ocrData,
+                'has_ocr_data' => true,
+            ]);
+
+            Log::info('Uploaded images saved to laporan', [
+                'laporan_id' => $laporanId,
+                'images_count' => count($images),
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Images saved successfully',
+                'images_count' => count($images),
+            ]);
+
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation failed: ' . implode(', ', $e->validator->errors()->all())
+            ], 422);
+        } catch (\Exception $e) {
+            Log::error('Failed to save uploaded images', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Terjadi kesalahan: ' . $e->getMessage()
+            ], 500);
         }
     }
 }

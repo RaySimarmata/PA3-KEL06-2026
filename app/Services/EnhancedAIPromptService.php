@@ -214,7 +214,7 @@ class EnhancedAIPromptService
                 'ai_response' => $aiResponse,
                 'file_details' => $fileDetails,
                 'extraction_summary' => [
-                    'text_length' => strlen($fileDetails['text']),
+                    'text_length' => safe_strlen($fileDetails['text']),
                     'structure_items' => count($fileDetails['structure']),
                     'details_items' => count($fileDetails['details']),
                     'file_size' => $fileDetails['file_info']['size'] ?? 0

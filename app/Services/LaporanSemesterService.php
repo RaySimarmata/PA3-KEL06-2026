@@ -49,7 +49,7 @@ class LaporanSemesterService
 
             Log::info('AI preview retrieved from database', [
                 'laporan_id' => $laporanId,
-                'preview_length' => strlen($preview['draft']),
+                'preview_length' => strlen(is_string($preview['draft']) ? $preview['draft'] : json_encode($preview['draft'])),
                 'sections_count' => count($preview['sections'])
             ]);
 
@@ -104,10 +104,11 @@ class LaporanSemesterService
 
     /**
      * Extract placeholders dari AI preview sections yang sudah disimpan di database
+     * Termasuk data OCR jika tersedia
      */
     private function extractPlaceholdersFromAIPreview($preview, $periode, $tahun, $laporan)
     {
-        Log::info('Extracting placeholders from AI preview sections');
+        Log::info('Extracting placeholders from AI preview sections (with OCR integration)');
 
         // Calculate TAHUN_AKADEMIK
         if ($laporan && $laporan->periode_mulai) {
@@ -119,9 +120,15 @@ class LaporanSemesterService
         // Get sections dari preview
         $sections = $preview['sections'] ?? [];
 
+        // Check if OCR data is available
+        $hasOCRData = $preview['has_ocr_data'] ?? false;
+        $ocrData = $preview['ocr_data'] ?? [];
+
         Log::info('Sections from AI preview', [
             'section_count' => count($sections),
-            'section_keys' => array_keys($sections)
+            'section_keys' => array_keys($sections),
+            'has_ocr_data' => $hasOCRData,
+            'ocr_images_count' => $hasOCRData ? ($ocrData['images_count'] ?? 0) : 0
         ]);
 
         // Map sections ke placeholders
@@ -140,6 +147,10 @@ class LaporanSemesterService
             'SARAN'             => $this->cleanMarkdown($sections['rekomendasi'] ?? $sections['kesimpulan'] ?? ''),
         ];
 
+        // Get uploaded images for LAMPIRAN_GAMBAR placeholder
+        $uploadedImages = $this->getUploadedImages($laporan);
+        $placeholders['LAMPIRAN_GAMBAR'] = $uploadedImages;
+
         // Log hasil mapping
         foreach ($placeholders as $key => $value) {
             if ($key !== 'PERIODE' && $key !== 'TAHUN_AKADEMIK') {
@@ -149,6 +160,23 @@ class LaporanSemesterService
                     'has_content' => !empty($value)
                 ]);
             }
+        }
+
+        // Log OCR integration info
+        if ($hasOCRData) {
+            // Ensure combined_text is string for strlen
+            $ocrText = $ocrData['combined_text'] ?? '';
+            if (is_array($ocrText)) {
+                $ocrText = json_encode($ocrText);
+            } elseif (!is_string($ocrText)) {
+                $ocrText = (string)$ocrText;
+            }
+            
+            Log::info("Laporan generated with OCR data integration", [
+                'ocr_images_processed' => $ocrData['images_count'] ?? 0,
+                'ocr_text_length' => strlen($ocrText),
+                'ocr_successful_images' => $ocrData['successful_count'] ?? 0
+            ]);
         }
 
         return $placeholders;
@@ -496,6 +524,11 @@ class LaporanSemesterService
 
             // Replace placeholders
             foreach ($placeholders as $key => $value) {
+                // Skip LAMPIRAN_GAMBAR - will be handled separately
+                if ($key === 'LAMPIRAN_GAMBAR') {
+                    continue;
+                }
+
                 if (is_array($value) || is_object($value))
                     continue;
 
@@ -512,6 +545,11 @@ class LaporanSemesterService
             }
 
             Log::info('Placeholder replacement completed', ['success' => $successCount, 'total' => count($placeholders)]);
+
+            // Handle LAMPIRAN_GAMBAR placeholder - insert images
+            if (isset($placeholders['LAMPIRAN_GAMBAR']) && is_array($placeholders['LAMPIRAN_GAMBAR'])) {
+                $this->insertImagesIntoDocument($templateProcessor, $placeholders['LAMPIRAN_GAMBAR']);
+            }
 
             $templateProcessor->saveAs($tempPath);
 
@@ -636,7 +674,7 @@ class LaporanSemesterService
                     continue;
 
                 $tokenStart   = $om[0][1];          // byte offset in origCombined
-                $origTokenLen = strlen($om[0][0]);   // length of original (possibly {{VAR}}) text
+                $origTokenLen = safe_strlen($om[0][0]);   // length of original (possibly {{VAR}}) text
 
                 // Build cumulative offsets to find which run(s) contain the token
                 $cumulative = 0;
@@ -691,5 +729,230 @@ class LaporanSemesterService
         },
             $xml
         );
+    }
+
+    /**
+     * Get uploaded images from laporan OCR data or vector database
+     */
+    private function getUploadedImages($laporan)
+    {
+        $images = [];
+
+        try {
+            // Method 1: Check ocr_uploads folder directly
+            $ocrUploadPath = storage_path("app/public/ocr_uploads/{$laporan->id}");
+            
+            if (is_dir($ocrUploadPath)) {
+                $files = scandir($ocrUploadPath);
+                foreach ($files as $file) {
+                    if ($file === '.' || $file === '..') continue;
+                    
+                    $fullPath = $ocrUploadPath . '/' . $file;
+                    if (is_file($fullPath) && preg_match('/\.(jpg|jpeg|png|gif|webp)$/i', $file)) {
+                        // Get image dimensions
+                        $imageInfo = @getimagesize($fullPath);
+                        $originalWidth = $imageInfo[0] ?? 800;
+                        $originalHeight = $imageInfo[1] ?? 600;
+                        
+                        // Calculate scaled dimensions (max width 400px, maintain aspect ratio)
+                        $maxWidth = 400;
+                        $scale = $maxWidth / $originalWidth;
+                        $width = $maxWidth;
+                        $height = (int)($originalHeight * $scale);
+                        
+                        $images[] = [
+                            'path' => $fullPath,
+                            'filename' => $file,
+                            'width' => $width,
+                            'height' => $height,
+                        ];
+                    }
+                }
+            }
+
+            // Method 2: Check if laporan has OCR data with image paths
+            if (empty($images) && $laporan->has_ocr_data && !empty($laporan->ocr_data)) {
+                $ocrData = is_array($laporan->ocr_data) ? $laporan->ocr_data : json_decode($laporan->ocr_data, true);
+                
+                if (isset($ocrData['images']) && is_array($ocrData['images'])) {
+                    foreach ($ocrData['images'] as $imageData) {
+                        if (isset($imageData['path']) && file_exists(storage_path('app/' . $imageData['path']))) {
+                            $images[] = [
+                                'path' => storage_path('app/' . $imageData['path']),
+                                'filename' => $imageData['filename'] ?? basename($imageData['path']),
+                                'width' => 400,
+                                'height' => 300,
+                            ];
+                        }
+                    }
+                }
+            }
+
+            // Method 3: Check vector database for image metadata
+            if (empty($images)) {
+                $chunks = \App\Models\DocumentChunk::where('source_type', 'laporan_gjm_ocr')
+                    ->where('source_id', $laporan->id)
+                    ->get();
+
+                foreach ($chunks as $chunk) {
+                    $metadata = is_array($chunk->metadata) ? $chunk->metadata : json_decode($chunk->metadata, true);
+                    
+                    if (isset($metadata['type']) && $metadata['type'] === 'ocr_image' && isset($metadata['image_path'])) {
+                        $imagePath = storage_path('app/' . $metadata['image_path']);
+                        
+                        if (file_exists($imagePath)) {
+                            // Check if not already added
+                            $alreadyAdded = false;
+                            foreach ($images as $img) {
+                                if ($img['path'] === $imagePath) {
+                                    $alreadyAdded = true;
+                                    break;
+                                }
+                            }
+                            
+                            if (!$alreadyAdded) {
+                                $images[] = [
+                                    'path' => $imagePath,
+                                    'filename' => $metadata['filename'] ?? basename($imagePath),
+                                    'width' => 400,
+                                    'height' => 300,
+                                ];
+                            }
+                        }
+                    }
+                }
+            }
+
+            Log::info('Retrieved uploaded images for LAMPIRAN_GAMBAR', [
+                'laporan_id' => $laporan->id,
+                'images_count' => count($images),
+                'method' => !empty($images) ? 'ocr_uploads_folder' : 'not_found',
+                'ocr_upload_path' => $ocrUploadPath ?? 'N/A'
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Failed to retrieve uploaded images', [
+                'laporan_id' => $laporan->id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+        }
+
+        return $images;
+    }
+
+    /**
+     * Insert images into Word document at LAMPIRAN_GAMBAR placeholder
+     */
+    private function insertImagesIntoDocument($templateProcessor, $images)
+    {
+        try {
+            if (empty($images)) {
+                // Replace with empty text if no images
+                $templateProcessor->setValue('LAMPIRAN_GAMBAR', '');
+                Log::info('No images to insert for LAMPIRAN_GAMBAR');
+                return;
+            }
+
+            Log::info('Inserting images into document', [
+                'images_count' => count($images)
+            ]);
+
+            // Check if placeholder exists
+            $variables = $templateProcessor->getVariables();
+            if (!in_array('LAMPIRAN_GAMBAR', $variables)) {
+                Log::warning('LAMPIRAN_GAMBAR placeholder not found in template');
+                return;
+            }
+
+            // Clone the block for multiple images if needed
+            if (count($images) > 1) {
+                try {
+                    $templateProcessor->cloneBlock('LAMPIRAN_GAMBAR', count($images), true, true);
+                } catch (\Exception $e) {
+                    // If cloneBlock fails, we'll just replace with all images at once
+                    Log::warning('Failed to clone LAMPIRAN_GAMBAR block, will insert all images at once', [
+                        'error' => $e->getMessage()
+                    ]);
+                }
+            }
+
+            // Insert each image
+            foreach ($images as $index => $imageData) {
+                $imagePath = $imageData['path'];
+                $filename = $imageData['filename'];
+                
+                if (!file_exists($imagePath)) {
+                    Log::warning('Image file not found', ['path' => $imagePath]);
+                    continue;
+                }
+
+                try {
+                    // Get image dimensions
+                    $imageInfo = getimagesize($imagePath);
+                    $originalWidth = $imageInfo[0] ?? 800;
+                    $originalHeight = $imageInfo[1] ?? 600;
+                    
+                    // Calculate scaled dimensions (max width 400px, maintain aspect ratio)
+                    $maxWidth = 400;
+                    $scale = $maxWidth / $originalWidth;
+                    $width = $maxWidth;
+                    $height = (int)($originalHeight * $scale);
+
+                    // Use setImageValue to insert image
+                    $variableName = count($images) > 1 ? "LAMPIRAN_GAMBAR#{$index}" : 'LAMPIRAN_GAMBAR';
+                    
+                    $templateProcessor->setImageValue(
+                        $variableName,
+                        [
+                            'path' => $imagePath,
+                            'width' => $width,
+                            'height' => $height,
+                            'ratio' => true
+                        ]
+                    );
+
+                    Log::info('Image inserted successfully', [
+                        'index' => $index,
+                        'filename' => $filename,
+                        'width' => $width,
+                        'height' => $height
+                    ]);
+
+                } catch (\Exception $e) {
+                    Log::error('Failed to insert image', [
+                        'index' => $index,
+                        'filename' => $filename,
+                        'error' => $e->getMessage()
+                    ]);
+                    
+                    // Fallback: replace with filename text
+                    try {
+                        $templateProcessor->setValue($variableName, "Gambar: {$filename}");
+                    } catch (\Exception $e2) {
+                        Log::error('Failed to set fallback text for image', [
+                            'error' => $e2->getMessage()
+                        ]);
+                    }
+                }
+            }
+
+            Log::info('All images processed for LAMPIRAN_GAMBAR', [
+                'total_images' => count($images)
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Failed to insert images into document', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            // Fallback: replace with text
+            try {
+                $templateProcessor->setValue('LAMPIRAN_GAMBAR', count($images) . ' gambar dilampirkan');
+            } catch (\Exception $e2) {
+                Log::error('Failed to set fallback text', ['error' => $e2->getMessage()]);
+            }
+        }
     }
 }

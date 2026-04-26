@@ -23,4 +23,7 @@ Route::post('/n8n/callback', [N8nCallbackController::class, 'handleCallback'])->
 Route::middleware(['auth'])->group(function () {
     Route::post('/gjm/ai-prompt/triwulan', [LaporanTriwulanController::class, 'aiPrompt'])->name('api.gjm.ai-prompt.triwulan');
     Route::post('/gjm/ai-prompt/semester', [LaporanSemesterController::class, 'aiPrompt'])->name('api.gjm.ai-prompt.semester');
+    
+    // AI Assistant Chat
+    Route::post('/ai-assistant/semester', [LaporanSemesterController::class, 'aiAssistant'])->name('api.ai-assistant.semester');
 });

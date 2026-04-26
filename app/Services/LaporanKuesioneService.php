@@ -62,7 +62,7 @@ class LaporanKuesioneService
             $content = $extractionResult['text'];
 
             Log::info("Text extracted successfully", [
-                'content_length' => strlen($content),
+                'content_length' => safe_strlen($content),
                 'extraction_method' => $extractionResult['metadata']['extraction_method'] ?? 'unknown'
             ]);
 

@@ -3,7 +3,7 @@
 namespace App\Http\Controllers\GJM;
 
 use App\Http\Controllers\Controller;
-use App\Services\ClaudeAIService;
+use App\Services\UnifiedAIService;
 use App\Services\TextExtractionService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -19,12 +19,12 @@ use Carbon\Carbon;
  */
 class PromptTriwulanController extends Controller
 {
-    protected ClaudeAIService $claude;
+    protected UnifiedAIService $aiService;
     protected TextExtractionService $extractor;
 
-    public function __construct(ClaudeAIService $claude, TextExtractionService $extractor)
+    public function __construct(UnifiedAIService $aiService, TextExtractionService $extractor)
     {
-        $this->claude    = $claude;
+        $this->aiService = $aiService;
         $this->extractor = $extractor;
     }
 
@@ -74,20 +74,21 @@ class PromptTriwulanController extends Controller
             // 4. Buat system prompt kontekstual untuk laporan triwulan
             $systemPrompt = $this->buildSystemPrompt('triwulan', $periode, $judul);
 
-            // 5. Panggil Claude AI untuk membaca & merangkum
-            $aiResponse = $this->claude->readAndSummarize(
-                extractedText: $extracted,
-                systemContext: $systemPrompt,
-                instructions: $userInstructions,
-                maxTokens: 4096,
-            );
-
-            if (empty($aiResponse)) {
+            // 5. Panggil AI untuk membaca & merangkum
+            $fullPrompt = $systemPrompt . "\n\n" . 
+                         "DOKUMEN YANG PERLU DIANALISIS:\n" . $extracted . "\n\n" .
+                         "INSTRUKSI PENGGUNA:\n" . $userInstructions;
+            
+            $aiResult = $this->aiService->generateText($fullPrompt, ['max_tokens' => 4096]);
+            
+            if (!$aiResult['success'] || empty($aiResult['text'])) {
                 return response()->json([
                     'success' => false,
-                    'message' => $this->getAIConfigErrorMessage(),
-                ]);
+                    'message' => 'Layanan AI sedang tidak tersedia. Silakan coba lagi dalam beberapa menit.',
+                ], 503);
             }
+            
+            $aiResponse = $aiResult['text'];
 
             // 6. Parse sections dari response AI
             $sections = $this->parseSections($aiResponse);
@@ -96,7 +97,7 @@ class PromptTriwulanController extends Controller
                 'success'  => true,
                 'preview'  => $aiResponse,
                 'sections' => $sections,
-                'model'    => $this->claude->getModelInfo(),
+                'model'    => $aiResult['provider'] . ' (' . $aiResult['model'] . ')',
                 'file'     => $fileName,
             ]);
         } catch (\Exception $e) {
@@ -162,6 +163,13 @@ class PromptTriwulanController extends Controller
 
                 $allFileContext = implode("\n\n", $fileContexts);
 
+                // Ensure allFileContext is string
+                if (is_array($allFileContext)) {
+                    $allFileContext = json_encode($allFileContext);
+                } elseif (!is_string($allFileContext)) {
+                    $allFileContext = (string)$allFileContext;
+                }
+
                 Log::info('PromptTriwulan chat: multiple files processed', [
                     'file_count' => count($files),
                     'total_length' => strlen($allFileContext),
@@ -183,39 +191,35 @@ class PromptTriwulanController extends Controller
             $systemPrompt = $this->buildSystemPrompt('triwulan', $periode, $judul);
 
             // Choose method based on context availability
+            // Build full prompt based on context availability
+            $fullPrompt = $systemPrompt . "\n\n";
+            
             if (!empty($previousDraft)) {
-                $aiResponse = $this->claude->followUp(
-                    systemPrompt:      $systemPrompt,
-                    previousAIResponse: $previousDraft,
-                    userFollowUp:      $prompt,
-                    fileContext:       $combinedContext,
-                );
-            } elseif (!empty($combinedContext)) {
-                // Has files/GKM data but no previous draft
-                $aiResponse = $this->claude->readAndSummarize(
-                    extractedText: $combinedContext,
-                    systemContext: $systemPrompt,
-                    instructions:  $prompt,
-                );
-            } else {
-                // No files and no draft â€” pure prompt
-                $aiResponse = $this->claude->ask($systemPrompt, $prompt);
+                $fullPrompt .= "DRAFT SEBELUMNYA:\n{$previousDraft}\n\n";
             }
+            
+            if (!empty($combinedContext)) {
+                $fullPrompt .= $combinedContext;
+            }
+            
+            $fullPrompt .= "INSTRUKSI PENGGUNA:\n{$prompt}";
 
-            if (empty($aiResponse)) {
+            $aiResult = $this->aiService->generateText($fullPrompt, ['max_tokens' => 4096]);
+            
+            if (!$aiResult['success'] || empty($aiResult['text'])) {
                 return response()->json([
                     'success' => false,
-                    'message' => $this->getAIConfigErrorMessage(),
-                ]);
+                    'message' => 'Layanan AI sedang tidak tersedia. Silakan coba lagi dalam beberapa menit.',
+                ], 503);
             }
-
-            $sections = $this->parseSections($aiResponse);
+            
+            $aiResponse = $aiResult['text'];
 
             return response()->json([
                 'success'  => true,
                 'preview'  => $aiResponse,
                 'sections' => $sections,
-                'model'    => $this->claude->getModelInfo(),
+                'model'    => $aiResult['provider'] . ' (' . $aiResult['model'] . ')',
             ]);
         } catch (\Exception $e) {
             Log::error('PromptTriwulan chat error', ['error' => $e->getMessage()]);
@@ -386,12 +390,7 @@ REMINDER: Pastikan output Anda memiliki SEMUA 7 bagian utama dengan sub-bagian y
             $base64Image = base64_encode($imageData);
             $mimeType = mime_content_type($imagePath);
 
-            // Use Claude Vision API if available
-            if ($this->claude->isUsingClaude()) {
-                return $this->processImageWithClaudeVision($base64Image, $mimeType, $fileName);
-            }
-
-            // Fallback: Basic OCR or description
+            // UnifiedAIService doesn't support vision, use OCR fallback
             return $this->processImageWithOCR($imagePath, $fileName);
 
         } catch (\Exception $e) {
@@ -451,6 +450,13 @@ REMINDER: Pastikan output Anda memiliki SEMUA 7 bagian utama dengan sub-bagian y
             if ($response->successful()) {
                 $data = $response->json();
                 $analysis = $data['content'][0]['text'] ?? '';
+                
+                // Ensure analysis is string
+                if (is_array($analysis)) {
+                    $analysis = json_encode($analysis);
+                } elseif (!is_string($analysis)) {
+                    $analysis = (string)$analysis;
+                }
                 
                 if (!empty($analysis)) {
                     Log::info('Claude Vision analysis successful', [

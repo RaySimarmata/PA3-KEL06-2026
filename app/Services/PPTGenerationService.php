@@ -41,13 +41,13 @@ class PPTGenerationService
             'judul' => $judulPresentasi
         ]);
 
-        $laporan = LaporanGJM::with(['template'])->find($laporanId);
-        
-        if (!$laporan) {
-            throw new \Exception("Laporan not found");
-        }
-
         try {
+            $laporan = LaporanGJM::with(['template'])->find($laporanId);
+            
+            if (!$laporan) {
+                throw new \Exception("Laporan not found");
+            }
+
             // 1. Get AI preview dari database
             $cacheService = app(AIPreviewCacheService::class);
             $preview = $cacheService->getAIPreview($laporanId);
@@ -58,15 +58,25 @@ class PPTGenerationService
 
             Log::info('AI preview retrieved from database', [
                 'laporan_id' => $laporanId,
-                'preview_length' => strlen($preview['draft']),
+                'preview_length' => strlen(is_string($preview['draft']) ? $preview['draft'] : json_encode($preview['draft'])),
                 'sections_count' => count($preview['sections'])
             ]);
 
             // 2. Build PPT structure dari AI preview sections
+            Log::info('Building PPT structure...');
             $pptStructure = $this->buildPPTStructureFromPreview($preview, $judulPresentasi, $laporan);
             
+            Log::info('PPT structure built successfully', [
+                'slides_count' => count($pptStructure['slides'])
+            ]);
+            
             // 3. Create PowerPoint presentation
+            Log::info('Creating PowerPoint file...');
             $pptPath = $this->createPowerPointFile($pptStructure, $judulPresentasi);
+            
+            Log::info('PowerPoint file created successfully', [
+                'file_path' => $pptPath
+            ]);
             
             // 4. Mark preview sebagai sudah digunakan
             $cacheService->markAsUsedForGeneration($laporanId);
@@ -87,10 +97,12 @@ class PPTGenerationService
             Log::error("Failed to generate PPT", [
                 'laporan_id' => $laporanId,
                 'error' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
                 'trace' => $e->getTraceAsString()
             ]);
 
-            throw $e;
+            throw new \Exception('Gagal generate PPT: ' . $e->getMessage());
         }
     }
 
@@ -135,86 +147,157 @@ class PPTGenerationService
 
         // Latar Belakang
         $latar_belakang = $sections['latar_belakang'] ?? '';
-        $structure['slides'][] = [
-            'type' => 'section',
-            'title' => 'Latar Belakang',
-            'content' => $latar_belakang
-        ];
+        if (!empty($latar_belakang)) {
+            Log::info('Processing Latar Belakang section');
+            $bulletPoints = $this->extractBulletPointsManually($latar_belakang);
+            $structure['slides'][] = [
+                'type' => 'section',
+                'title' => 'Latar Belakang',
+                'content' => ''
+            ];
+            $structure['slides'][] = [
+                'type' => 'content',
+                'title' => 'Latar Belakang',
+                'bullet_points' => $bulletPoints
+            ];
+        }
 
         // Dasar Penyusunan
         $dasar = $sections['dasar'] ?? '';
         if (!empty($dasar)) {
+            Log::info('Processing Dasar section');
+            $bulletPoints = $this->extractBulletPointsManually($dasar);
             $structure['slides'][] = [
                 'type' => 'content',
                 'title' => 'Dasar Penyusunan Laporan',
-                'content' => $dasar
+                'bullet_points' => $bulletPoints
             ];
         }
 
         // Tujuan
         $tujuan = $sections['tujuan'] ?? '';
-        $structure['slides'][] = [
-            'type' => 'content',
-            'title' => 'Tujuan Laporan',
-            'content' => $tujuan
-        ];
+        if (!empty($tujuan)) {
+            Log::info('Processing Tujuan section');
+            $bulletPoints = $this->extractBulletPointsManually($tujuan);
+            $structure['slides'][] = [
+                'type' => 'content',
+                'title' => 'Tujuan Laporan',
+                'bullet_points' => $bulletPoints
+            ];
+        }
 
         // Ruang Lingkup
         $ruang_lingkup = $sections['ruang_lingkup'] ?? '';
         if (!empty($ruang_lingkup)) {
+            Log::info('Processing Ruang Lingkup section');
+            $bulletPoints = $this->extractBulletPointsManually($ruang_lingkup);
             $structure['slides'][] = [
                 'type' => 'content',
                 'title' => 'Ruang Lingkup Laporan',
-                'content' => $ruang_lingkup
+                'bullet_points' => $bulletPoints
             ];
         }
 
         // Program Kerja
         $program_kerja = $sections['program_kerja'] ?? '';
-        $structure['slides'][] = [
-            'type' => 'section',
-            'title' => 'Program Kerja',
-            'content' => $program_kerja
-        ];
+        if (!empty($program_kerja)) {
+            $structure['slides'][] = [
+                'type' => 'section',
+                'title' => 'Program Kerja',
+                'content' => ''
+            ];
+            
+            Log::info('Processing Program Kerja section');
+            $bulletPoints = $this->extractBulletPointsManually($program_kerja);
+            $chunks = array_chunk($bulletPoints, 6);
+            foreach ($chunks as $index => $chunk) {
+                $slideTitle = count($chunks) > 1 ? 'Program Kerja (' . ($index + 1) . ')' : 'Program Kerja';
+                $structure['slides'][] = [
+                    'type' => 'content',
+                    'title' => $slideTitle,
+                    'bullet_points' => $chunk
+                ];
+            }
+        }
 
         // Pelaksanaan
         $pelaksanaan = $sections['pelaksanaan'] ?? '';
-        $structure['slides'][] = [
-            'type' => 'content',
-            'title' => 'Pelaksanaan Program Kerja',
-            'content' => $pelaksanaan
-        ];
+        if (!empty($pelaksanaan)) {
+            Log::info('Processing Pelaksanaan section');
+            $bulletPoints = $this->extractBulletPointsManually($pelaksanaan);
+            $chunks = array_chunk($bulletPoints, 6);
+            foreach ($chunks as $index => $chunk) {
+                $slideTitle = count($chunks) > 1 ? 'Pelaksanaan Program Kerja (' . ($index + 1) . ')' : 'Pelaksanaan Program Kerja';
+                $structure['slides'][] = [
+                    'type' => 'content',
+                    'title' => $slideTitle,
+                    'bullet_points' => $chunk
+                ];
+            }
+        }
 
         // Hambatan dan Pemecahan Masalah
         $hambatan = $sections['hambatan'] ?? '';
         $pemecahan = $sections['pemecahan_masalah'] ?? '';
-        $structure['slides'][] = [
-            'type' => 'content',
-            'title' => 'Hambatan dan Pemecahan Masalah',
-            'content' => $hambatan . "\n\n" . $pemecahan
-        ];
+        if (!empty($hambatan) || !empty($pemecahan)) {
+            Log::info('Processing Hambatan & Pemecahan section');
+            $combinedContent = trim($hambatan . "\n\n" . $pemecahan);
+            $bulletPoints = $this->extractBulletPointsManually($combinedContent);
+            
+            $halfCount = ceil(count($bulletPoints) / 2);
+            $structure['slides'][] = [
+                'type' => 'content',
+                'title' => 'Hambatan yang Dihadapi',
+                'bullet_points' => array_slice($bulletPoints, 0, $halfCount)
+            ];
+            
+            if (count($bulletPoints) > 3) {
+                $structure['slides'][] = [
+                    'type' => 'content',
+                    'title' => 'Pemecahan Masalah',
+                    'bullet_points' => array_slice($bulletPoints, $halfCount)
+                ];
+            }
+        }
 
         // Evaluasi
         $evaluasi = $sections['evaluasi'] ?? '';
-        $structure['slides'][] = [
-            'type' => 'content',
-            'title' => 'Evaluasi dan Analisis',
-            'content' => $evaluasi
-        ];
+        if (!empty($evaluasi)) {
+            Log::info('Processing Evaluasi section');
+            $bulletPoints = $this->extractBulletPointsManually($evaluasi);
+            $chunks = array_chunk($bulletPoints, 6);
+            foreach ($chunks as $index => $chunk) {
+                $slideTitle = count($chunks) > 1 ? 'Evaluasi dan Analisis (' . ($index + 1) . ')' : 'Evaluasi dan Analisis';
+                $structure['slides'][] = [
+                    'type' => 'content',
+                    'title' => $slideTitle,
+                    'bullet_points' => $chunk
+                ];
+            }
+        }
 
         // Kesimpulan dan Rekomendasi
         $rekomendasi = $sections['rekomendasi'] ?? $sections['kesimpulan'] ?? '';
-        $structure['slides'][] = [
-            'type' => 'summary',
-            'title' => 'Kesimpulan dan Rekomendasi',
-            'content' => $rekomendasi
-        ];
+        if (!empty($rekomendasi)) {
+            Log::info('Processing Kesimpulan & Rekomendasi section');
+            $bulletPoints = $this->extractBulletPointsManually($rekomendasi);
+            $structure['slides'][] = [
+                'type' => 'summary',
+                'title' => 'Kesimpulan dan Rekomendasi',
+                'bullet_points' => $bulletPoints
+            ];
+        }
 
         // Penutup
         $structure['slides'][] = [
             'type' => 'content',
             'title' => 'Penutup',
-            'content' => 'Terima kasih atas perhatian dan dukungan dalam pelaksanaan program kerja GJM. Semoga laporan ini bermanfaat untuk perbaikan dan peningkatan kualitas pendidikan di Fakultas Vokasi Institut Teknologi Del.'
+            'bullet_points' => [
+                'Terima kasih atas perhatian dan dukungan dalam pelaksanaan program kerja GJM',
+                'Semoga laporan ini bermanfaat untuk perbaikan dan peningkatan kualitas pendidikan',
+                'Kami terbuka untuk masukan dan saran konstruktif',
+                'Mari bersama-sama meningkatkan mutu pendidikan di Fakultas Vokasi Institut Teknologi Del'
+            ]
         ];
 
         Log::info('PPT structure built from AI preview', [
@@ -223,6 +306,221 @@ class PPTGenerationService
         ]);
 
         return $structure;
+    }
+
+    /**
+     * Extract bullet points manually from content
+     */
+    private function extractBulletPointsManually($content)
+    {
+        $bulletPoints = [];
+        
+        // Clean content
+        $content = trim($content);
+        $content = preg_replace('/^#+\s*/m', '', $content); // Remove markdown headers
+        
+        if (empty($content)) {
+            return ['Konten akan ditampilkan di sini'];
+        }
+        
+        // First, try to detect if content already has bullet points or numbered lists
+        $lines = explode("\n", $content);
+        $hasListMarkers = false;
+        
+        foreach ($lines as $line) {
+            $line = trim($line);
+            // Check for list markers: -, *, +, 1., 2., etc.
+            if (preg_match('/^[\-\*\+•]\s+/', $line) || preg_match('/^\d+\.\s+/', $line)) {
+                $hasListMarkers = true;
+                break;
+            }
+        }
+        
+        // If content has list markers, extract them
+        if ($hasListMarkers) {
+            foreach ($lines as $line) {
+                $line = trim($line);
+                // Remove list markers
+                $line = preg_replace('/^[\-\*\+•]\s*/', '', $line);
+                $line = preg_replace('/^\d+\.\s*/', '', $line);
+                
+                if (strlen($line) > 20) {
+                    $bulletPoints[] = $line;
+                    if (count($bulletPoints) >= 6) break;
+                }
+            }
+        }
+        
+        // If we have enough points from list extraction, return them
+        if (count($bulletPoints) >= 3) {
+            return $bulletPoints;
+        }
+        
+        // Otherwise, try to split by sentences with better logic
+        $bulletPoints = [];
+        
+        // Split by sentence-ending punctuation followed by space and capital letter
+        $sentences = preg_split('/(?<=[.!?])\s+(?=[A-Z])/', $content);
+        
+        foreach ($sentences as $sentence) {
+            $sentence = trim($sentence);
+            
+            // Skip very short sentences
+            if (strlen($sentence) < 40) {
+                continue;
+            }
+            
+            // For long sentences, try to find a good breaking point
+            if (strlen($sentence) > 200) {
+                // Try to break at comma, semicolon, or colon
+                $parts = preg_split('/[,;:]/', $sentence, 2);
+                if (count($parts) > 1 && strlen($parts[0]) > 40 && strlen($parts[0]) < 180) {
+                    $bulletPoints[] = trim($parts[0]);
+                    if (count($bulletPoints) >= 6) break;
+                    
+                    // Add second part if it's substantial
+                    if (strlen(trim($parts[1])) > 40) {
+                        $bulletPoints[] = trim($parts[1]);
+                        if (count($bulletPoints) >= 6) break;
+                    }
+                } else {
+                    // Just take first 180 characters at word boundary
+                    $truncated = substr($sentence, 0, 180);
+                    $lastSpace = strrpos($truncated, ' ');
+                    if ($lastSpace !== false) {
+                        $bulletPoints[] = substr($sentence, 0, $lastSpace);
+                    } else {
+                        $bulletPoints[] = $truncated;
+                    }
+                    if (count($bulletPoints) >= 6) break;
+                }
+            } else {
+                // Sentence is good length, use it as is
+                $bulletPoints[] = $sentence;
+                if (count($bulletPoints) >= 6) break;
+            }
+        }
+        
+        // If still not enough points, try paragraph-based extraction
+        if (count($bulletPoints) < 3) {
+            $bulletPoints = [];
+            $paragraphs = preg_split('/\n\s*\n/', $content);
+            
+            foreach ($paragraphs as $para) {
+                $para = trim($para);
+                
+                if (strlen($para) < 40) {
+                    continue;
+                }
+                
+                // If paragraph is reasonable length, use it
+                if (strlen($para) <= 200) {
+                    $bulletPoints[] = $para;
+                } else {
+                    // Split long paragraph into sentences
+                    $paraSentences = preg_split('/(?<=[.!?])\s+(?=[A-Z])/', $para);
+                    foreach ($paraSentences as $sent) {
+                        $sent = trim($sent);
+                        if (strlen($sent) > 40 && strlen($sent) <= 200) {
+                            $bulletPoints[] = $sent;
+                            if (count($bulletPoints) >= 6) break 2;
+                        }
+                    }
+                }
+                
+                if (count($bulletPoints) >= 6) break;
+            }
+        }
+        
+        // Last resort: intelligent chunking by semantic breaks
+        if (count($bulletPoints) < 3) {
+            $bulletPoints = [];
+            
+            // Try to find natural breaks (periods, colons, semicolons)
+            $chunks = preg_split('/([.;:])\s+/', $content, -1, PREG_SPLIT_DELIM_CAPTURE);
+            $currentChunk = '';
+            
+            for ($i = 0; $i < count($chunks); $i++) {
+                $currentChunk .= $chunks[$i];
+                
+                // If we hit a delimiter and chunk is substantial
+                if (in_array($chunks[$i], ['.', ';', ':']) && strlen($currentChunk) > 50) {
+                    $bulletPoints[] = trim($currentChunk);
+                    $currentChunk = '';
+                    if (count($bulletPoints) >= 6) break;
+                }
+            }
+            
+            // Add remaining chunk if substantial
+            if (!empty(trim($currentChunk)) && strlen(trim($currentChunk)) > 40 && count($bulletPoints) < 6) {
+                $bulletPoints[] = trim($currentChunk);
+            }
+        }
+        
+        // Final fallback: just split by approximate word count
+        if (count($bulletPoints) < 2) {
+            $bulletPoints = [];
+            $words = explode(' ', $content);
+            $chunk = '';
+            $wordCount = 0;
+            
+            foreach ($words as $word) {
+                $chunk .= $word . ' ';
+                $wordCount++;
+                
+                // Create a bullet point every 20-25 words or at sentence end
+                if ($wordCount >= 20 && (in_array(substr($word, -1), ['.', '!', '?']) || $wordCount >= 25)) {
+                    $point = trim($chunk);
+                    if (strlen($point) > 40) {
+                        $bulletPoints[] = $point;
+                        if (count($bulletPoints) >= 6) break;
+                    }
+                    $chunk = '';
+                    $wordCount = 0;
+                }
+            }
+            
+            // Add remaining chunk if substantial
+            if (!empty(trim($chunk)) && strlen(trim($chunk)) > 40 && count($bulletPoints) < 6) {
+                $bulletPoints[] = trim($chunk);
+            }
+        }
+        
+        // Clean up bullet points - remove incomplete sentences at the end
+        $cleanedPoints = [];
+        foreach ($bulletPoints as $point) {
+            $point = trim($point);
+            
+            // Ensure point ends with proper punctuation or is complete
+            if (!empty($point)) {
+                // If point doesn't end with punctuation, try to complete it
+                $lastChar = substr($point, -1);
+                if (!in_array($lastChar, ['.', '!', '?', ':', ';'])) {
+                    // Check if it looks incomplete (ends with "...")
+                    if (substr($point, -3) === '...') {
+                        // Skip this point as it's clearly incomplete
+                        continue;
+                    }
+                    // Otherwise add period
+                    $point .= '.';
+                }
+                
+                $cleanedPoints[] = $point;
+            }
+        }
+        
+        // Ensure we have at least one point
+        if (empty($cleanedPoints)) {
+            // Take first 180 characters as single point
+            $firstPoint = substr($content, 0, 180);
+            $lastSpace = strrpos($firstPoint, ' ');
+            if ($lastSpace !== false) {
+                $firstPoint = substr($content, 0, $lastSpace) . '.';
+            }
+            $cleanedPoints[] = $firstPoint;
+        }
+        
+        return $cleanedPoints;
     }
 
     /**

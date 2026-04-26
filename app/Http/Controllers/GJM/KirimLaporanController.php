@@ -20,8 +20,8 @@ class KirimLaporanController extends Controller
 
     public function index()
     {
-        // Ambil laporan GJM yang sudah approved
-        $laporanList = \App\Models\LaporanGJM::where('status_laporan', 'approved')
+        // Ambil laporan GJM yang sudah selesai (completed atau approved)
+        $laporanList = \App\Models\LaporanGJM::whereIn('status_laporan', ['completed', 'approved'])
             ->orderBy('periode_akhir', 'desc')
             ->orderBy('created_at', 'desc')
             ->get();

@@ -176,7 +176,7 @@ class DocumentStructureService
 
         foreach ($lines as $line) {
             if (preg_match('/^(\s+)/', $line, $matches)) {
-                $indent = strlen($matches[1]);
+                $indent = safe_strlen($matches[1]);
                 $indentCounts[$indent] = ($indentCounts[$indent] ?? 0) + 1;
             }
         }

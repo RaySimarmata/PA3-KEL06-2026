@@ -21,6 +21,82 @@ class VectorDatabaseService
     }
 
     /**
+     * Index a generic document (for OCR results, uploaded files, etc.)
+     * 
+     * @param array $documentData Array with keys: text, source_type, source_id, metadata
+     * @return bool Success status
+     */
+    public function indexDocument(array $documentData): bool
+    {
+        try {
+            Log::info("=== Indexing Document ===", [
+                'source_type' => $documentData['source_type'] ?? 'unknown',
+                'source_id' => $documentData['source_id'] ?? null,
+                'text_length' => safe_strlen($documentData['text'] ?? '')
+            ]);
+
+            $text = $documentData['text'] ?? '';
+            if (empty($text)) {
+                Log::warning("No text provided for indexing");
+                return false;
+            }
+
+            // Prepare metadata
+            $sourceType = $documentData['source_type'] ?? 'generic';
+            $sourceId = $documentData['source_id'] ?? null;
+            $chunkIndex = $documentData['chunk_index'] ?? 0;
+            
+            $metadata = array_merge(
+                $documentData['metadata'] ?? [],
+                [
+                    'source_type' => $sourceType,
+                    'source_id' => $sourceId,
+                    'indexed_at' => now()->toIso8601String(),
+                ]
+            );
+
+            // Generate embedding for the text
+            $embedding = $this->embeddingService->generateEmbedding($text);
+
+            if (!$embedding) {
+                Log::warning("Failed to generate embedding for document", [
+                    'source_type' => $sourceType,
+                    'source_id' => $sourceId
+                ]);
+                return false;
+            }
+
+            // Store the document chunk
+            DocumentChunk::create([
+                'source_type' => $sourceType,
+                'source_id' => $sourceId,
+                'kuesioner_upload_id' => null, // Generic document, not tied to kuesioner
+                'chunk_text' => $text,
+                'chunk_index' => $chunkIndex,
+                'embedding' => $embedding,
+                'metadata' => $metadata,
+            ]);
+
+            Log::info("Document indexed successfully", [
+                'source_type' => $sourceType,
+                'source_id' => $sourceId,
+                'chunk_index' => $chunkIndex,
+                'text_length' => strlen($text)
+            ]);
+
+            return true;
+
+        } catch (\Exception $e) {
+            Log::error("Document indexing failed", [
+                'source_type' => $documentData['source_type'] ?? 'unknown',
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            return false;
+        }
+    }
+
+    /**
      * Index a kuesioner (create chunks and embeddings)
      */
     public function indexKuesioner(KuesioneUpload $kuesioner): bool
