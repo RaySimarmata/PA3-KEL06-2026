@@ -116,12 +116,19 @@
                                 </div>
 
                                 <div class="col-md-12">
-                                    <label for="dosen_pengampu" class="filter-label">
-                                        Dosen Pengampu
-                                    </label>
-                                    <input type="text" class="form-control" id="dosen_pengampu" name="dosen_pengampu"
-                                        value="{{ old('dosen_pengampu') }}" placeholder="Contoh: Dr. John Doe, M.Kom">
-                                </div>
+    <label for="dosen_pengampu" class="filter-label">
+        Dosen Pengampu
+    </label>
+    <select class="form-select select2" id="dosen_pengampu" name="dosen_pengampu">
+        <option value="">Pilih Dosen</option>
+        @foreach ($dosenList as $dosen)
+            <option value="{{ $dosen->pegawai_id }}"
+                {{ old('dosen_pengampu') == $dosen->pegawai_id ? 'selected' : '' }}>
+                {{ $dosen->nama }}
+            </option>
+        @endforeach
+    </select>
+</div>
                             </div>
                         </div>
                     </div>
@@ -180,4 +187,18 @@
             </div>
         </div>
     </div>
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
+<script>
+    $(document).ready(function() {
+        $('#dosen_pengampu').select2({
+            placeholder: "Ketik nama dosen...",
+            allowClear: true,
+            width: '100%'
+        });
+    });
+</script>
 @endsection

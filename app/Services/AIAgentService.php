@@ -178,13 +178,12 @@ class AIAgentService
         ];
     }
 
-    // 🔥 3. Bobot standar (setelah normalisasi)
+    // 🔥 3. Bobot standar (sesuai view)
     $bobot = [
-        'STS' => 1,
-        'TS'  => 2,
-        'CS'  => 3,
-        'S'   => 4,
-        'SS'  => 5,
+        'TS' => 1,
+        'CS' => 2,
+        'S'  => 3,
+        'SS' => 4,
     ];
 
     $totalSkor = 0;
@@ -245,30 +244,25 @@ class AIAgentService
     try {
         Log::info("=== RAG API PROCESS START ===", ['id' => $kuesioner->id]);
 
-        // STEP 1: Hitung statistik manual
-        $statistik = $this->hitungStatistikDariApi($indexedData);
-
-        // STEP 2: Retrieve
+        // STEP 1: Retrieve context
         $retrievedContext = $this->retrieveRelevantContext($indexedData);
 
-        // STEP 3: Augment
+        // STEP 2: Augment prompt
         $augmentedPrompt = $this->augmentPromptWithContext($kuesioner, $retrievedContext);
 
         $augmentedPrompt .= "
-        Data Statistik:
-        - Index Kepuasan: {$statistik['index_kepuasan']}
-        - Persen Kepuasan: {$statistik['persen_kepuasan']}%
+        Berikan analisis lengkap dalam format JSON berikut:
 
-        Berikan analisis dan rekomendasi.
-
-        Output JSON:
         {
-          \"analisis\": string,
-          \"rekomendasi\": string
+          \"ringkasan\": \"Ringkasan analisis 2-3 kalimat\",
+          \"interpretasi_index\": \"Interpretasi index kepuasan\",
+          \"poin_positif\": [\"Poin positif 1\", \"Poin positif 2\"],
+          \"area_perbaikan\": [\"Area perbaikan 1\", \"Area perbaikan 2\"],
+          \"rekomendasi\": [\"Rekomendasi 1\", \"Rekomendasi 2\"]
         }
         ";
 
-        // STEP 4: Call AI
+        // STEP 3: Call AI
         $response = $this->callAI([
             'role' => 'system',
             'content' => 'Anda adalah AI analis kuesioner. Output JSON saja.'
@@ -294,11 +288,101 @@ class AIAgentService
         }
 
         // VALIDASI FIELD
-        $result['analisis'] = $result['analisis'] ?? '-';
-        $result['rekomendasi'] = $result['rekomendasi'] ?? '-';
+        $result['ringkasan'] = $result['ringkasan'] ?? 'Tidak tersedia';
+        $result['interpretasi_index'] = $result['interpretasi_index'] ?? 'Tidak tersedia';
+        $result['poin_positif'] = $result['poin_positif'] ?? [];
+        $result['area_perbaikan'] = $result['area_perbaikan'] ?? [];
+        $result['rekomendasi'] = $result['rekomendasi'] ?? [];
 
-        // GABUNGKAN STATISTIK
-        $result['statistik'] = $statistik;
+        // HITUNG STATISTIK PER PERTANYAAN DARI DATA REAL (BUKAN DARI AI)
+        $statistikPerPertanyaan = [];
+        $totalNilai = 0;
+        $jumlahPertanyaan = 0;
+        
+        foreach ($indexedData['statistik_per_pertanyaan'] as $qId => $stat) {
+            $totalResponden = $stat['total_responden'];
+            $nilaiRataRata = 0;
+            
+            if ($totalResponden > 0) {
+                // Rumus: (TS×1 + CS×2 + S×3 + SS×4) / total_responden
+                $nilaiRataRata = (
+                    ($stat['distribusi']['TS'] * 1) +
+                    ($stat['distribusi']['CS'] * 2) +
+                    ($stat['distribusi']['S'] * 3) +
+                    ($stat['distribusi']['SS'] * 4)
+                ) / $totalResponden;
+            }
+            
+            $statistikPerPertanyaan[$qId] = [
+                'pertanyaan' => $stat['teks_pertanyaan'],
+                'TS' => $stat['distribusi']['TS'],
+                'CS' => $stat['distribusi']['CS'],
+                'S' => $stat['distribusi']['S'],
+                'SS' => $stat['distribusi']['SS'],
+                'nilai_rata_rata' => $nilaiRataRata
+            ];
+            
+            $totalNilai += $nilaiRataRata;
+            $jumlahPertanyaan++;
+        }
+        
+        // HITUNG INDEX KEPUASAN DARI RATA-RATA SEMUA PERTANYAAN
+        $indexKepuasan = $jumlahPertanyaan > 0 ? $totalNilai / $jumlahPertanyaan : 0;
+        $persenKepuasan = ($indexKepuasan / 4) * 100;
+        
+        Log::info("Index Kepuasan Real (from API)", [
+            'total_nilai' => $totalNilai,
+            'jumlah_pertanyaan' => $jumlahPertanyaan,
+            'index_kepuasan' => $indexKepuasan,
+            'persen_kepuasan' => $persenKepuasan
+        ]);
+        
+        // INIT STATISTIK ARRAY
+        $result['statistik'] = [
+            'statistik_per_pertanyaan' => $statistikPerPertanyaan,
+            'index_kepuasan' => $indexKepuasan,
+            'persen_kepuasan' => $persenKepuasan,
+            'total_responden' => $indexedData['metadata']['total_responden'],
+            'total_pertanyaan' => $jumlahPertanyaan
+        ];
+        
+        // HITUNG DISTRIBUSI JAWABAN TOTAL
+        $distribusiTotal = ['TS' => 0, 'CS' => 0, 'S' => 0, 'SS' => 0];
+        foreach ($indexedData['statistik_per_pertanyaan'] as $stat) {
+            $distribusiTotal['TS'] += $stat['distribusi']['TS'];
+            $distribusiTotal['CS'] += $stat['distribusi']['CS'];
+            $distribusiTotal['S'] += $stat['distribusi']['S'];
+            $distribusiTotal['SS'] += $stat['distribusi']['SS'];
+        }
+        $result['statistik']['distribusi_jawaban'] = $distribusiTotal;
+        
+        // CARI PERTANYAAN TERTINGGI DAN TERENDAH
+        $nilaiTertinggi = 0;
+        $nilaiTerendah = 4;
+        $qTertinggi = null;
+        $qTerendah = null;
+        
+        foreach ($statistikPerPertanyaan as $qId => $stat) {
+            if ($stat['nilai_rata_rata'] > $nilaiTertinggi) {
+                $nilaiTertinggi = $stat['nilai_rata_rata'];
+                $qTertinggi = [
+                    'id' => $qId,
+                    'teks' => $stat['pertanyaan'],
+                    'nilai' => $stat['nilai_rata_rata']
+                ];
+            }
+            if ($stat['nilai_rata_rata'] < $nilaiTerendah) {
+                $nilaiTerendah = $stat['nilai_rata_rata'];
+                $qTerendah = [
+                    'id' => $qId,
+                    'teks' => $stat['pertanyaan'],
+                    'nilai' => $stat['nilai_rata_rata']
+                ];
+            }
+        }
+        
+        $result['statistik']['pertanyaan_tertinggi'] = $qTertinggi;
+        $result['statistik']['pertanyaan_terendah'] = $qTerendah;
 
         Log::info("=== RAG API DONE ===");
 

@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\Storage;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use Illuminate\Support\Facades\Http;
 use App\Services\ExternalApiService;
+use Illuminate\Support\Facades\DB;
 
 class MonitoringKuesioneController extends Controller
 {
@@ -28,20 +29,31 @@ class MonitoringKuesioneController extends Controller
 }
 
     public function index()
-    {
-        $kuesioners = KuesioneUpload::with(['user', 'user.prodi'])->orderBy('created_at', 'desc')->get();
-        
-        // Hitung laporan bulanan (bulan ini)
-        $laporanBulanan = KuesioneUpload::whereYear('created_at', date('Y'))
-            ->whereMonth('created_at', date('m'))
-            ->count();
-        
-        // Hitung laporan tahunan (tahun ini)
-        $laporanTahunan = KuesioneUpload::whereYear('created_at', date('Y'))
-            ->count();
-        
-        return view('gkm.monitoring-kuesioner.index', compact('kuesioners', 'laporanBulanan', 'laporanTahunan'));
-    }
+{
+    $user = auth()->user();
+
+    $kuesioners = KuesioneUpload::with(['user', 'user.prodi'])
+        ->whereHas('user', function ($q) use ($user) {
+            $q->where('prodi_id', $user->prodi_id);
+        })
+        ->orderBy('created_at', 'desc')
+        ->get();
+
+    $laporanBulanan = KuesioneUpload::whereYear('created_at', date('Y'))
+        ->whereMonth('created_at', date('m'))
+        ->whereHas('user', function ($q) use ($user) {
+            $q->where('prodi_id', $user->prodi_id);
+        })
+        ->count();
+
+    $laporanTahunan = KuesioneUpload::whereYear('created_at', date('Y'))
+        ->whereHas('user', function ($q) use ($user) {
+            $q->where('prodi_id', $user->prodi_id);
+        })
+        ->count();
+
+    return view('gkm.monitoring-kuesioner.index', compact('kuesioners', 'laporanBulanan', 'laporanTahunan'));
+}
 
     public function create()
     {
@@ -53,8 +65,12 @@ class MonitoringKuesioneController extends Controller
             $periodes[] = $year . '/' . ($year + 1) . ' Ganjil';
             $periodes[] = $year . '/' . ($year + 1) . ' Genap';
         }
+        $dosenList = DB::table('dosenn')
+        ->select('pegawai_id', 'nama')
+        ->orderBy('nama')
+        ->get();
 
-        return view('gkm.monitoring-kuesioner.create', compact('periodes'));
+        return view('gkm.monitoring-kuesioner.create', compact('periodes', 'dosenList'));
     }
 
     public function store(Request $request)
@@ -65,10 +81,17 @@ class MonitoringKuesioneController extends Controller
             'periode' => 'required|string|max:255',
             'nama_matakuliah' => 'nullable|string|max:255',
             'kode_matakuliah' => 'nullable|string|max:100',
-            'dosen_pengampu' => 'nullable|string|max:255',
+            'dosen_pengampu' => 'nullable|exists:dosenn,pegawai_id',
             'tingkat' => 'nullable|integer|in:1,2,3,4',
             'deskripsi' => 'nullable|string'
         ]);
+        $dosen = null;
+
+if ($request->dosen_pengampu) {
+    $dosen = DB::table('dosenn')
+        ->where('pegawai_id', $request->dosen_pengampu)
+        ->first();
+}
 
         try {
             // Upload file
@@ -119,7 +142,8 @@ class MonitoringKuesioneController extends Controller
                 'periode' => $request->periode,
                 'nama_matakuliah' => $request->nama_matakuliah,
                 'kode_matakuliah' => $request->kode_matakuliah,
-                'dosen_pengampu' => $request->dosen_pengampu,
+                'pegawai_id' => $request->dosen_pengampu, // 🔥 simpan ID
+'dosen_pengampu' => $dosen ? $dosen->nama : null, // 🔥 simpan NAMA
                 'tingkat' => $request->tingkat,
                 'user_id' => auth()->id(),
                 'deskripsi' => $request->deskripsi,
@@ -322,24 +346,41 @@ private function mapApiToIndexedData($apiData)
 
         $qId = 'Q' . $no;
 
-        // ✅ FIX BUG (lengkap)
+        // ✅ MAPPING FLEKSIBEL UNTUK BERBAGAI FORMAT API
         $counts = [
-            'STS' => 0,
             'TS' => 0,
             'CS' => 0,
             'S' => 0,
             'SS' => 0
         ];
 
+        // Mapping berbagai kemungkinan label dari API
+        $mapping = [
+            // Angka
+            '1' => 'SS', '2' => 'S', '3' => 'CS', '4' => 'TS', '5' => 'TS', '6' => 'TS',
+            // Label teks
+            'SS' => 'SS', 'S' => 'S', 'CS' => 'CS', 'CTS' => 'CS', 'TS' => 'TS', 'STS' => 'TS',
+            'SANGAT SETUJU' => 'SS', 'SETUJU' => 'S', 'CUKUP SETUJU' => 'CS', 'TIDAK SETUJU' => 'TS',
+            'SANGAT TIDAK SETUJU' => 'TS', 'CUKUP TIDAK SETUJU' => 'CS',
+            // Lowercase
+            'sangat setuju' => 'SS', 'setuju' => 'S', 'cukup setuju' => 'CS', 'tidak setuju' => 'TS',
+        ];
+
         foreach ($item['rincian_jawaban'] as $j) {
-            match ($j['jawaban']) {
-                '5' => $counts['STS'] = (int)$j['jumlah'],
-                '4' => $counts['TS']  = (int)$j['jumlah'],
-                '3' => $counts['CS']  = (int)$j['jumlah'],
-                '2' => $counts['S']   = (int)$j['jumlah'],
-                '1' => $counts['SS']  = (int)$j['jumlah'],
-                default => null
-            };
+            $label = strtoupper(trim($j['jawaban']));
+            if (isset($mapping[$label])) {
+                $target = $mapping[$label];
+                $counts[$target] += (int)$j['jumlah'];
+            } elseif (isset($mapping[strtolower($label)])) {
+                $target = $mapping[strtolower($label)];
+                $counts[$target] += (int)$j['jumlah'];
+            } else {
+                // Jika tidak dikenali, log untuk debugging
+                \Log::warning("Label jawaban tidak dikenali dari API", [
+                    'label' => $j['jawaban'],
+                    'pertanyaan' => $item['pertanyaan']
+                ]);
+            }
         }
 
         $metadata['pertanyaan'][] = [

@@ -440,39 +440,407 @@ class LaporanKuesioneService
 
             $hasilLaporan = json_decode($cleanResponse, true);
 
-            if (!$extractionResult['success'] || empty($extractionResult['text'])) {
-                throw new \Exception("Failed to extract text from template: " . ($extractionResult['metadata']['error'] ?? 'Unknown error'));
+            if (json_last_error() !== JSON_ERROR_NONE) {
+                $jsonError = json_last_error_msg();
+                Log::error('JSON Parse Error', [
+                    'error' => $jsonError,
+                    'response' => substr($cleanResponse, 0, 1000)
+                ]);
+                throw new \Exception('AI response tidak valid: ' . $jsonError);
             }
 
-            $content = $extractionResult['text'];
+            // Add aggregated data to hasil
+            $hasilLaporan['statistik_utama'] = [
+                'total_kuesioner' => $aggregatedData['total_kuesioner'],
+                'total_responden' => $aggregatedData['total_responden'],
+                'index_kepuasan_rata_rata' => $aggregatedData['index_kepuasan_rata_rata'],
+                'persen_kepuasan_rata_rata' => $aggregatedData['persen_kepuasan_rata_rata'],
+            ];
 
-            Log::info("Text extracted successfully", [
-                'content_length' => strlen($content),
-                'extraction_method' => $extractionResult['metadata']['extraction_method'] ?? 'unknown'
+            Log::info("=== Laporan Generation Completed ===");
+
+            return [
+                'hasil_laporan' => $hasilLaporan,
+                'aggregated_data' => $aggregatedData,
+            ];
+
+        } catch (\Exception $e) {
+            Log::error('Laporan Generation Failed', [
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            throw $e;
+        }
+    }
+
+    /**
+     * Call AI API (supports Ollama, GROQ, OpenAI-compatible)
+     */
+    private function callAI($systemMessage, $userPrompt, $maxTokens = 4000)
+    {
+        $maxRetries = 3;
+        $retryDelay = 2; // seconds
+
+        for ($attempt = 1; $attempt <= $maxRetries; $attempt++) {
+            try {
+                Log::info("=== Calling AI API (Attempt $attempt/$maxRetries) ===", [
+                    'model' => $this->model,
+                    'base_url' => $this->baseUrl,
+                    'prompt_length' => strlen($userPrompt),
+                    'max_tokens' => $maxTokens
+                ]);
+
+                $headers = ['Content-Type' => 'application/json'];
+
+                // Add Authorization header only if API key is not 'ollama'
+                if ($this->apiKey && $this->apiKey !== 'ollama') {
+                    $headers['Authorization'] = 'Bearer ' . $this->apiKey;
+                }
+
+                $response = Http::withHeaders($headers)
+                    ->timeout(180) // 3 minutes for local models
+                    ->post($this->baseUrl . '/chat/completions', [
+                        'model' => $this->model,
+                        'messages' => [
+                            $systemMessage,
+                            [
+                                'role' => 'user',
+                                'content' => $userPrompt
+                            ]
+                        ],
+                        'temperature' => 0.7,
+                        'max_tokens' => $maxTokens,
+                        'stream' => false,
+                    ]);
+
+                Log::info("AI API Response Status", [
+                    'status' => $response->status(),
+                    'successful' => $response->successful(),
+                    'attempt' => $attempt
+                ]);
+
+                if ($response->successful()) {
+                    $data = $response->json();
+                    $content = $data['choices'][0]['message']['content'] ?? null;
+
+                    if (!$content) {
+                        Log::error('AI Response Empty', [
+                            'response_data' => $data
+                        ]);
+                        throw new \Exception('AI response kosong. Periksa konfigurasi model atau coba lagi.');
+                    }
+
+                    Log::info("AI Response Received", [
+                        'has_content' => !empty($content),
+                        'content_length' => $content ? strlen($content) : 0,
+                        'attempt' => $attempt
+                    ]);
+
+                    return $content;
+                }
+
+                $errorBody = $response->body();
+                $statusCode = $response->status();
+
+                Log::error('AI API Error', [
+                    'status' => $statusCode,
+                    'body' => $errorBody,
+                    'attempt' => $attempt
+                ]);
+
+                // Parse error message for better user feedback
+                $errorMessage = 'AI API error (HTTP ' . $statusCode . ')';
+                $isRateLimitError = false;
+
+                try {
+                    $errorData = json_decode($errorBody, true);
+                    if (isset($errorData['error']['message'])) {
+                        $errorMessage .= ': ' . $errorData['error']['message'];
+
+                        // Check if it's a rate limit error
+                        if (isset($errorData['error']['code']) &&
+                            $errorData['error']['code'] === 'rate_limit_exceeded') {
+                            $isRateLimitError = true;
+                        }
+                    } elseif (isset($errorData['message'])) {
+                        $errorMessage .= ': ' . $errorData['message'];
+                    }
+                } catch (\Exception $e) {
+                    // If can't parse error, use raw body
+                    if (strlen($errorBody) < 200) {
+                        $errorMessage .= ': ' . $errorBody;
+                    }
+                }
+
+                // Retry on rate limit errors (413, 429)
+                if (($statusCode === 413 || $statusCode === 429 || $isRateLimitError) && $attempt < $maxRetries) {
+                    $waitTime = $retryDelay * $attempt; // Exponential backoff
+                    Log::warning("Rate limit hit, retrying in {$waitTime} seconds...", [
+                        'attempt' => $attempt,
+                        'max_retries' => $maxRetries
+                    ]);
+                    sleep($waitTime);
+                    continue; // Retry
+                }
+
+                throw new \Exception($errorMessage);
+
+            } catch (\Illuminate\Http\Client\ConnectionException $e) {
+                Log::error('AI API Connection Error', [
+                    'message' => $e->getMessage(),
+                    'base_url' => $this->baseUrl,
+                    'attempt' => $attempt
+                ]);
+
+                if ($attempt < $maxRetries) {
+                    $waitTime = $retryDelay * $attempt;
+                    Log::warning("Connection failed, retrying in {$waitTime} seconds...");
+                    sleep($waitTime);
+                    continue;
+                }
+
+                throw new \Exception('Tidak dapat terhubung ke AI service. Pastikan service berjalan di: ' . $this->baseUrl);
+
+            } catch (\Illuminate\Http\Client\RequestException $e) {
+                Log::error('AI API Request Error', [
+                    'message' => $e->getMessage(),
+                    'attempt' => $attempt
+                ]);
+                throw new \Exception('Request ke AI service gagal: ' . $e->getMessage());
+
+            } catch (\Exception $e) {
+                // Re-throw if already our custom exception
+                if (strpos($e->getMessage(), 'AI') !== false ||
+                    strpos($e->getMessage(), 'Tidak dapat terhubung') !== false ||
+                    strpos($e->getMessage(), 'Request ke AI') !== false) {
+                    throw $e;
+                }
+
+                Log::error('AI API Exception', [
+                    'message' => $e->getMessage(),
+                    'trace' => $e->getTraceAsString(),
+                    'attempt' => $attempt
+                ]);
+                throw new \Exception('Error saat memanggil AI: ' . $e->getMessage());
+            }
+        }
+
+        throw new \Exception('AI request gagal setelah ' . $maxRetries . ' percobaan');
+    }
+
+    /**
+     * Get Active Template
+     */
+    public function getActiveTemplate($jenisTemplate = 'laporan_bulanan')
+    {
+        return TemplateLaporan::active()
+            ->jenis($jenisTemplate)
+            ->latest()
+            ->first();
+    }
+
+    /**
+     * Singkatkan kalimat rekomendasi dengan menghapus boilerplate yang panjang
+     * dan menyederhanakan pola bahasa yang berulang.
+     */
+    private function shortenRekomendasi(string $text): string
+    {
+        // 1. Strip prefix "Perlu peningkatan pada aspek: "
+        //    Ubah "Perlu peningkatan pada aspek: X" → "Perlu peningkatan [inti X]"
+        if (preg_match('/^Perlu peningkatan pada aspek:\s*(.+)$/i', $text, $m)) {
+            $core = trim($m[1]);
+            // Ekstrak kata kunci inti dari kalimat panjang
+            $core = $this->extractCorePhrase($core);
+            return 'Perlu peningkatan ' . lcfirst($core) . '.';
+        }
+
+        // 2. "Dosen/TA harus lebih baik dalam X" → "Dosen/TA perlu X."
+        if (preg_match('/^Dosen\/TA harus lebih baik dalam\s*(.+)$/i', $text, $m)) {
+            $core = rtrim(trim($m[1]), '.');
+            return 'Dosen/TA perlu ' . lcfirst($core) . '.';
+        }
+
+        // 3. "Dosen/TA perlu meningkatkan X" → tetap, tapi potong jika terlalu panjang
+        if (preg_match('/^(Dosen\/TA perlu [^.]{1,80})/i', $text, $m)) {
+            return rtrim($m[1], '.') . '.';
+        }
+
+        // 4. Potong kalimat sangat panjang (> 100 karakter) pada kata terakhir sebelum batas
+        if (mb_strlen($text) > 100) {
+            $cut = mb_substr($text, 0, 97);
+            $lastSpace = mb_strrpos($cut, ' ');
+            if ($lastSpace !== false) {
+                $cut = mb_substr($cut, 0, $lastSpace);
+            }
+            return rtrim($cut, '.,;') . '.';
+        }
+
+        return rtrim($text, '.') . '.';
+    }
+
+    /**
+     * Ekstrak frasa inti dari kalimat panjang (untuk dipakai setelah "Perlu peningkatan").
+     */
+    private function extractCorePhrase(string $sentence): string
+    {
+        // Petakan kalimat umum ke frasa singkat
+        $patterns = [
+            '/waktu untuk menyelesaikan ujian.*/i'                       => 'kecukupan waktu ujian',
+            '/dosen.*menyiapkan materi.*terstruktur.*/i'                  => 'struktur dan perencanaan materi kuliah',
+            '/secara keseluruhan.*puas.*pembelajaran.*mata kuliah.*/i'    => 'kepuasan pembelajaran secara keseluruhan',
+            '/hasil pemeriksaan kuis.*dikembalikan.*/i'                   => 'pengembalian hasil kuis/tugas/ujian',
+            '/soal ujian sesuai dengan materi.*/i'                        => 'kesesuaian soal ujian dengan materi',
+            '/kehadiran.*dosen.*ta.*/i'                                    => 'kehadiran dosen/TA di kelas',
+            '/platform.*pembelajaran.*/i'                                  => 'efektivitas platform pembelajaran',
+            '/interaksi.*mahasiswa.*/i'                                    => 'interaksi antara dosen dan mahasiswa',
+        ];
+
+        foreach ($patterns as $pattern => $replacement) {
+            if (preg_match($pattern, $sentence)) {
+                return $replacement;
+            }
+        }
+
+        // Fallback: ambil 60 karakter pertama
+        if (mb_strlen($sentence) > 60) {
+            $cut = mb_substr($sentence, 0, 57);
+            $lastSpace = mb_strrpos($cut, ' ');
+            return $lastSpace !== false ? mb_substr($cut, 0, $lastSpace) : $cut;
+        }
+
+        return $sentence;
+    }
+
+    /**
+     * ========================================
+     * ADVANCED RAG METHODS (NEW)
+     * ========================================
+     */
+
+    /**
+     * Generate laporan using Advanced RAG with Vector Database
+     */
+    public function generateLaporanAdvanced($periode, $prodiId = null, $templateId = null)
+    {
+        try {
+            Log::info("=== Starting ADVANCED RAG Laporan Generation ===", [
+                'periode' => $periode,
+                'prodi_id' => $prodiId,
+                'template_id' => $templateId
             ]);
 
-            // Extract document structure
-            $structure = $this->documentStructureService->extractStructure($content);
+            // Check if Vector DB is enabled
+            if (!env('VECTOR_DB_ENABLED', false)) {
+                Log::info("Vector DB not enabled, falling back to simple RAG");
+                return $this->generateLaporan($periode, $prodiId, $templateId);
+            }
 
-            // Process chunks and embeddings (this also stores them in the database)
-            $chunks = $this->createChunks($template, $structure);
+            // Initialize services
+            $embeddingService = new EmbeddingService();
+            $chunkingService = new ChunkingService();
+            $vectorDbService = new VectorDatabaseService($embeddingService, $chunkingService);
+            $ragRetrievalService = new RAGRetrievalService($vectorDbService);
 
-            // Mark template as processed and indexed
-            $template->update([
-                'is_processed' => true,
-                'is_indexed' => true,
-                'indexed_at' => now(),
-                'total_chunks' => count($chunks),
-                'structure_metadata' => [
-                    'sections_count' => count($structure['sections'] ?? []),
-                    'has_formatting' => !empty($structure['formatting']),
-                    'patterns' => $structure['patterns'] ?? [],
-                    'metadata' => $structure['metadata'] ?? [],
-                ]
+            // Step 1: Ensure kuesioner are indexed
+            $this->ensureKuesioneIndexed($periode, $prodiId, $vectorDbService);
+
+            // Step 2: Collect basic data (for statistics)
+            $kuesioneList = $this->collectKuesioneData($periode, $prodiId);
+
+            if ($kuesioneList->isEmpty()) {
+                throw new \Exception('Tidak ada kuesioner completed untuk periode ini');
+            }
+
+            // Step 3: Aggregate statistics
+            $aggregatedData = $this->aggregateStatistik($kuesioneList);
+
+            // Step 4: Build query for RAG retrieval
+            $periodeObj = Carbon::createFromFormat('Y-m', $periode);
+            $bulan = $periodeObj->locale('id')->translatedFormat('F');
+            $tahun = $periodeObj->year;
+
+            $query = "Analisis kuesioner mahasiswa periode {$bulan} {$tahun}. ";
+            $query .= "Berikan insight mendalam tentang kepuasan mahasiswa, ";
+            $query .= "poin-poin positif, area yang perlu diperbaiki, dan rekomendasi strategis.";
+
+            // Step 5: Retrieve relevant context using RAG
+            Log::info("=== ADVANCED RAG: Retrieving Context ===");
+            $retrieval = $ragRetrievalService->retrieveContext($query, [
+                'periode' => $periode,
+                'prodi_id' => $prodiId,
             ]);
 
-            Log::info("Template {$templateId} processed successfully to vector database", [
-                'chunks_count' => count($chunks)
+            // Step 6: Build enriched context
+            $enrichedContext = $this->buildEnrichedContext(
+                $aggregatedData,
+                $retrieval['context_text'],
+                $retrieval['metadata'],
+                $periode
+            );
+
+            // Step 7: Get template
+            $template = $templateId ? TemplateLaporan::find($templateId) : null;
+
+            // Step 8: Augment prompt with template and enriched context
+            $augmentedPrompt = $this->augmentPromptAdvanced(
+                $template,
+                $enrichedContext,
+                $periode,
+                $retrieval['metadata']
+            );
+
+            // Step 9: Generate with AI
+            Log::info("=== ADVANCED RAG: Generating with AI ===");
+
+            $response = $this->callAI([
+                'role' => 'system',
+                'content' => 'Anda adalah AI Agent ahli dalam membuat laporan analisis kuesioner akademik dengan deep insights. Gunakan context yang diberikan untuk menghasilkan analisis yang mendalam dan actionable.'
+            ], $augmentedPrompt, 4000);
+
+            if (!$response) {
+                throw new \Exception('AI tidak menghasilkan response');
+            }
+
+            // Clean and parse response
+            $cleanResponse = trim($response);
+            $cleanResponse = preg_replace('/```(?:json)?\s*/i', '', $cleanResponse);
+            $cleanResponse = preg_replace('/```\s*/i', '', $cleanResponse);
+
+            $start = strpos($cleanResponse, '{');
+            $end = strrpos($cleanResponse, '}');
+            if ($start !== false && $end !== false && $end > $start) {
+                $cleanResponse = substr($cleanResponse, $start, $end - $start + 1);
+            }
+
+            $hasilLaporan = json_decode($cleanResponse, true);
+
+            if (json_last_error() !== JSON_ERROR_NONE) {
+                $jsonErr = json_last_error_msg();
+                Log::error('JSON Parse Error', [
+                    'error' => $jsonErr,
+                    'response' => substr($cleanResponse, 0, 1000)
+                ]);
+                throw new \Exception('AI response tidak valid: ' . $jsonErr);
+            }
+
+            // Add aggregated data and RAG metadata
+            $hasilLaporan['statistik_utama'] = [
+                'total_kuesioner' => $aggregatedData['total_kuesioner'],
+                'total_responden' => $aggregatedData['total_responden'],
+                'index_kepuasan_rata_rata' => $aggregatedData['index_kepuasan_rata_rata'],
+                'persen_kepuasan_rata_rata' => $aggregatedData['persen_kepuasan_rata_rata'],
+            ];
+
+            $hasilLaporan['rag_metadata'] = [
+                'method' => 'advanced_rag',
+                'chunks_used' => $retrieval['metadata']['total_chunks'],
+                'avg_similarity' => round($retrieval['metadata']['avg_similarity'], 3),
+                'sources' => $retrieval['metadata']['num_sources'],
+            ];
+
+            Log::info("=== ADVANCED RAG Laporan Generation Completed ===", [
+                'chunks_used' => $retrieval['metadata']['total_chunks'],
+                'avg_similarity' => $retrieval['metadata']['avg_similarity']
             ]);
 
             return [

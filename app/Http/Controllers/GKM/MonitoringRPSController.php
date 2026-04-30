@@ -255,6 +255,53 @@ if ($matkulList === null || $forceRefreshDB) {
 
     return $data['matkulList'] ?? []; // 🔥 BUKAN pagination
 }
+
+public function syncSemuaJadwal($semester, $tahun)
+{
+    $apiService = new \App\Services\ExternalAPIService();
+
+    // 🔥 ambil semua dosen dari DB lokal
+    $dosenList = \App\Models\Dosenn::select('pegawai_id')->get();
+
+    foreach ($dosenList as $dosen) {
+
+        try {
+            $jadwalList = $apiService->getJadwalByDosen(
+                $dosen->pegawai_id,
+                $semester,
+                $tahun
+            );
+
+            foreach ($jadwalList ?? [] as $jadwal) {
+
+                // 🔥 FILTER (jaga-jaga kalau API tidak bersih)
+                if (
+                    ($jadwal['semester'] ?? null) != $semester ||
+                    ($jadwal['tahun_ajaran'] ?? null) != $tahun
+                ) {
+                    continue;
+                }
+
+                \App\Models\JadwalDosen::updateOrCreate(
+                    [
+                        'pegawai_id' => $dosen->pegawai_id,
+                        'kode_mk' => $jadwal['kode_mk'],
+                        'semester' => $semester,
+                        'tahun_ajaran' => $tahun,
+                    ],
+                    [
+                        'kuliah_id' => $jadwal['kuliah_id'] ?? null,
+                    ]
+                );
+            }
+
+        } catch (\Exception $e) {
+            \Log::warning("Gagal sync dosen {$dosen->pegawai_id}");
+        }
+    }
+
+    return "Sync selesai";
+}
 public function exportPdf(Request $request)
 {
     $semester = $request->semester;
@@ -544,26 +591,28 @@ private function saveSnapshotToDB(
     $search = $request->input('search');
 
     $dosenList = DB::table('dosenn as d')
-        ->leftJoin('rps_monitoring_snapshots as r', 'd.pegawai_id', '=', 'r.pegawai_id')
-        ->where('r.prodi_id', 4)
+    ->join('rps_monitoring_snapshots as r', 'd.pegawai_id', '=', 'r.pegawai_id')
 
-        ->when($search, function ($query, $search) {
-            $query->where(function ($q) use ($search) {
-                $q->where('d.nama', 'like', "%{$search}%")
-                  ->orWhere('r.nama_matkul', 'like', "%{$search}%");
-            });
-        })
+    ->where('r.prodi_id', $user->prodi->id ?? 4)
+    ->where('r.status_rps', 'BELUM UPLOAD')
+->where('r.reminder_sent', false)// 🔥 ini kunci utama
 
-        ->select(
-            'd.pegawai_id as id',
-            'd.pegawai_id',
-            'd.nama as nama_lengkap',
-            'd.email as kontak_email',
-            'r.nama_matkul',
-            'r.status_rps'
-        )
-        ->paginate(10)
-        ->withQueryString();
+    ->when($search, function ($query, $search) {
+        $query->where(function ($q) use ($search) {
+            $q->where('d.nama', 'like', "%{$search}%")
+              ->orWhere('r.nama_matkul', 'like', "%{$search}%");
+        });
+    })
+
+    ->select(
+        'd.pegawai_id as id',
+        'd.nama as nama_lengkap',
+        'd.email as kontak_email',
+        'r.nama_matkul',
+        'r.status_rps'
+    )
+    ->paginate(10)
+    ->withQueryString();
 
     return view('gkm.monitoring-rps.ceklist', compact('user', 'dosenList'));
 }
@@ -677,6 +726,13 @@ private function saveSnapshotToDB(
                 $failedCount++;
             }
         }
+
+        RpsMonitoringSnapshot::where('pegawai_id', $dosen->pegawai_id)
+    ->where('status_rps', 'BELUM UPLOAD')
+    ->update([
+        'reminder_sent' => true,
+        'updated_at' => now()
+    ]);
 
         return redirect()->route('gkm.monitoring-rps.index')
             ->with(

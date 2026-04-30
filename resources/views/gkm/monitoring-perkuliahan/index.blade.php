@@ -31,11 +31,15 @@
                     <div class="col-md-4">
                         <label class="filter-label">TINGKAT</label>
                         <select name="tingkat" class="form-select">
-    <option value="">Semua Tingkat </option>
-    <option value="1" {{ $selectedTingkat == 1 ? 'selected' : '' }}>Tingkat 1</option>
-    <option value="2" {{ $selectedTingkat == 2 ? 'selected' : '' }}>Tingkat 2</option>
-    <option value="3" {{ $selectedTingkat == 3 ? 'selected' : '' }}>Tingkat 3</option>
-    <option value="4" {{ $selectedTingkat == 4 ? 'selected' : '' }}>Tingkat 4</option>
+    <option value="">Semua Tingkat</option>
+
+    <option value="1" {{ request('tingkat') == '1' ? 'selected' : '' }}>Tingkat 1</option>
+    <option value="2" {{ request('tingkat') == '2' ? 'selected' : '' }}>Tingkat 2</option>
+    <option value="3" {{ request('tingkat') == '3' ? 'selected' : '' }}>Tingkat 3</option>
+
+    @if(optional(auth()->user()->prodi)->kode_prodi !== 'NM' && optional(auth()->user()->prodi)->kode_prodi !== 'TI')
+        <option value="4" {{ request('tingkat') == '4' ? 'selected' : '' }}>Tingkat 4</option>
+    @endif
 </select>
                     </div>
                     <div class="col-md-4">

@@ -47,6 +47,10 @@ Route::middleware('auth')->group(function () {
     Route::prefix('gkm')->name('gkm.')->group(function () {
         Route::get('/dashboard', [GKMDashboardController::class, 'index'])->name('dashboard');
 
+        Route::get('/sync-jadwal', function () {
+        return app(\App\Http\Controllers\GKM\MonitoringRPSController::class)
+            ->syncSemuaJadwal(1, 2020);
+    });
         // Data Master
         Route::prefix('data-master')->name('data-master.')->group(function () {
             Route::get('/', [DataMasterController::class, 'index'])->name('index');

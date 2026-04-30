@@ -82,7 +82,9 @@
                                         <input type="checkbox" class="form-check-input dosen-checkbox" name="dosen_ids[]"
                                             value="{{ $dosen->id }}">
                                     </td>
-                                    <td class="text-center">{{ $index + 1 }}</td>
+                                    <td class="text-center">
+    {{ ($dosenList->currentPage() - 1) * $dosenList->perPage() + $loop->iteration }}
+</td>
                                     <td class="dosen-name">{{ $dosen->nama_lengkap }}</td>
                                     <td class="text-secondary">{{ $dosen->kontak_email }}</td>
                                     <td>
@@ -110,6 +112,16 @@
                             @endforelse
                         </tbody>
                     </table>
+                    <div class="d-flex justify-content-between align-items-center mt-3">
+    <div class="text-muted" style="font-size: 0.9rem;">
+        Menampilkan {{ $dosenList->firstItem() }} - {{ $dosenList->lastItem() }}
+        dari {{ $dosenList->total() }} data
+    </div>
+
+    <div>
+        {{ $dosenList->links() }}
+    </div>
+</div>
                 </div>
             </div>
 
