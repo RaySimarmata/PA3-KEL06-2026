@@ -114,19 +114,6 @@
             gap: 0.6rem;
         }
 
-        .msg-ai .ai-icon {
-            width: 30px;
-            height: 30px;
-            flex-shrink: 0;
-            background: linear-gradient(135deg, #2563eb, #7c3aed);
-            color: #fff;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 0.85rem;
-        }
-
         .msg-ai .bubble {
             background: #fff;
             border: 1px solid #ede9f7;
@@ -1227,7 +1214,7 @@
                 const div = document.createElement('div');
                 div.className = 'msg-ai';
                 div.innerHTML = `
-            <div class="ai-icon"><i class="bi bi-robot"></i></div>
+
             <div class="bubble">${html}</div>`;
                 messagesBox.appendChild(div);
                 messagesBox.scrollTop = messagesBox.scrollHeight;
@@ -1251,7 +1238,7 @@
                 }
 
                 div.innerHTML = `
-                    <div class="ai-icon"><i class="bi bi-robot"></i></div>
+
                     <div class="bubble">
                         ${cacheInfoHTML}
                         ${renderMarkdown(aiResponse)}

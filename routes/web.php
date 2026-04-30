@@ -8,6 +8,7 @@ use App\Http\Controllers\GKM\MonitoringRPSController;
 use App\Http\Controllers\GKM\MonitoringPerkuliahanController;
 use App\Http\Controllers\GKM\MonitoringKuesioneController;
 use App\Http\Controllers\GKM\LaporanKuesioneController;
+use App\Http\Controllers\GKM\LaporanArtefakController;
 use App\Http\Controllers\GKM\PelaporanController;
 use App\Http\Controllers\GKM\ReminderAgentController;
 use App\Http\Controllers\GKM\KirimLaporanController;
@@ -87,8 +88,7 @@ Route::middleware('auth')->group(function () {
             Route::post('/generate-message', [MonitoringRPSController::class, 'generateReminderMessage'])->name('generate-message');
             Route::post('/send-reminder', [MonitoringRPSController::class, 'sendReminder'])->name('send-reminder');
             Route::get('/history-reminder', [MonitoringRPSController::class, 'historyReminder'])->name('history');
-            Route::get('/monitoring-rps/export', [MonitoringRPSController::class, 'exportPdf'])
-    ->name('export');
+            Route::get('/export', [MonitoringRPSController::class, 'exportPdf'])->name('export');
         });
 
         // Monitoring Perkuliahan
@@ -115,11 +115,15 @@ Route::middleware('auth')->group(function () {
     Route::get('/create-api', [MonitoringKuesioneController::class, 'indexApi'])
         ->name('create-api');
 
+    // 🔹 API untuk pencarian matakuliah
+    Route::get('/api/search-matkul', [MonitoringKuesioneController::class, 'searchMatkul'])
+        ->name('api.search-matkul');
+
     // 🔹 list kuesioner per mata kuliah
     Route::get('/kuesioner', [MonitoringKuesioneController::class, 'listKuesioner'])
         ->name('listKuesioner');
-        
-            Route::get('/create', [MonitoringKuesioneController::class, 'create'])->name('create'); 
+
+            Route::get('/create', [MonitoringKuesioneController::class, 'create'])->name('create');
             Route::post('/store', [MonitoringKuesioneController::class, 'store'])->name('store');
             Route::get('/{id}', [MonitoringKuesioneController::class, 'show'])->name('show');
             Route::delete('/{id}', [MonitoringKuesioneController::class, 'destroy'])->name('destroy');
@@ -132,7 +136,7 @@ Route::middleware('auth')->group(function () {
             Route::get('/', [LaporanKuesioneController::class, 'index'])->name('index');
             Route::get('/create', [LaporanKuesioneController::class, 'create'])->name('create');
             Route::post('/', [LaporanKuesioneController::class, 'store'])->name('store');
-            
+
             // Template Management (MUST BE BEFORE /{id} routes)
             Route::get('/template', [LaporanKuesioneController::class, 'templateIndex'])->name('template.index');
             Route::get('/template/upload', [LaporanKuesioneController::class, 'templateUpload'])->name('template.upload');
@@ -141,11 +145,33 @@ Route::middleware('auth')->group(function () {
             Route::post('/template/{id}/toggle', [LaporanKuesioneController::class, 'templateToggle'])->name('template.toggle');
             Route::post('/template/{id}/reindex', [LaporanKuesioneController::class, 'templateReindex'])->name('template.reindex');
             Route::delete('/template/{id}', [LaporanKuesioneController::class, 'templateDestroy'])->name('template.destroy');
-            
+
             // Laporan Detail & Actions (MUST BE AFTER /template routes)
             Route::get('/{id}', [LaporanKuesioneController::class, 'show'])->name('show');
             Route::delete('/{id}', [LaporanKuesioneController::class, 'destroy'])->name('destroy');
             Route::get('/{id}/download/{format}', [LaporanKuesioneController::class, 'download'])->name('download');
+        });
+
+        // Laporan Artefak (NEW - AI Generated Reports for RPS & Materi)
+        Route::prefix('laporan-artefak')->name('laporan-artefak.')->group(function () {
+            // Laporan Management
+            Route::get('/', [LaporanArtefakController::class, 'index'])->name('index');
+            Route::get('/create', [LaporanArtefakController::class, 'create'])->name('create');
+            Route::post('/', [LaporanArtefakController::class, 'store'])->name('store');
+
+            // Template Management (MUST BE BEFORE /{id} routes)
+            Route::get('/template', [LaporanArtefakController::class, 'templateIndex'])->name('template.index');
+            Route::get('/template/upload', [LaporanArtefakController::class, 'templateUpload'])->name('template.upload');
+            Route::post('/template', [LaporanArtefakController::class, 'templateStore'])->name('template.store');
+            Route::get('/template/{id}/download', [LaporanArtefakController::class, 'templateDownload'])->name('template.download');
+            Route::post('/template/{id}/toggle', [LaporanArtefakController::class, 'templateToggle'])->name('template.toggle');
+            Route::post('/template/{id}/reindex', [LaporanArtefakController::class, 'templateReindex'])->name('template.reindex');
+            Route::delete('/template/{id}', [LaporanArtefakController::class, 'templateDestroy'])->name('template.destroy');
+
+            // Laporan Detail & Actions (MUST BE AFTER /template routes)
+            Route::get('/{id}', [LaporanArtefakController::class, 'show'])->name('show');
+            Route::delete('/{id}', [LaporanArtefakController::class, 'destroy'])->name('destroy');
+            Route::get('/{id}/download/{format}', [LaporanArtefakController::class, 'download'])->name('download');
         });
 
         // Pelaporan
@@ -183,18 +209,18 @@ Route::middleware('auth')->group(function () {
         Route::post('/test-ai', function(Request $request) {
             try {
                 $aiService = app(\App\Services\ClaudeAIService::class);
-                
+
                 $response = $aiService->ask(
                     "Anda adalah asisten AI untuk sistem laporan akademik.",
                     "Test: " . ($request->input('message', 'Hello'))
                 );
-                
+
                 return response()->json([
                     'success' => true,
                     'response' => $response,
                     'model' => $aiService->getModelInfo()
                 ]);
-                
+
             } catch (\Exception $e) {
                 return response()->json([
                     'success' => false,
@@ -231,7 +257,7 @@ Route::middleware('auth')->group(function () {
         // Buat Laporan (Simplified - No AI Agent)
         Route::prefix('buat-laporan')->name('buat-laporan.')->group(function () {
             Route::get('/', [BuatLaporanController::class, 'index'])->name('index');
-            
+
             // Triwulan
             Route::get('/triwulan', [LaporanTriwulanController::class, 'create'])->name('triwulan');
             Route::post('/triwulan', [LaporanTriwulanController::class, 'store'])->name('triwulan.store');
@@ -240,7 +266,7 @@ Route::middleware('auth')->group(function () {
             Route::post('/triwulan/save-images', [LaporanTriwulanController::class, 'saveUploadedImages'])->name('triwulan.save-images');
             Route::post('/triwulan/prompt', [PromptTriwulanController::class, 'chat'])->name('triwulan.prompt');
             Route::post('/triwulan/read-file', [PromptTriwulanController::class, 'readFile'])->name('triwulan.read-file');
-            
+
             // Semester
             Route::get('/semester', [LaporanSemesterController::class, 'create'])->name('semester');
             Route::post('/semester', [LaporanSemesterController::class, 'store'])->name('semester.store');
@@ -249,10 +275,10 @@ Route::middleware('auth')->group(function () {
             Route::post('/semester/prompt', [PromptSemesterController::class, 'chat'])->name('semester.prompt');
             Route::post('/semester/read-file', [PromptSemesterController::class, 'readFile'])->name('semester.read-file');
             Route::get('/semester/diagnostic', [PromptSemesterController::class, 'diagnostic'])->name('semester.diagnostic');
-            
+
             // Download
             Route::get('/download/{id}', [LaporanGJMController::class, 'download'])->name('download.pdf');
-            
+
             // OCR Upload & Enhanced AI Integration (NEW)
             Route::post('/ocr/upload', [OCRUploadController::class, 'uploadImages'])->name('ocr.upload');
             Route::post('/ocr/enhanced-preview', [OCRUploadController::class, 'generateEnhancedPreview'])->name('ocr.enhanced-preview');
@@ -260,7 +286,7 @@ Route::middleware('auth')->group(function () {
             Route::delete('/ocr/clear-data', [OCRUploadController::class, 'clearLaporanData'])->name('ocr.clear-data');
             Route::get('/ocr/stats', [OCRUploadController::class, 'getOCRStats'])->name('ocr.stats');
             Route::get('/ocr/usage', [OCRUploadController::class, 'getUsageStats'])->name('ocr.usage');
-            
+
             // Legacy route for backward compatibility
             Route::post('/store', [BuatLaporanController::class, 'store'])->name('store');
             Route::get('/{id}', [BuatLaporanController::class, 'show'])->name('show');
@@ -272,12 +298,12 @@ Route::middleware('auth')->group(function () {
             Route::get('/triwulan', [TemplateLaporanController::class, 'indexTriwulan'])->name('triwulan.index');
             Route::get('/triwulan/upload', [TemplateLaporanController::class, 'uploadTriwulan'])->name('triwulan.upload');
             Route::post('/triwulan', [TemplateLaporanController::class, 'storeTriwulan'])->name('triwulan.store');
-            
+
             // Semester Templates
             Route::get('/semester', [TemplateLaporanController::class, 'indexSemester'])->name('semester.index');
             Route::get('/semester/upload', [TemplateLaporanController::class, 'uploadSemester'])->name('semester.upload');
             Route::post('/semester', [TemplateLaporanController::class, 'storeSemester'])->name('semester.store');
-            
+
             // Common Actions
             Route::get('/{id}/download', [TemplateLaporanController::class, 'download'])->name('download');
             Route::post('/{id}/toggle/{type}', [TemplateLaporanController::class, 'toggle'])->name('toggle');

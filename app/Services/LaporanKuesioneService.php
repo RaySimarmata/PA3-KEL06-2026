@@ -1385,7 +1385,16 @@ If you cannot generate valid JSON, return this fallback:
 {"error": "Cannot generate structured content", "content_type": "markdown", "content": "[your full response here]"}'
         ];
 
-        $aiResponse = $this->callAI($systemMessage, $prompt, 12000);
+        Log::info('Prompt size check', [
+            'prompt_length' => strlen($prompt),
+            'system_message_length' => strlen($systemMessage['content']),
+            'total_length' => strlen($prompt) + strlen($systemMessage['content']),
+            'estimated_tokens' => (strlen($prompt) + strlen($systemMessage['content'])) / 4 // rough estimate
+        ]);
+
+        // Reduce max_tokens to 8000 to avoid exceeding model limits
+        // Groq llama-3.3-70b has 128k context but response is limited
+        $aiResponse = $this->callAI($systemMessage, $prompt, 8000);
 
         if (!$aiResponse) {
             Log::error('AI failed to produce a response');
@@ -1678,5 +1687,147 @@ If you cannot generate valid JSON, return this fallback:
         } else {
             return "Segera review metode pengajaran dan perbarui materi kuliah agar lebih relevan dengan kebutuhan mahasiswa.";
         }
+    }
+
+    /**
+     * Get active template by jenis
+     *
+     * @param string $jenis
+     * @return TemplateLaporan|null
+     */
+    private function getActiveTemplate($jenis)
+    {
+        return TemplateLaporan::where('jenis_template', $jenis)
+            ->where('is_active', true)
+            ->first();
+    }
+
+    /**
+     * Call AI API dengan error handling
+     *
+     * @param array $systemMessage
+     * @param string $userPrompt
+     * @param int $maxTokens
+     * @return string|null
+     */
+    private function callAI($systemMessage, $userPrompt, $maxTokens = 800)
+    {
+        try {
+            Log::info('Calling AI API', [
+                'provider' => env('LLM_PROVIDER', 'unknown'),
+                'model' => $this->model,
+                'base_url' => $this->baseUrl,
+                'max_tokens' => $maxTokens,
+                'prompt_length' => strlen($userPrompt),
+                'has_api_key' => !empty($this->apiKey)
+            ]);
+
+            $response = Http::withHeaders([
+                'Authorization' => 'Bearer ' . $this->apiKey,
+                'Content-Type' => 'application/json',
+            ])->timeout(120)->post($this->baseUrl . '/chat/completions', [
+                'model' => $this->model,
+                'messages' => [
+                    $systemMessage,
+                    [
+                        'role' => 'user',
+                        'content' => $userPrompt
+                    ]
+                ],
+                'temperature' => 0.7,
+                'max_tokens' => $maxTokens,
+            ]);
+
+            if ($response->successful()) {
+                $data = $response->json();
+                $message = $data['choices'][0]['message']['content'] ?? null;
+
+                if ($message) {
+                    Log::info('AI API call successful', [
+                        'response_length' => strlen($message)
+                    ]);
+                    return trim($message);
+                } else {
+                    Log::error('AI API returned empty message', [
+                        'response_data' => $data
+                    ]);
+                }
+            } else {
+                $errorBody = $response->body();
+                $errorData = json_decode($errorBody, true);
+                
+                Log::error('AI API Error', [
+                    'status' => $response->status(),
+                    'body' => $errorBody,
+                    'headers' => $response->headers()
+                ]);
+
+                // Provide specific error messages based on status code
+                if ($response->status() === 401) {
+                    throw new \Exception('API Key tidak valid atau sudah expired. Silakan periksa konfigurasi LLM_API_KEY di file .env');
+                } elseif ($response->status() === 429) {
+                    throw new \Exception('Rate limit exceeded. Terlalu banyak request ke AI API. Silakan coba lagi nanti.');
+                } elseif ($response->status() >= 500) {
+                    throw new \Exception('AI API server error (status ' . $response->status() . '). Silakan coba lagi nanti.');
+                } else {
+                    $errorMsg = $errorData['error']['message'] ?? 'Unknown error';
+                    throw new \Exception('AI API error: ' . $errorMsg);
+                }
+            }
+
+            return null;
+
+        } catch (\Illuminate\Http\Client\ConnectionException $e) {
+            Log::error('AI API Connection Exception', [
+                'message' => $e->getMessage(),
+                'base_url' => $this->baseUrl,
+                'trace' => $e->getTraceAsString()
+            ]);
+            throw new \Exception('Tidak dapat terhubung ke AI API. Pastikan koneksi internet aktif dan API endpoint dapat diakses: ' . $e->getMessage());
+        } catch (\Illuminate\Http\Client\RequestException $e) {
+            Log::error('AI API Request Exception', [
+                'message' => $e->getMessage(),
+                'response' => $e->response ? $e->response->body() : 'No response',
+                'trace' => $e->getTraceAsString()
+            ]);
+            throw new \Exception('AI API request gagal: ' . $e->getMessage());
+        } catch (\Exception $e) {
+            Log::error('AI API General Exception', [
+                'message' => $e->getMessage(),
+                'type' => get_class($e),
+                'trace' => $e->getTraceAsString()
+            ]);
+            throw $e;
+        }
+    }
+
+    /**
+     * Shorten recommendation text to reduce token usage before sending to AI
+     *
+     * @param string $text
+     * @return string
+     */
+    private function shortenRekomendasi($text)
+    {
+        // If text is already short enough, return as is
+        if (strlen($text) <= 100) {
+            return $text;
+        }
+
+        // Remove redundant phrases
+        $text = str_replace([
+            'Disarankan untuk ',
+            'Sebaiknya ',
+            'Perlu untuk ',
+            'Diharapkan ',
+            'Sangat disarankan ',
+        ], '', $text);
+
+        // Truncate if still too long (keep first 150 characters)
+        if (strlen($text) > 150) {
+            $text = substr($text, 0, 147) . '...';
+        }
+
+        return trim($text);
     }
 }

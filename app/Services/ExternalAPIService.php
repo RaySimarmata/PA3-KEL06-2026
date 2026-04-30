@@ -15,7 +15,7 @@ class ExternalAPIService
     public function __construct()
     {
         $this->baseUrl = config('services.library.url');
-        $this->timeout = 120; // seconds - increased for monitoring RPS
+        $this->timeout = 180; // seconds - increased for monitoring RPS (3 minutes)
         $this->token = $this->getToken();
     }
 

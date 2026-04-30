@@ -3,32 +3,33 @@
 namespace App\Http\Controllers\GKM;
 
 use App\Http\Controllers\Controller;
-use App\Models\LaporanBulanan;
+use App\Models\LaporanGKM;
 use App\Models\TemplateLaporan;
 use App\Models\Prodi;
-use App\Services\LaporanKuesioneService;
-use App\Jobs\GenerateLaporanBulananJob;
+use App\Services\LaporanArtefakService;
+use App\Jobs\GenerateLaporanArtefakJob;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
 
-class LaporanKuesioneController extends Controller
+class LaporanArtefakController extends Controller
 {
     protected $laporanService;
 
-    public function __construct(LaporanKuesioneService $laporanService)
+    public function __construct(LaporanArtefakService $laporanService)
     {
         $this->laporanService = $laporanService;
     }
 
     /**
-     * Display list of laporan
+     * Display list of laporan artefak
      */
     public function index(Request $request)
     {
-        $query = LaporanBulanan::with(['user', 'prodi', 'template'])
+        $query = LaporanGKM::with(['user', 'prodi', 'template'])
+            ->where('jenis_laporan', 'artefak')
             ->orderBy('created_at', 'desc');
 
         // Filter by periode
@@ -50,28 +51,29 @@ class LaporanKuesioneController extends Controller
         $laporanList = $query->paginate(10);
 
         // Get available periodes for filter
-        $periodes = LaporanBulanan::select('periode', 'bulan', 'tahun')
+        $periodes = LaporanGKM::select('periode', 'bulan', 'tahun')
+            ->where('jenis_laporan', 'artefak')
             ->distinct()
             ->orderBy('periode', 'desc')
             ->get();
 
-        return view('gkm.laporan-kuesioner.index', compact('laporanList', 'periodes'));
+        return view('gkm.laporan-artefak.index', compact('laporanList', 'periodes'));
     }
 
     /**
-     * Show form to create new laporan
+     * Show form to create new laporan artefak
      */
     public function create()
     {
         $user = Auth::user();
-
+        
         // Get active template directly from model
-        $template = TemplateLaporan::where('jenis_template', 'laporan_bulanan')
+        $template = TemplateLaporan::where('jenis_template', 'laporan_artefak')
             ->where('is_active', true)
             ->first();
-
+        
         // Get available templates
-        $templates = TemplateLaporan::where('jenis_template', 'laporan_bulanan')
+        $templates = TemplateLaporan::where('jenis_template', 'laporan_artefak')
             ->where('is_active', true)
             ->get();
 
@@ -85,11 +87,11 @@ class LaporanKuesioneController extends Controller
             ];
         }
 
-        return view('gkm.laporan-kuesioner.create', compact('template', 'templates', 'periodes'));
+        return view('gkm.laporan-artefak.create', compact('template', 'templates', 'periodes'));
     }
 
     /**
-     * Store new laporan (trigger generation)
+     * Store new laporan artefak (trigger generation)
      */
     public function store(Request $request)
     {
@@ -105,8 +107,9 @@ class LaporanKuesioneController extends Controller
         $mode = $request->input('mode', 'sync'); // Default: sync (langsung)
 
         // Check if laporan already exists
-        $existing = LaporanBulanan::where('periode', $periode)
+        $existing = LaporanGKM::where('periode', $periode)
             ->where('prodi_id', $prodiId)
+            ->where('jenis_laporan', 'artefak')
             ->first();
 
         if ($existing) {
@@ -119,48 +122,50 @@ class LaporanKuesioneController extends Controller
         $tahun = $periodeObj->year;
 
         // Create laporan record
-        $laporan = LaporanBulanan::create([
+        $laporan = LaporanGKM::create([
             'periode' => $periode,
             'bulan' => $bulan,
             'tahun' => $tahun,
             'prodi_id' => $prodiId,
             'user_id' => $user->id,
             'template_id' => $request->template_id,
+            'jenis_laporan' => 'artefak',
             'status' => 'pending',
         ]);
 
         if ($mode === 'sync') {
             // Generate langsung (synchronous) - tidak perlu queue worker
             try {
-                $job = new GenerateLaporanBulananJob($laporan->id);
-                $job->handle(app(LaporanKuesioneService::class));
-
-                return redirect()->route('gkm.laporan-kuesioner.show', $laporan->id)
+                $job = new GenerateLaporanArtefakJob($laporan->id);
+                $job->handle(app(LaporanArtefakService::class));
+                
+                return redirect()->route('gkm.laporan-artefak.show', $laporan->id)
                     ->with('success', 'Laporan berhasil di-generate!');
             } catch (\Exception $e) {
-                \Log::error('Sync laporan generation failed', [
+                \Log::error('Sync laporan artefak generation failed', [
                     'laporan_id' => $laporan->id,
                     'error' => $e->getMessage()
                 ]);
-
-                return redirect()->route('gkm.laporan-kuesioner.show', $laporan->id)
+                
+                return redirect()->route('gkm.laporan-artefak.show', $laporan->id)
                     ->with('error', 'Gagal generate laporan: ' . $e->getMessage());
             }
         } else {
             // Generate dengan queue (asynchronous) - perlu queue worker
-            GenerateLaporanBulananJob::dispatch($laporan->id);
-
-            return redirect()->route('gkm.laporan-kuesioner.show', $laporan->id)
+            GenerateLaporanArtefakJob::dispatch($laporan->id);
+            
+            return redirect()->route('gkm.laporan-artefak.show', $laporan->id)
                 ->with('success', 'Laporan sedang diproses oleh AI Agent. Halaman akan otomatis refresh.');
         }
     }
 
     /**
-     * Show laporan detail
+     * Show laporan artefak detail
      */
     public function show($id)
     {
-        $laporan = LaporanBulanan::with(['user', 'prodi', 'template'])
+        $laporan = LaporanGKM::with(['user', 'prodi', 'template'])
+            ->where('jenis_laporan', 'artefak')
             ->findOrFail($id);
 
         // Check access
@@ -169,16 +174,16 @@ class LaporanKuesioneController extends Controller
             abort(403, 'Unauthorized access');
         }
 
-        return view('gkm.laporan-kuesioner.show', compact('laporan'));
+        return view('gkm.laporan-artefak.show', compact('laporan'));
     }
 
     /**
-     * Download laporan
+     * Download laporan artefak
      */
     public function download($id, $format = 'word')
     {
         try {
-            $laporan = LaporanBulanan::findOrFail($id);
+            $laporan = LaporanGKM::where('jenis_laporan', 'artefak')->findOrFail($id);
 
             // Check access
             $user = Auth::user();
@@ -192,56 +197,56 @@ class LaporanKuesioneController extends Controller
 
             if ($format == 'word' && $laporan->file_word) {
                 $filePath = storage_path('app/' . $laporan->file_word);
-
+                
                 \Log::info('Attempting to download file', [
                     'laporan_id' => $id,
                     'file_path' => $filePath,
                     'file_exists' => file_exists($filePath)
                 ]);
-
+                
                 if (!file_exists($filePath)) {
                     \Log::error('File not found', ['path' => $filePath]);
                     return redirect()->back()->with('error', 'File tidak ditemukan di server.');
                 }
-
-                $fileName = 'Laporan_Kuesioner_' . $laporan->periode . '_' . ($laporan->prodi->kode_prodi ?? 'GKM') . '.docx';
-
+                
+                $fileName = 'Laporan_Artefak_' . $laporan->periode . '_' . ($laporan->prodi->kode_prodi ?? 'GKM') . '.docx';
+                
                 return response()->download($filePath, $fileName, [
                     'Content-Type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
                 ]);
             } elseif ($format == 'pdf' && $laporan->file_pdf) {
                 $filePath = storage_path('app/' . $laporan->file_pdf);
-
+                
                 if (!file_exists($filePath)) {
                     return redirect()->back()->with('error', 'File tidak ditemukan di server.');
                 }
-
-                $fileName = 'Laporan_Kuesioner_' . $laporan->periode . '_' . ($laporan->prodi->kode_prodi ?? 'GKM') . '.pdf';
-
+                
+                $fileName = 'Laporan_Artefak_' . $laporan->periode . '_' . ($laporan->prodi->kode_prodi ?? 'GKM') . '.pdf';
+                
                 return response()->download($filePath, $fileName, [
                     'Content-Type' => 'application/pdf',
                 ]);
             }
 
             return redirect()->back()->with('error', 'File tidak tersedia.');
-
+            
         } catch (\Exception $e) {
             \Log::error('Download error', [
                 'laporan_id' => $id,
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);
-
+            
             return redirect()->back()->with('error', 'Terjadi kesalahan saat download: ' . $e->getMessage());
         }
     }
 
     /**
-     * Delete laporan
+     * Delete laporan artefak
      */
     public function destroy($id)
     {
-        $laporan = LaporanBulanan::findOrFail($id);
+        $laporan = LaporanGKM::where('jenis_laporan', 'artefak')->findOrFail($id);
 
         // Check access
         $user = Auth::user();
@@ -259,7 +264,7 @@ class LaporanKuesioneController extends Controller
 
         $laporan->delete();
 
-        return redirect()->route('gkm.laporan-kuesioner.index')
+        return redirect()->route('gkm.laporan-artefak.index')
             ->with('success', 'Laporan berhasil dihapus.');
     }
 
@@ -269,11 +274,11 @@ class LaporanKuesioneController extends Controller
     public function templateIndex()
     {
         $templates = TemplateLaporan::with(['prodi', 'uploader'])
-            ->jenis('laporan_bulanan')
+            ->jenis('laporan_artefak')
             ->orderBy('created_at', 'desc')
             ->paginate(10);
 
-        return view('gkm.laporan-kuesioner.template.index', compact('templates'));
+        return view('gkm.laporan-artefak.template.index', compact('templates'));
     }
 
     /**
@@ -281,7 +286,7 @@ class LaporanKuesioneController extends Controller
      */
     public function templateUpload()
     {
-        return view('gkm.laporan-kuesioner.template.upload');
+        return view('gkm.laporan-artefak.template.upload');
     }
 
     /**
@@ -304,7 +309,7 @@ class LaporanKuesioneController extends Controller
             $tempPath = $file->getRealPath();
             $zip = new \ZipArchive();
             $checkResult = $zip->open($tempPath, \ZipArchive::CHECKCONS);
-
+            
             if ($checkResult !== true) {
                 return redirect()->back()
                     ->withErrors(['file_template' => 'File Word yang diupload tidak valid atau corrupt. Silakan coba file lain.'])
@@ -327,7 +332,7 @@ class LaporanKuesioneController extends Controller
             'ukuran_file' => $file->getSize(),
             'deskripsi' => $request->deskripsi,
             'uploaded_by' => $user->id,
-            'jenis_template' => 'laporan_bulanan',
+            'jenis_template' => 'laporan_artefak',
             'contoh_konten' => $request->contoh_konten,
             'is_active' => true,
         ]);
@@ -344,7 +349,7 @@ class LaporanKuesioneController extends Controller
             $message = 'Template berhasil diupload, tapi gagal diproses ke vector DB: ' . $e->getMessage();
         }
 
-        return redirect()->route('gkm.laporan-kuesioner.template.index')
+        return redirect()->route('gkm.laporan-artefak.template.index')
             ->with('success', $message);
     }
 
@@ -355,12 +360,12 @@ class LaporanKuesioneController extends Controller
     {
         try {
             $result = $this->laporanService->processTemplateToVectorDB($id);
-
-            return redirect()->back()->with('success',
+            
+            return redirect()->back()->with('success', 
                 "Template berhasil di-reindex. Total chunks: {$result['chunks_indexed']}"
             );
         } catch (\Exception $e) {
-            return redirect()->back()->with('error',
+            return redirect()->back()->with('error', 
                 'Gagal reindex template: ' . $e->getMessage()
             );
         }
@@ -386,7 +391,10 @@ class LaporanKuesioneController extends Controller
         $template = TemplateLaporan::findOrFail($id);
 
         // Check if template is being used
-        $usageCount = LaporanBulanan::where('template_id', $id)->count();
+        $usageCount = LaporanGKM::where('template_id', $id)
+            ->where('jenis_laporan', 'artefak')
+            ->count();
+            
         if ($usageCount > 0) {
             return redirect()->back()->with('error', "Template tidak dapat dihapus karena sedang digunakan oleh {$usageCount} laporan.");
         }
@@ -398,7 +406,7 @@ class LaporanKuesioneController extends Controller
 
         $template->delete();
 
-        return redirect()->route('gkm.laporan-kuesioner.template.index')
+        return redirect()->route('gkm.laporan-artefak.template.index')
             ->with('success', 'Template berhasil dihapus.');
     }
 
@@ -409,13 +417,13 @@ class LaporanKuesioneController extends Controller
     {
         try {
             $template = TemplateLaporan::findOrFail($id);
-
+            
             \Log::info('Template download attempt', [
                 'template_id' => $id,
                 'file_path' => $template->file_path,
                 'nama_file' => $template->nama_file
             ]);
-
+            
             // Try multiple possible file paths
             $possiblePaths = [
                 storage_path('app/public/' . $template->file_path),
@@ -423,7 +431,7 @@ class LaporanKuesioneController extends Controller
                 storage_path('app/public/templates/' . $template->nama_file),
                 storage_path('app/templates/' . $template->nama_file),
             ];
-
+            
             $filePath = null;
             foreach ($possiblePaths as $path) {
                 if (file_exists($path)) {
@@ -431,7 +439,7 @@ class LaporanKuesioneController extends Controller
                     break;
                 }
             }
-
+            
             if (!$filePath) {
                 \Log::error('Template file not found', [
                     'template_id' => $id,
@@ -439,25 +447,25 @@ class LaporanKuesioneController extends Controller
                 ]);
                 return redirect()->back()->with('error', 'File template tidak ditemukan.');
             }
-
+            
             \Log::info('Template download successful', [
                 'template_id' => $id,
                 'file_path' => $filePath
             ]);
-
+            
             $fileName = $template->nama_file;
-
+            
             return response()->download($filePath, $fileName, [
                 'Content-Type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
             ]);
-
+            
         } catch (\Exception $e) {
             \Log::error('Template download error', [
                 'template_id' => $id,
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);
-
+            
             return redirect()->back()->with('error', 'Terjadi kesalahan saat download: ' . $e->getMessage());
         }
     }

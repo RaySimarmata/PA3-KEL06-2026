@@ -517,21 +517,21 @@
                         </div>
 
                         <!-- Pelaporan -->
-                        <div class="nav-dropdown {{ request()->routeIs('gkm.pelaporan.*') || request()->routeIs('gkm.laporan-kuesioner.*') ? 'open' : '' }}">
+                        <div class="nav-dropdown {{ request()->routeIs('gkm.pelaporan.*') || request()->routeIs('gkm.laporan-kuesioner.*') || request()->routeIs('gkm.laporan-artefak.*') ? 'open' : '' }}">
                             <a href="javascript:void(0)"
-                                class="nav-item {{ request()->routeIs('gkm.pelaporan.*') || request()->routeIs('gkm.laporan-kuesioner.*') ? 'active' : '' }}"
+                                class="nav-item {{ request()->routeIs('gkm.pelaporan.*') || request()->routeIs('gkm.laporan-kuesioner.*') || request()->routeIs('gkm.laporan-artefak.*') ? 'active' : '' }}"
                                 onclick="toggleDropdown(this)">
                                 <span><i class="bi bi-file-earmark-text"></i> Pelaporan</span>
                                 <i class="bi bi-chevron-down dropdown-icon"></i>
                             </a>
                             <div class="dropdown-submenu">
-                                <a href="{{ route('gkm.pelaporan.artefak') }}"
-                                    class="nav-item {{ request()->routeIs('gkm.pelaporan.artefak') ? 'active' : '' }}">
-                                    <i class="bi bi-file-earmark-check"></i> Laporan Artefak Perkuliahan
+                                <a href="{{ route('gkm.laporan-artefak.index') }}"
+                                    class="nav-item {{ request()->routeIs('gkm.laporan-artefak.*') ? 'active' : '' }}">
+                                    <i class="bi bi-file-earmark-check"></i> Laporan Artefak RPS & Materi
                                 </a>
                                 <a href="{{ route('gkm.laporan-kuesioner.index') }}"
                                     class="nav-item {{ request()->routeIs('gkm.laporan-kuesioner.*') ? 'active' : '' }}">
-                                    <i class="bi bi-robot"></i> Laporan Kuesioner
+                                    <i class="bi bi-robot"></i> Laporan Kuesioner Bulanan
                                 </a>
                             </div>
                         </div>
