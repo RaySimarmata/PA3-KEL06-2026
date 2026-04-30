@@ -20,12 +20,14 @@ class KuesioneUpload extends Model
         'dosen_pengampu',
         'tingkat',
         'pegawai_id',
+        'kuliah_id',
         'user_id',
         'deskripsi',
         'total_responden',
         'hasil_analisis',
         'status',
-        'source'
+        'source',
+        'sumber_data'
     ];
 
     protected $casts = [

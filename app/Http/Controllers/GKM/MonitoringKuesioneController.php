@@ -18,7 +18,7 @@ class MonitoringKuesioneController extends Controller
 {
     protected $aiAgent;
     protected $apiService;
-    
+
 
     public function __construct(
     AIAgentService $aiAgent,
@@ -55,7 +55,7 @@ class MonitoringKuesioneController extends Controller
     return view('gkm.monitoring-kuesioner.index', compact('kuesioners', 'laporanBulanan', 'laporanTahunan'));
 }
 
-    public function create()
+    public function create(Request $request)
     {
         // Generate periode dropdown (1 tahun sebelum sampai 1 tahun sesudah)
         $currentYear = date('Y');
@@ -70,7 +70,7 @@ class MonitoringKuesioneController extends Controller
         ->orderBy('nama')
         ->get();
 
-        return view('gkm.monitoring-kuesioner.create', compact('periodes', 'dosenList'));
+        return view('gkm.monitoring-kuesioner.create', compact('periodes'));
     }
 
     public function store(Request $request)
@@ -81,7 +81,7 @@ class MonitoringKuesioneController extends Controller
             'periode' => 'required|string|max:255',
             'nama_matakuliah' => 'nullable|string|max:255',
             'kode_matakuliah' => 'nullable|string|max:100',
-            'dosen_pengampu' => 'nullable|exists:dosenn,pegawai_id',
+            'dosen_pengampu' => 'nullable|string|max:255',
             'tingkat' => 'nullable|integer|in:1,2,3,4',
             'deskripsi' => 'nullable|string'
         ]);
@@ -94,6 +94,20 @@ if ($request->dosen_pengampu) {
 }
 
         try {
+            // Parse selected matkul data
+            $matkulData = explode('|', $request->selected_matkul);
+            $kuliahId = $matkulData[0] ?? null;
+            $kodeMk = $matkulData[1] ?? null;
+            $namaMatkul = $matkulData[2] ?? null;
+            $dosenPengampu = $matkulData[3] ?? null;
+            $pegawaiId = $matkulData[4] ?? null;
+            $tingkat = $matkulData[5] ?? null;
+
+            // Validate tingkat
+            if (!in_array($tingkat, [1, 2, 3, 4])) {
+                return back()->withErrors(['error' => 'Data matakuliah tidak valid']);
+            }
+
             // Upload file
             $file = $request->file('file_excel');
             $fileName = time() . '_' . $file->getClientOriginalName();
@@ -142,8 +156,7 @@ if ($request->dosen_pengampu) {
                 'periode' => $request->periode,
                 'nama_matakuliah' => $request->nama_matakuliah,
                 'kode_matakuliah' => $request->kode_matakuliah,
-                'pegawai_id' => $request->dosen_pengampu, // 🔥 simpan ID
-'dosen_pengampu' => $dosen ? $dosen->nama : null, // 🔥 simpan NAMA
+                'dosen_pengampu' => $request->dosen_pengampu,
                 'tingkat' => $request->tingkat,
                 'user_id' => auth()->id(),
                 'deskripsi' => $request->deskripsi,
@@ -516,7 +529,7 @@ private function processKuesionerFromApi($kuesioneId)
             $kuesioner,
             $indexedData
         );
-        
+
         // =========================
 // EXTRACTION (BARU 🔥)
 // =========================
@@ -567,6 +580,86 @@ $parsed = $this->extractKuesionerInfo(
         }
     }
 }
+
+    /**
+     * API Endpoint untuk pencarian matakuliah secara real-time
+     */
+    public function searchMatkul(Request $request)
+    {
+        $search = strtolower($request->input('search', ''));
+        $periode = $request->input('periode', '');
+
+        // Get user prodi
+        $user = auth()->user();
+        $prodiKode = $user->prodi ? $user->prodi->kode_prodi : 'TRPL';
+
+        $prodiIdMap = [
+            'TRPL' => 4,
+            'TI'   => 1,
+            'NM'   => 3,
+        ];
+
+        $prodiId = $prodiIdMap[$prodiKode] ?? 4;
+
+        // Get data from perkuliahan_monitoring_snapshots
+        $snapshots = \App\Models\PerkuliahanMonitoringSnapshot::where('prodi_id', $prodiId);
+
+        // Group by kuliah_id dan ambil unique records
+        $snapshots = $snapshots->get();
+        $grouped = $snapshots->groupBy('kuliah_id');
+
+        $results = [];
+
+        foreach ($grouped as $kuliahId => $items) {
+            $first = $items->first();
+
+            // Get unique pegawai_ids
+            $pegawaiIds = $items->pluck('pegawai_id')->filter()->unique()->toArray();
+
+            // Get dosen names from dosenn table
+            $dosenNames = [];
+            if (!empty($pegawaiIds)) {
+                $dosens = \App\Models\Dosenn::whereIn('pegawai_id', $pegawaiIds)
+                    ->get(['pegawai_id', 'nama']);
+
+                foreach ($dosens as $dosen) {
+                    $dosenNames[] = $dosen->nama;
+                }
+            }
+
+            $dosenNamesStr = !empty($dosenNames) ? implode(', ', $dosenNames) : '-';
+
+            // Filter berdasarkan search term
+            $kodeMk = $first->kode_mk ?? '';
+            $namaMatkul = $first->nama_matkul ?? '';
+
+            if ($search &&
+                strpos(strtolower($kodeMk), $search) === false &&
+                strpos(strtolower($namaMatkul), $search) === false &&
+                strpos(strtolower($dosenNamesStr), $search) === false) {
+                continue;
+            }
+
+            $tingkat = $first->tingkat ?? '';
+            $results[] = [
+                'kuliah_id' => $kuliahId,
+                'kode_mk' => $kodeMk,
+                'nama_matkul' => $namaMatkul,
+                'dosen_pengampu' => $dosenNamesStr,
+                'pegawai_ids' => $pegawaiIds,
+                'tingkat' => $tingkat,
+                'value' => $kuliahId . '|' . $kodeMk . '|' . $namaMatkul . '|' . $dosenNamesStr . '|' . implode(',', $pegawaiIds) . '|' . $tingkat,
+            ];
+        }
+
+        // Limit results to 20
+        $results = array_slice($results, 0, 20);
+
+        return response()->json([
+            'success' => true,
+            'data' => $results
+        ]);
+    }
 
     private function processKuesioneAnalysis($kuesioneId)
     {

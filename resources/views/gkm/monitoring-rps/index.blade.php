@@ -88,6 +88,25 @@
         </div>
         @endif
         
+        @if(session('info'))
+        <div class="alert alert-info mt-3 mb-0">
+            <i class="bi bi-info-circle"></i> {{ session('info') }}
+        </div>
+        @endif
+        
+        @if(isset($cacheBuilding) && $cacheBuilding)
+        <div class="alert alert-warning mt-3 mb-0">
+            <i class="bi bi-hourglass-split"></i> 
+            <strong>Data sedang dimuat dari API eksternal...</strong>
+            <br>
+            <small>Proses ini membutuhkan waktu. Silakan refresh halaman dalam 1-2 menit.</small>
+            <br>
+            <button class="btn btn-sm btn-outline-primary mt-2" onclick="location.reload()">
+                <i class="bi bi-arrow-clockwise"></i> Refresh Halaman
+            </button>
+        </div>
+        @endif
+        
         @if(session('error'))
         <div class="alert alert-danger mt-3 mb-0">
             <i class="bi bi-exclamation-triangle"></i> {{ session('error') }}

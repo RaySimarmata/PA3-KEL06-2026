@@ -4,6 +4,10 @@
     </IfModule>
 
     RewriteEngine On
+    
+    # Increase PHP execution time for API-heavy operations
+    php_value max_execution_time 180
+    php_value max_input_time 180
 
     # Handle Authorization Header
     RewriteCond %{HTTP:Authorization} .

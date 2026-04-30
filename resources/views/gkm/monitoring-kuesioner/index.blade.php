@@ -69,39 +69,40 @@
     {{-- TABLE --}}
     <div class="monitoring-card">
         <div class="monitoring-header">
-            <h6><i class="bi bi-clipboard-data"></i> Monitoring Kuesioner</h6>
+            <i class="bi bi-clipboard-data"></i>
+            <h6>Monitoring Kuesioner</h6>
 
             <div style="margin-left:auto; display:flex; gap:10px;">
                 <a href="{{ route('gkm.monitoring-kuesioner.create') }}" class="btn btn-primary">
-                    <i class="bi bi-upload"></i> Excel
+                    <i class="bi bi-upload" style="color: white;"></i> Excel
                 </a>
 
                 <a href="{{ route('gkm.monitoring-kuesioner.create-api') }}" class="btn btn-success">
-                    <i class="bi bi-cloud-download"></i> API
+                    <i class="bi bi-cloud-download" style="color: white;"></i> API
                 </a>
             </div>
         </div>
 
         <div class="table-responsive">
-            <table class="table table-bordered align-middle">
+            <table class="table table-monitoring">
 
-                <thead class="table-light">
+                <thead>
                     <tr>
-                        <th>No</th>
-                        <th>Nama</th>
-                        <th>Periode</th>
-                        <th>MK</th>
-                        <th>Kode</th>
-                        <th>Tingkat</th>
-                        <th>Dosen</th>
-                        <th>Prodi</th>
-                        <th class="text-center">Sumber</th>
-                        <th class="text-center">Responden</th>
-                        <th class="text-center">Index</th>
-                        <th class="text-center">%</th>
-                        <th class="text-center">Status</th>
-                        <th>Tanggal</th>
-                        <th class="text-center">Aksi</th>
+                        <th style="width: 3%;">No</th>
+                        <th style="width: 15%;">Nama File</th>
+                        <th style="width: 8%;">Periode</th>
+                        <th style="width: 15%;">Matakuliah</th>
+                        <th style="width: 8%;">Kode</th>
+                        <th style="width: 5%;" class="text-center">Tingkat</th>
+                        <th style="width: 15%;">Dosen</th>
+                        <th style="width: 8%;">Prodi</th>
+                        <th style="width: 6%;" class="text-center">Sumber</th>
+                        <th style="width: 5%;" class="text-center">Resp.</th>
+                        <th style="width: 5%;" class="text-center">Index</th>
+                        <th style="width: 5%;" class="text-center">%</th>
+                        <th style="width: 8%;" class="text-center">Status</th>
+                        <th style="width: 10%;">Tanggal</th>
+                        <th style="width: 8%;" class="text-center">Aksi</th>
                     </tr>
                 </thead>
 
@@ -126,11 +127,11 @@
                     <td>{{ $k->nama_file }}</td>
                     <td>{{ $k->periode }}</td>
                     <td>{{ $k->nama_matakuliah ?? '-' }}</td>
-                    <td>{{ $k->kode_matakuliah ?? '-' }}</td>
+                    <td class="code-mk">{{ $k->kode_matakuliah ?? '-' }}</td>
                     <td class="text-center">{{ $k->tingkat ?? '-' }}</td>
-                    <td>
-    {{ \App\Models\Dosenn::where('pegawai_id', $k->pegawai_id)->first()->nama ?? '-' }}
-</td>
+                    <td class="dosen-name">
+                        {{ \App\Models\Dosenn::where('pegawai_id', $k->pegawai_id)->first()->nama ?? '-' }}
+                    </td>
                     <td>{{ $k->user->prodi->nama_prodi ?? '-' }}</td>
 
                     {{-- SUMBER --}}
@@ -194,23 +195,25 @@
                         <div class="btn-group">
 
                             <a href="{{ route('gkm.monitoring-kuesioner.show', $k->id) }}"
-                               class="btn btn-sm btn-outline-primary">
+                               class="btn btn-sm btn-outline-primary"
+                               title="Lihat Detail">
                                 <i class="bi bi-eye"></i>
                             </a>
 
                             @if($k->status === 'completed')
                                 <a href="{{ route('gkm.monitoring-kuesioner.report', $k->id) }}"
-                                   class="btn btn-sm btn-outline-success">
+                                   class="btn btn-sm btn-outline-success"
+                                   title="Lihat Laporan">
                                     <i class="bi bi-file-earmark-text"></i>
                                 </a>
                             @endif
 
                             <form action="{{ route('gkm.monitoring-kuesioner.destroy', $k->id) }}"
                                   method="POST"
-                                  onsubmit="return confirm('Yakin hapus?')">
+                                  onsubmit="return confirm('Yakin hapus data kuesioner ini?')">
                                 @csrf
                                 @method('DELETE')
-                                <button class="btn btn-sm btn-outline-danger">
+                                <button class="btn btn-sm btn-outline-danger" title="Hapus">
                                     <i class="bi bi-trash"></i>
                                 </button>
                             </form>
@@ -222,9 +225,12 @@
 
                 @empty
                 <tr>
-                    <td colspan="15" class="text-center py-4">
-                        <i class="bi bi-inbox"></i>
-                        <p>Belum ada data kuesioner</p>
+                    <td colspan="15" class="text-center py-5">
+                        <div class="text-muted">
+                            <i class="bi bi-inbox" style="font-size: 3rem;"></i>
+                            <p class="mt-3 mb-0">Belum ada data kuesioner</p>
+                            <small>Silakan upload file Excel atau ambil data dari API</small>
+                        </div>
                     </td>
                 </tr>
                 @endforelse

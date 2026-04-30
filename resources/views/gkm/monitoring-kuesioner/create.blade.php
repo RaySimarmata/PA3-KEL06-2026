@@ -36,10 +36,15 @@
                     </div>
                 @endif
 
-                <form action="{{ route('gkm.monitoring-kuesioner.store') }}" method="POST" enctype="multipart/form-data">
+                <form action="{{ route('gkm.monitoring-kuesioner.store') }}" method="POST" enctype="multipart/form-data"
+                    id="uploadForm">
                     @csrf
 
-                    <!-- Section 1: Informasi Kuesioner -->
+                    <!-- Hidden fields -->
+                    <!-- No longer needed with direct search -->
+                    <!-- <input type="hidden" name="tingkat" id="tingkat_hidden" value="{{ $selectedTingkat }}"> -->
+
+                    <!-- Section 1: Informasi Kuesioner (PERTAMA) -->
                     <div class="monitoring-card mb-4">
                         <div class="monitoring-header">
                             <i class="bi bi-file-text" style="color: #5B9BD5;"></i>
@@ -77,64 +82,80 @@
                         </div>
                     </div>
 
-                    <!-- Section 2: Informasi Matakuliah -->
+                    <!-- Section 2: Cari Matakuliah (KEDUA) -->
                     <div class="monitoring-card mb-4">
                         <div class="monitoring-header">
-                            <i class="bi bi-book" style="color: #5B9BD5;"></i>
-                            <h6>Informasi Matakuliah <span
-                                    style="font-weight: 400; font-size: 0.85rem; color: #6c757d;"></span></h6>
+                            <i class="bi bi-search" style="color: #5B9BD5;"></i>
+                            <h6>Cari Matakuliah</h6>
                         </div>
                         <div style="padding: 1.5rem;">
                             <div class="row g-3">
-                                <div class="col-md-4">
-                                    <label for="nama_matakuliah" class="filter-label">
-                                        Nama Matakuliah
-                                    </label>
-                                    <input type="text" class="form-control" id="nama_matakuliah" name="nama_matakuliah"
-                                        value="{{ old('nama_matakuliah') }}" placeholder="Contoh: Pemrograman Web">
-                                </div>
-
-                                <div class="col-md-4">
-                                    <label for="kode_matakuliah" class="filter-label">
-                                        Kode Matakuliah
-                                    </label>
-                                    <input type="text" class="form-control" id="kode_matakuliah" name="kode_matakuliah"
-                                        value="{{ old('kode_matakuliah') }}" placeholder="Contoh: TIF101">
-                                </div>
-
-                                <div class="col-md-4">
-                                    <label for="tingkat" class="filter-label">
-                                        Tingkat
-                                    </label>
-                                    <select class="form-select" id="tingkat" name="tingkat">
-                                        <option value="">Pilih Tingkat</option>
-                                        <option value="1" {{ old('tingkat') == '1' ? 'selected' : '' }}>1</option>
-                                        <option value="2" {{ old('tingkat') == '2' ? 'selected' : '' }}>2</option>
-                                        <option value="3" {{ old('tingkat') == '3' ? 'selected' : '' }}>3</option>
-                                        <option value="4" {{ old('tingkat') == '4' ? 'selected' : '' }}>4</option>
-                                    </select>
-                                </div>
-
                                 <div class="col-md-12">
-    <label for="dosen_pengampu" class="filter-label">
-        Dosen Pengampu
-    </label>
-    <select class="form-select select2" id="dosen_pengampu" name="dosen_pengampu">
-        <option value="">Pilih Dosen</option>
-        @foreach ($dosenList as $dosen)
-            <option value="{{ $dosen->pegawai_id }}"
-                {{ old('dosen_pengampu') == $dosen->pegawai_id ? 'selected' : '' }}>
-                {{ $dosen->nama }}
-            </option>
-        @endforeach
-    </select>
-</div>
+                                    <label class="filter-label">Cari Matakuliah <span class="text-danger">*</span></label>
+                                    <div class="position-relative">
+                                        <div class="input-group">
+                                            <span class="input-group-text bg-white">
+                                                <i class="bi bi-search"></i>
+                                            </span>
+                                            <input type="text" class="form-control" id="search_matkul"
+                                                name="search_matkul" placeholder="Cari Kode MK, Nama, atau Dosen..."
+                                                autocomplete="off">
+                                        </div>
+
+                                        <!-- Loading indicator -->
+                                        <div id="search_loading"
+                                            style="position: absolute; right: 1rem; top: 50%; transform: translateY(-50%); display: none;">
+                                            <div class="spinner-border spinner-border-sm" role="status"
+                                                style="color: #5B9BD5;">
+                                                <span class="visually-hidden">Loading...</span>
+                                            </div>
+                                        </div>
+
+                                        <!-- Search results dropdown -->
+                                        <div id="search_results" class="search-results-dropdown"
+                                            style="position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1px solid #e0e0e0; max-height: 400px; overflow-y: auto; display: none; z-index: 1000; border-radius: 0.375rem; margin-top: 2px;">
+                                        </div>
+                                    </div>
+                                    <small class="text-muted" style="font-size: 0.8rem;">
+                                        <i class="bi bi-info-circle"></i> Mulai ketik untuk mencari matakuliah
+                                    </small>
+                                </div>
                             </div>
                         </div>
                     </div>
 
-                    <!-- Section 3: Upload File -->
-                    <div class="monitoring-card mb-4">
+                    <!-- Section 3: Matakuliah Terpilih (KETIGA) -->
+                    <div class="monitoring-card mb-4" id="selected_matkul_card" style="display: none;">
+                        <div class="monitoring-header">
+                            <i class="bi bi-check-circle" style="color: #5B9BD5;"></i>
+                            <h6>Matakuliah Terpilih</h6>
+                        </div>
+                        <div style="padding: 1.5rem;">
+                            <div class="table-responsive">
+                                <table class="table table-sm" style="margin-bottom: 0;">
+                                    <tbody id="selected_matkul_display">
+                                    </tbody>
+                                </table>
+                            </div>
+                            <button type="button" id="btn_ubah_matkul" class="btn btn-sm btn-outline-secondary mt-3">
+                                <i class="bi bi-pencil"></i> Ubah Pilihan
+                            </button>
+                        </div>
+                    </div>
+
+                    <input type="hidden" name="selected_matkul" id="selected_matkul" value="">
+
+                    @if ($errors->any())
+                        <div class="alert alert-danger">
+                            <ul>
+                                @foreach ($errors->all() as $error)
+                                    <li>{{ $error }}</li>
+                                @endforeach
+                            </ul>
+                        </div>
+                    @endif
+                    <!-- Section 4: Upload File -->
+                    <div class="monitoring-card mb-4" id="upload_file_card" style="display: none;">
                         <div class="monitoring-header">
                             <i class="bi bi-paperclip" style="color: #5B9BD5;"></i>
                             <h6>Upload File</h6>
@@ -156,17 +177,22 @@
                     </div>
 
                     <!-- Informasi AI Agent -->
-                    <div class="monitoring-card mb-4" style="border-left: 4px solid #5B9BD5;">
+                    <div class="monitoring-card mb-4" id="ai_info_card"
+                        style="display: none; border-left: 4px solid #5B9BD5;">
                         <div style="padding: 1.5rem;">
                             <div class="d-flex align-items-start">
                                 <i class="bi bi-info-circle"
                                     style="color: #5B9BD5; font-size: 2rem; margin-right: 1rem;"></i>
                                 <div>
-                                    <h6 class="mb-2" style="font-weight: 600; color: #333;">Informasi AI Agent</h6>
+                                    <h6 class="mb-2" style="font-weight: 600; color: #333;">Informasi AI Agent
+                                    </h6>
                                     <p class="mb-0" style="font-size: 0.875rem; color: #495057; line-height: 1.6;">
-                                        Setelah file diupload, sistem akan menggunakan <strong>AI Agent</strong> untuk
-                                        menganalisis hasil kuesioner secara otomatis. AI akan memberikan insight tentang
-                                        tingkat kepuasan mahasiswa, area yang perlu diperbaiki, dan rekomendasi tindakan.
+                                        Setelah file diupload, sistem akan menggunakan <strong>AI Agent</strong>
+                                        untuk
+                                        menganalisis hasil kuesioner secara otomatis. AI akan memberikan insight
+                                        tentang
+                                        tingkat kepuasan mahasiswa, area yang perlu diperbaiki, dan rekomendasi
+                                        tindakan.
                                     </p>
                                 </div>
                             </div>
@@ -174,7 +200,7 @@
                     </div>
 
                     <!-- Action Buttons -->
-                    <div class="d-flex justify-content-between gap-2">
+                    <div class="d-flex justify-content-between gap-2" id="action_buttons" style="display: none;">
                         <a href="{{ route('gkm.monitoring-kuesioner.index') }}" class="btn btn-outline-secondary">
                             <i class="bi bi-arrow-left"></i> Kembali
                         </a>
@@ -187,18 +213,4 @@
             </div>
         </div>
     </div>
-
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
-<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
-
-<script>
-    $(document).ready(function() {
-        $('#dosen_pengampu').select2({
-            placeholder: "Ketik nama dosen...",
-            allowClear: true,
-            width: '100%'
-        });
-    });
-</script>
 @endsection

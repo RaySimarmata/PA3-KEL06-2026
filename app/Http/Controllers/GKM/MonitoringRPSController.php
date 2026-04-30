@@ -23,6 +23,9 @@ class MonitoringRPSController extends Controller
 {
     public function index(Request $request)
 {
+    // Increase PHP execution time for this specific request
+    set_time_limit(180); // 3 minutes
+    
     try {
         $user = Auth::user();
 
@@ -102,38 +105,77 @@ class MonitoringRPSController extends Controller
 
         $matkulList = \Cache::get($cacheKey);
 
-$forceRefreshDB = $request->input('refresh_db', false);
+        $forceRefreshDB = $request->input('refresh_db', false);
 
-// 🔥 TAMBAH INI
-if ($matkulList === null || $forceRefreshDB) {
+        // 🔥 Check if cache is being built by another process
+        $buildingCacheKey = "{$cacheKey}_building";
+        $isCacheBuilding = \Cache::get($buildingCacheKey, false);
 
-    $matkulList = $this->buildMonitoringData(
-        $apiService,
-        $prodiId,
-        $selectedSemester,
-        $selectedTahunAjaran,
-        $prodiKode,
-        $selectedTingkat
-    );
+        // If cache is being built, show loading message
+        if ($isCacheBuilding && $matkulList === null) {
+            return view('gkm.monitoring-rps.index', [
+                'user' => $user,
+                'pagination' => new \Illuminate\Pagination\LengthAwarePaginator(
+                    [],
+                    0,
+                    15,
+                    1,
+                    ['path' => $request->url(), 'query' => $request->query()]
+                ),
+                'tahunAjaranList' => $tahunAjaranList,
+                'selectedSemester' => $selectedSemester,
+                'selectedTahunAjaran' => $selectedTahunAjaran,
+                'selectedTingkat' => $selectedTingkat,
+                'cacheBuilding' => true
+            ])->with('info', 'Data sedang dimuat dari API. Silakan refresh halaman dalam beberapa saat.');
+        }
 
-    if (!empty($matkulList)) {
+        // 🔥 TAMBAH INI
+        if ($matkulList === null || $forceRefreshDB) {
 
-        // 🔥 DEBUG WAJIB
-        \Log::info('MASUK SAVE SNAPSHOT', [
-            'count' => count($matkulList)
-        ]);
+            // Mark that cache is being built
+            \Cache::put($buildingCacheKey, true, 300); // 5 minutes lock
 
-        $this->saveSnapshotToDB(
-            $matkulList,
-            $prodiId,
-            $prodiKode,
-            $selectedSemester,
-            $selectedTahunAjaran
-        );
+            try {
+                $matkulList = $this->buildMonitoringData(
+                    $apiService,
+                    $prodiId,
+                    $selectedSemester,
+                    $selectedTahunAjaran,
+                    $prodiKode,
+                    $selectedTingkat
+                );
 
-        \Cache::put($cacheKey, $matkulList, 1800);
-    }
-}
+                if (!empty($matkulList)) {
+
+                    // 🔥 DEBUG WAJIB
+                    \Log::info('MASUK SAVE SNAPSHOT', [
+                        'count' => count($matkulList)
+                    ]);
+
+                    $this->saveSnapshotToDB(
+                        $matkulList,
+                        $prodiId,
+                        $prodiKode,
+                        $selectedSemester,
+                        $selectedTahunAjaran
+                    );
+
+                    \Cache::put($cacheKey, $matkulList, 1800);
+                }
+            } catch (\Exception $e) {
+                \Log::error('Error building monitoring data', [
+                    'error' => $e->getMessage(),
+                    'trace' => $e->getTraceAsString()
+                ]);
+                
+                // Return partial data or empty if complete failure
+                $matkulList = [];
+            } finally {
+                // Always remove the building lock
+                \Cache::forget($buildingCacheKey);
+            }
+        }
 
         // Validasi cache
         if ($matkulList !== null && (!is_array($matkulList) || empty($matkulList))) {
@@ -311,7 +353,7 @@ public function exportPdf(Request $request)
     // 🔥 ambil data yang sama seperti halaman
     $data = $this->getMonitoringRpsData($semester, $tahun, $tingkat);
 
-    $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('pdf.monitoring-rps', [
+    $pdf = Pdf::loadView('pdf.monitoring-rps', [
         'data' => $data,
         'semester' => $semester,
         'tahun' => $tahun,
@@ -384,11 +426,17 @@ public function exportPdf(Request $request)
                 if (!$pegawaiId || !$nama) continue;
 
                 try {
+                    // Cache individual jadwal for 30 minutes (1800 seconds)
                     $jadwalList = \Cache::remember(
                         "jadwal_{$pegawaiId}_{$selectedSemester}_{$selectedTahunAjaran}",
                         1800,
                         function () use ($apiService, $pegawaiId, $selectedSemester, $selectedTahunAjaran) {
-                            return $apiService->getJadwalByDosen($pegawaiId, $selectedSemester, $selectedTahunAjaran);
+                            try {
+                                return $apiService->getJadwalByDosen($pegawaiId, $selectedSemester, $selectedTahunAjaran);
+                            } catch (\Exception $e) {
+                                \Log::warning("API timeout for dosen: {$pegawaiId}", ['error' => $e->getMessage()]);
+                                return []; // Return empty array on timeout
+                            }
                         }
                     );
 
@@ -413,7 +461,9 @@ public function exportPdf(Request $request)
                     $processed++;
 
                 } catch (\Exception $e) {
-                    \Log::warning("Jadwal dosen gagal: {$pegawaiId}");
+                    \Log::warning("Jadwal dosen gagal: {$pegawaiId}", ['error' => $e->getMessage()]);
+                    // Continue processing other dosen even if one fails
+                    continue;
                 }
             }
 

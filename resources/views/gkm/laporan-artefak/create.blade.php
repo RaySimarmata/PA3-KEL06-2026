@@ -1,0 +1,129 @@
+@extends('layouts.app')
+
+@section('page-title', 'Generate Laporan Baru')
+
+@section('content')
+    <div style="padding: 1.5rem;">
+        <!-- Header Card -->
+        <div class="filter-card mb-4">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h5 class="mb-1 d-flex align-items-center gap-2" style="font-weight: 600; color: #333;">
+                        <i class="bi bi-file-earmark-plus" style="color: #5B9BD5;"></i>
+                        Generate Laporan Artefak Baru
+                    </h5>
+                    <p class="text-muted mb-0" style="font-size: 0.875rem;">AI Agent akan menganalisis data RPS dan Materi dalam periode yang dipilih</p>
+                </div>
+                <a href="{{ route('gkm.laporan-artefak.index') }}" class="btn btn-outline-secondary">
+                    <i class="bi bi-arrow-left"></i> Kembali
+                </a>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-lg-8 mx-auto">
+                <!-- Info Card -->
+                <div class="monitoring-card mb-4" style="border-left: 4px solid #5B9BD5;">
+                    <div style="padding: 1.5rem;">
+                        <div class="d-flex align-items-start">
+                            <i class="bi bi-info-circle" style="color: #5B9BD5; font-size: 2rem; margin-right: 1rem;"></i>
+                            <div>
+                                <h6 class="mb-2" style="font-weight: 600; color: #333;">Cara Kerja AI Agent</h6>
+                                <ol class="mb-0" style="font-size: 0.875rem; color: #495057; line-height: 1.8;">
+                                    <li>Sistem mengumpulkan data RPS dan Materi dari monitoring snapshot dalam periode yang dipilih</li>
+                                    <li>AI Agent menganalisis tingkat kepatuhan upload RPS dan Materi per tingkat</li>
+                                    <li>Jika template tersedia, AI akan mempelajari format dan struktur template</li>
+                                    <li>AI menghasilkan laporan komprehensif dengan analisis dan rekomendasi dalam format Word (.docx)</li>
+                                    <li>Proses memakan waktu 1-3 menit tergantung jumlah data</li>
+                                </ol>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Form Card -->
+                <div class="monitoring-card">
+                    <div class="monitoring-header">
+                        <i class="bi bi-file-earmark-plus" style="color: #5B9BD5;"></i>
+                        <h6>Form Generate Laporan</h6>
+                    </div>
+                    <div style="padding: 1.5rem;">
+                        <form action="{{ route('gkm.laporan-artefak.store') }}" method="POST">
+                            @csrf
+
+                            <!-- Periode -->
+                            <div class="mb-4">
+                                <label for="periode" class="filter-label">
+                                    Periode <span class="text-danger">*</span>
+                                </label>
+                                <select name="periode" id="periode"
+                                    class="form-select @error('periode') is-invalid @enderror" required>
+                                    <option value="">-- Pilih Periode --</option>
+                                    @foreach ($periodes as $p)
+                                        <option value="{{ $p['value'] }}"
+                                            {{ old('periode') == $p['value'] ? 'selected' : '' }}>
+                                            {{ $p['label'] }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                                @error('periode')
+                                    <div class="invalid-feedback">{{ $message }}</div>
+                                @enderror
+                                <small class="text-muted" style="font-size: 0.8rem;">
+                                    <i class="bi bi-info-circle"></i> Pilih bulan dan tahun untuk laporan yang akan digenerate
+                                </small>
+                            </div>
+
+                            <!-- Template -->
+                            <div class="mb-4">
+                                <label for="template_id" class="filter-label">
+                                    Template Laporan <span class="text-muted" style="font-weight: 400;"></span>
+                                </label>
+                                <select name="template_id" id="template_id"
+                                    class="form-select @error('template_id') is-invalid @enderror">
+                                    <option value="">-- Gunakan Format Default --</option>
+                                    @foreach ($templates as $t)
+                                        <option value="{{ $t->id }}"
+                                            {{ old('template_id', $template?->id) == $t->id ? 'selected' : '' }}>
+                                            {{ $t->nama_template }}
+                                            @if ($t->is_active)
+                                                ✓ Active
+                                            @endif
+                                        </option>
+                                    @endforeach
+                                </select>
+                                @error('template_id')
+                                    <div class="invalid-feedback">{{ $message }}</div>
+                                @enderror
+                                <small class="text-muted" style="font-size: 0.8rem;">
+                                    <i class="bi bi-info-circle"></i> Jika dipilih, AI akan mempelajari format dari template ini.
+                                    <a href="{{ route('gkm.laporan-artefak.template.index') }}"
+                                        style="color: #5B9BD5;">Kelola template</a>
+                                </small>
+                            </div>
+
+                            <!-- Preview Info -->
+                            @if ($template)
+                                <div class="alert-gkm info mb-4">
+                                    <strong>Template Aktif:</strong> {{ $template->nama_template }}<br>
+                                    <small>{{ $template->deskripsi }}</small>
+                                </div>
+                            @endif
+
+                            <!-- Submit Buttons -->
+                            <div class="d-flex justify-content-between gap-2">
+                                <a href="{{ route('gkm.laporan-artefak.index') }}" class="btn btn-outline-secondary">
+                                    <i class="bi bi-x-circle"></i> Batal
+                                </a>
+                                <button type="submit" class="btn-reminder">
+                                    <i class="bi bi-robot"></i>
+                                    <span>Generate dengan AI Agent</span>
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+@endsection
