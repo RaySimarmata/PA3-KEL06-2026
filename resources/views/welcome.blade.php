@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sistem GJM & GKM</title>
+    <title>Sistem GJM dan GKM</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
         body {
@@ -64,7 +64,7 @@
 
 <body>
     <div class="welcome-container">
-        <h1>Sistem GJM & GKM</h1>
+        <h1>Sistem GJM dan GKM</h1>
         <p>Sistem Otomatisasi Administrasi Gugus Kendali Mutu dan Gugus Jaminan Mutu Fakultas Vokasi</p>
 
         @if (Route::has('login'))

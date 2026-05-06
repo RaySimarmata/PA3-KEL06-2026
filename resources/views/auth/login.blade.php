@@ -6,6 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login - Sistem GJM dan GKM</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Source+Sans+Pro:wght@300;400;600;700&display=swap" rel="stylesheet">
     <style>
         * {
@@ -89,6 +90,10 @@
             transition: color 0.2s;
         }
 
+        .password-wrapper {
+            position: relative;
+        }
+
         .form-control {
             width: 100%;
             padding: 10px 12px;
@@ -98,6 +103,10 @@
             font-family: inherit;
             transition: border-color 0.2s, background-color 0.2s;
             background-color: #f9f9f9;
+        }
+
+        .password-wrapper .form-control {
+            padding-right: 38px;
         }
 
         .form-control:focus {
@@ -111,7 +120,6 @@
             color: #999;
         }
 
-        /* Success state - green (only when field has value) */
         .form-group.has-success .form-control:not(:placeholder-shown) {
             border-color: #16a34a;
             background-color: #f0fdf4;
@@ -126,7 +134,6 @@
             background-color: white;
         }
 
-        /* Error state - red */
         .form-group.has-error .form-label {
             color: #dc2626;
         }
@@ -146,6 +153,38 @@
             font-size: 12px;
             margin-top: 6px;
             display: block;
+        }
+
+        /* Toggle icon formal dengan Bootstrap Icons */
+        .password-toggle {
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            cursor: pointer;
+            font-size: 18px;
+            color: #6c757d;
+            background: transparent;
+            border: none;
+            padding: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 24px;
+            height: 24px;
+            transition: color 0.2s;
+        }
+
+        .password-toggle:hover {
+            color: #2E7BA8;
+        }
+
+        .form-group.has-error .password-toggle {
+            color: #dc2626;
+        }
+
+        .form-group.has-error .password-toggle:hover {
+            color: #b91c1c;
         }
 
         .form-footer {
@@ -247,6 +286,15 @@
             .system-subtitle {
                 font-size: 12px;
             }
+            
+            .password-toggle {
+                font-size: 16px;
+                right: 8px;
+            }
+            
+            .password-wrapper .form-control {
+                padding-right: 34px;
+            }
         }
     </style>
 </head>
@@ -293,14 +341,19 @@
                     @enderror
                 </div>
 
-                <div class="form-group @error('password') has-error @enderror">
+                <div class="form-group @error('password') has-error @enderror" id="password-group">
                     <label for="password" class="form-label">Password</label>
-                    <input type="password" 
-                           class="form-control @error('password') is-invalid @enderror" 
-                           id="password"
-                           name="password" 
-                           required
-                           placeholder="">
+                    <div class="password-wrapper">
+                        <input type="password" 
+                               class="form-control @error('password') is-invalid @enderror" 
+                               id="password"
+                               name="password" 
+                               required
+                               placeholder="">
+                        <button type="button" class="password-toggle" id="togglePassword" aria-label="Tampilkan password">
+                            <i class="bi bi-eye"></i>
+                        </button>
+                    </div>
                     @error('password')
                         <span class="error-message">{{ $message }}</span>
                     @enderror
@@ -314,10 +367,6 @@
                     <button type="submit" class="btn-login">Masuk</button>
                 </div>
             </form>
-
-            {{-- <div class="register-link">
-                Belum punya akun? <a href="{{ route('register') }}">Daftar di sini</a>
-            </div> --}}
         </div>
     </div>
 
@@ -327,8 +376,10 @@
             const emailInput = document.getElementById('email');
             const passwordInput = document.getElementById('password');
             const emailGroup = emailInput.closest('.form-group');
-            const passwordGroup = passwordInput.closest('.form-group');
-
+            const passwordGroup = document.getElementById('password-group');
+            const toggleBtn = document.getElementById('togglePassword');
+            const eyeIcon = toggleBtn.querySelector('i');
+            
             function updateFieldState(input, group) {
                 if (input.value.trim() !== '') {
                     group.classList.add('has-success');
@@ -337,11 +388,28 @@
                 }
             }
 
-            // Check initial state (for old values after form submission)
+            // Toggle password visibility dengan ikon formal
+            if (toggleBtn) {
+                toggleBtn.addEventListener('click', function() {
+                    const type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
+                    passwordInput.setAttribute('type', type);
+                    
+                    // Ganti kelas ikon Bootstrap Icons
+                    if (type === 'text') {
+                        eyeIcon.classList.remove('bi-eye');
+                        eyeIcon.classList.add('bi-eye-slash');
+                        toggleBtn.setAttribute('aria-label', 'Sembunyikan password');
+                    } else {
+                        eyeIcon.classList.remove('bi-eye-slash');
+                        eyeIcon.classList.add('bi-eye');
+                        toggleBtn.setAttribute('aria-label', 'Tampilkan password');
+                    }
+                });
+            }
+
             updateFieldState(emailInput, emailGroup);
             updateFieldState(passwordInput, passwordGroup);
 
-            // Listen for input changes
             emailInput.addEventListener('input', function() {
                 updateFieldState(this, emailGroup);
             });
@@ -351,5 +419,6 @@
             });
         });
     </script>
+</body>
 
 </html>

@@ -99,7 +99,7 @@
     <div class="register-container">
         <div class="register-header">
             <h1>Daftar Akun</h1>
-            <p>Sistem GJM & GKM</p>
+            <p>Sistem GJM dan GKM</p>
         </div>
 
         @if ($errors->any())
