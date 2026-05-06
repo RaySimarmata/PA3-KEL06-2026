@@ -6,7 +6,7 @@
     <div style="padding: 1.5rem;">
         <!-- Welcome Section -->
         <div class="content-card mb-4">
-            <h3 class="mb-1" style="font-weight: 600; color: #333;">Selamat Datang, {{ $user->name }} 👋</h3>
+            <h3 class="mb-1" style="font-weight: 600; color: #333;">Selamat Datang, {{ $user->name }} </h3>
             <p class="text-secondary mb-0">Periode: {{ $periode }}</p>
         </div>
 

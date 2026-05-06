@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login - Sistem GJM & GKM</title>
+    <title>Login - Sistem GJM dan GKM</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Source+Sans+Pro:wght@300;400;600;700&display=swap" rel="stylesheet">
     <style>
@@ -260,7 +260,7 @@
                          alt="Institut Teknologi Del" class="logo">
                     <div class="institute-name">Institut Teknologi Del</div>
                 </div>
-                <div class="system-title">Sistem GJM & GKM</div>
+                <div class="system-title">Sistem GJM dan GKM</div>
                 <div class="system-subtitle">Otomatisasi Administrasi Gugus Jaminan Mutu dan Gugus Kendali Mutu</div>
             </div>
 
@@ -309,15 +309,15 @@
                 <div class="form-footer">
                     <div class="remember-me">
                         <input type="checkbox" id="remember" name="remember" value="1">
-                        <label for="remember">Remember Me</label>
+                        <label for="remember">Ingat Info Login</label>
                     </div>
-                    <button type="submit" class="btn-login">Sign In</button>
+                    <button type="submit" class="btn-login">Masuk</button>
                 </div>
             </form>
 
-            <div class="register-link">
+            {{-- <div class="register-link">
                 Belum punya akun? <a href="{{ route('register') }}">Daftar di sini</a>
-            </div>
+            </div> --}}
         </div>
     </div>
 
