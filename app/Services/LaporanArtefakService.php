@@ -914,7 +914,7 @@ class LaporanArtefakService
     protected function buildFallbackContent($dataArtefak, $narasiAI)
     {
         $lines = [];
-        $lines[] = "LAPORAN HASIL MONITORING ARTEFAK PERKULIAHAN RPS & MATERI";
+        $lines[] = "LAPORAN HASIL MONITORING ARTEFAK PERKULIAHAN RPS dan MATERI";
         $lines[] = "SEMESTER {$dataArtefak['semester']} TA {$dataArtefak['tahun_ajaran']}";
         $lines[] = "Program Studi: {$dataArtefak['prodi']}";
         $lines[] = "";

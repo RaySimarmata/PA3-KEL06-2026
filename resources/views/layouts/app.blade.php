@@ -640,7 +640,7 @@
                             <div class="dropdown-submenu">
                                 <a href="{{ route('gkm.laporan-artefak.index') }}"
                                     class="nav-item {{ request()->routeIs('gkm.laporan-artefak.*') ? 'active' : '' }}">
-                                    <i class="bi bi-file-earmark-check"></i> Laporan Artefak RPS & Materi
+                                    <i class="bi bi-file-earmark-check"></i> Laporan Artefak RPS dan Materi
                                 </a>
                                 <a href="{{ route('gkm.laporan-kuesioner.index') }}"
                                     class="nav-item {{ request()->routeIs('gkm.laporan-kuesioner.*') ? 'active' : '' }}">
