@@ -663,25 +663,25 @@
                             <i class="bi bi-speedometer2"></i> Dashboard
                         </a>
 
-                        <div class="nav-dropdown {{ request()->routeIs('gjm.buat-laporan.*') || request()->routeIs('gjm.laporan-gjm.*') ? 'open' : '' }}">
+                        <div class="nav-dropdown {{ request()->routeIs('gjm.buat-laporan.*') ? 'open' : '' }}">
                             <a href="javascript:void(0)"
-                                class="nav-item {{ request()->routeIs('gjm.buat-laporan.*') || request()->routeIs('gjm.laporan-gjm.*') ? 'active' : '' }}"
+                                class="nav-item {{ request()->routeIs('gjm.buat-laporan.*') ? 'active' : '' }}"
                                 onclick="toggleDropdown(this)">
                                 <span><i class="bi bi-file-earmark-text"></i> Pelaporan</span>
                                 <i class="bi bi-chevron-down dropdown-icon"></i>
                             </a>
                             <div class="dropdown-submenu">
-                                <a href="{{ route('gjm.buat-laporan.triwulan') }}"
-                                    class="nav-item {{ request()->routeIs('gjm.buat-laporan.triwulan') ? 'active' : '' }}">
+                                <a href="{{ route('gjm.buat-laporan.triwulan.index') }}"
+                                    class="nav-item {{ request()->routeIs('gjm.buat-laporan.triwulan.*') ? 'active' : '' }}">
                                     <i class="bi bi-calendar3"></i> Buat Laporan Triwulan
                                 </a>
-                                <a href="{{ route('gjm.buat-laporan.semester') }}"
-                                    class="nav-item {{ request()->routeIs('gjm.buat-laporan.semester') ? 'active' : '' }}">
+                                <a href="{{ route('gjm.buat-laporan.semester.index') }}"
+                                    class="nav-item {{ request()->routeIs('gjm.buat-laporan.semester.*') ? 'active' : '' }}">
                                     <i class="bi bi-file-earmark-plus"></i> Buat Laporan Semester
                                 </a>
-                                <a href="{{ route('gjm.laporan-gjm.index') }}"
-                                    class="nav-item {{ request()->routeIs('gjm.laporan-gjm.index') ? 'active' : '' }}">
-                                    <i class="bi bi-archive"></i> Arsip Laporan
+                                <a href="{{ route('gjm.buat-laporan.vmts.index') }}"
+                                    class="nav-item {{ request()->routeIs('gjm.buat-laporan.vmts.*') ? 'active' : '' }}">
+                                    <i class="bi bi-file-earmark-text"></i> Buat Laporan VMTS
                                 </a>
                             </div>
                         </div>

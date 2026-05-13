@@ -19,7 +19,7 @@
         <div class="row">
             <!-- Buat Laporan Triwulan -->
             <div class="col-md-6 mb-4">
-                <a href="{{ route('gjm.buat-laporan.triwulan') }}" class="text-decoration-none">
+                <a href="{{ route('gjm.buat-laporan.triwulan.index') }}" class="text-decoration-none">
                     <div class="monitoring-card" style="cursor: pointer; transition: all 0.3s ease; border-left: 4px solid #5B9BD5;">
                         <div style="padding: 2rem;">
                             <div class="d-flex align-items-start gap-3">
@@ -44,7 +44,7 @@
 
             <!-- Buat Laporan Semester -->
             <div class="col-md-6 mb-4">
-                <a href="{{ route('gjm.buat-laporan.semester') }}" class="text-decoration-none">
+                <a href="{{ route('gjm.buat-laporan.semester.index') }}" class="text-decoration-none">
                     <div class="monitoring-card" style="cursor: pointer; transition: all 0.3s ease; border-left: 4px solid #28a745;">
                         <div style="padding: 2rem;">
                             <div class="d-flex align-items-start gap-3">
@@ -57,6 +57,29 @@
                                     <div class="d-flex flex-wrap gap-2">
                                         <span class="badge bg-success">Semester Ganjil (Agu-Jan)</span>
                                         <span class="badge bg-success">Semester Genap (Feb-Jul)</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </a>
+            </div>
+
+            <!-- Buat Laporan VMTS -->
+            <div class="col-md-6 mb-4">
+                <a href="{{ route('gjm.buat-laporan.vmts.index') }}" class="text-decoration-none">
+                    <div class="monitoring-card" style="cursor: pointer; transition: all 0.3s ease; border-left: 4px solid #dc3545;">
+                        <div style="padding: 2rem;">
+                            <div class="d-flex align-items-start gap-3">
+                                <i class="bi bi-file-earmark-text" style="font-size: 3rem; color: #dc3545;"></i>
+                                <div>
+                                    <h5 class="mb-2" style="font-weight: 600; color: #333;">Buat Laporan VMTS</h5>
+                                    <p class="text-muted mb-3" style="font-size: 0.875rem;">
+                                        Buat laporan Visi Misi Tujuan Sasaran dengan bantuan AI Assistant
+                                    </p>
+                                    <div class="d-flex flex-wrap gap-2">
+                                        <span class="badge bg-danger">Laporan Tahunan</span>
+                                        <span class="badge bg-danger">Analisis VMTS</span>
                                     </div>
                                 </div>
                             </div>

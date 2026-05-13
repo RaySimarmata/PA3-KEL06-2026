@@ -34,7 +34,7 @@ class LaporanSemesterController extends Controller
             ->jenis('laporan_semester')
             ->get();
         
-        return view('gjm.buat-laporan.semester', compact('user', 'templates'));
+        return view('gjm.buat-laporan.semester-create', compact('user', 'templates'));
     }
 
     /**
@@ -407,6 +407,118 @@ class LaporanSemesterController extends Controller
                 'message' => 'Terjadi kesalahan: ' . $e->getMessage()
             ], 500);
         }
+    }
+
+    /**
+     * Save AI Preview to Database
+     * Called after user gets AI response to store it for Word generation
+     */
+    public function savePreview(Request $request)
+    {
+        try {
+            $request->validate([
+                'laporan_id' => 'required|exists:laporan_gjm,id',
+                'ai_preview_draft' => 'required|string',
+                'ai_sections' => 'nullable|string', // JSON string
+                'ocr_images' => 'nullable|string', // JSON string of image paths
+            ]);
+
+            $laporanId = $request->input('laporan_id');
+            $aiPreviewDraft = $request->input('ai_preview_draft');
+            $aiSectionsJson = $request->input('ai_sections', '[]');
+            $ocrImagesJson = $request->input('ocr_images', '[]');
+            
+            // Parse sections from JSON
+            $sections = [];
+            try {
+                $sectionsArray = json_decode($aiSectionsJson, true);
+                if (is_array($sectionsArray)) {
+                    // Convert sections array to associative array
+                    foreach ($sectionsArray as $section) {
+                        if (isset($section['title']) && isset($section['content'])) {
+                            $key = $this->sectionTitleToKey($section['title']);
+                            $sections[$key] = $section['content'];
+                        }
+                    }
+                }
+            } catch (\Exception $e) {
+                Log::warning('Failed to parse AI sections JSON', [
+                    'laporan_id' => $laporanId,
+                    'error' => $e->getMessage()
+                ]);
+            }
+
+            // Parse OCR images from JSON
+            $ocrImages = [];
+            try {
+                $ocrImagesArray = json_decode($ocrImagesJson, true);
+                if (is_array($ocrImagesArray)) {
+                    $ocrImages = $ocrImagesArray;
+                }
+            } catch (\Exception $e) {
+                Log::warning('Failed to parse OCR images JSON', [
+                    'laporan_id' => $laporanId,
+                    'error' => $e->getMessage()
+                ]);
+            }
+
+            // Use AIPreviewCacheService to save
+            $cacheService = app(\App\Services\AIPreviewCacheService::class);
+            $success = $cacheService->saveAIPreview($laporanId, $aiPreviewDraft, $sections, $ocrImages);
+
+            if ($success) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'AI preview saved successfully'
+                ]);
+            } else {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Failed to save AI preview'
+                ], 500);
+            }
+
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation failed: ' . implode(', ', $e->validator->errors()->all())
+            ], 422);
+        } catch (\Exception $e) {
+            Log::error('Save AI preview failed', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Terjadi kesalahan: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Convert section title to database key
+     */
+    private function sectionTitleToKey($title)
+    {
+        $title = strtolower(trim($title));
+        
+        $mapping = [
+            'latar belakang' => 'latar_belakang',
+            'dasar' => 'dasar',
+            'tujuan' => 'tujuan',
+            'ruang lingkup' => 'ruang_lingkup',
+            'program kerja' => 'program_kerja',
+            'pelaksanaan' => 'pelaksanaan',
+            'hambatan' => 'hambatan',
+            'pemecahan masalah' => 'pemecahan_masalah',
+            'evaluasi' => 'evaluasi',
+            'saran' => 'rekomendasi',
+            'rekomendasi' => 'rekomendasi',
+            'kesimpulan' => 'kesimpulan',
+        ];
+        
+        return $mapping[$title] ?? str_replace(' ', '_', $title);
     }
 
     /**
@@ -939,5 +1051,134 @@ class LaporanSemesterController extends Controller
                 'response' => 'Terjadi kesalahan dalam memproses permintaan Anda. Silakan coba lagi.'
             ], 500);
         }
+    }
+
+    /**
+     * Display a listing of laporan semester
+     */
+    public function index(Request $request)
+    {
+        $query = LaporanGJM::where('jenis_laporan', 'semester')
+            ->where('created_by', Auth::id())
+            ->with('template')
+            ->orderBy('created_at', 'desc');
+
+        // Filter by periode
+        if ($request->filled('periode')) {
+            $query->whereRaw("JSON_EXTRACT(instruksi_prompt, '$.periode_semester') = ?", [$request->periode]);
+        }
+
+        // Filter by status
+        if ($request->filled('status')) {
+            $query->where('status_laporan', $request->status);
+        }
+
+        $laporanList = $query->paginate(10);
+
+        // Add formatted data for display
+        $laporanList->getCollection()->transform(function ($laporan) {
+            $instruksi = json_decode($laporan->instruksi_prompt, true);
+            $periodeSemester = $instruksi['periode_semester'] ?? '-';
+            $tahun = $instruksi['tahun'] ?? date('Y');
+            
+            // Format periode
+            $periodeLabels = [
+                'ganjil' => 'Semester Ganjil',
+                'genap' => 'Semester Genap'
+            ];
+            
+            $laporan->formatted_periode = ($periodeLabels[$periodeSemester] ?? 'Semester ' . ucfirst($periodeSemester)) . ' ' . $tahun;
+            $laporan->judul_laporan = $instruksi['judul'] ?? $laporan->ringkasan_mutu_institusi;
+            
+            // Status badge
+            switch ($laporan->status_laporan) {
+                case 'completed':
+                    $laporan->status_badge = 'success';
+                    $laporan->status_label = 'Selesai';
+                    break;
+                case 'processing':
+                    $laporan->status_badge = 'warning';
+                    $laporan->status_label = 'Sedang Diproses';
+                    break;
+                case 'error':
+                    $laporan->status_badge = 'danger';
+                    $laporan->status_label = 'Error';
+                    break;
+                default:
+                    $laporan->status_badge = 'info';
+                    $laporan->status_label = 'Menunggu';
+            }
+            
+            return $laporan;
+        });
+
+        // Generate periode list for filter
+        $periodeList = [
+            'ganjil' => 'Semester Ganjil',
+            'genap' => 'Semester Genap'
+        ];
+
+        return view('gjm.buat-laporan.semester-index', compact('laporanList', 'periodeList'));
+    }
+
+    /**
+     * Display the specified laporan
+     */
+    public function show($id)
+    {
+        $laporan = LaporanGJM::where('id', $id)
+            ->where('jenis_laporan', 'semester')
+            ->where('created_by', Auth::id())
+            ->with('template')
+            ->firstOrFail();
+
+        return view('gjm.buat-laporan.semester-show', compact('laporan'));
+    }
+
+    /**
+     * Download laporan in specified format
+     */
+    public function download($id, $format = 'word')
+    {
+        $laporan = LaporanGJM::where('id', $id)
+            ->where('jenis_laporan', 'semester')
+            ->where('created_by', Auth::id())
+            ->firstOrFail();
+
+        if ($format === 'word' && $laporan->file_word) {
+            $filePath = storage_path('app/' . $laporan->file_word);
+            
+            if (file_exists($filePath)) {
+                $instruksi = json_decode($laporan->instruksi_prompt, true);
+                $periodeSemester = $instruksi['periode_semester'] ?? 'ganjil';
+                $tahun = $instruksi['tahun'] ?? date('Y');
+                $fileName = 'Laporan_Semester_' . ucfirst($periodeSemester) . '_' . $tahun . '.docx';
+                
+                return response()->download($filePath, $fileName);
+            }
+        }
+
+        return redirect()->back()->with('error', 'File tidak ditemukan');
+    }
+
+    /**
+     * Remove the specified laporan
+     */
+    public function destroy($id)
+    {
+        $laporan = LaporanGJM::where('id', $id)
+            ->where('jenis_laporan', 'semester')
+            ->where('created_by', Auth::id())
+            ->firstOrFail();
+
+        // Delete associated files
+        if ($laporan->file_word) {
+            Storage::delete($laporan->file_word);
+        }
+
+        $laporan->delete();
+
+        return redirect()->route('gjm.buat-laporan.semester.index')
+            ->with('success', 'Laporan berhasil dihapus');
     }
 }

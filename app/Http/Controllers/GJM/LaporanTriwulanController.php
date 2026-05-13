@@ -34,7 +34,102 @@ class LaporanTriwulanController extends Controller
             ->jenis('laporan_triwulan')
             ->get();
         
-        return view('gjm.buat-laporan.triwulan', compact('user', 'templates'));
+        return view('gjm.buat-laporan.triwulan-create', compact('user', 'templates'));
+    }
+
+    /**
+     * Create draft laporan triwulan
+     */
+    public function createDraft(Request $request)
+    {
+        try {
+            $request->validate([
+                'judul_laporan' => 'required|string|max:255',
+                'periode_triwulan' => 'required|in:1,2,3,4',
+                'template_id' => 'nullable|exists:template_laporan,id',
+            ]);
+
+            $user = Auth::user();
+            $periodeTriwulan = $request->periode_triwulan;
+            $tahunAjaran = date('Y');
+
+            // Determine periode dates based on triwulan
+            $periodeMulai = null;
+            $periodeAkhir = null;
+            $periodeLabel = '';
+            
+            switch ($periodeTriwulan) {
+                case '1':
+                    $periodeMulai = Carbon::create($tahunAjaran, 1, 1);
+                    $periodeAkhir = Carbon::create($tahunAjaran, 3, 31);
+                    $periodeLabel = 'Triwulan I';
+                    break;
+                case '2':
+                    $periodeMulai = Carbon::create($tahunAjaran, 4, 1);
+                    $periodeAkhir = Carbon::create($tahunAjaran, 6, 30);
+                    $periodeLabel = 'Triwulan II';
+                    break;
+                case '3':
+                    $periodeMulai = Carbon::create($tahunAjaran, 7, 1);
+                    $periodeAkhir = Carbon::create($tahunAjaran, 9, 30);
+                    $periodeLabel = 'Triwulan III';
+                    break;
+                case '4':
+                    $periodeMulai = Carbon::create($tahunAjaran, 10, 1);
+                    $periodeAkhir = Carbon::create($tahunAjaran, 12, 31);
+                    $periodeLabel = 'Triwulan IV';
+                    break;
+            }
+
+            $laporan = LaporanGJM::create([
+                'jenis_laporan' => 'triwulan',
+                'template_id' => $request->template_id,
+                'periode_mulai' => $periodeMulai,
+                'periode_akhir' => $periodeAkhir,
+                'ringkasan_mutu_institusi' => $request->judul_laporan . " - {$periodeLabel} {$tahunAjaran}",
+                'status_laporan' => 'draft',
+                'created_by' => $user->id,
+                'instruksi_prompt' => json_encode([
+                    'periode' => $periodeLabel,
+                    'periode_triwulan' => $periodeTriwulan,
+                    'tahun' => $tahunAjaran,
+                    'judul' => $request->judul_laporan,
+                ]),
+            ]);
+
+            Log::info('Draft Laporan Triwulan created', [
+                'laporan_id' => $laporan->id,
+                'user_id' => $user->id,
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Draft laporan triwulan berhasil dibuat',
+                'data' => [
+                    'id' => $laporan->id,
+                    'judul' => $laporan->ringkasan_mutu_institusi,
+                    'periode' => $periodeLabel,
+                ],
+            ]);
+
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validasi gagal: ' . implode(', ', $e->validator->errors()->all()),
+                'errors' => $e->validator->errors(),
+            ], 422);
+
+        } catch (\Exception $e) {
+            Log::error('Failed to create draft laporan triwulan', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal membuat draft: ' . $e->getMessage(),
+            ], 500);
+        }
     }
 
     /**
@@ -1019,6 +1114,139 @@ class LaporanTriwulanController extends Controller
                 'message' => 'Terjadi kesalahan: ' . $e->getMessage()
             ], 500);
         }
+    }
+
+    /**
+     * Display a listing of laporan triwulan
+     */
+    public function index(Request $request)
+    {
+        $query = LaporanGJM::where('jenis_laporan', 'triwulan')
+            ->where('created_by', Auth::id())
+            ->with('template')
+            ->orderBy('created_at', 'desc');
+
+        // Filter by periode
+        if ($request->filled('periode')) {
+            $query->whereRaw("JSON_EXTRACT(instruksi_prompt, '$.periode_triwulan') = ?", [$request->periode]);
+        }
+
+        // Filter by status
+        if ($request->filled('status')) {
+            $query->where('status_laporan', $request->status);
+        }
+
+        $laporanList = $query->paginate(10);
+
+        // Add formatted data for display
+        $laporanList->getCollection()->transform(function ($laporan) {
+            $instruksi = json_decode($laporan->instruksi_prompt, true);
+            $periodeTriwulan = $instruksi['periode_triwulan'] ?? '-';
+            $tahun = $instruksi['tahun'] ?? date('Y');
+            
+            // Format periode
+            $periodeLabels = [
+                '1' => 'Triwulan I (Jan-Mar)',
+                '2' => 'Triwulan II (Apr-Jun)',
+                '3' => 'Triwulan III (Jul-Sep)',
+                '4' => 'Triwulan IV (Okt-Des)'
+            ];
+            
+            $laporan->formatted_periode = ($periodeLabels[$periodeTriwulan] ?? 'Triwulan ' . $periodeTriwulan) . ' ' . $tahun;
+            $laporan->judul_laporan = $instruksi['judul'] ?? $laporan->ringkasan_mutu_institusi;
+            
+            // Status badge
+            switch ($laporan->status_laporan) {
+                case 'completed':
+                    $laporan->status_badge = 'success';
+                    $laporan->status_label = 'Selesai';
+                    break;
+                case 'processing':
+                    $laporan->status_badge = 'warning';
+                    $laporan->status_label = 'Sedang Diproses';
+                    break;
+                case 'error':
+                    $laporan->status_badge = 'danger';
+                    $laporan->status_label = 'Error';
+                    break;
+                default:
+                    $laporan->status_badge = 'info';
+                    $laporan->status_label = 'Menunggu';
+            }
+            
+            return $laporan;
+        });
+
+        // Generate periode list for filter
+        $periodeList = [
+            '1' => 'Triwulan I (Jan-Mar)',
+            '2' => 'Triwulan II (Apr-Jun)',
+            '3' => 'Triwulan III (Jul-Sep)',
+            '4' => 'Triwulan IV (Okt-Des)'
+        ];
+
+        return view('gjm.buat-laporan.triwulan-index', compact('laporanList', 'periodeList'));
+    }
+
+    /**
+     * Display the specified laporan
+     */
+    public function show($id)
+    {
+        $laporan = LaporanGJM::where('id', $id)
+            ->where('jenis_laporan', 'triwulan')
+            ->where('created_by', Auth::id())
+            ->with('template')
+            ->firstOrFail();
+
+        return view('gjm.buat-laporan.triwulan-show', compact('laporan'));
+    }
+
+    /**
+     * Download laporan in specified format
+     */
+    public function download($id, $format = 'word')
+    {
+        $laporan = LaporanGJM::where('id', $id)
+            ->where('jenis_laporan', 'triwulan')
+            ->where('created_by', Auth::id())
+            ->firstOrFail();
+
+        if ($format === 'word' && $laporan->file_word) {
+            $filePath = storage_path('app/' . $laporan->file_word);
+            
+            if (file_exists($filePath)) {
+                $instruksi = json_decode($laporan->instruksi_prompt, true);
+                $periodeTriwulan = $instruksi['periode_triwulan'] ?? '1';
+                $tahun = $instruksi['tahun'] ?? date('Y');
+                $fileName = 'Laporan_Triwulan_' . $periodeTriwulan . '_' . $tahun . '.docx';
+                
+                return response()->download($filePath, $fileName);
+            }
+        }
+
+        return redirect()->back()->with('error', 'File tidak ditemukan');
+    }
+
+    /**
+     * Remove the specified laporan
+     */
+    public function destroy($id)
+    {
+        $laporan = LaporanGJM::where('id', $id)
+            ->where('jenis_laporan', 'triwulan')
+            ->where('created_by', Auth::id())
+            ->firstOrFail();
+
+        // Delete associated files
+        if ($laporan->file_word) {
+            Storage::delete($laporan->file_word);
+        }
+
+        $laporan->delete();
+
+        return redirect()->route('gjm.buat-laporan.triwulan.index')
+            ->with('success', 'Laporan berhasil dihapus');
     }
 }
 
