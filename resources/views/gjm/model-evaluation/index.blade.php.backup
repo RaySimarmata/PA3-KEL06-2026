@@ -1,0 +1,1223 @@
+@extends('layouts.app')
+
+@section('title', 'Evaluasi AI Assistant')
+
+@section('page-title', 'Evaluasi AI Assistant')
+
+@section('styles')
+    <style>
+        .metric-card {
+            border-radius: 12px;
+            padding: 1.5rem;
+            height: 100%;
+            transition: transform 0.2s, box-shadow 0.2s;
+            border: 1px solid #e0e0e0;
+            background: white;
+        }
+
+        .metric-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+        }
+
+        .metric-card.primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .metric-card.success {
+            background: linear-gradient(135deg, #51CF66 0%, #73E088 100%);
+            color: white;
+        }
+
+        .metric-card.info {
+            background: linear-gradient(135deg, #4ECDC4 0%, #6FE7DD 100%);
+            color: white;
+        }
+
+        .metric-card.warning {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+        }
+
+        .metric-value {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin: 0.5rem 0;
+        }
+
+        .metric-label {
+            font-size: 0.9rem;
+            opacity: 0.9;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .metric-change {
+            font-size: 1rem;
+            font-weight: 600;
+            margin-top: 0.5rem;
+        }
+
+        .filter-card {
+            background: white;
+            border-radius: 12px;
+            padding: 1.5rem;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+            margin-bottom: 1.5rem;
+        }
+
+        .feature-badge {
+            display: inline-block;
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            font-weight: 600;
+            margin: 0.25rem;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .feature-badge.triwulan {
+            background: #e3f2fd;
+            color: #1976d2;
+        }
+
+        .feature-badge.semester {
+            background: #f3e5f5;
+            color: #7b1fa2;
+        }
+
+        .feature-badge.vmts {
+            background: #e8f5e9;
+            color: #388e3c;
+        }
+
+        .feature-badge.active {
+            transform: scale(1.05);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+
+        .chart-container {
+            background: white;
+            border-radius: 12px;
+            padding: 1.5rem;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+            margin-bottom: 1.5rem;
+        }
+
+        .performance-table {
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        }
+
+        .performance-table th {
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            color: white;
+            font-weight: 600;
+            padding: 1rem;
+            border: none;
+        }
+
+        .performance-table td {
+            padding: 1rem;
+            vertical-align: middle;
+        }
+
+        .info-box {
+            background: #E3F2FD;
+            border-left: 4px solid #2196F3;
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 1.5rem;
+        }
+
+        .info-box i {
+            color: #2196F3;
+            margin-right: 0.5rem;
+        }
+
+        .period-btn {
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            border: 2px solid #e0e0e0;
+            background: white;
+            font-weight: 600;
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+
+        .period-btn.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-color: #667eea;
+        }
+
+        .period-btn:hover:not(.active) {
+            border-color: #667eea;
+            color: #667eea;
+        }
+
+        .bg-purple {
+            background-color: #7b1fa2 !important;
+        }
+
+        .border-purple {
+            border-color: #7b1fa2 !important;
+        }
+
+        .text-purple {
+            color: #7b1fa2 !important;
+        }
+    </style>
+@endsection
+
+@section('content')
+    <div class="container-fluid">
+        <!-- Header -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h4 class="mb-1">Evaluasi AI Assistant</h4>
+                        <p class="text-muted mb-0">
+                            <i class="bi bi-robot"></i> Monitoring performa AI di Laporan Triwulan, Semester, dan VMTS
+                        </p>
+                    </div>
+                    <div>
+                        <button class="btn btn-outline-primary me-2" onclick="loadData()">
+                            <i class="bi bi-arrow-clockwise"></i> Refresh
+                        </button>
+                        <button class="btn btn-success" onclick="downloadReport()">
+                            <i class="bi bi-download"></i> Download Laporan
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Info Box -->
+        <div class="info-box">
+            <i class="bi bi-info-circle"></i>
+            <strong>Tentang Evaluasi:</strong> Halaman ini mengevaluasi performa sistem AI Assistant yang berjalan di 3
+            fitur utama:
+            <strong>AI Assistant - Laporan Triwulan</strong>, <strong>AI Assistant - Laporan Semester</strong>, dan
+            <strong>AI Assistant - Laporan VMTS</strong>.
+            Evaluasi mencakup response time, cache efficiency, success rate, dan usage patterns.
+        </div>
+
+        <!-- Filters -->
+        <div class="filter-card">
+            <div class="row">
+                <div class="col-md-6">
+                    <h6 class="mb-3"><i class="bi bi-calendar3"></i> Periode</h6>
+                    <div class="btn-group" role="group">
+                        <button class="period-btn active" data-period="7days" onclick="setPeriod('7days')">7 Hari</button>
+                        <button class="period-btn" data-period="30days" onclick="setPeriod('30days')">30 Hari</button>
+                        <button class="period-btn" data-period="90days" onclick="setPeriod('90days')">90 Hari</button>
+                        <button class="period-btn" data-period="all" onclick="setPeriod('all')">Semua</button>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <h6 class="mb-3"><i class="bi bi-filter"></i> Fitur</h6>
+                    <div>
+                        <span class="feature-badge active" data-feature="all" onclick="setFeature('all')">
+                            <i class="bi bi-grid-3x3-gap"></i> Semua Fitur
+                        </span>
+                        <span class="feature-badge triwulan" data-feature="triwulan" onclick="setFeature('triwulan')">
+                            <i class="bi bi-file-earmark-text"></i> Laporan Triwulan
+                        </span>
+                        <span class="feature-badge semester" data-feature="semester" onclick="setFeature('semester')">
+                            <i class="bi bi-file-earmark-bar-graph"></i> Laporan Semester
+                        </span>
+                        <span class="feature-badge vmts" data-feature="vmts" onclick="setFeature('vmts')">
+                            <i class="bi bi-file-earmark-check"></i> Laporan VMTS
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {{-- Feature Activity Status --}}
+        <div class="row mb-4" id="featureStatusRow" style="display:none;">
+            <div class="col-12">
+                <div class="chart-container">
+                    <h5 class="mb-3"><i class="bi bi-activity"></i> Status Aktivitas per Fitur AI</h5>
+                    <div class="row" id="featureStatusCards"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Loading State -->
+        <div id="loadingState" class="text-center py-5">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="mt-3 text-muted">Memuat data evaluasi...</p>
+        </div>
+
+        <!-- Content Container -->
+        <div id="contentContainer" style="display: none;">
+            <!-- Overview Metrics -->
+            <div class="row mb-4" id="overviewMetrics"></div>
+
+            <!-- Hyperparameter Tuning Section -->
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="chart-container">
+                        <h5 class="mb-3"><i class="bi bi-sliders"></i> Hyperparameter Tuning & Optimization</h5>
+                        <div class="alert alert-info">
+                            <strong><i class="bi bi-info-circle"></i> Metode Tuning:</strong>
+                            <span id="tuningMethod"></span>
+                        </div>
+
+                        <div class="row">
+                            <!-- Before Tuning -->
+                            <div class="col-md-6 mb-3">
+                                <div class="card border-danger">
+                                    <div class="card-header bg-danger text-white">
+                                        <h6 class="mb-0"><i class="bi bi-circle"></i> Model Sebelum Tuning (Baseline)</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <h6>Parameters:</h6>
+                                        <div id="beforeParameters"></div>
+                                        <hr>
+                                        <h6>Metrics:</h6>
+                                        <div id="beforeMetrics"></div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- After Tuning -->
+                            <div class="col-md-6 mb-3">
+                                <div class="card border-success">
+                                    <div class="card-header bg-success text-white">
+                                        <h6 class="mb-0"><i class="bi bi-check-circle"></i> Model Setelah Tuning
+                                            (Optimized)</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <h6>Parameters:</h6>
+                                        <div id="afterParameters"></div>
+                                        <hr>
+                                        <h6>Metrics:</h6>
+                                        <div id="afterMetrics"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {{-- Improvements --}}
+                        <div class="row mt-3" id="improvementsSection">
+                            <div class="col-12">
+                                <h6><i class="bi bi-graph-up-arrow"></i> Improvements After Tuning:</h6>
+                                <div class="table-responsive">
+                                    <table class="table table-bordered">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th>Metric</th>
+                                                <th>Before</th>
+                                                <th>After</th>
+                                                <th>Change</th>
+                                                <th>% Change</th>
+                                                <th>Status</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="improvementsTable"></tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+
+                        {{-- Laporan Stats fallback --}}
+                        <div id="laporanStatsSection" style="display:none;" class="row mt-3">
+                            <div class="col-12">
+                                <div class="alert alert-warning">
+                                    <i class="bi bi-info-circle"></i>
+                                    <strong>Data Cache Belum Cukup</strong> — Data di bawah diambil langsung dari laporan
+                                    yang sudah dibuat:
+                                    <div id="laporanStatsContent" class="mt-2"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Tuning Methods -->
+                        <div class="row mt-3">
+                            <div class="col-12">
+                                <h6><i class="bi bi-gear-fill"></i> Metode Tuning yang Diterapkan:</h6>
+                                <div id="tuningMethodsDetail"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Critical Analysis & Evaluation -->
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="chart-container">
+                        <h5 class="mb-3"><i class="bi bi-clipboard-data"></i> Evaluasi Model & Analisis Kritis</h5>
+
+                        <!-- Summary -->
+                        <div class="alert alert-primary">
+                            <h6><i class="bi bi-file-text"></i> Ringkasan Perbandingan:</h6>
+                            <p id="comparisonSummary" class="mb-0"></p>
+                        </div>
+
+                        <div class="row">
+                            <!-- Critical Analysis -->
+                            <div class="col-md-6 mb-3">
+                                <div class="card">
+                                    <div class="card-header bg-primary text-white">
+                                        <h6 class="mb-0"><i class="bi bi-search"></i> Analisis Kritis</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <ul id="criticalAnalysisList" class="mb-0"></ul>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Strengths -->
+                            <div class="col-md-6 mb-3">
+                                <div class="card">
+                                    <div class="card-header bg-success text-white">
+                                        <h6 class="mb-0"><i class="bi bi-check-circle"></i> Kelebihan Model</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <div id="strengthsList"></div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Limitations -->
+                            <div class="col-md-6 mb-3">
+                                <div class="card">
+                                    <div class="card-header bg-warning text-dark">
+                                        <h6 class="mb-0"><i class="bi bi-exclamation-triangle"></i> Keterbatasan Model
+                                        </h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <div id="limitationsList"></div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Recommendations -->
+                            <div class="col-md-6 mb-3">
+                                <div class="card">
+                                    <div class="card-header bg-info text-white">
+                                        <h6 class="mb-0"><i class="bi bi-lightbulb"></i> Rekomendasi</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <div id="recommendationsList"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Performance by Feature -->
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="chart-container">
+                        <h5 class="mb-3"><i class="bi bi-bar-chart"></i> Performa per Fitur</h5>
+                        <div class="performance-table">
+                            <table class="table table-hover mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>Fitur</th>
+                                        <th>Total Requests</th>
+                                        <th>Avg Response Length</th>
+                                        <th>Cache Efficiency</th>
+                                        <th>Provider</th>
+                                        <th>Model</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="performanceTableBody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Usage Timeline Chart -->
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="chart-container">
+                        <h5 class="mb-3"><i class="bi bi-graph-up"></i> Timeline Penggunaan</h5>
+                        <canvas id="usageChart" height="80"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Cache Statistics -->
+            <div class="row mb-4">
+                <div class="col-md-6">
+                    <div class="chart-container">
+                        <h5 class="mb-3"><i class="bi bi-hdd-stack"></i> Statistik Cache</h5>
+                        <div id="cacheStats"></div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="chart-container">
+                        <h5 class="mb-3"><i class="bi bi-pie-chart"></i> Distribusi Cache</h5>
+                        <div style="max-width: 300px; margin: 0 auto;">
+                            <canvas id="cacheChart" height="300"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Ambiguity Evaluation Section -->
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="chart-container">
+                        <h5 class="mb-3">
+                            <i class="bi bi-question-circle"></i> Evaluasi Ambiguity (Kejelasan Response)
+                        </h5>
+                        <div id="ambiguitySection"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- RAGAS Evaluation Section -->
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="chart-container">
+                        <h5 class="mb-3">
+                            <i class="bi bi-diagram-3"></i> RAGAS Evaluation (RAG System Quality)
+                        </h5>
+                        <div id="ragasSection"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+@endsection
+
+@section('scripts')
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="{{ asset('js/model-evaluation-ambiguity-ragas.js') }}"></script>
+    <script>
+        let currentPeriod = '7days';
+        let currentFeature = 'all';
+        let usageChart = null;
+        let cacheChart = null;
+
+        document.addEventListener('DOMContentLoaded', function() {
+            loadData();
+        });
+
+        function setPeriod(period) {
+            currentPeriod = period;
+            document.querySelectorAll('.period-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            document.querySelector(`[data-period="${period}"]`).classList.add('active');
+            loadData();
+        }
+
+        function setFeature(feature) {
+            currentFeature = feature;
+            document.querySelectorAll('.feature-badge').forEach(badge => {
+                badge.classList.remove('active');
+            });
+            document.querySelector(`[data-feature="${feature}"]`).classList.add('active');
+            loadData();
+        }
+
+        function loadData() {
+            console.log('Loading data...', {
+                period: currentPeriod,
+                feature: currentFeature
+            });
+            document.getElementById('loadingState').style.display = 'block';
+            document.getElementById('contentContainer').style.display = 'none';
+
+            fetch(`{{ route('gjm.model-evaluation.get-data') }}?period=${currentPeriod}&feature=${currentFeature}`)
+                .then(response => {
+                    console.log('Response status:', response.status);
+
+                    // Check if redirected to login
+                    if (response.redirected && response.url.includes('/login')) {
+                        window.location.href = '{{ route('login') }}';
+                        return;
+                    }
+
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(result => {
+                    console.log('Result:', result);
+
+                    if (result.success) {
+                        // Check if data exists
+                        if (!result.data) {
+                            throw new Error('No data received from server');
+                        }
+
+                        renderOverviewMetrics(result.data.overview);
+                        renderTuningSection(result.data.tuning);
+                        renderEvaluationSection(result.data.comparison);
+                        renderPerformanceTable(result.data.performance);
+                        renderUsageChart(result.data.timeline);
+                        renderCacheStats(result.data.cache);
+                        renderCacheChart(result.data.cache);
+                        
+                        // Render Ambiguity and RAGAS metrics
+                        if (result.data.ambiguity_metrics) {
+                            renderAmbiguityMetrics(result.data.ambiguity_metrics);
+                        }
+                        if (result.data.ragas_metrics) {
+                            renderRAGASMetrics(result.data.ragas_metrics);
+                        }
+
+                        document.getElementById('loadingState').style.display = 'none';
+                        document.getElementById('contentContainer').style.display = 'block';
+
+                        // Render feature status panel
+                        if (result.data.feature_status) {
+                            renderFeatureStatus(result.data.feature_status);
+                        }
+                    } else {
+                        throw new Error(result.message || 'Unknown error occurred');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error loading data:', error);
+                    document.getElementById('loadingState').innerHTML = `
+                <div class="alert alert-danger">
+                    <h5><i class="bi bi-exclamation-triangle"></i> Error Loading Data</h5>
+                    <p>${error.message}</p>
+                    <p class="mb-0">
+                        <small>Check browser console (F12) for more details.</small><br>
+                        <button class="btn btn-sm btn-primary mt-2" onclick="loadData()">
+                            <i class="bi bi-arrow-clockwise"></i> Try Again
+                        </button>
+                    </p>
+                </div>
+            `;
+                });
+        }
+
+        function renderOverviewMetrics(overview) {
+            const container = document.getElementById('overviewMetrics');
+
+            // Check if overview data exists
+            if (!overview || overview.total_requests === 0) {
+                container.innerHTML = `
+            <div class="col-12">
+                <div class="alert alert-info">
+                    <h5><i class="bi bi-info-circle"></i> Belum Ada Data</h5>
+                    <p>Belum ada data AI Assistant yang tercatat. Data akan muncul setelah:</p>
+                    <ul>
+                        <li>User menggunakan fitur AI Assistant (Laporan Triwulan, Semester, atau VMTS)</li>
+                        <li>Response AI di-cache ke database</li>
+                    </ul>
+                    <p class="mb-0">Silakan gunakan fitur AI Assistant terlebih dahulu untuk melihat evaluasi.</p>
+                </div>
+            </div>
+        `;
+                return;
+            }
+
+            // Show data source indicator
+            let dataSourceBadge = '';
+            if (overview.data_source === 'laporan_gjm') {
+                dataSourceBadge = `
+            <div class="col-12 mb-3">
+                <div class="alert alert-warning">
+                    <i class="bi bi-database"></i> <strong>Sumber Data:</strong> ${overview.note || 'Data diambil dari laporan yang telah dibuat'}
+                </div>
+            </div>
+        `;
+            } else {
+                dataSourceBadge = `
+            <div class="col-12 mb-3">
+                <div class="alert alert-success">
+                    <i class="bi bi-check-circle"></i> <strong>Sumber Data:</strong> AI Response Cache (Data Real-time)
+                </div>
+            </div>
+        `;
+            }
+
+            const metrics = [{
+                    label: 'Total Requests',
+                    value: overview.total_requests.toLocaleString(),
+                    icon: 'send',
+                    class: 'primary'
+                },
+                {
+                    label: 'Cache Hits',
+                    value: overview.cache_hits.toLocaleString(),
+                    icon: 'lightning',
+                    class: 'success'
+                },
+                {
+                    label: 'Cache Hit Rate',
+                    value: overview.cache_hit_rate.toFixed(1) + '%',
+                    icon: 'percent',
+                    class: 'info'
+                },
+                {
+                    label: 'Success Rate',
+                    value: overview.success_rate.toFixed(1) + '%',
+                    icon: 'check-circle',
+                    class: 'warning'
+                }
+            ];
+
+            let html = dataSourceBadge;
+            metrics.forEach(metric => {
+                html += `
+            <div class="col-md-3 mb-3">
+                <div class="metric-card ${metric.class}">
+                    <div class="metric-label"><i class="bi bi-${metric.icon}"></i> ${metric.label}</div>
+                    <div class="metric-value">${metric.value}</div>
+                </div>
+            </div>
+        `;
+            });
+            container.innerHTML = html;
+        }
+
+        function renderTuningSection(tuning) {
+            // Check if tuning data exists
+            if (!tuning || !tuning.before || !tuning.after) {
+                console.error('Invalid tuning data:', tuning);
+                return;
+            }
+
+            // Tuning method
+            document.getElementById('tuningMethod').textContent = tuning.method + ' - ' + tuning.description;
+
+            // Helper to safely format a metric value
+            function fmtVal(v) {
+                if (v === null || v === undefined) return 'N/A';
+                if (typeof v === 'string') return v;
+                if (typeof v === 'number') return v.toLocaleString();
+                return String(v);
+            }
+
+            // Before parameters
+            let beforeParamsHtml = '<ul class="list-unstyled">';
+            if (tuning.before.parameters) {
+                for (const [key, value] of Object.entries(tuning.before.parameters)) {
+                    beforeParamsHtml += `<li><strong>${key}:</strong> <code>${value}</code></li>`;
+                }
+            }
+            beforeParamsHtml += '</ul>';
+            document.getElementById('beforeParameters').innerHTML = beforeParamsHtml;
+
+            // Before metrics
+            let beforeMetricsHtml = '<ul class="list-unstyled">';
+            if (tuning.before.metrics) {
+                for (const [key, value] of Object.entries(tuning.before.metrics)) {
+                    beforeMetricsHtml += `<li><strong>${formatMetricLabel(key)}:</strong> ${fmtVal(value)}</li>`;
+                }
+            }
+            beforeMetricsHtml += '</ul>';
+            document.getElementById('beforeMetrics').innerHTML = beforeMetricsHtml;
+
+            // After parameters
+            let afterParamsHtml = '<ul class="list-unstyled">';
+            if (tuning.after.parameters) {
+                for (const [key, value] of Object.entries(tuning.after.parameters)) {
+                    const isChanged = tuning.before.parameters && tuning.before.parameters[key] !== value;
+                    afterParamsHtml +=
+                        `<li><strong>${key}:</strong> <code class="${isChanged ? 'text-success' : ''}">${value}</code> ${isChanged ? '<i class="bi bi-arrow-up-circle-fill text-success"></i>' : ''}</li>`;
+                }
+            }
+            afterParamsHtml += '</ul>';
+            document.getElementById('afterParameters').innerHTML = afterParamsHtml;
+
+            // After metrics
+            let afterMetricsHtml = '<ul class="list-unstyled">';
+            if (tuning.after.metrics) {
+                for (const [key, value] of Object.entries(tuning.after.metrics)) {
+                    afterMetricsHtml += `<li><strong>${formatMetricLabel(key)}:</strong> ${fmtVal(value)}</li>`;
+                }
+            }
+            afterMetricsHtml += '</ul>';
+            document.getElementById('afterMetrics').innerHTML = afterMetricsHtml;
+
+            // Improvements table — hide if empty
+            if (tuning.improvements && Object.keys(tuning.improvements).length > 0) {
+                document.getElementById('improvementsSection').style.display = 'block';
+                let improvementsHtml = '';
+                for (const [key, data] of Object.entries(tuning.improvements)) {
+                    const statusClass = data.improved ? 'success' : 'danger';
+                    const statusIcon = data.improved ? 'arrow-up' : 'arrow-down';
+                    const statusText = data.improved ? 'Improved' : 'Degraded';
+                    improvementsHtml += `
+                <tr>
+                    <td><strong>${formatMetricLabel(key)}</strong></td>
+                    <td>${fmtVal(data.before)}</td>
+                    <td>${fmtVal(data.after)}</td>
+                    <td>${data.change > 0 ? '+' : ''}${fmtVal(data.change)}</td>
+                    <td>${data.percent_change > 0 ? '+' : ''}${fmtVal(data.percent_change)}%</td>
+                    <td><span class="badge bg-${statusClass}"><i class="bi bi-${statusIcon}"></i> ${statusText}</span></td>
+                </tr>
+            `;
+                }
+                document.getElementById('improvementsTable').innerHTML = improvementsHtml;
+            } else {
+                document.getElementById('improvementsSection').style.display = 'none';
+            }
+
+            // Laporan stats fallback section
+            if (tuning.laporan_stats) {
+                document.getElementById('laporanStatsSection').style.display = 'block';
+                const ls = tuning.laporan_stats;
+                document.getElementById('laporanStatsContent').innerHTML = `
+            <div class="row">
+                <div class="col-md-3"><strong>Total Laporan AI:</strong> ${ls.total_laporan}</div>
+                <div class="col-md-3"><strong>Laporan Selesai:</strong> ${ls.completed_laporan}</div>
+                <div class="col-md-3"><strong>Success Rate:</strong> ${ls.success_rate}%</div>
+                <div class="col-md-3"><strong>Rata-rata Panjang Draft:</strong> ${Number(ls.avg_preview_length).toLocaleString()} chars</div>
+            </div>
+            <p class="mt-2 mb-0 text-muted"><small>Gunakan fitur AI Assistant lebih banyak agar grafik before/after tuning tersedia.</small></p>
+        `;
+            } else {
+                document.getElementById('laporanStatsSection').style.display = 'none';
+            }
+
+            // Tuning methods detail
+            let methodsHtml = '<ul>';
+            if (tuning.tuning_methods) {
+                for (const [method, description] of Object.entries(tuning.tuning_methods)) {
+                    methodsHtml += `<li><strong>${method}:</strong> ${description}</li>`;
+                }
+            }
+            methodsHtml += '</ul>';
+            document.getElementById('tuningMethodsDetail').innerHTML = methodsHtml;
+        }
+
+        function renderEvaluationSection(comparison) {
+            // Check if comparison data exists
+            if (!comparison) {
+                console.error('Invalid comparison data:', comparison);
+                return;
+            }
+
+            // Summary
+            document.getElementById('comparisonSummary').textContent = comparison.summary || 'No summary available';
+
+            // Critical analysis
+            let analysisHtml = '';
+            if (comparison.critical_analysis && Array.isArray(comparison.critical_analysis)) {
+                comparison.critical_analysis.forEach(point => {
+                    analysisHtml += `<li>${point}</li>`;
+                });
+            }
+            document.getElementById('criticalAnalysisList').innerHTML = analysisHtml || '<li>No analysis available</li>';
+
+            // Strengths - handle as array
+            let strengthsHtml = '<ul>';
+            if (comparison.strengths) {
+                if (Array.isArray(comparison.strengths)) {
+                    comparison.strengths.forEach(strength => {
+                        strengthsHtml += `<li>${strength}</li>`;
+                    });
+                } else {
+                    // Fallback for object format
+                    for (const [title, description] of Object.entries(comparison.strengths)) {
+                        strengthsHtml += `<li><strong>${title}:</strong> ${description}</li>`;
+                    }
+                }
+            } else {
+                strengthsHtml += '<li>No strengths data available</li>';
+            }
+            strengthsHtml += '</ul>';
+            document.getElementById('strengthsList').innerHTML = strengthsHtml;
+
+            // Limitations - handle as array
+            let limitationsHtml = '<ul>';
+            if (comparison.limitations) {
+                if (Array.isArray(comparison.limitations)) {
+                    comparison.limitations.forEach(limitation => {
+                        limitationsHtml += `<li>${limitation}</li>`;
+                    });
+                } else {
+                    // Fallback for object format
+                    for (const [title, description] of Object.entries(comparison.limitations)) {
+                        limitationsHtml += `<li><strong>${title}:</strong> ${description}</li>`;
+                    }
+                }
+            } else {
+                limitationsHtml += '<li>No limitations data available</li>';
+            }
+            limitationsHtml += '</ul>';
+            document.getElementById('limitationsList').innerHTML = limitationsHtml;
+
+            // Recommendations - handle as array
+            let recommendationsHtml = '<ul>';
+            if (comparison.recommendations) {
+                if (Array.isArray(comparison.recommendations)) {
+                    comparison.recommendations.forEach(recommendation => {
+                        recommendationsHtml += `<li>${recommendation}</li>`;
+                    });
+                } else {
+                    // Fallback for object format
+                    for (const [title, description] of Object.entries(comparison.recommendations)) {
+                        recommendationsHtml += `<li><strong>${title}:</strong> ${description}</li>`;
+                    }
+                }
+            } else {
+                recommendationsHtml += '<li>No recommendations available</li>';
+            }
+            recommendationsHtml += '</ul>';
+            document.getElementById('recommendationsList').innerHTML = recommendationsHtml;
+        }
+
+        function formatMetricLabel(key) {
+            const labels = {
+                'avg_response_time': 'Avg Response Time (s)',
+                'avg_response_length': 'Avg Response Length (chars)',
+                'cache_hit_rate': 'Cache Hit Rate (%)',
+                'quality_score': 'Quality Score',
+                'total_requests': 'Total Requests'
+            };
+            return labels[key] || key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+        }
+
+        function renderPerformanceTable(performance) {
+            const tbody = document.getElementById('performanceTableBody');
+
+            // Check if performance data exists
+            if (!performance || Object.keys(performance).length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" class="text-center">No performance data available</td></tr>';
+                return;
+            }
+
+            let html = '';
+            for (const [feature, metrics] of Object.entries(performance)) {
+                const featureLabel = feature.charAt(0).toUpperCase() + feature.slice(1);
+                html += `
+            <tr>
+                <td><strong>${featureLabel}</strong></td>
+                <td>${(metrics.total_requests || 0).toLocaleString()}</td>
+                <td>${(metrics.avg_response_length || 0).toLocaleString()} chars</td>
+                <td><span class="badge bg-success">${metrics.cache_efficiency || 0}%</span></td>
+                <td>${metrics.most_used_provider || 'N/A'}</td>
+                <td><code>${metrics.most_used_model || 'N/A'}</code></td>
+            </tr>
+        `;
+            }
+            tbody.innerHTML = html;
+        }
+
+        function renderUsageChart(timeline) {
+            console.log('renderUsageChart called with:', timeline);
+            
+            const canvas = document.getElementById('usageChart');
+            
+            if (!canvas) {
+                console.error('usageChart canvas not found');
+                return;
+            }
+
+            // Check if timeline data exists
+            if (!timeline || timeline.length === 0) {
+                console.warn('No timeline data, showing empty state');
+                // Show empty state
+                canvas.parentElement.innerHTML = '<p class="text-center text-muted py-4">Belum ada data timeline. Data akan muncul setelah menggunakan fitur AI Assistant.</p>';
+                return;
+            }
+
+            console.log('Timeline data exists, rendering chart...');
+
+            if (usageChart) {
+                usageChart.destroy();
+            }
+
+            const ctx = canvas.getContext('2d');
+
+            const labels = timeline.map(t => t.date);
+            const newRequests = timeline.map(t => t.new_requests || 0);
+            const cacheHits = timeline.map(t => t.cache_hits || 0);
+
+            console.log('Chart data:', { labels, newRequests, cacheHits });
+
+            usageChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                            label: 'New Requests',
+                            data: newRequests,
+                            borderColor: '#667eea',
+                            backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                            tension: 0.4
+                        },
+                        {
+                            label: 'Cache Hits',
+                            data: cacheHits,
+                            borderColor: '#51CF66',
+                            backgroundColor: 'rgba(81, 207, 102, 0.1)',
+                            tension: 0.4
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                stepSize: 1
+                            }
+                        }
+                    }
+                }
+            });
+            
+            console.log('Chart rendered successfully');
+        }
+
+        function renderCacheStats(cache) {
+            const container = document.getElementById('cacheStats');
+
+            // Check if cache data exists
+            if (!cache) {
+                container.innerHTML = '<p class="text-center text-muted">No cache data available</p>';
+                return;
+            }
+
+            // Calculate values dynamically
+            const totalEntries = cache.total_entries || 0;
+            const reusedEntries = cache.reused_entries || 0;
+            const reuseRate = totalEntries > 0 ? ((reusedEntries / totalEntries) * 100).toFixed(1) : 0;
+            const cacheSizeMB = cache.cache_size_mb || 0;
+
+            container.innerHTML = `
+        <div class="row g-3">
+            <div class="col-6">
+                <div class="stat-box p-3 rounded" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                    <div class="d-flex align-items-center justify-content-between">
+                        <div>
+                            <p class="mb-1 text-white-50 small">Total Entries</p>
+                            <h3 class="mb-0 text-white fw-bold">${totalEntries.toLocaleString()}</h3>
+                        </div>
+                        <div class="stat-icon">
+                            <i class="bi bi-database-fill text-white" style="font-size: 2rem; opacity: 0.3;"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-6">
+                <div class="stat-box p-3 rounded" style="background: linear-gradient(135deg, #51CF66 0%, #73E088 100%);">
+                    <div class="d-flex align-items-center justify-content-between">
+                        <div>
+                            <p class="mb-1 text-white-50 small">Reused Entries</p>
+                            <h3 class="mb-0 text-white fw-bold">${reusedEntries.toLocaleString()}</h3>
+                        </div>
+                        <div class="stat-icon">
+                            <i class="bi bi-arrow-repeat text-white" style="font-size: 2rem; opacity: 0.3;"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-6">
+                <div class="stat-box p-3 rounded" style="background: linear-gradient(135deg, #4ECDC4 0%, #6FE7DD 100%);">
+                    <div class="d-flex align-items-center justify-content-between">
+                        <div>
+                            <p class="mb-1 text-white-50 small">Reuse Rate</p>
+                            <h3 class="mb-0 text-white fw-bold">${reuseRate}%</h3>
+                        </div>
+                        <div class="stat-icon">
+                            <i class="bi bi-percent text-white" style="font-size: 2rem; opacity: 0.3;"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-6">
+                <div class="stat-box p-3 rounded" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
+                    <div class="d-flex align-items-center justify-content-between">
+                        <div>
+                            <p class="mb-1 text-white-50 small">Cache Size</p>
+                            <h3 class="mb-0 text-white fw-bold">${cacheSizeMB.toFixed(2)} MB</h3>
+                        </div>
+                        <div class="stat-icon">
+                            <i class="bi bi-hdd-fill text-white" style="font-size: 2rem; opacity: 0.3;"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+        }
+
+        function renderCacheChart(cache) {
+            const canvas = document.getElementById('cacheChart');
+            
+            if (!canvas) {
+                console.error('cacheChart canvas not found');
+                return;
+            }
+
+            // Check if cache data exists
+            if (!cache || !cache.total_entries) {
+                canvas.parentElement.innerHTML = '<p class="text-center text-muted py-4">No cache data available</p>';
+                return;
+            }
+
+            if (cacheChart) {
+                cacheChart.destroy();
+            }
+
+            const ctx = canvas.getContext('2d');
+
+            // Calculate values dynamically
+            const totalEntries = cache.total_entries || 0;
+            const reusedEntries = cache.reused_entries || 0;
+            const singleUse = totalEntries - reusedEntries;
+
+            cacheChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Reused', 'Single Use'],
+                    datasets: [{
+                        data: [reusedEntries, singleUse],
+                        backgroundColor: [
+                            '#51CF66', // Green for reused
+                            '#E0E7FF'  // Light purple for single use
+                        ],
+                        borderColor: [
+                            '#51CF66',
+                            '#C7D2FE'
+                        ],
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                padding: 15,
+                                font: {
+                                    size: 12,
+                                    weight: '600'
+                                },
+                                usePointStyle: true,
+                                pointStyle: 'circle'
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const label = context.label || '';
+                                    const value = context.parsed || 0;
+                                    const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                    const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
+                                    return `${label}: ${value.toLocaleString()} (${percentage}%)`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function renderFeatureStatus(featureStatus) {
+            const labels = {
+                triwulan: {
+                    name: 'Laporan Triwulan',
+                    icon: 'file-earmark-text',
+                    color: 'primary'
+                },
+                semester: {
+                    name: 'Laporan Semester',
+                    icon: 'file-earmark-bar-graph',
+                    color: 'purple'
+                },
+                vmts: {
+                    name: 'Laporan VMTS',
+                    icon: 'file-earmark-check',
+                    color: 'success'
+                },
+            };
+
+            // Determine which features to display based on currentFeature filter
+            let featuresToDisplay = [];
+            if (currentFeature === 'all') {
+                featuresToDisplay = ['triwulan', 'semester', 'vmts'];
+            } else {
+                featuresToDisplay = [currentFeature];
+            }
+
+            let html = '';
+            for (const [feat, data] of Object.entries(featureStatus)) {
+                // Skip if not in display list
+                if (!featuresToDisplay.includes(feat)) {
+                    continue;
+                }
+
+                const meta = labels[feat] || {
+                    name: feat,
+                    icon: 'file',
+                    color: 'secondary'
+                };
+                const active = data.active;
+                const hasCacheData = data.has_cache_data;
+                const badgeColor = active ? (hasCacheData ? 'success' : 'warning') : 'secondary';
+                const badgeText = active ? (hasCacheData ? 'Aktif (Cache)' : 'Aktif (Laporan)') : 'Belum Digunakan';
+                const badgeIcon = active ? (hasCacheData ? 'check-circle-fill' : 'exclamation-circle-fill') : 'x-circle';
+
+                html += `
+            <div class="col-md-4 mb-3">
+                <div class="card border-${active ? (hasCacheData ? 'success' : 'warning') : 'secondary'} h-100">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <h6 class="card-title mb-0">
+                                <i class="bi bi-${meta.icon} text-${meta.color}"></i>
+                                ${meta.name}
+                            </h6>
+                            <span class="badge bg-${badgeColor}">
+                                <i class="bi bi-${badgeIcon}"></i> ${badgeText}
+                            </span>
+                        </div>
+                        <div class="mt-2">
+                            <div class="row g-1">
+                                <div class="col-6">
+                                    <small class="text-muted">Cache AI</small><br>
+                                    <strong>${data.cache_count} entri</strong><br>
+                                    <small class="text-muted">${data.last_used}</small>
+                                </div>
+                                <div class="col-6">
+                                    <small class="text-muted">Total Laporan</small><br>
+                                    <strong>${data.laporan_count} laporan</strong><br>
+                                    <small class="text-muted">${data.last_laporan}</small>
+                                </div>
+                            </div>
+                        </div>
+                        ${ !hasCacheData ? `<div class="mt-2"><small class="text-warning"><i class="bi bi-info-circle"></i> Gunakan fitur AI Assistant agar data cache muncul di evaluasi.</small></div>` : '' }
+                    </div>
+                </div>
+            </div>
+        `;
+            }
+
+            document.getElementById('featureStatusCards').innerHTML = html;
+            document.getElementById('featureStatusRow').style.display = 'block';
+        }
+
+        function downloadReport() {
+            window.location.href =
+                `{{ route('gjm.model-evaluation.download-report') }}?period=${currentPeriod}&feature=${currentFeature}`;
+        }
+    </script>
+@endsection

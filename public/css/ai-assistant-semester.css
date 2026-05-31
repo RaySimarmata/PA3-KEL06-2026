@@ -304,7 +304,7 @@
         left: 20px;
         max-height: 70vh;
     }
-    
+
     .ai-floating-btn {
         bottom: 20px;
         right: 20px;
@@ -324,7 +324,7 @@
         max-height: calc(100vh - 20px);
         border-radius: 12px;
     }
-    
+
     .ai-conversation {
         max-height: calc(100vh - 200px);
     }
@@ -361,6 +361,7 @@
         transform: translateX(100%) translateY(-50%);
         opacity: 0;
     }
+
     to {
         transform: translateX(0) translateY(-50%);
         opacity: 1;
@@ -372,6 +373,7 @@
         transform: translateX(0) translateY(-50%);
         opacity: 1;
     }
+
     to {
         transform: translateX(100%) translateY(-50%);
         opacity: 0;
@@ -404,7 +406,154 @@
     0% {
         transform: rotate(0deg);
     }
+
     100% {
         transform: rotate(360deg);
     }
+}
+
+
+/* ===============================================================
+   ERROR MESSAGES
+   =============================================================== */
+
+.ai-message-system {
+    background: #fef3c7;
+    border-left: 4px solid #f59e0b;
+    padding: 0.75rem 1rem;
+    border-radius: 8px;
+    margin: 0.5rem 0;
+}
+
+.ai-message-system.error {
+    background: #fee2e2;
+    border-left-color: #ef4444;
+}
+
+.ai-message-system.success {
+    background: #d1fae5;
+    border-left-color: #10b981;
+}
+
+.ai-message-system.info {
+    background: #dbeafe;
+    border-left-color: #3b82f6;
+}
+
+.ai-message-system .message-content {
+    background: transparent;
+    border: none;
+    margin: 0;
+    padding: 0;
+}
+
+.ai-message-system strong {
+    color: #991b1b;
+    font-weight: 600;
+}
+
+.ai-message-system.error strong {
+    color: #991b1b;
+}
+
+.ai-message-system.success strong {
+    color: #065f46;
+}
+
+.ai-message-system.info strong {
+    color: #1e40af;
+}
+
+/* ===============================================================
+   RETRY INDICATOR
+   =============================================================== */
+
+.retry-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    background: #fef3c7;
+    border-radius: 8px;
+    font-size: 0.875rem;
+    color: #92400e;
+    margin: 0.5rem 0;
+}
+
+.retry-indicator i {
+    animation: fa-spin 1s infinite linear;
+}
+
+/* ===============================================================
+   CONNECTION STATUS
+   =============================================================== */
+
+.connection-status {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    background: #f8fafc;
+    border-radius: 8px;
+    font-size: 0.75rem;
+    color: #64748b;
+    margin-bottom: 0.5rem;
+}
+
+.connection-status.online {
+    background: #d1fae5;
+    color: #065f46;
+}
+
+.connection-status.offline {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+.connection-status .status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #94a3b8;
+}
+
+.connection-status.online .status-dot {
+    background: #10b981;
+    animation: pulse 2s infinite;
+}
+
+.connection-status.offline .status-dot {
+    background: #ef4444;
+}
+
+@keyframes pulse {
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.5;
+    }
+}
+
+/* ===============================================================
+   CONTROLS
+   =============================================================== */
+
+.ai-assistant-controls {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.ai-assistant-controls .btn {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.875rem;
+    border-radius: 6px;
+}
+
+.ai-assistant-controls .btn:hover {
+    background: rgba(255, 255, 255, 0.2);
 }

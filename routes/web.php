@@ -26,6 +26,7 @@ use App\Http\Controllers\GJM\PromptSemesterController;
 use App\Http\Controllers\GJM\LaporanTriwulanController;
 use App\Http\Controllers\GJM\PromptTriwulanController;
 use App\Http\Controllers\GJM\OCRUploadController;
+use App\Http\Controllers\GJM\ModelEvaluationController;
 use App\Http\Controllers\PeriodeAkademikController;
 use App\Models\AIResponseCacheMongo;
 
@@ -260,6 +261,9 @@ Route::middleware('auth')->group(function () {
             Route::get('/', [LaporanArtefakController::class, 'index'])->name('index');
             Route::get('/create', [LaporanArtefakController::class, 'create'])->name('create');
             Route::post('/', [LaporanArtefakController::class, 'store'])->name('store');
+            
+            // AI Assistant
+            Route::post('/ai-prompt', [LaporanArtefakController::class, 'aiPrompt'])->name('ai-prompt');
 
             // Template Management (MUST BE BEFORE /{id} routes)
             Route::get('/template', [LaporanArtefakController::class, 'templateIndex'])->name('template.index');
@@ -362,8 +366,13 @@ Route::middleware('auth')->group(function () {
             Route::get('/', [BuatLaporanController::class, 'index'])->name('index');
 
             // Triwulan
-            Route::get('/triwulan', [LaporanTriwulanController::class, 'create'])->name('triwulan');
+            Route::get('/triwulan', [LaporanTriwulanController::class, 'index'])->name('triwulan.index');
+            Route::get('/triwulan/create', [LaporanTriwulanController::class, 'create'])->name('triwulan.create');
+            Route::post('/triwulan/create-draft', [LaporanTriwulanController::class, 'createDraft'])->name('triwulan.create-draft');
             Route::post('/triwulan', [LaporanTriwulanController::class, 'store'])->name('triwulan.store');
+            Route::get('/triwulan/{id}', [LaporanTriwulanController::class, 'show'])->name('triwulan.show');
+            Route::get('/triwulan/{id}/download/{format}', [LaporanTriwulanController::class, 'download'])->name('triwulan.download');
+            Route::delete('/triwulan/{id}', [LaporanTriwulanController::class, 'destroy'])->name('triwulan.destroy');
             Route::post('/triwulan/ai-prompt', [LaporanTriwulanController::class, 'aiPrompt'])->name('triwulan.ai-prompt');
             Route::post('/triwulan/save-preview', [LaporanTriwulanController::class, 'savePreview'])->name('triwulan.save-preview');
             Route::post('/triwulan/save-images', [LaporanTriwulanController::class, 'saveUploadedImages'])->name('triwulan.save-images');
@@ -371,16 +380,33 @@ Route::middleware('auth')->group(function () {
             Route::post('/triwulan/read-file', [PromptTriwulanController::class, 'readFile'])->name('triwulan.read-file');
 
             // Semester
-            Route::get('/semester', [LaporanSemesterController::class, 'create'])->name('semester');
+            Route::get('/semester', [LaporanSemesterController::class, 'index'])->name('semester.index');
+            Route::get('/semester/create', [LaporanSemesterController::class, 'create'])->name('semester.create');
             Route::post('/semester', [LaporanSemesterController::class, 'store'])->name('semester.store');
+            Route::get('/semester/{id}', [LaporanSemesterController::class, 'show'])->name('semester.show');
+            Route::get('/semester/{id}/download/{format}', [LaporanSemesterController::class, 'download'])->name('semester.download');
+            Route::delete('/semester/{id}', [LaporanSemesterController::class, 'destroy'])->name('semester.destroy');
             Route::post('/semester/create-draft', [LaporanSemesterController::class, 'createDraft'])->name('semester.create-draft');
             Route::post('/semester/ai-prompt', [LaporanSemesterController::class, 'aiPrompt'])->name('semester.ai-prompt');
+            Route::post('/semester/save-preview', [LaporanSemesterController::class, 'savePreview'])->name('semester.save-preview');
             Route::post('/semester/prompt', [PromptSemesterController::class, 'chat'])->name('semester.prompt');
             Route::post('/semester/read-file', [PromptSemesterController::class, 'readFile'])->name('semester.read-file');
             Route::get('/semester/diagnostic', [PromptSemesterController::class, 'diagnostic'])->name('semester.diagnostic');
 
+            // VMTS
+            Route::get('/vmts', [\App\Http\Controllers\GJM\LaporanVMTSController::class, 'index'])->name('vmts.index');
+            Route::get('/vmts/create', [\App\Http\Controllers\GJM\LaporanVMTSController::class, 'create'])->name('vmts.create');
+            Route::post('/vmts', [\App\Http\Controllers\GJM\LaporanVMTSController::class, 'store'])->name('vmts.store');
+            Route::get('/vmts/{id}', [\App\Http\Controllers\GJM\LaporanVMTSController::class, 'show'])->name('vmts.show');
+            Route::get('/vmts/{id}/download/{format}', [\App\Http\Controllers\GJM\LaporanVMTSController::class, 'download'])->name('vmts.download');
+            Route::delete('/vmts/{id}', [\App\Http\Controllers\GJM\LaporanVMTSController::class, 'destroy'])->name('vmts.destroy');
+            Route::post('/vmts/create-draft', [\App\Http\Controllers\GJM\LaporanVMTSController::class, 'createDraft'])->name('vmts.create-draft');
+            Route::post('/vmts/ai-prompt', [\App\Http\Controllers\GJM\LaporanVMTSController::class, 'aiPrompt'])->name('vmts.ai-prompt');
+            Route::post('/vmts/save-preview', [\App\Http\Controllers\GJM\LaporanVMTSController::class, 'savePreview'])->name('vmts.save-preview');
+
             // Download
             Route::get('/download/{id}', [LaporanGJMController::class, 'download'])->name('download.pdf');
+
 
             // OCR Upload & Enhanced AI Integration (NEW)
             Route::post('/ocr/upload', [OCRUploadController::class, 'uploadImages'])->name('ocr.upload');
@@ -421,6 +447,12 @@ Route::middleware('auth')->group(function () {
             Route::post('/send', [GJMKirimLaporanController::class, 'send'])->name('send');
         });
 
+        // Model Evaluation (AI Assistant Evaluation)
+        Route::prefix('model-evaluation')->name('model-evaluation.')->group(function () {
+            Route::get('/', [ModelEvaluationController::class, 'index'])->name('index');
+            Route::get('/get-data', [ModelEvaluationController::class, 'getData'])->name('get-data');
+            Route::get('/download-report', [ModelEvaluationController::class, 'downloadReport'])->name('download-report');
+        });
         // Laporan GJM Fakultas (Arsip)
         Route::prefix('laporan-gjm')->name('laporan-gjm.')->group(function () {
             Route::get('/', [LaporanGJMController::class, 'index'])->name('index');

@@ -183,6 +183,14 @@ class VectorDatabaseService
             $chunksQuery = DocumentChunk::with('kuesioneUpload');
 
             // Apply filters
+            if (isset($filters['source_type'])) {
+                $chunksQuery->where('source_type', $filters['source_type']);
+            }
+
+            if (isset($filters['source_id'])) {
+                $chunksQuery->where('source_id', $filters['source_id']);
+            }
+
             if (isset($filters['periode'])) {
                 $chunksQuery->whereHas('kuesioneUpload', function($q) use ($filters) {
                     $q->whereRaw("DATE_FORMAT(created_at, '%Y-%m') = ?", [$filters['periode']]);

@@ -25,25 +25,10 @@ class LaporanKuesioneService
         DocumentStructureService $structureService,
         AdvancedChunkingService $advancedChunkingService
     ) {
-        // Support multiple LLM providers: 'groq', 'ollama', 'openai'
-        $provider = env('LLM_PROVIDER', 'ollama');
-
-        if ($provider === 'ollama') {
-            // Local LLM via Ollama (Recommended: LLaMA 3 8B Instruct)
-            $this->apiKey = 'ollama'; // Not needed for Ollama
-            $this->baseUrl = env('OLLAMA_BASE_URL', 'http://localhost:11434/v1');
-            $this->model = env('OLLAMA_MODEL', 'llama3:8b-instruct');
-        } elseif ($provider === 'groq') {
-            // GROQ Cloud API
-            $this->apiKey = env('GROQ_API_KEY');
-            $this->baseUrl = env('GROQ_BASE_URL', 'https://api.groq.com/openai/v1');
-            $this->model = env('GROQ_MODEL', 'llama-3.3-70b-versatile');
-        } else {
-            // Fallback to generic LLM config
-            $this->apiKey = env('LLM_API_KEY');
-            $this->baseUrl = env('LLM_BASE_URL', 'http://localhost:11434/v1');
-            $this->model = env('LLM_MODEL', 'llama3:8b-instruct');
-        }
+        // Use centralized LLM configuration from config/services.php
+        $this->apiKey = config('services.llm.api_key');
+        $this->baseUrl = config('services.llm.base_url');
+        $this->model = config('services.llm.model');
 
         $this->textExtractionService = $textExtractionService;
         $this->structureService = $structureService;
@@ -66,9 +51,9 @@ class LaporanKuesioneService
 
         // Filter by prodi if specified - Check both via user and direct prodi_id if it exists
         if ($prodiId) {
-            $query->where(function($q) use ($prodiId) {
+            $query->where(function ($q) use ($prodiId) {
                 // Check via user relationship
-                $q->whereHas('user', function($uq) use ($prodiId) {
+                $q->whereHas('user', function ($uq) use ($prodiId) {
                     $uq->where('prodi_id', $prodiId);
                 });
 
@@ -149,7 +134,7 @@ class LaporanKuesioneService
         $persenKepuasanRataRata = ($indexKepuasanRataRata / 4) * 100;
 
         // Sort untuk top 5
-        usort($kuesioneData, function($a, $b) {
+        usort($kuesioneData, function ($a, $b) {
             return $b['index_kepuasan'] <=> $a['index_kepuasan'];
         });
 
@@ -685,14 +670,14 @@ class LaporanKuesioneService
     {
         // Petakan kalimat umum ke frasa singkat
         $patterns = [
-            '/waktu untuk menyelesaikan ujian.*/i'                       => 'kecukupan waktu ujian',
-            '/dosen.*menyiapkan materi.*terstruktur.*/i'                  => 'struktur dan perencanaan materi kuliah',
-            '/secara keseluruhan.*puas.*pembelajaran.*mata kuliah.*/i'    => 'kepuasan pembelajaran secara keseluruhan',
-            '/hasil pemeriksaan kuis.*dikembalikan.*/i'                   => 'pengembalian hasil kuis/tugas/ujian',
-            '/soal ujian sesuai dengan materi.*/i'                        => 'kesesuaian soal ujian dengan materi',
-            '/kehadiran.*dosen.*ta.*/i'                                    => 'kehadiran dosen/TA di kelas',
-            '/platform.*pembelajaran.*/i'                                  => 'efektivitas platform pembelajaran',
-            '/interaksi.*mahasiswa.*/i'                                    => 'interaksi antara dosen dan mahasiswa',
+            '/waktu untuk menyelesaikan ujian.*/i' => 'kecukupan waktu ujian',
+            '/dosen.*menyiapkan materi.*terstruktur.*/i' => 'struktur dan perencanaan materi kuliah',
+            '/secara keseluruhan.*puas.*pembelajaran.*mata kuliah.*/i' => 'kepuasan pembelajaran secara keseluruhan',
+            '/hasil pemeriksaan kuis.*dikembalikan.*/i' => 'pengembalian hasil kuis/tugas/ujian',
+            '/soal ujian sesuai dengan materi.*/i' => 'kesesuaian soal ujian dengan materi',
+            '/kehadiran.*dosen.*ta.*/i' => 'kehadiran dosen/TA di kelas',
+            '/platform.*pembelajaran.*/i' => 'efektivitas platform pembelajaran',
+            '/interaksi.*mahasiswa.*/i' => 'interaksi antara dosen dan mahasiswa',
         ];
 
         foreach ($patterns as $pattern => $replacement) {
@@ -1835,25 +1820,20 @@ If you cannot generate valid JSON, return this fallback:
                 // Handle typos and variants
                 if (strpos($upperK, 'TUJUAN') !== false) {
                     $hasilLaporan['PENDAHULUAN_TUJUAN'] = $v;
-                }
-                elseif (strpos($upperK, 'WAKTU') !== false) {
+                } elseif (strpos($upperK, 'WAKTU') !== false) {
                     $hasilLaporan['PENDAHULUAN_WAKTU'] = $v;
-                }
-                elseif (strpos($upperK, 'RUANG') !== false) {
+                } elseif (strpos($upperK, 'RUANG') !== false) {
                     $hasilLaporan['PENDAHULUAN_RUANG_LINGKUP'] = $v;
                 }
                 // HASIL KUESIONER per tingkat
                 elseif (strpos($upperK, 'HASIL') !== false && strpos($upperK, 'KUESIONER') !== false) {
                     if (strpos($upperK, 'TINGKAT_IV') !== false || strpos($upperK, 'TINGKAT_4') !== false) {
                         $hasilLaporan['HASIL_KUESIONER_TINGKAT_IV'] = $v;
-                    }
-                    elseif (strpos($upperK, 'TINGKAT_III') !== false || strpos($upperK, 'TINGKAT_3') !== false) {
+                    } elseif (strpos($upperK, 'TINGKAT_III') !== false || strpos($upperK, 'TINGKAT_3') !== false) {
                         $hasilLaporan['HASIL_KUESIONER_TINGKAT_III'] = $v;
-                    }
-                    elseif (strpos($upperK, 'TINGKAT_II') !== false || strpos($upperK, 'TINGKAT_2') !== false) {
+                    } elseif (strpos($upperK, 'TINGKAT_II') !== false || strpos($upperK, 'TINGKAT_2') !== false) {
                         $hasilLaporan['HASIL_KUESIONER_TINGKAT_II'] = $v;
-                    }
-                    elseif (strpos($upperK, 'TINGKAT_I') !== false || strpos($upperK, 'TINGKAT_1') !== false) {
+                    } elseif (strpos($upperK, 'TINGKAT_I') !== false || strpos($upperK, 'TINGKAT_1') !== false) {
                         $hasilLaporan['HASIL_KUESIONER_TINGKAT_I'] = $v;
                     }
                 }
@@ -1861,27 +1841,20 @@ If you cannot generate valid JSON, return this fallback:
                 elseif (strpos($upperK, 'MASUKAN') !== false || strpos($upperK, 'SARAN') !== false) {
                     if (strpos($upperK, 'REKOMENDASI') !== false) {
                         $hasilLaporan['SARAN_REKOMENDASI'] = $v;
-                    }
-                    elseif (strpos($upperK, 'TINGKAT_IV') !== false || strpos($upperK, 'TINGKAT_4') !== false) {
+                    } elseif (strpos($upperK, 'TINGKAT_IV') !== false || strpos($upperK, 'TINGKAT_4') !== false) {
                         $hasilLaporan['MASUKAN_SARAN_TINGKAT_IV'] = $v;
-                    }
-                    elseif (strpos($upperK, 'TINGKAT_III') !== false || strpos($upperK, 'TINGKAT_3') !== false) {
+                    } elseif (strpos($upperK, 'TINGKAT_III') !== false || strpos($upperK, 'TINGKAT_3') !== false) {
                         $hasilLaporan['MASUKAN_SARAN_TINGKAT_III'] = $v;
-                    }
-                    elseif (strpos($upperK, 'TINGKAT_II') !== false || strpos($upperK, 'TINGKAT_2') !== false) {
+                    } elseif (strpos($upperK, 'TINGKAT_II') !== false || strpos($upperK, 'TINGKAT_2') !== false) {
                         $hasilLaporan['MASUKAN_SARAN_TINGKAT_II'] = $v;
-                    }
-                    elseif (strpos($upperK, 'TINGKAT_I') !== false || strpos($upperK, 'TINGKAT_1') !== false) {
+                    } elseif (strpos($upperK, 'TINGKAT_I') !== false || strpos($upperK, 'TINGKAT_1') !== false) {
                         $hasilLaporan['MASUKAN_SARAN_TINGKAT_I'] = $v;
-                    }
-                    else {
+                    } else {
                         $hasilLaporan['MASUKAN_SARAN'] = $v;
                     }
-                }
-                elseif (strpos($upperK, 'KESIMPULAN') !== false) {
+                } elseif (strpos($upperK, 'KESIMPULAN') !== false) {
                     $hasilLaporan['KESIMPULAN'] = $v;
-                }
-                else {
+                } else {
                     $hasilLaporan[$k] = $v; // Keep original if no match
                 }
             }
@@ -2094,17 +2067,17 @@ If you cannot generate valid JSON, return this fallback:
                 'Authorization' => 'Bearer ' . $this->apiKey,
                 'Content-Type' => 'application/json',
             ])->timeout(120)->post($this->baseUrl . '/chat/completions', [
-                'model' => $this->model,
-                'messages' => [
-                    $systemMessage,
-                    [
-                        'role' => 'user',
-                        'content' => $userPrompt
-                    ]
-                ],
-                'temperature' => 0.7,
-                'max_tokens' => $maxTokens,
-            ]);
+                        'model' => $this->model,
+                        'messages' => [
+                            $systemMessage,
+                            [
+                                'role' => 'user',
+                                'content' => $userPrompt
+                            ]
+                        ],
+                        'temperature' => 0.7,
+                        'max_tokens' => $maxTokens,
+                    ]);
 
             if ($response->successful()) {
                 $data = $response->json();
@@ -2123,7 +2096,7 @@ If you cannot generate valid JSON, return this fallback:
             } else {
                 $errorBody = $response->body();
                 $errorData = json_decode($errorBody, true);
-                
+
                 Log::error('AI API Error', [
                     'status' => $response->status(),
                     'body' => $errorBody,

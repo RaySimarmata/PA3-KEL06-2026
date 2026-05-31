@@ -44,7 +44,7 @@
                     <p class="text-muted mb-0" style="font-size: 0.875rem;">Upload dan kelola template Word untuk Laporan Semester</p>
                 </div>
                 <div class="d-flex gap-2">
-                    <a href="{{ route('gjm.buat-laporan.semester') }}" class="btn btn-outline-secondary">
+                    <a href="{{ route('gjm.buat-laporan.semester.index') }}" class="btn btn-outline-secondary">
                         <i class="bi bi-arrow-left"></i> Kembali
                     </a>
                     <a href="{{ route('gjm.template-laporan.semester.upload') }}" class="btn-reminder">

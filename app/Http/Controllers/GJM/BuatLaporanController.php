@@ -14,8 +14,8 @@ class BuatLaporanController extends Controller
 {
     public function index()
     {
-        // Redirect to triwulan as default
-        return redirect()->route('gjm.buat-laporan.triwulan');
+        // Show index page with all laporan types
+        return view('gjm.buat-laporan.index');
     }
 
     public function triwulan()

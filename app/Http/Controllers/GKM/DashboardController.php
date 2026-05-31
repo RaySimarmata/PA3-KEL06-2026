@@ -7,6 +7,8 @@ use App\Models\Materi;
 use App\Models\RPS;
 use App\Models\Reminder;
 use App\Models\Kuisioner;
+use App\Models\LaporanBulanan;
+use App\Models\LaporanGKM;
 use Illuminate\Support\Facades\Auth;
 
 class DashboardController extends Controller
@@ -32,6 +34,10 @@ class DashboardController extends Controller
         // Status Kuisioner
         $kuisionerAktif = Kuisioner::where('status', 'aktif')->count();
 
+        // Total laporan kuesioner (LaporanBulanan) and total laporan bulanan/gkm (LaporanGKM)
+        $totalQuestionnaires = LaporanBulanan::count();
+        $totalMonthlyReports = LaporanGKM::count();
+
         $stats = [
             'materi_uploaded' => $materiUploaded,
             'materi_belum' => $materiBelum,
@@ -43,6 +49,6 @@ class DashboardController extends Controller
 
         $periode = date('F Y');
 
-        return view('gkm.dashboard.index', compact('user', 'stats', 'periode'));
+        return view('gkm.dashboard.index', compact('user', 'stats', 'periode', 'totalQuestionnaires', 'totalMonthlyReports'));
     }
 }

@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Smart Merge - AI Assistant</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #2563eb;
+            border-bottom: 3px solid #2563eb;
+            padding-bottom: 10px;
+        }
+        .step {
+            background: #f0f9ff;
+            border-left: 4px solid #2563eb;
+            padding: 15px;
+            margin: 20px 0;
+        }
+        .step h3 {
+            margin-top: 0;
+            color: #1e40af;
+        }
+        .success {
+            background: #f0fdf4;
+            border-left-color: #16a34a;
+        }
+        .success h3 {
+            color: #15803d;
+        }
+        .warning {
+            background: #fef3c7;
+            border-left-color: #f59e0b;
+        }
+        .warning h3 {
+            color: #d97706;
+        }
+        .error {
+            background: #fef2f2;
+            border-left-color: #dc2626;
+        }
+        .error h3 {
+            color: #b91c1c;
+        }
+        code {
+            background: #1e293b;
+            color: #e2e8f0;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+        }
+        .code-block {
+            background: #1e293b;
+            color: #e2e8f0;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+            margin: 10px 0;
+        }
+        button {
+            background: #2563eb;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 5px;
+        }
+        button:hover {
+            background: #1d4ed8;
+        }
+        .test-result {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 5px;
+            display: none;
+        }
+        .checklist {
+            list-style: none;
+            padding: 0;
+        }
+        .checklist li {
+            padding: 10px;
+            margin: 5px 0;
+            background: #f8fafc;
+            border-radius: 5px;
+        }
+        .checklist li:before {
+            content: "☐ ";
+            font-size: 20px;
+            margin-right: 10px;
+        }
+        .checklist li.checked:before {
+            content: "✅ ";
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 Test Smart Merge - AI Assistant</h1>
+        
+        <div class="step warning">
+            <h3>⚠️ PENTING - Baca Ini Dulu!</h3>
+            <p>Jika Anda melihat halaman ini, berarti Anda sedang mencoba test fitur Smart Merge.</p>
+            <p><strong>Masalah:</strong> Ketika minta "Perbaiki bagian EVALUASI", hanya EVALUASI yang muncul.</p>
+            <p><strong>Solusi:</strong> Ikuti langkah-langkah di bawah ini dengan PERSIS!</p>
+        </div>
+
+        <div class="step">
+            <h3>Step 1: Hard Refresh Browser</h3>
+            <p>Tekan salah satu kombinasi ini:</p>
+            <div class="code-block">
+Windows: Ctrl + Shift + R
+         ATAU Ctrl + F5
+
+Mac: Cmd + Shift + R
+            </div>
+            <button onclick="location.reload(true)">🔄 Reload Halaman Ini</button>
+        </div>
+
+        <div class="step">
+            <h3>Step 2: Check JavaScript File</h3>
+            <p>Pastikan file JavaScript sudah terupdate:</p>
+            <button onclick="checkJavaScriptFile()">🔍 Check File JavaScript</button>
+            <div id="js-check-result" class="test-result"></div>
+        </div>
+
+        <div class="step">
+            <h3>Step 3: Test Console</h3>
+            <p>Buka Console (F12) dan test method:</p>
+            <div class="code-block">
+// Di Console, ketik:
+typeof aiAssistantTriwulan !== 'undefined' && 
+typeof aiAssistantTriwulan.mergeSectionIntoDraft === 'function'
+
+// Jika return: true ✅ File sudah terupdate!
+// Jika return: false ❌ File belum terupdate!
+            </div>
+            <button onclick="testConsole()">🧪 Test Console</button>
+            <div id="console-test-result" class="test-result"></div>
+        </div>
+
+        <div class="step success">
+            <h3>Step 4: Workflow yang Benar</h3>
+            <ol>
+                <li>Buka aplikasi (bukan halaman ini)</li>
+                <li>Clear AI conversation (tombol 🗑️)</li>
+                <li>Prompt: <code>"Buat laporan triwulan lengkap"</code></li>
+                <li>Tunggu sampai dapat 10 sections</li>
+                <li>Prompt: <code>"Perbaiki bagian EVALUASI"</code></li>
+                <li>Expected: Dapat 10 sections (hanya EVALUASI berubah) ✅</li>
+            </ol>
+        </div>
+
+        <div class="step">
+            <h3>Checklist Testing</h3>
+            <ul class="checklist">
+                <li id="check1" onclick="toggleCheck('check1')">Hard refresh browser (Ctrl + Shift + R)</li>
+                <li id="check2" onclick="toggleCheck('check2')">File JavaScript sudah terupdate</li>
+                <li id="check3" onclick="toggleCheck('check3')">Clear AI conversation (🗑️)</li>
+                <li id="check4" onclick="toggleCheck('check4')">Buat draft lengkap dulu</li>
+                <li id="check5" onclick="toggleCheck('check5')">Dapat 10 sections dari draft</li>
+                <li id="check6" onclick="toggleCheck('check6')">Ubah section tertentu</li>
+                <li id="check7" onclick="toggleCheck('check7')">Dapat 10 sections (section yang diminta berubah)</li>
+            </ul>
+        </div>
+
+        <div class="step error">
+            <h3>❌ Jika Masih Tidak Bisa</h3>
+            <p>Coba test di <strong>Incognito Mode</strong>:</p>
+            <div class="code-block">
+1. Tekan Ctrl + Shift + N (Chrome)
+2. Buka aplikasi di incognito
+3. Test workflow di atas
+4. Jika berhasil di incognito, berarti masalah di cache!
+            </div>
+            <button onclick="alert('Tekan Ctrl + Shift + N untuk buka Incognito Mode')">🕵️ Buka Incognito</button>
+        </div>
+
+        <div class="step">
+            <h3>📊 Debug Info</h3>
+            <button onclick="showDebugInfo()">🔍 Show Debug Info</button>
+            <div id="debug-info" class="test-result"></div>
+        </div>
+    </div>
+
+    <script>
+        function checkJavaScriptFile() {
+            const result = document.getElementById('js-check-result');
+            result.style.display = 'block';
+            
+            // Check if the file is loaded
+            const scripts = document.getElementsByTagName('script');
+            let found = false;
+            
+            for (let script of scripts) {
+                if (script.src.includes('ai-prompt-assistant-triwulan.js')) {
+                    found = true;
+                    break;
+                }
+            }
+            
+            if (found) {
+                result.className = 'test-result success';
+                result.innerHTML = '<h4>✅ File JavaScript Ditemukan</h4><p>File ai-prompt-assistant-triwulan.js sudah ter-load.</p>';
+            } else {
+                result.className = 'test-result warning';
+                result.innerHTML = '<h4>⚠️ File Tidak Ditemukan di Halaman Ini</h4><p>Ini normal karena Anda di halaman test. Buka aplikasi untuk test yang sebenarnya.</p>';
+            }
+        }
+
+        function testConsole() {
+            const result = document.getElementById('console-test-result');
+            result.style.display = 'block';
+            
+            result.className = 'test-result';
+            result.innerHTML = `
+                <h4>🧪 Test Console</h4>
+                <p>Buka Console (F12) dan ketik:</p>
+                <div class="code-block">
+typeof aiAssistantTriwulan !== 'undefined' && 
+typeof aiAssistantTriwulan.mergeSectionIntoDraft === 'function'
+                </div>
+                <p><strong>Expected:</strong> <code>true</code></p>
+                <p><strong>Jika false:</strong> File JavaScript belum terupdate! Hard refresh lagi!</p>
+            `;
+        }
+
+        function toggleCheck(id) {
+            const element = document.getElementById(id);
+            element.classList.toggle('checked');
+        }
+
+        function showDebugInfo() {
+            const result = document.getElementById('debug-info');
+            result.style.display = 'block';
+            result.className = 'test-result';
+            
+            const info = {
+                'User Agent': navigator.userAgent,
+                'Platform': navigator.platform,
+                'Language': navigator.language,
+                'Online': navigator.onLine,
+                'Cookies Enabled': navigator.cookieEnabled,
+                'Current URL': window.location.href,
+                'Timestamp': new Date().toISOString()
+            };
+            
+            let html = '<h4>🔍 Debug Information</h4>';
+            for (let [key, value] of Object.entries(info)) {
+                html += `<p><strong>${key}:</strong> ${value}</p>`;
+            }
+            
+            result.innerHTML = html;
+        }
+
+        // Auto-check browser
+        window.onload = function() {
+            console.log('🧪 Test Smart Merge Page Loaded');
+            console.log('📝 Follow the steps above to test the Smart Merge feature');
+            console.log('🔍 Check console for any errors');
+        };
+    </script>
+</body>
+</html>

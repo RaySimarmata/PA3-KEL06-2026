@@ -44,7 +44,7 @@
                     <p class="text-muted mb-0" style="font-size: 0.875rem;">Upload dan kelola template Word untuk Laporan Triwulan</p>
                 </div>
                 <div class="d-flex gap-2">
-                    <a href="{{ route('gjm.buat-laporan.triwulan') }}" class="btn btn-outline-secondary">
+                    <a href="{{ route('gjm.buat-laporan.triwulan.index') }}" class="btn btn-outline-secondary">
                         <i class="bi bi-arrow-left"></i> Kembali
                     </a>
                     <a href="{{ route('gjm.template-laporan.triwulan.upload') }}" class="btn-reminder">

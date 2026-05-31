@@ -7,7 +7,7 @@
     <!-- Welcome Section -->
     <div class="card border-0 shadow-sm mb-4">
         <div class="card-body">
-            <h3 class="mb-1">Selamat Datang, {{ $user->name }}</h3>
+            <h3 class="mb-1">Selamat Datang, {{ $user->name }} Sistem GJM dan GKM</h3>
             <p class="text-muted mb-0">Periode: {{ date('F Y') }}</p>
         </div>
     </div>
@@ -94,8 +94,18 @@
                     </a>
                 </div>
                 <div class="col-md-6 mb-3">
+                    <a href="{{ route('gkm.laporan-kuesioner.create') }}" class="btn btn-primary w-100 py-3">
+                        <i class="bi bi-file-earmark-text"></i> Generate Laporan Kuesioner
+                    </a>
+                </div>
+                <div class="col-md-6 mb-3">
                     <a href="{{ route('gkm.monitoring-rps.ceklist') }}" class="btn btn-success w-100 py-3">
-                        <i class="bi bi-send"></i> Kirim Reminder Sekarang
+                        <i class="bi bi-send"></i> Kirim Reminder RPS
+                    </a>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <a href="{{ route('gkm.monitoring-perkuliahan.kirim-pengingat') }}" class="btn btn-success w-100 py-3">
+                        <i class="bi bi-send"></i> Kirim Reminder Materi Perkuliahan
                     </a>
                 </div>
             </div>
@@ -108,12 +118,12 @@
             <div class="card border-0 shadow-sm h-100">
                 <div class="card-body">
                     <div class="d-flex align-items-center mb-3">
-                        <i class="bi bi-people" style="font-size: 30px; color: #1e3c72;"></i>
-                        <h6 class="ms-3 mb-0">Data Master</h6>
+                        <i class="bi bi-journal-richtext" style="font-size: 30px; color: #1e3c72;"></i>
+                        <h6 class="ms-3 mb-0">Monitoring Materi</h6>
                     </div>
-                    <p class="text-muted small mb-3">Kelola data dosen, mata kuliah, dan periode akademik</p>
-                    <a href="{{ route('gkm.data-master.index') }}" class="btn btn-outline-primary btn-sm">
-                        Kelola Data <i class="bi bi-arrow-right"></i>
+                    <p class="text-muted small mb-3">Monitor progres materi perkuliahan dan kirim pengingat</p>
+                    <a href="{{ route('gkm.monitoring-perkuliahan.index') }}" class="btn btn-outline-primary btn-sm">
+                        Lihat Monitoring <i class="bi bi-arrow-right"></i>
                     </a>
                 </div>
             </div>

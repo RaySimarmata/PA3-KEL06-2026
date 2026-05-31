@@ -34,7 +34,7 @@ class LaporanSemesterController extends Controller
             ->jenis('laporan_semester')
             ->get();
         
-        return view('gjm.buat-laporan.semester', compact('user', 'templates'));
+        return view('gjm.buat-laporan.semester-create', compact('user', 'templates'));
     }
 
     /**
@@ -51,12 +51,45 @@ class LaporanSemesterController extends Controller
                 'conversation_history' => 'nullable|array',
                 'template_id' => 'nullable|exists:template_laporan,id',
             ]);
+            
+            $userPrompt = $request->input('prompt');
+            $hasFiles = $request->hasFile('file_referensi');
+            
+            // VALIDATION: Ensure user provides instruction when uploading files
+            if ($hasFiles && empty(trim($userPrompt))) {
+                Log::warning('AI Prompt validation failed: Files uploaded without instruction', [
+                    'files_count' => count($request->file('file_referensi')),
+                    'prompt_length' => strlen($userPrompt)
+                ]);
+                
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Instruksi diperlukan! Anda telah mengupload file tetapi belum memberikan instruksi. Silakan ketik instruksi Anda, misalnya: "Analisis dokumen ini dan buat ringkasan" atau "Buat laporan berdasarkan data yang diupload".'
+                ], 400);
+            }
+            
+            // VALIDATION: Ensure prompt is meaningful (not just whitespace or very short)
+            if (strlen(trim($userPrompt)) < 5) {
+                Log::warning('AI Prompt validation failed: Prompt too short', [
+                    'prompt' => $userPrompt,
+                    'prompt_length' => strlen($userPrompt)
+                ]);
+                
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Instruksi terlalu singkat. Silakan berikan instruksi yang lebih jelas dan spesifik (minimal 5 karakter).'
+                ], 400);
+            }
 
             $aiService = app(\App\Services\UnifiedAIService::class);
             $textExtraction = app(\App\Services\TextExtractionService::class);
             $ocrService = app(\App\Services\OCRService::class);
             $vectorDbService = app(\App\Services\VectorDatabaseService::class);
             $ragService = app(\App\Services\RAGRetrievalService::class);
+            $cacheService = app(\App\Services\AICacheService::class);
+            
+            // Initialize ImageContentValidationService with OCRService
+            $imageValidationService = new \App\Services\ImageContentValidationService($ocrService);
 
             $userPrompt = $request->input('prompt');
             $conversationHistory = $request->input('conversation_history', []);
@@ -73,6 +106,67 @@ class LaporanSemesterController extends Controller
             $systemContext = "Anda adalah AI Assistant untuk Gugus Jaminan Mutu (GJM) Institut Teknologi Del.\n\n";
             $systemContext .= "Tugas Anda: Membantu membuat LAPORAN SEMESTER berdasarkan dokumen yang diupload dan instruksi user.\n\n";
             
+            $systemContext .= "⚠️ ATURAN OUTPUT YANG SANGAT PENTING! ⚠️\n";
+            $systemContext .= "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n";
+            $systemContext .= "SELALU OUTPUT SEMUA 10 BAGIAN LENGKAP DENGAN KONTEN ASLI!\n";
+            $systemContext .= "JANGAN PERNAH TULIS '[copy dari draft sebelumnya]' - COPY KONTEN ASLINYA!\n";
+            $systemContext .= "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n";
+            
+            $systemContext .= "ATURAN INSTRUKSI:\n\n";
+            
+            $systemContext .= "1. 'Buat laporan lengkap' → Buat draft BARU dengan SEMUA 10 bagian\n\n";
+            
+            $systemContext .= "2. 'Perbaiki/Ubah [bagian X]' → Output SEMUA 10 bagian:\n";
+            $systemContext .= "   - Bagian X: TULIS KONTEN BARU yang diperbaiki\n";
+            $systemContext .= "   - Bagian lain: COPY KONTEN ASLI dari draft sebelumnya (JANGAN tulis '[copy...]')\n";
+            $systemContext .= "   - WAJIB output semua 10 bagian dengan konten lengkap!\n\n";
+            
+            $systemContext .= "3. 'Ubah [teks A] jadi [teks B]' → Output SEMUA 10 bagian:\n";
+            $systemContext .= "   - Cari teks A di draft sebelumnya\n";
+            $systemContext .= "   - Ganti dengan teks B\n";
+            $systemContext .= "   - Output SEMUA bagian dengan konten lengkap\n";
+            $systemContext .= "   - Bagian yang tidak berubah: COPY KONTEN ASLI (bukan '[copy...]')\n\n";
+            
+            $systemContext .= "4. Multiple changes (contoh: 'Ubah A jadi B dan ubah C jadi D'):\n";
+            $systemContext .= "   - Lakukan SEMUA perubahan yang diminta\n";
+            $systemContext .= "   - Output SEMUA 10 bagian dengan konten lengkap\n";
+            $systemContext .= "   - Bagian yang tidak berubah: COPY KONTEN ASLI\n\n";
+            
+            $systemContext .= "✅ CONTOH OUTPUT YANG BENAR:\n";
+            $systemContext .= "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n";
+            $systemContext .= "User: 'Perbaiki EVALUASI'\n\n";
+            $systemContext .= "AI Output:\n";
+            $systemContext .= "# LATAR BELAKANG\n";
+            $systemContext .= "Fakultas Vokasi Institut Teknologi Del memiliki peran penting dalam menjaga...\n";
+            $systemContext .= "[KONTEN ASLI LENGKAP dari draft sebelumnya]\n\n";
+            $systemContext .= "# DASAR\n";
+            $systemContext .= "Pelaksanaan kegiatan ini didasarkan pada...\n";
+            $systemContext .= "[KONTEN ASLI LENGKAP dari draft sebelumnya]\n\n";
+            $systemContext .= "... [semua bagian lain dengan KONTEN ASLI LENGKAP]\n\n";
+            $systemContext .= "# EVALUASI\n";
+            $systemContext .= "Evaluasi dilakukan dengan membandingkan target program kerja...\n";
+            $systemContext .= "[KONTEN BARU YANG DIPERBAIKI - INI YANG BERUBAH!]\n\n";
+            $systemContext .= "# SARAN\n";
+            $systemContext .= "Berdasarkan evaluasi di atas, disarankan untuk...\n";
+            $systemContext .= "[KONTEN ASLI LENGKAP dari draft sebelumnya]\n";
+            $systemContext .= "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n";
+            
+            $systemContext .= "❌ CONTOH OUTPUT YANG SALAH:\n";
+            $systemContext .= "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n";
+            $systemContext .= "User: 'Perbaiki EVALUASI'\n\n";
+            $systemContext .= "AI Output:\n";
+            $systemContext .= "# LATAR BELAKANG\n";
+            $systemContext .= "[copy dari draft sebelumnya - TIDAK BERUBAH]  ← SALAH! Harus konten asli!\n\n";
+            $systemContext .= "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n";
+            
+            $systemContext .= "INGAT:\n";
+            $systemContext .= "- SELALU output SEMUA 10 bagian dengan KONTEN LENGKAP\n";
+            $systemContext .= "- JANGAN PERNAH tulis '[copy dari draft sebelumnya]'\n";
+            $systemContext .= "- COPY KONTEN ASLI dari draft sebelumnya untuk bagian yang tidak berubah\n";
+            $systemContext .= "- Hanya ubah bagian yang diminta user\n";
+            $systemContext .= "- Jangan pernah output hanya 1 bagian!\n";
+            $systemContext .= "- Jangan pernah skip konten dengan placeholder!\n\n";
+            
             if ($templateStructure) {
                 $systemContext .= "STRUKTUR TEMPLATE YANG HARUS DIIKUTI:\n";
                 $systemContext .= $templateStructure . "\n\n";
@@ -80,30 +174,16 @@ class LaporanSemesterController extends Controller
                 $systemContext .= "Jangan menambah atau mengurangi bagian dari template. Isi setiap bagian dengan konten yang relevan berdasarkan dokumen yang diupload.\n\n";
             } else {
                 // Default structure jika tidak ada template
-                $systemContext .= "PENTING: Gunakan STRUKTUR WAJIB berikut dengan markdown heading level 1 (#):\n\n";
-                $systemContext .= "# LATAR BELAKANG\n";
-                $systemContext .= "[Jelaskan konteks dan alasan pembuatan laporan]\n\n";
-                $systemContext .= "# DASAR\n";
-                $systemContext .= "[Jelaskan dasar hukum dan kebijakan yang menjadi landasan]\n\n";
-                $systemContext .= "# TUJUAN\n";
-                $systemContext .= "[Jelaskan tujuan laporan dan kegiatan yang dilakukan]\n\n";
-                $systemContext .= "# RUANG LINGKUP\n";
-                $systemContext .= "[Jelaskan cakupan laporan dan area yang dibahas]\n\n";
-                $systemContext .= "# PROGRAM KERJA\n";
-                $systemContext .= "[Jelaskan program kerja yang dilaksanakan]\n\n";
-                $systemContext .= "# PELAKSANAAN\n";
-                $systemContext .= "[Jelaskan pelaksanaan program kerja dan capaiannya]\n\n";
-                $systemContext .= "# HAMBATAN\n";
-                $systemContext .= "[Jelaskan hambatan yang dihadapi]\n\n";
-                $systemContext .= "# PEMECAHAN MASALAH\n";
-                $systemContext .= "[Jelaskan solusi untuk mengatasi hambatan]\n\n";
-                $systemContext .= "# EVALUASI\n";
-                $systemContext .= "[Jelaskan evaluasi dan analisis capaian]\n\n";
-                $systemContext .= "# SARAN\n";
-                $systemContext .= "[Jelaskan saran dan rekomendasi untuk perbaikan]\n\n";
+                $systemContext .= "STRUKTUR WAJIB (10 bagian):\n";
+                $systemContext .= "# LATAR BELAKANG\n# DASAR\n# TUJUAN\n# RUANG LINGKUP\n# PROGRAM KERJA\n";
+                $systemContext .= "# PELAKSANAAN\n# HAMBATAN\n# PEMECAHAN MASALAH\n# EVALUASI\n# SARAN\n\n";
             }
             
-            $systemContext .= "Gunakan Bahasa Indonesia formal dan profesional. Setiap bagian harus berisi konten yang substantif dan relevan.\n\n";
+            $systemContext .= "FORMAT OUTPUT:\n";
+            $systemContext .= "- Gunakan markdown heading level 1 (#) untuk judul bagian\n";
+            $systemContext .= "- Gunakan Bahasa Indonesia formal dan profesional\n";
+            $systemContext .= "- WAJIB output SEMUA 10 bagian dengan KONTEN LENGKAP (bukan placeholder)\n";
+            $systemContext .= "- Setiap bagian harus berisi konten yang substantif dan relevan\n\n";
 
             // Extract file content if uploaded
             $filesContext = [];
@@ -121,8 +201,61 @@ class LaporanSemesterController extends Controller
                     if (in_array($fileExtension, ['jpg', 'jpeg', 'png', 'gif', 'webp'])) {
                         // Process image with OCR first
                         try {
-                            $imagePath = $file->store('temp_uploads', 'local');
-                            $fullImagePath = storage_path('app/' . $imagePath);
+                            // Store image TEMPORARILY first for validation
+                            $tempPath = $file->store('temp_validation', 'local');
+                            $fullImagePath = storage_path('app/' . $tempPath);
+                            
+                            // VALIDATION: Check if image is relevant for Laporan Semester
+                            Log::info('Starting image validation', [
+                                'filename' => $fileName,
+                                'path' => $fullImagePath,
+                                'exists' => file_exists($fullImagePath)
+                            ]);
+                            
+                            $validationResult = $imageValidationService->validateImageRelevance(
+                                $fullImagePath,
+                                'laporan_semester'
+                            );
+                            
+                            Log::info('Image content validation', [
+                                'filename' => $fileName,
+                                'is_valid' => $validationResult['is_valid'],
+                                'reason' => $validationResult['reason'],
+                                'confidence' => $validationResult['confidence']
+                            ]);
+                            
+                            // STRICT VALIDATION: Reject if not valid (regardless of confidence)
+                            // Only allow if explicitly valid OR confidence is very low (< 0.5)
+                            if (!$validationResult['is_valid'] && $validationResult['confidence'] >= 0.5) {
+                                Log::warning('Image rejected due to irrelevant content', [
+                                    'filename' => $fileName,
+                                    'reason' => $validationResult['reason'],
+                                    'confidence' => $validationResult['confidence']
+                                ]);
+                                
+                                // Delete the temp file
+                                if (file_exists($fullImagePath)) {
+                                    @unlink($fullImagePath);
+                                }
+                                
+                                return response()->json([
+                                    'success' => false,
+                                    'message' => "Gambar '{$fileName}' tidak relevan dengan Laporan Semester.\n\nAlasan: {$validationResult['reason']}\n\nSilakan upload gambar yang relevan seperti:\n• Dokumentasi kegiatan kampus\n• Daftar hadir\n• Grafik/chart data akademik\n• Screenshot sistem akademik\n• Dokumentasi monitoring mutu\n• Foto kegiatan perkuliahan"
+                                ], 400);
+                            }
+                            
+                            // If validation passed, move to permanent storage
+                            $permanentPath = 'laporan_gjm/images/' . uniqid() . '_' . $fileName;
+                            Storage::disk('local')->move($tempPath, $permanentPath);
+                            $fullImagePath = storage_path('app/' . $permanentPath);
+                            
+                            // Log if allowed with low confidence
+                            if (!$validationResult['is_valid'] && $validationResult['confidence'] < 0.5) {
+                                Log::info('Image allowed with warning (very low confidence)', [
+                                    'filename' => $fileName,
+                                    'confidence' => $validationResult['confidence']
+                                ]);
+                            }
                             
                             // Extract text using OCR
                             $ocrResult = $ocrService->extractText($fullImagePath);
@@ -135,7 +268,8 @@ class LaporanSemesterController extends Controller
                                     'filename' => $fileName,
                                     'text' => $ocrText,
                                     'method' => $ocrResult['method'],
-                                    'confidence' => $ocrResult['confidence']
+                                    'confidence' => $ocrResult['confidence'],
+                                    'image_path' => $permanentPath
                                 ];
                                 
                                 // Index OCR text to vector database if laporan_id exists
@@ -149,8 +283,10 @@ class LaporanSemesterController extends Controller
                                             'type' => 'ocr_image',
                                             'filename' => $fileName,
                                             'laporan_id' => $laporanId,
+                                            'laporan_type' => 'semester',
                                             'ocr_method' => $ocrResult['method'],
                                             'confidence' => $ocrResult['confidence'],
+                                            'image_path' => $permanentPath,
                                             'indexed_at' => now()->toIso8601String(),
                                         ]
                                     ]);
@@ -158,7 +294,8 @@ class LaporanSemesterController extends Controller
                                     Log::info('OCR text indexed to vector database', [
                                         'filename' => $fileName,
                                         'laporan_id' => $laporanId,
-                                        'text_length' => strlen($ocrText)
+                                        'text_length' => strlen($ocrText),
+                                        'image_path' => $permanentPath
                                     ]);
                                 }
                             }
@@ -170,18 +307,15 @@ class LaporanSemesterController extends Controller
                             $imageContents[] = [
                                 'filename' => $fileName,
                                 'data' => $imageData,
-                                'mime_type' => $mimeType
+                                'mime_type' => $mimeType,
+                                'path' => $permanentPath
                             ];
-                            
-                            // Clean up temp file
-                            if (file_exists($fullImagePath)) {
-                                @unlink($fullImagePath);
-                            }
                             
                             Log::info('Image processed with OCR and Vision API', [
                                 'filename' => $fileName,
                                 'ocr_text_length' => isset($ocrText) ? strlen($ocrText) : 0,
-                                'mime_type' => $mimeType
+                                'mime_type' => $mimeType,
+                                'stored_at' => $permanentPath
                             ]);
                         } catch (\Exception $e) {
                             Log::error('Image processing failed', [
@@ -228,15 +362,32 @@ class LaporanSemesterController extends Controller
                 }
             }
 
-            // Build conversation messages
+            // Build conversation messages with proper context
             $messages = [];
             
-            // If there's conversation history, include it
+            // Add system context as first message
+            $messages[] = [
+                'role' => 'system',
+                'content' => $systemContext
+            ];
+            
+            // If there's conversation history, include it (for multi-turn conversation)
             if (!empty($conversationHistory)) {
                 foreach ($conversationHistory as $msg) {
+                    $role = $msg['role'] ?? 'user';
+                    $content = $msg['content'] ?? '';
+                    
+                    // Skip empty messages
+                    if (empty($content)) continue;
+                    
+                    // Normalize role (assistant -> ai)
+                    if ($role === 'assistant' || $role === 'ai') {
+                        $role = 'assistant';
+                    }
+                    
                     $messages[] = [
-                        'role' => $msg['role'] ?? 'user',
-                        'content' => $msg['content'] ?? ''
+                        'role' => $role,
+                        'content' => $content
                     ];
                 }
             }
@@ -258,17 +409,21 @@ class LaporanSemesterController extends Controller
             $ragContext = '';
             if ($laporanId) {
                 try {
-                    $ragResults = $ragService->retrieveContext($userPrompt, [
+                    $ragRetrieval = $ragService->retrieveContext($userPrompt, [
                         'source_type' => 'laporan_gjm_ocr',
                         'source_id' => $laporanId,
                         'top_k' => 5
                     ]);
                     
+                    $ragResults = $ragRetrieval['results'] ?? [];
+                    
                     if (!empty($ragResults)) {
                         $ragContext = "Context dari gambar yang telah diupload sebelumnya:\n\n";
                         foreach ($ragResults as $result) {
-                            $ragContext .= "- " . $result['text'] . "\n";
-                            $ragContext .= "  (Relevance: " . round($result['similarity'] * 100, 1) . "%)\n\n";
+                            if (isset($result['text'])) {
+                                $ragContext .= "- " . $result['text'] . "\n";
+                                $ragContext .= "  (Relevance: " . round($result['similarity'] * 100, 1) . "%)\n\n";
+                            }
                         }
                         
                         Log::info('RAG context retrieved', [
@@ -342,36 +497,156 @@ class LaporanSemesterController extends Controller
                 'content' => $currentMessage
             ];
 
-            // Build full prompt for UnifiedAIService
-            $fullPrompt = $systemContext . "\n\n";
-            foreach ($messages as $msg) {
-                $fullPrompt .= strtoupper($msg['role']) . ": " . $msg['content'] . "\n\n";
-            }
+            // ========== CACHE CHECK ==========
+            // Build cache context for Semester feature
+            $cacheContext = [
+                'feature' => 'semester',  // ← IMPORTANT for evaluation tracking
+                'type' => 'laporan_semester',
+                'template_id' => $templateId,
+                'periode_semester' => $request->input('periode_semester'),
+                'has_files' => !empty($filesContext),
+                'has_images' => !empty($imageContents),
+                'has_conversation' => !empty($conversationHistory),
+            ];
 
-            // Call AI service (UnifiedAIService doesn't support vision yet)
-            $aiResult = $aiService->generateText($fullPrompt, ['max_tokens' => 4096]);
+            // Check cache first (only for single messages, not conversations)
+            $hasConversationHistory = !empty($conversationHistory);
+            $cachedResponse = null;
             
-            if (!$aiResult['success'] || empty($aiResult['text'])) {
-                Log::error('AI returned empty response', [
+            if (!$hasConversationHistory) {
+                $cachedResponse = $cacheService->getCachedResponse($userPrompt, $cacheContext);
+                
+                if ($cachedResponse && $cachedResponse['success']) {
+                    Log::info('Semester AI: Cache hit', [
+                        'cache_id' => $cachedResponse['cache_id'] ?? null,
+                        'usage_count' => $cachedResponse['usage_count'] ?? 0,
+                        'similarity' => $cachedResponse['similarity'] ?? 1.0,
+                    ]);
+
+                    return response()->json([
+                        'success' => true,
+                        'response' => $cachedResponse['text'],
+                        'model_info' => $cachedResponse['model'] ?? 'AI',
+                        'provider' => $cachedResponse['provider'] ?? 'cache',
+                        'cached' => true,
+                        'cache_id' => $cachedResponse['cache_id'] ?? null,
+                        'usage_count' => $cachedResponse['usage_count'] ?? 0,
+                    ]);
+                }
+            }
+            // ========== END CACHE CHECK ==========
+
+            // Call AI service using Chat Completions API with conversation history
+            // Add retry mechanism for better reliability
+            $maxRetries = 2;
+            $retryCount = 0;
+            $aiResult = null;
+            
+            while ($retryCount <= $maxRetries) {
+                try {
+                    $aiResult = $aiService->generateChat($messages, [
+                        'max_tokens' => 8192,
+                        'temperature' => 0.7
+                    ]);
+                    
+                    if ($aiResult['success'] && !empty($aiResult['text'])) {
+                        break;
+                    }
+                    
+                    $retryCount++;
+                    if ($retryCount <= $maxRetries) {
+                        Log::warning('AI generation failed for Semester, retrying...', [
+                            'attempt' => $retryCount,
+                            'error' => $aiResult['error'] ?? 'Unknown error'
+                        ]);
+                        usleep(500000);
+                    }
+                    
+                } catch (\Exception $e) {
+                    $retryCount++;
+                    if ($retryCount <= $maxRetries) {
+                        Log::warning('AI generation exception for Semester, retrying...', [
+                            'attempt' => $retryCount,
+                            'error' => $e->getMessage()
+                        ]);
+                        usleep(500000);
+                    } else {
+                        $aiResult = [
+                            'success' => false,
+                            'error' => $e->getMessage(),
+                            'provider' => 'unknown'
+                        ];
+                    }
+                }
+            }
+            
+            if (!$aiResult || !$aiResult['success'] || empty($aiResult['text'])) {
+                Log::error('AI returned empty response for Semester', [
                     'prompt_length' => strlen($userPrompt),
                     'files_count' => count($filesContext),
                     'images_count' => count($imageContents),
-                    'error' => $aiResult['error'] ?? 'Unknown error'
+                    'messages_count' => count($messages),
+                    'conversation_turns' => count(array_filter($messages, fn($m) => ($m['role'] ?? '') !== 'system')),
+                    'error' => $aiResult['error'] ?? 'Unknown error',
+                    'provider' => $aiResult['provider'] ?? 'unknown'
                 ]);
+                
+                // More specific error messages
+                $errorMessage = 'Layanan AI mengalami masalah. ';
+                if (isset($aiResult['error'])) {
+                    if (str_contains($aiResult['error'], 'Rate limit') || str_contains($aiResult['error'], '429')) {
+                        $errorMessage .= 'Terlalu banyak permintaan, silakan tunggu sebentar dan coba lagi.';
+                    } elseif (str_contains($aiResult['error'], 'token')) {
+                        $errorMessage .= 'Percakapan terlalu panjang, silakan mulai percakapan baru.';
+                    } else {
+                        $errorMessage .= 'Silakan coba lagi dalam beberapa menit.';
+                    }
+                } else {
+                    $errorMessage .= 'Silakan coba lagi atau hubungi administrator.';
+                }
                 
                 return response()->json([
                     'success' => false,
-                    'message' => 'Layanan AI sedang tidak tersedia. Silakan coba lagi dalam beberapa menit atau hubungi administrator.'
+                    'message' => $errorMessage,
+                    'debug_info' => [
+                        'messages_count' => count($messages),
+                        'conversation_turns' => count(array_filter($messages, fn($m) => ($m['role'] ?? '') !== 'system')),
+                        'provider' => $aiResult['provider'] ?? 'unknown'
+                    ]
                 ], 503);
             }
             
             $aiResponse = $aiResult['text'];
+
+            // ========== CACHE SAVE ==========
+            // Save to cache only for single messages (not conversations)
+            if (!$hasConversationHistory && !($aiResult['cached'] ?? false)) {
+                $responseTime = isset($aiResult['processing_time_ms']) ? $aiResult['processing_time_ms'] / 1000 : null;
+                $cacheService->cacheResponse(
+                    $userPrompt,
+                    $cacheContext,
+                    $aiResponse,
+                    $aiResult['provider'] ?? 'unknown',
+                    $aiResult['model'] ?? 'unknown',
+                    $responseTime
+                );
+                
+                Log::info('Semester AI: Response cached', [
+                    'prompt_length' => strlen($userPrompt),
+                    'response_length' => strlen($aiResponse),
+                    'response_time' => $responseTime,
+                    'provider' => $aiResult['provider'],
+                    'model' => $aiResult['model']
+                ]);
+            }
+            // ========== END CACHE SAVE ==========
 
             Log::info('AI Prompt successful', [
                 'prompt_length' => strlen($userPrompt),
                 'response_length' => strlen($aiResponse),
                 'files_count' => count($filesContext),
                 'images_count' => count($imageContents),
+                'messages_count' => count($messages),
                 'has_template' => !empty($templateStructure),
                 'provider' => $aiResult['provider'],
                 'model' => $aiResult['model']
@@ -381,6 +656,11 @@ class LaporanSemesterController extends Controller
                 'success' => true,
                 'response' => $aiResponse,
                 'model_info' => $aiResult['provider'] . ' (' . $aiResult['model'] . ')',
+                'conversation_context' => [
+                    'total_messages' => count($messages),
+                    'is_continuation' => !empty($conversationHistory),
+                ],
+                'cached' => $aiResult['cached'] ?? false,
             ]);
 
         } catch (\Exception $e) {
@@ -407,6 +687,118 @@ class LaporanSemesterController extends Controller
                 'message' => 'Terjadi kesalahan: ' . $e->getMessage()
             ], 500);
         }
+    }
+
+    /**
+     * Save AI Preview to Database
+     * Called after user gets AI response to store it for Word generation
+     */
+    public function savePreview(Request $request)
+    {
+        try {
+            $request->validate([
+                'laporan_id' => 'required|exists:laporan_gjm,id',
+                'ai_preview_draft' => 'required|string',
+                'ai_sections' => 'nullable|string', // JSON string
+                'ocr_images' => 'nullable|string', // JSON string of image paths
+            ]);
+
+            $laporanId = $request->input('laporan_id');
+            $aiPreviewDraft = $request->input('ai_preview_draft');
+            $aiSectionsJson = $request->input('ai_sections', '[]');
+            $ocrImagesJson = $request->input('ocr_images', '[]');
+            
+            // Parse sections from JSON
+            $sections = [];
+            try {
+                $sectionsArray = json_decode($aiSectionsJson, true);
+                if (is_array($sectionsArray)) {
+                    // Convert sections array to associative array
+                    foreach ($sectionsArray as $section) {
+                        if (isset($section['title']) && isset($section['content'])) {
+                            $key = $this->sectionTitleToKey($section['title']);
+                            $sections[$key] = $section['content'];
+                        }
+                    }
+                }
+            } catch (\Exception $e) {
+                Log::warning('Failed to parse AI sections JSON', [
+                    'laporan_id' => $laporanId,
+                    'error' => $e->getMessage()
+                ]);
+            }
+
+            // Parse OCR images from JSON
+            $ocrImages = [];
+            try {
+                $ocrImagesArray = json_decode($ocrImagesJson, true);
+                if (is_array($ocrImagesArray)) {
+                    $ocrImages = $ocrImagesArray;
+                }
+            } catch (\Exception $e) {
+                Log::warning('Failed to parse OCR images JSON', [
+                    'laporan_id' => $laporanId,
+                    'error' => $e->getMessage()
+                ]);
+            }
+
+            // Use AIPreviewCacheService to save
+            $cacheService = app(\App\Services\AIPreviewCacheService::class);
+            $success = $cacheService->saveAIPreview($laporanId, $aiPreviewDraft, $sections, $ocrImages);
+
+            if ($success) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'AI preview saved successfully'
+                ]);
+            } else {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Failed to save AI preview'
+                ], 500);
+            }
+
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation failed: ' . implode(', ', $e->validator->errors()->all())
+            ], 422);
+        } catch (\Exception $e) {
+            Log::error('Save AI preview failed', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Terjadi kesalahan: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Convert section title to database key
+     */
+    private function sectionTitleToKey($title)
+    {
+        $title = strtolower(trim($title));
+        
+        $mapping = [
+            'latar belakang' => 'latar_belakang',
+            'dasar' => 'dasar',
+            'tujuan' => 'tujuan',
+            'ruang lingkup' => 'ruang_lingkup',
+            'program kerja' => 'program_kerja',
+            'pelaksanaan' => 'pelaksanaan',
+            'hambatan' => 'hambatan',
+            'pemecahan masalah' => 'pemecahan_masalah',
+            'evaluasi' => 'evaluasi',
+            'saran' => 'rekomendasi',
+            'rekomendasi' => 'rekomendasi',
+            'kesimpulan' => 'kesimpulan',
+        ];
+        
+        return $mapping[$title] ?? str_replace(' ', '_', $title);
     }
 
     /**
@@ -939,5 +1331,134 @@ class LaporanSemesterController extends Controller
                 'response' => 'Terjadi kesalahan dalam memproses permintaan Anda. Silakan coba lagi.'
             ], 500);
         }
+    }
+
+    /**
+     * Display a listing of laporan semester
+     */
+    public function index(Request $request)
+    {
+        $query = LaporanGJM::where('jenis_laporan', 'semester')
+            ->where('created_by', Auth::id())
+            ->with('template')
+            ->orderBy('created_at', 'desc');
+
+        // Filter by periode
+        if ($request->filled('periode')) {
+            $query->whereRaw("JSON_EXTRACT(instruksi_prompt, '$.periode_semester') = ?", [$request->periode]);
+        }
+
+        // Filter by status
+        if ($request->filled('status')) {
+            $query->where('status_laporan', $request->status);
+        }
+
+        $laporanList = $query->paginate(10);
+
+        // Add formatted data for display
+        $laporanList->getCollection()->transform(function ($laporan) {
+            $instruksi = $laporan->instruksi_prompt; // Already cast as array in model
+            $periodeSemester = $instruksi['periode_semester'] ?? '-';
+            $tahun = $instruksi['tahun'] ?? date('Y');
+            
+            // Format periode
+            $periodeLabels = [
+                'ganjil' => 'Semester Ganjil',
+                'genap' => 'Semester Genap'
+            ];
+            
+            $laporan->formatted_periode = ($periodeLabels[$periodeSemester] ?? 'Semester ' . ucfirst($periodeSemester)) . ' ' . $tahun;
+            $laporan->judul_laporan = $instruksi['judul'] ?? $laporan->ringkasan_mutu_institusi;
+            
+            // Status badge
+            switch ($laporan->status_laporan) {
+                case 'completed':
+                    $laporan->status_badge = 'success';
+                    $laporan->status_label = 'Selesai';
+                    break;
+                case 'processing':
+                    $laporan->status_badge = 'warning';
+                    $laporan->status_label = 'Sedang Diproses';
+                    break;
+                case 'error':
+                    $laporan->status_badge = 'danger';
+                    $laporan->status_label = 'Error';
+                    break;
+                default:
+                    $laporan->status_badge = 'info';
+                    $laporan->status_label = 'Menunggu';
+            }
+            
+            return $laporan;
+        });
+
+        // Generate periode list for filter
+        $periodeList = [
+            'ganjil' => 'Semester Ganjil',
+            'genap' => 'Semester Genap'
+        ];
+
+        return view('gjm.buat-laporan.semester-index', compact('laporanList', 'periodeList'));
+    }
+
+    /**
+     * Display the specified laporan
+     */
+    public function show($id)
+    {
+        $laporan = LaporanGJM::where('id', $id)
+            ->where('jenis_laporan', 'semester')
+            ->where('created_by', Auth::id())
+            ->with('template')
+            ->firstOrFail();
+
+        return view('gjm.buat-laporan.semester-show', compact('laporan'));
+    }
+
+    /**
+     * Download laporan in specified format
+     */
+    public function download($id, $format = 'word')
+    {
+        $laporan = LaporanGJM::where('id', $id)
+            ->where('jenis_laporan', 'semester')
+            ->where('created_by', Auth::id())
+            ->firstOrFail();
+
+        if ($format === 'word' && $laporan->file_word) {
+            $filePath = storage_path('app/' . $laporan->file_word);
+            
+            if (file_exists($filePath)) {
+                $instruksi = json_decode($laporan->instruksi_prompt, true);
+                $periodeSemester = $instruksi['periode_semester'] ?? 'ganjil';
+                $tahun = $instruksi['tahun'] ?? date('Y');
+                $fileName = 'Laporan_Semester_' . ucfirst($periodeSemester) . '_' . $tahun . '.docx';
+                
+                return response()->download($filePath, $fileName);
+            }
+        }
+
+        return redirect()->back()->with('error', 'File tidak ditemukan');
+    }
+
+    /**
+     * Remove the specified laporan
+     */
+    public function destroy($id)
+    {
+        $laporan = LaporanGJM::where('id', $id)
+            ->where('jenis_laporan', 'semester')
+            ->where('created_by', Auth::id())
+            ->firstOrFail();
+
+        // Delete associated files
+        if ($laporan->file_word) {
+            Storage::delete($laporan->file_word);
+        }
+
+        $laporan->delete();
+
+        return redirect()->route('gjm.buat-laporan.semester.index')
+            ->with('success', 'Laporan berhasil dihapus');
     }
 }
