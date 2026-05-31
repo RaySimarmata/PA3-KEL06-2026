@@ -19,6 +19,7 @@ class ClaudeAIService
     private string $model;
     private string $apiVersion;
     private bool   $useClaudeDirect;
+    private ?float $lastResponseTime = null;
 
     // Fallback (Groq)
     private string $fallbackApiKey;
@@ -94,7 +95,7 @@ class ClaudeAIService
     {
         // Additional safety: Ensure curly braces are escaped to prevent template errors
         $safeUserMessage = str_replace(['{', '}'], ['{{', '}}'], $userMessage);
-        
+
         return $this->chat($systemPrompt, [
             ['role' => 'user', 'content' => $safeUserMessage],
         ], $maxTokens);
@@ -163,25 +164,25 @@ class ClaudeAIService
         // Validate response - jika AI masih mengatakan tidak bisa akses file, retry dengan prompt yang lebih tegas
         if ($response && $this->containsFileAccessError($response)) {
             Log::warning('AI returned file access error, retrying with stronger prompt');
-            
+
             $retryMessage = "INSTRUKSI TEGAS:\n\n";
             $retryMessage .= "Konten dokumen SUDAH diberikan di bawah ini. Kamu HARUS memproses konten ini.\n";
             $retryMessage .= "JANGAN katakan tidak bisa mengakses file. File SUDAH diekstrak dan kontennya ADA DI SINI:\n\n";
             $retryMessage .= "=== KONTEN DOKUMEN ===\n";
             $retryMessage .= $safeExtractedText . "\n";
             $retryMessage .= "=== AKHIR KONTEN ===\n\n";
-            
+
             if (!empty($safeInstructions)) {
                 $retryMessage .= "Instruksi: " . $safeInstructions . "\n\n";
             }
-            
+
             $retryMessage .= "Sekarang LANGSUNG buat:\n";
             $retryMessage .= "1. Ringkasan dokumen\n";
             $retryMessage .= "2. Poin-poin utama\n";
             $retryMessage .= "3. Draft laporan dengan format markdown\n\n";
             $retryMessage .= "PENTING: JANGAN gunakan kode periode seperti Q1, Q2, Q3, Q4. Gunakan 'Triwulan I', 'Triwulan II', 'Triwulan III', atau 'Triwulan IV'.\n\n";
             $retryMessage .= "Mulai sekarang dengan heading # RINGKASAN DOKUMEN";
-            
+
             $response = $this->chat($systemPrompt, [
                 ['role' => 'user', 'content' => $retryMessage],
             ], $maxTokens);
@@ -270,6 +271,8 @@ class ClaudeAIService
                 'turns'      => count($messages),
             ]);
 
+            $startTime = microtime(true);
+
             $response = Http::withHeaders([
                 'x-api-key'         => $this->apiKey,
                 'anthropic-version' => $this->apiVersion,
@@ -281,12 +284,21 @@ class ClaudeAIService
                 'messages'   => $messages,
             ]);
 
+            $responseTime = microtime(true) - $startTime;
+
             if ($response->successful()) {
                 $data = $response->json();
                 // Claude response: content[0].text
                 $text = $data['content'][0]['text'] ?? null;
                 if ($text) {
-                    Log::info('ClaudeAI: response received', ['length' => strlen($text)]);
+                    Log::info('ClaudeAI: response received', [
+                        'length' => strlen($text),
+                        'response_time' => round($responseTime, 2) . 's'
+                    ]);
+
+                    // Store response time for metrics
+                    $this->lastResponseTime = $responseTime;
+
                     return trim($text);
                 }
             }
@@ -314,11 +326,11 @@ class ClaudeAIService
     {
         try {
             $provider = env('LLM_PROVIDER', 'groq');
-            
+
             if ($provider === 'huggingface') {
                 return $this->callHuggingFaceAPI($systemPrompt, $messages, $maxTokens);
             }
-            
+
             if ($provider === 'openrouter') {
                 return $this->callOpenRouterAPI($systemPrompt, $messages, $maxTokens);
             }
@@ -326,7 +338,7 @@ class ClaudeAIService
             if ($provider === 'openai') {
                 return $this->callOpenAIAPI($systemPrompt, $messages, $maxTokens);
             }
-            
+
             Log::info('ClaudeAI: using Groq fallback', [
                 'model' => $this->fallbackModel,
             ]);
@@ -339,6 +351,8 @@ class ClaudeAIService
                 $openAIMessages[] = ['role' => $m['role'], 'content' => $m['content']];
             }
 
+            $startTime = microtime(true);
+
             $response = Http::withHeaders([
                 'Authorization' => 'Bearer ' . $this->fallbackApiKey,
                 'Content-Type'  => 'application/json',
@@ -349,11 +363,20 @@ class ClaudeAIService
                 'max_tokens'  => min($maxTokens, 8000),
             ]);
 
+            $responseTime = microtime(true) - $startTime;
+
             if ($response->successful()) {
                 $data    = $response->json();
                 $content = $data['choices'][0]['message']['content'] ?? null;
                 if ($content) {
-                    Log::info('ClaudeAI (Groq fallback): response received', ['length' => strlen($content)]);
+                    Log::info('ClaudeAI (Groq fallback): response received', [
+                        'length' => strlen($content),
+                        'response_time' => round($responseTime, 2) . 's'
+                    ]);
+
+                    // Store response time for metrics
+                    $this->lastResponseTime = $responseTime;
+
                     return trim($content);
                 }
             }
@@ -361,20 +384,20 @@ class ClaudeAIService
             // Check for rate limit or request too large error
             $statusCode = $response->status();
             $body = $response->body();
-            
+
             if ($statusCode === 429 || $statusCode === 413) {
                 Log::warning('ClaudeAI Groq: Rate limit or request too large', [
                     'status' => $statusCode,
                     'body'   => substr($body, 0, 500),
                 ]);
-                
+
                 // Try OpenRouter as secondary fallback immediately
                 $openrouterKey = env('OPENROUTER_API_KEY', '');
                 if (!empty($openrouterKey)) {
                     Log::info('ClaudeAI: Trying OpenRouter as secondary fallback');
                     return $this->callOpenRouterAPI($systemPrompt, $messages, min($maxTokens, 2000)); // Reduce token limit
                 }
-                
+
                 // If no OpenRouter key, return a helpful error
                 throw new \Exception('Dokumen terlalu besar untuk diproses. Silakan gunakan dokumen yang lebih kecil atau coba lagi nanti.');
             }
@@ -397,7 +420,7 @@ class ClaudeAIService
                     Log::error('ClaudeAI: OpenRouter also failed', ['error' => $openrouterError->getMessage()]);
                 }
             }
-            
+
             Log::error('ClaudeAI Groq fallback exception', ['error' => $e->getMessage()]);
             throw $e;
         }
@@ -421,6 +444,8 @@ class ClaudeAIService
                 $openAIMessages[] = ['role' => $m['role'], 'content' => $m['content']];
             }
 
+            $startTime = microtime(true);
+
             $response = Http::withHeaders([
                 'Authorization' => 'Bearer ' . $this->fallbackApiKey,
                 'Content-Type'  => 'application/json',
@@ -431,24 +456,33 @@ class ClaudeAIService
                 'max_tokens' => min($maxTokens, 4000),
             ]);
 
+            $responseTime = microtime(true) - $startTime;
+
             if ($response->successful()) {
                 $data = $response->json();
                 $content = $data['choices'][0]['message']['content'] ?? null;
                 if ($content) {
-                    Log::info('ClaudeAI (OpenAI): response received', ['length' => strlen($content)]);
+                    Log::info('ClaudeAI (OpenAI): response received', [
+                        'length' => strlen($content),
+                        'response_time' => round($responseTime, 2) . 's'
+                    ]);
+
+                    // Store response time for metrics
+                    $this->lastResponseTime = $responseTime;
+
                     return trim($content);
                 }
             }
 
             $statusCode = $response->status();
             $body = $response->body();
-            
+
             // Check for common OpenAI errors
             if ($statusCode === 401) {
                 Log::error('OpenAI: Invalid API key');
                 throw new \Exception('API key OpenAI tidak valid. Silakan periksa konfigurasi OPENAI_API_KEY di file .env');
             }
-            
+
             if ($statusCode === 429) {
                 Log::error('OpenAI: Rate limit exceeded');
                 throw new \Exception('Rate limit OpenAI tercapai. Silakan coba lagi dalam beberapa menit atau upgrade plan OpenAI Anda.');
@@ -458,7 +492,7 @@ class ClaudeAIService
                 Log::error('OpenAI: Insufficient quota');
                 throw new \Exception('Quota OpenAI habis. Silakan top up balance atau upgrade plan OpenAI Anda.');
             }
-            
+
             Log::error('ClaudeAI OpenAI failed', [
                 'status' => $statusCode,
                 'body'   => substr($body, 0, 800),
@@ -470,14 +504,14 @@ class ClaudeAIService
 
         } catch (\Exception $e) {
             Log::error('ClaudeAI OpenAI exception', ['error' => $e->getMessage()]);
-            
+
             // If it's a configuration error, throw it
-            if (strpos($e->getMessage(), 'API key') !== false || 
-                strpos($e->getMessage(), 'quota') !== false || 
+            if (strpos($e->getMessage(), 'API key') !== false ||
+                strpos($e->getMessage(), 'quota') !== false ||
                 strpos($e->getMessage(), 'rate limit') !== false) {
                 throw $e;
             }
-            
+
             // Otherwise try OpenRouter backup
             return $this->callOpenRouterAPI($systemPrompt, $messages, $maxTokens);
         }
@@ -504,6 +538,8 @@ class ClaudeAIService
             // Correct Hugging Face API endpoint
             $apiUrl = "https://api-inference.huggingface.co/models/" . $this->fallbackModel;
 
+            $startTime = microtime(true);
+
             $response = Http::withHeaders([
                 'Authorization' => 'Bearer ' . $this->fallbackApiKey,
                 'Content-Type'  => 'application/json',
@@ -520,26 +556,35 @@ class ClaudeAIService
                 ],
             ]);
 
+            $responseTime = microtime(true) - $startTime;
+
             if ($response->successful()) {
                 $data = $response->json();
-                
+
                 // Hugging Face returns array of results
                 if (is_array($data) && isset($data[0]['generated_text'])) {
                     $content = trim($data[0]['generated_text']);
-                    Log::info('ClaudeAI (Hugging Face): response received', ['length' => strlen($content)]);
+                    Log::info('ClaudeAI (Hugging Face): response received', [
+                        'length' => strlen($content),
+                        'response_time' => round($responseTime, 2) . 's'
+                    ]);
+
+                    // Store response time for metrics
+                    $this->lastResponseTime = $responseTime;
+
                     return $content;
                 }
             }
 
             $statusCode = $response->status();
             $body = $response->body();
-            
+
             // If Hugging Face fails, try OpenRouter as backup
             if ($statusCode === 404 || $statusCode >= 500) {
                 Log::warning('Hugging Face failed, trying OpenRouter backup');
                 return $this->callOpenRouterAPI($systemPrompt, $messages, $maxTokens);
             }
-            
+
             Log::error('ClaudeAI Hugging Face failed', [
                 'status' => $statusCode,
                 'body'   => substr($body, 0, 800),
@@ -571,7 +616,7 @@ class ClaudeAIService
             }
 
             $openRouterKey = env('OPENROUTER_API_KEY', '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');
-            
+
             // Try multiple free models in order (updated with working models)
             $freeModels = [
                 'meta-llama/llama-3.2-3b-instruct:free',
@@ -585,7 +630,9 @@ class ClaudeAIService
             foreach ($freeModels as $model) {
                 try {
                     Log::info("Trying OpenRouter model: {$model}");
-                    
+
+                    $startTime = microtime(true);
+
                     $response = Http::withHeaders([
                         'Authorization' => 'Bearer ' . $openRouterKey,
                         'Content-Type'  => 'application/json',
@@ -598,11 +645,20 @@ class ClaudeAIService
                         'max_tokens' => min($maxTokens, 2000),
                     ]);
 
+                    $responseTime = microtime(true) - $startTime;
+
                     if ($response->successful()) {
                         $data = $response->json();
                         $content = $data['choices'][0]['message']['content'] ?? null;
                         if ($content) {
-                            Log::info("OpenRouter success with model: {$model}", ['length' => strlen($content)]);
+                            Log::info("OpenRouter success with model: {$model}", [
+                                'length' => strlen($content),
+                                'response_time' => round($responseTime, 2) . 's'
+                            ]);
+
+                            // Store response time for metrics
+                            $this->lastResponseTime = $responseTime;
+
                             return trim($content);
                         }
                     }
@@ -614,7 +670,7 @@ class ClaudeAIService
                     }
 
                     Log::warning("Model {$model} failed with status {$statusCode}");
-                    
+
                 } catch (\Exception $e) {
                     Log::warning("Model {$model} exception: " . $e->getMessage());
                     continue; // Try next model
@@ -623,7 +679,7 @@ class ClaudeAIService
 
             // If all models failed, return a simple fallback response
             Log::error('All OpenRouter models failed, using fallback response');
-            
+
             // Generate a simple response based on the user message
             $userMessage = '';
             foreach ($messages as $msg) {
@@ -632,7 +688,7 @@ class ClaudeAIService
                     break;
                 }
             }
-            
+
             return $this->generateFallbackResponse($userMessage);
 
         } catch (\Exception $e) {
@@ -652,13 +708,95 @@ class ClaudeAIService
             'user_message_length' => strlen($userMessage),
             'timestamp' => now()
         ]);
-        
+
         // Return a proper error message instead of fake AI response
         return "Maaf, semua layanan AI sedang tidak tersedia saat ini. Silakan:\n\n" .
                "1. Coba lagi dalam beberapa menit\n" .
                "2. Periksa koneksi internet Anda\n" .
                "3. Hubungi administrator sistem jika masalah berlanjut\n\n" .
                "**Catatan**: Sistem memerlukan koneksi ke layanan AI untuk menganalisis dokumen dan menghasilkan laporan yang akurat.";
+    }
+
+    /**
+     * Analyze image content using Claude Vision API
+     *
+     * @param string $imageData Base64 encoded image data
+     * @param string $mimeType Image MIME type
+     * @param string $analysisPrompt Prompt for analysis
+     * @return string Analysis result
+     */
+    public function analyzeImageContent(string $imageData, string $mimeType, string $analysisPrompt): string
+    {
+        if (!$this->useClaudeDirect) {
+            // Fallback: Cannot analyze images without Claude API
+            Log::warning('Image analysis requires Claude API, falling back to text-only');
+            return json_encode([
+                'is_valid' => true,
+                'reason' => 'Image analysis not available, allowing by default',
+                'confidence' => 0.5
+            ]);
+        }
+
+        try {
+            Log::info('Analyzing image content with Claude Vision');
+
+            $response = Http::withHeaders([
+                'x-api-key'         => $this->apiKey,
+                'anthropic-version' => $this->apiVersion,
+                'Content-Type'      => 'application/json',
+            ])->timeout(60)->post('https://api.anthropic.com/v1/messages', [
+                'model'      => $this->model,
+                'max_tokens' => 1024,
+                'messages'   => [[
+                    'role' => 'user',
+                    'content' => [
+                        [
+                            'type' => 'image',
+                            'source' => [
+                                'type' => 'base64',
+                                'media_type' => $mimeType,
+                                'data' => $imageData
+                            ]
+                        ],
+                        [
+                            'type' => 'text',
+                            'text' => $analysisPrompt
+                        ]
+                    ]
+                ]],
+            ]);
+
+            if ($response->successful()) {
+                $data = $response->json();
+                $text = $data['content'][0]['text'] ?? null;
+
+                if ($text) {
+                    Log::info('Image analysis completed', ['response_length' => strlen($text)]);
+                    return trim($text);
+                }
+            }
+
+            Log::error('Image analysis failed', [
+                'status' => $response->status(),
+                'body'   => substr($response->body(), 0, 500),
+            ]);
+
+            // Return default allow response
+            return json_encode([
+                'is_valid' => true,
+                'reason' => 'Analysis failed, allowing by default',
+                'confidence' => 0.5
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Image analysis exception', ['error' => $e->getMessage()]);
+
+            return json_encode([
+                'is_valid' => true,
+                'reason' => 'Analysis exception, allowing by default',
+                'confidence' => 0.5
+            ]);
+        }
     }
 
     /**
@@ -677,7 +815,7 @@ class ClaudeAIService
         if ($this->useClaudeDirect) {
             return 'Claude (' . $this->model . ')';
         }
-        
+
         $provider = env('LLM_PROVIDER', 'groq');
         return match($provider) {
             'openai' => 'OpenAI ChatGPT (' . $this->fallbackModel . ')',
@@ -715,16 +853,16 @@ class ClaudeAIService
         try {
             // Prepare messages with images
             $claudeMessages = [];
-            
+
             foreach ($messages as $msg) {
                 $content = [];
-                
+
                 // Add text content
                 $content[] = [
                     'type' => 'text',
                     'text' => $msg['content']
                 ];
-                
+
                 // Add images to the last user message
                 if ($msg['role'] === 'user' && !empty($images)) {
                     foreach ($images as $image) {
@@ -740,7 +878,7 @@ class ClaudeAIService
                     // Clear images after adding to prevent duplication
                     $images = [];
                 }
-                
+
                 $claudeMessages[] = [
                     'role' => $msg['role'],
                     'content' => $content
@@ -776,14 +914,14 @@ class ClaudeAIService
             }
 
             $data = $response->json();
-            
+
             if (!isset($data['content'][0]['text'])) {
                 Log::error('Unexpected Claude Vision API response format', ['data' => $data]);
                 return null;
             }
 
             $result = $data['content'][0]['text'];
-            
+
             Log::info('Claude Vision API success', [
                 'response_length' => strlen($result),
                 'usage' => $data['usage'] ?? null
@@ -798,5 +936,15 @@ class ClaudeAIService
             ]);
             return null;
         }
+    }
+
+    /**
+     * Get last response time in seconds
+     *
+     * @return float|null
+     */
+    public function getLastResponseTime(): ?float
+    {
+        return $this->lastResponseTime;
     }
 }

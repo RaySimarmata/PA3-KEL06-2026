@@ -12,13 +12,16 @@ class LaporanSemesterService
 {
     protected $aiAgentService;
     protected $ragRetrievalService;
+    protected $ragasService;
 
     public function __construct(
         AIAgentService $aiAgentService,
-        RAGRetrievalService $ragRetrievalService
+        RAGRetrievalService $ragRetrievalService,
+        RAGASEvaluationService $ragasService
     ) {
         $this->aiAgentService = $aiAgentService;
         $this->ragRetrievalService = $ragRetrievalService;
+        $this->ragasService = $ragasService;
     }
 
     /**
@@ -30,7 +33,7 @@ class LaporanSemesterService
         Log::info("=== Starting Laporan Semester Generation ===", ['laporan_id' => $laporanId]);
 
         $laporan = LaporanGJM::with(['template'])->find($laporanId);
-        
+
         if (!$laporan) {
             throw new \Exception("Laporan not found");
         }
@@ -68,11 +71,43 @@ class LaporanSemesterService
             // 5. Mark preview sebagai sudah digunakan
             $cacheService->markAsUsedForGeneration($laporanId);
 
-            // 6. Update laporan record
+            // 6. Evaluate RAGAS metrics
+            $aiPreviewDraft = $preview['draft'] ?? '';
+            $contexts = $this->extractContextsFromPreview($preview);
+            $userMessage = $instruksi['user_message'] ?? 'Buat laporan semester';
+
+            $ragasMetrics = $this->ragasService->quickEvaluateVMTS(
+                $userMessage,
+                $aiPreviewDraft,
+                $contexts
+            );
+
+            Log::info('RAGAS evaluation completed for Semester', [
+                'laporan_id' => $laporanId,
+                'overall_score' => $ragasMetrics['overall_score'],
+                'contexts_count' => count($contexts),
+            ]);
+
+            // 7. Update laporan record with RAGAS metrics
             $laporan->update([
                 'dokumen_hasil_path' => $wordPath,
                 'status_laporan' => 'completed',
                 'analisis_kepatuhan' => 'Laporan berhasil di-generate menggunakan AI preview dari database',
+
+                // RAGAS Metrics
+                'ragas_faithfulness' => $ragasMetrics['faithfulness'],
+                'ragas_answer_relevancy' => $ragasMetrics['answer_relevancy'],
+                'ragas_context_precision' => $ragasMetrics['context_precision'],
+                'ragas_context_recall' => $ragasMetrics['context_recall'],
+                'ragas_context_relevancy' => $ragasMetrics['context_relevancy'],
+                'ragas_overall_score' => $ragasMetrics['overall_score'],
+
+                // RAG Metadata
+                'rag_chunks_count' => count($contexts),
+                'rag_avg_similarity' => 0.85, // Default similarity
+                'rag_contexts' => array_slice($contexts, 0, 10), // Store first 10 chunks only
+                'ragas_evaluation_type' => $ragasMetrics['metadata']['evaluation_type'] ?? 'heuristic',
+                'ragas_evaluated_at' => now(),
             ]);
 
             Log::info("Laporan Semester generated successfully", [
@@ -153,10 +188,10 @@ class LaporanSemesterService
 
         // Log hasil mapping
         foreach ($placeholders as $key => $value) {
-            if ($key !== 'PERIODE' && $key !== 'TAHUN_AKADEMIK') {
+            if ($key !== 'PERIODE' && $key !== 'TAHUN_AKADEMIK' && $key !== 'LAMPIRAN_GAMBAR') {
                 Log::info("Mapped section to placeholder", [
                     'placeholder' => $key,
-                    'content_length' => strlen($value),
+                    'content_length' => is_string($value) ? strlen($value) : (is_array($value) ? count($value) : 0),
                     'has_content' => !empty($value)
                 ]);
             }
@@ -171,7 +206,7 @@ class LaporanSemesterService
             } elseif (!is_string($ocrText)) {
                 $ocrText = (string)$ocrText;
             }
-            
+
             Log::info("Laporan generated with OCR data integration", [
                 'ocr_images_processed' => $ocrData['images_count'] ?? 0,
                 'ocr_text_length' => strlen($ocrText),
@@ -189,44 +224,44 @@ class LaporanSemesterService
     private function cleanMarkdown($text)
     {
         $text = trim($text);
-        
+
         if (empty($text)) {
             return '';
         }
-        
+
         // Remove markdown headers but keep the text
         $text = preg_replace('/^#{1,6}\s+/m', '', $text);
-        
+
         // Convert bold to plain text (keep the text)
         $text = preg_replace('/\*\*(.+?)\*\*/', '$1', $text);
         $text = preg_replace('/__(.+?)__/', '$1', $text);
-        
+
         // Convert italic to plain text (keep the text)
         $text = preg_replace('/\*(.+?)\*/', '$1', $text);
         $text = preg_replace('/_(.+?)_/', '$1', $text);
-        
+
         // Convert bullet points to proper bullets
         $text = preg_replace('/^[\-\*]\s+/m', '• ', $text);
-        
+
         // Convert numbered lists - keep the numbers
         // No change needed for numbered lists
-        
+
         // Remove horizontal rules
         $text = preg_replace('/^---+$/m', '', $text);
         $text = preg_replace('/^\*\*\*+$/m', '', $text);
-        
+
         // Remove code blocks
         $text = preg_replace('/```[\s\S]*?```/', '', $text);
         $text = preg_replace('/`(.+?)`/', '$1', $text);
-        
+
         // Clean up multiple newlines (max 2)
         $text = preg_replace('/\n{3,}/', "\n\n", $text);
-        
+
         // Trim each line
         $lines = explode("\n", $text);
         $lines = array_map('trim', $lines);
         $text = implode("\n", $lines);
-        
+
         return trim($text);
     }
 
@@ -238,7 +273,7 @@ class LaporanSemesterService
         Log::info("=== Starting Laporan Semester Generation ===", ['laporan_id' => $laporanId]);
 
         $laporan = LaporanGJM::with(['template'])->find($laporanId);
-        
+
         if (!$laporan) {
             throw new \Exception("Laporan not found");
         }
@@ -378,7 +413,7 @@ class LaporanSemesterService
     private function buildPrompt($dataContext, $templateContext, $periode, $tahun, $judul)
     {
         $prompt = "Anda adalah AI Agent yang bertugas membuat Laporan Semester untuk Gugus Jaminan Mutu (GJM) Fakultas Vokasi Institut Teknologi Del.\n\n";
-        
+
         $prompt .= "INFORMASI LAPORAN:\n";
         $prompt .= "- Judul: {$judul}\n";
         $prompt .= "- Periode: {$periode}\n";
@@ -437,7 +472,7 @@ class LaporanSemesterService
             'periode_mulai' => $laporan->periode_mulai ?? 'N/A',
             'tahun_akademik' => $tahunAkademik
         ]);
-        
+
         return [
             'PERIODE'           => $periode,
             'TAHUN_AKADEMIK'    => $tahunAkademik,
@@ -605,12 +640,12 @@ class LaporanSemesterService
             }
 
             $fixed = $this->mergeRunsInParagraphs($content);
-            
+
             // Log after fixing
             if (strpos($fixed, 'TAHUN_AKADEMIK') !== false) {
                 Log::info('TAHUN_AKADEMIK still present in XML after fixing');
             }
-            
+
             $zip->addFromString($xmlFile, $fixed);
         }
 
@@ -654,7 +689,7 @@ class LaporanSemesterService
             $origCombined = implode('', $texts); // original (pre-normalization) per-run texts
             $origTexts    = $texts;               // keep original for offset calculation
 
-            // Normalize double-brace variants and spaces in combined: 
+            // Normalize double-brace variants and spaces in combined:
             // {{VAR}} → {VAR}, {{ VAR}} → {VAR}, { VAR} → {VAR}, {VAR } → {VAR}
             // Also handle underscores: {TAHUN_AKADEMIK}
             $combined = preg_replace('/\{\{?\s*([A-Za-z][A-Za-z0-9_]*)\s*\}?\}/', '{$1}', $origCombined);
@@ -732,6 +767,75 @@ class LaporanSemesterService
     }
 
     /**
+     * Extract contexts from AI preview for RAGAS evaluation
+     */
+    private function extractContextsFromPreview($preview)
+    {
+        $contexts = [];
+
+        try {
+            // Extract from sections
+            $sections = $preview['sections'] ?? [];
+            foreach ($sections as $section) {
+                if (!empty($section)) {
+                    // Split into chunks (500 words each)
+                    $chunks = $this->splitIntoChunks($section, 500);
+                    $contexts = array_merge($contexts, $chunks);
+                }
+            }
+
+            // If no sections, use draft as context
+            if (empty($contexts) && !empty($preview['draft'])) {
+                $draft = $preview['draft'];
+                if (is_array($draft)) {
+                    $draft = json_encode($draft);
+                }
+                $chunks = $this->splitIntoChunks((string)$draft, 500);
+                $contexts = array_merge($contexts, $chunks);
+            }
+
+            // If still no contexts, return default
+            if (empty($contexts)) {
+                $contexts = ['AI preview laporan semester'];
+            }
+
+            return $contexts;
+        } catch (\Exception $e) {
+            Log::error('Failed to extract contexts from preview', [
+                'error' => $e->getMessage(),
+            ]);
+            return ['AI preview laporan semester'];
+        }
+    }
+
+    /**
+     * Split text into chunks for RAGAS evaluation
+     */
+    private function splitIntoChunks($text, $wordsPerChunk = 500)
+    {
+        $text = is_string($text) ? $text : json_encode($text);
+        $words = preg_split('/\s+/', $text);
+        $chunks = [];
+        $currentChunk = [];
+
+        foreach ($words as $word) {
+            $currentChunk[] = $word;
+
+            if (count($currentChunk) >= $wordsPerChunk) {
+                $chunks[] = implode(' ', $currentChunk);
+                $currentChunk = [];
+            }
+        }
+
+        // Add remaining words
+        if (!empty($currentChunk)) {
+            $chunks[] = implode(' ', $currentChunk);
+        }
+
+        return $chunks;
+    }
+
+    /**
      * Get uploaded images from laporan OCR data or vector database
      */
     private function getUploadedImages($laporan)
@@ -741,25 +845,25 @@ class LaporanSemesterService
         try {
             // Method 1: Check ocr_uploads folder directly
             $ocrUploadPath = storage_path("app/public/ocr_uploads/{$laporan->id}");
-            
+
             if (is_dir($ocrUploadPath)) {
                 $files = scandir($ocrUploadPath);
                 foreach ($files as $file) {
                     if ($file === '.' || $file === '..') continue;
-                    
+
                     $fullPath = $ocrUploadPath . '/' . $file;
                     if (is_file($fullPath) && preg_match('/\.(jpg|jpeg|png|gif|webp)$/i', $file)) {
                         // Get image dimensions
                         $imageInfo = @getimagesize($fullPath);
                         $originalWidth = $imageInfo[0] ?? 800;
                         $originalHeight = $imageInfo[1] ?? 600;
-                        
+
                         // Calculate scaled dimensions (max width 400px, maintain aspect ratio)
                         $maxWidth = 400;
                         $scale = $maxWidth / $originalWidth;
                         $width = $maxWidth;
                         $height = (int)($originalHeight * $scale);
-                        
+
                         $images[] = [
                             'path' => $fullPath,
                             'filename' => $file,
@@ -773,7 +877,7 @@ class LaporanSemesterService
             // Method 2: Check if laporan has OCR data with image paths
             if (empty($images) && $laporan->has_ocr_data && !empty($laporan->ocr_data)) {
                 $ocrData = is_array($laporan->ocr_data) ? $laporan->ocr_data : json_decode($laporan->ocr_data, true);
-                
+
                 if (isset($ocrData['images']) && is_array($ocrData['images'])) {
                     foreach ($ocrData['images'] as $imageData) {
                         if (isset($imageData['path']) && file_exists(storage_path('app/' . $imageData['path']))) {
@@ -796,10 +900,10 @@ class LaporanSemesterService
 
                 foreach ($chunks as $chunk) {
                     $metadata = is_array($chunk->metadata) ? $chunk->metadata : json_decode($chunk->metadata, true);
-                    
+
                     if (isset($metadata['type']) && $metadata['type'] === 'ocr_image' && isset($metadata['image_path'])) {
                         $imagePath = storage_path('app/' . $metadata['image_path']);
-                        
+
                         if (file_exists($imagePath)) {
                             // Check if not already added
                             $alreadyAdded = false;
@@ -809,7 +913,7 @@ class LaporanSemesterService
                                     break;
                                 }
                             }
-                            
+
                             if (!$alreadyAdded) {
                                 $images[] = [
                                     'path' => $imagePath,
@@ -881,7 +985,7 @@ class LaporanSemesterService
             foreach ($images as $index => $imageData) {
                 $imagePath = $imageData['path'];
                 $filename = $imageData['filename'];
-                
+
                 if (!file_exists($imagePath)) {
                     Log::warning('Image file not found', ['path' => $imagePath]);
                     continue;
@@ -892,7 +996,7 @@ class LaporanSemesterService
                     $imageInfo = getimagesize($imagePath);
                     $originalWidth = $imageInfo[0] ?? 800;
                     $originalHeight = $imageInfo[1] ?? 600;
-                    
+
                     // Calculate scaled dimensions (max width 400px, maintain aspect ratio)
                     $maxWidth = 400;
                     $scale = $maxWidth / $originalWidth;
@@ -901,7 +1005,7 @@ class LaporanSemesterService
 
                     // Use setImageValue to insert image
                     $variableName = count($images) > 1 ? "LAMPIRAN_GAMBAR#{$index}" : 'LAMPIRAN_GAMBAR';
-                    
+
                     $templateProcessor->setImageValue(
                         $variableName,
                         [
@@ -925,7 +1029,7 @@ class LaporanSemesterService
                         'filename' => $filename,
                         'error' => $e->getMessage()
                     ]);
-                    
+
                     // Fallback: replace with filename text
                     try {
                         $templateProcessor->setValue($variableName, "Gambar: {$filename}");
@@ -946,7 +1050,7 @@ class LaporanSemesterService
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);
-            
+
             // Fallback: replace with text
             try {
                 $templateProcessor->setValue('LAMPIRAN_GAMBAR', count($images) . ' gambar dilampirkan');

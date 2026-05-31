@@ -16,11 +16,13 @@ class LaporanVMTSController extends Controller
 {
     protected $vmtsExcelService;
     protected $aiService;
+    protected $cacheService;
 
     public function __construct(VMTSExcelService $vmtsExcelService, UnifiedAIService $aiService)
     {
         $this->vmtsExcelService = $vmtsExcelService;
         $this->aiService = $aiService;
+        $this->cacheService = app(\App\Services\AICacheService::class);
     }
     /**
      * Display a listing of laporan VMTS
@@ -45,9 +47,11 @@ class LaporanVMTSController extends Controller
 
         // Add formatted data for display
         $laporanList->getCollection()->transform(function ($laporan) {
-            $instruksi = json_decode($laporan->instruksi_prompt, true);
+            // Ambil data dari instruksi_prompt JSON
+            $instruksi = is_array($laporan->instruksi_prompt) ? $laporan->instruksi_prompt : json_decode($laporan->instruksi_prompt, true);
+            
             $laporan->periode_VMTS = $instruksi['periode_VMTS'] ?? '-';
-            $laporan->judul_laporan = $instruksi['judul'] ?? $laporan->ringkasan_mutu_institusi;
+            $laporan->judul_laporan = $instruksi['judul'] ?? $laporan->ringkasan_mutu_institusi ?? '-';
             
             // Status badge
             switch ($laporan->status_laporan) {
@@ -129,7 +133,7 @@ class LaporanVMTSController extends Controller
             $filePath = storage_path('app/' . $laporan->file_word);
             
             if (file_exists($filePath)) {
-                $instruksi = json_decode($laporan->instruksi_prompt, true);
+                $instruksi = is_array($laporan->instruksi_prompt) ? $laporan->instruksi_prompt : json_decode($laporan->instruksi_prompt, true);
                 $fileName = 'Laporan_VMTS_' . str_replace('/', '_', $instruksi['periode_VMTS'] ?? date('Y')) . '.docx';
                 
                 return response()->download($filePath, $fileName);
@@ -176,11 +180,12 @@ class LaporanVMTSController extends Controller
             // Get and clean AI preview data
             $aiPreviewData = $request->ai_preview_data;
             
-            // Log original data length
+            // Log original data
             Log::info('Generating Word from AI data', [
                 'laporan_id' => $laporan->id,
                 'data_length' => strlen($aiPreviewData),
-                'first_100_chars' => substr($aiPreviewData, 0, 100)
+                'first_200_chars' => substr($aiPreviewData, 0, 200),
+                'has_special_chars' => preg_match('/[<>&]/', $aiPreviewData) ? 'yes' : 'no',
             ]);
             
             // Update laporan with AI preview data
@@ -206,15 +211,12 @@ class LaporanVMTSController extends Controller
             $phpWord->setDefaultFontName('Arial');
             $phpWord->setDefaultFontSize(11);
 
-            // Add section with proper settings
-            // Use integer twip values (1 inch = 1440 twips, A4 = 11906 x 16838 twips)
+            // Add section with simple settings
             $section = $phpWord->addSection([
-                'paperSize'    => 'A4',
-                'orientation'  => 'portrait',
-                'marginLeft'   => 1701,   // ~3 cm
-                'marginRight'  => 1701,   // ~3 cm
-                'marginTop'    => 1701,   // ~3 cm
-                'marginBottom' => 1701,   // ~3 cm
+                'marginLeft'   => 1134,  // 2 cm
+                'marginRight'  => 1134,  // 2 cm
+                'marginTop'    => 1134,  // 2 cm
+                'marginBottom' => 1134,  // 2 cm
             ]);
 
             // Add title
@@ -239,33 +241,8 @@ class LaporanVMTSController extends Controller
 
             $section->addTextBreak(2);
 
-            // Parse markdown content and add to document
-            try {
-                $this->parseMarkdownToWord($aiPreviewData, $section);
-            } catch (\Exception $e) {
-                Log::error('Failed to parse markdown', [
-                    'error' => $e->getMessage(),
-                    'trace' => $e->getTraceAsString(),
-                    'data_sample' => mb_substr($aiPreviewData, 0, 200)
-                ]);
-                
-                // Fallback: add as plain text with better formatting
-                $cleanText = $this->sanitizeTextForWord($aiPreviewData);
-                if (!empty($cleanText)) {
-                    // Split by double newlines for paragraphs
-                    $paragraphs = preg_split('/\n\s*\n/', $cleanText);
-                    foreach ($paragraphs as $para) {
-                        $para = trim($para);
-                        if (!empty($para)) {
-                            $section->addText($para, [
-                                'size' => 11,
-                                'name' => 'Arial',
-                                'color' => '000000'
-                            ], ['spaceAfter' => 120]);
-                        }
-                    }
-                }
-            }
+            // Parse markdown content with safe method that supports tables and formatting
+            $this->parseMarkdownToWordSafe($aiPreviewData, $section);
 
             // Save document
             $filename = 'Laporan_VMTS_' . str_replace(['/', ' '], ['_', '_'], $periode) . '_' . time() . '.docx';
@@ -281,43 +258,37 @@ class LaporanVMTSController extends Controller
 
             // Save with error handling
             try {
+                // Validate document before saving
+                Log::info('Attempting to save Word document', [
+                    'filepath' => $filepath,
+                    'sections_count' => count($phpWord->getSections()),
+                ]);
+
                 $objWriter->save($filepath);
+                
+                Log::info('Word document saved successfully', [
+                    'filepath' => $filepath,
+                ]);
+                
             } catch (\Exception $e) {
                 Log::error('Failed to save Word document', [
                     'filepath' => $filepath,
-                    'error'    => $e->getMessage(),
-                    'trace'    => $e->getTraceAsString(),
-                ]);
-                throw new \Exception('Gagal menyimpan dokumen Word: ' . $e->getMessage());
-            }
-
-            // ── Post-process: fix float values in w:pgSz / w:pgMar ────────
-            // PhpWord's cmToTwip() returns floats (e.g. 11905.511...) which
-            // Microsoft Word rejects. We round all numeric attribute values
-            // inside word/document.xml to integers after saving.
-            try {
-                $zip = new \ZipArchive();
-                if ($zip->open($filepath) === true) {
-                    $docXml = $zip->getFromName('word/document.xml');
-                    if ($docXml !== false) {
-                        // Round all w:w, w:h, w:top, w:bottom, w:left,
-                        // w:right, w:gutter, w:space attributes to integers
-                        $fixed = preg_replace_callback(
-                            '/(w:(?:w|h|top|bottom|left|right|gutter|space|header|footer))="([\d]+\.[\d]+)"/',
-                            fn($m) => $m[1] . '="' . (string) (int) round((float) $m[2]) . '"',
-                            $docXml
-                        );
-                        if ($fixed && $fixed !== $docXml) {
-                            $zip->addFromString('word/document.xml', $fixed);
-                            Log::info('Fixed float values in word/document.xml');
-                        }
-                    }
-                    $zip->close();
-                }
-            } catch (\Exception $e) {
-                Log::warning('Post-process float-fix failed (file may still open)', [
                     'error' => $e->getMessage(),
+                    'trace' => $e->getTraceAsString(),
                 ]);
+                
+                // Try to save with minimal content as fallback
+                $phpWordFallback = new \PhpOffice\PhpWord\PhpWord();
+                $sectionFallback = $phpWordFallback->addSection();
+                $sectionFallback->addText('Laporan VMTS', ['bold' => true, 'size' => 16]);
+                $sectionFallback->addTextBreak();
+                $sectionFallback->addText('Terjadi kesalahan saat memproses konten laporan.');
+                $sectionFallback->addText('Silakan hubungi administrator.');
+                
+                $writerFallback = \PhpOffice\PhpWord\IOFactory::createWriter($phpWordFallback, 'Word2007');
+                $writerFallback->save($filepath);
+                
+                Log::info('Fallback document saved', ['filepath' => $filepath]);
             }
 
             // Verify file was created and is valid
@@ -333,10 +304,23 @@ class LaporanVMTSController extends Controller
                     'filepath' => $filepath,
                     'filesize' => $fileSize
                 ]);
-                throw new \Exception('File yang dihasilkan terlalu kecil, kemungkinan corrupt');
+                throw new \Exception('File yang dihasilkan terlalu kecil (' . $fileSize . ' bytes), kemungkinan corrupt');
             }
             
-            Log::info('File created successfully', [
+            // Try to verify the file is a valid ZIP (DOCX is a ZIP file)
+            $zip = new \ZipArchive();
+            $zipStatus = $zip->open($filepath, \ZipArchive::CHECKCONS);
+            if ($zipStatus !== true) {
+                Log::error('Generated file is not a valid ZIP/DOCX', [
+                    'filepath' => $filepath,
+                    'zip_status' => $zipStatus,
+                    'filesize' => $fileSize
+                ]);
+                throw new \Exception('File yang dihasilkan bukan DOCX yang valid (ZIP status: ' . $zipStatus . ')');
+            }
+            $zip->close();
+            
+            Log::info('File created and validated successfully', [
                 'filepath' => $filepath,
                 'filesize' => $fileSize,
             ]);
@@ -346,21 +330,16 @@ class LaporanVMTSController extends Controller
                 'dokumen_hasil_path' => 'laporan_vmts/' . $filename,
             ]);
 
-            $downloadUrl = asset('storage/laporan_vmts/' . $filename);
-
             Log::info('Laporan VMTS Word generated', [
                 'laporan_id' => $laporan->id,
                 'filename' => $filename,
-                'download_url' => $downloadUrl,
                 'file_size_bytes' => $fileSize,
             ]);
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Laporan VMTS berhasil di-generate',
-                'download_url' => $downloadUrl,
-                'filename' => $filename,
-                'file_size' => $fileSize,
+            // Return file as download response (same as Triwulan and Semester)
+            return response()->download($filepath, $filename, [
+                'Content-Type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                'Content-Disposition' => 'attachment; filename="' . $filename . '"',
             ]);
 
         } catch (\Exception $e) {
@@ -373,6 +352,252 @@ class LaporanVMTSController extends Controller
                 'success' => false,
                 'message' => 'Gagal generate laporan: ' . $e->getMessage(),
             ], 500);
+        }
+    }
+
+    /**
+     * Parse markdown content and add to Word document (SAFE VERSION)
+     */
+    private function parseMarkdownToWordSafe($markdown, $section)
+    {
+        // Clean markdown first
+        $markdown = $this->cleanMarkdownForWord($markdown);
+        
+        $lines = explode("\n", $markdown);
+        $inList = false;
+        $inTable = false;
+        $tableRows = [];
+
+        foreach ($lines as $line) {
+            $line = trim($line);
+            
+            // Skip empty lines
+            if (empty($line)) {
+                if ($inList) {
+                    $section->addTextBreak();
+                    $inList = false;
+                }
+                continue;
+            }
+
+            try {
+                // Check for table rows
+                if (preg_match('/^\|(.+)\|$/', $line)) {
+                    // Skip separator rows (|---|---|)
+                    if (preg_match('/^\|[\s\-:|]+\|$/', $line)) {
+                        continue;
+                    }
+                    
+                    $inTable = true;
+                    $tableRows[] = $line;
+                    continue;
+                } else if ($inTable && !empty($tableRows)) {
+                    // Render accumulated table
+                    $this->renderSimpleTable($section, $tableRows);
+                    $tableRows = [];
+                    $inTable = false;
+                    $section->addTextBreak();
+                }
+
+                // Heading 1 (# )
+                if (preg_match('/^#\s+(.+)$/', $line, $matches)) {
+                    $text = $this->sanitizeTextForWord($matches[1]);
+                    if (!empty($text)) {
+                        $section->addText($text, [
+                            'bold' => true,
+                            'size' => 14,
+                            'name' => 'Arial',
+                            'color' => '1F3864',
+                        ], [
+                            'alignment' => \PhpOffice\PhpWord\SimpleType\Jc::LEFT,
+                            'spaceAfter' => 200,
+                            'spaceBefore' => 200
+                        ]);
+                    }
+                    $inList = false;
+                    continue;
+                }
+
+                // Heading 2 (## )
+                if (preg_match('/^##\s+(.+)$/', $line, $matches)) {
+                    $text = $this->sanitizeTextForWord($matches[1]);
+                    if (!empty($text)) {
+                        $section->addText($text, [
+                            'bold' => true,
+                            'size' => 12,
+                            'name' => 'Arial',
+                            'color' => '1F3864',
+                        ], [
+                            'spaceAfter' => 150,
+                            'spaceBefore' => 200
+                        ]);
+                    }
+                    $inList = false;
+                    continue;
+                }
+
+                // Heading 3 (### )
+                if (preg_match('/^###\s+(.+)$/', $line, $matches)) {
+                    $text = $this->sanitizeTextForWord($matches[1]);
+                    if (!empty($text)) {
+                        $section->addText($text, [
+                            'bold' => true,
+                            'size' => 11,
+                            'name' => 'Arial',
+                            'color' => '2E4C7E',
+                        ], [
+                            'spaceAfter' => 100,
+                            'spaceBefore' => 150
+                        ]);
+                    }
+                    $inList = false;
+                    continue;
+                }
+
+                // Bullet list (- or *)
+                if (preg_match('/^[\-\*]\s+(.+)$/', $line, $matches)) {
+                    $text = $this->sanitizeTextForWord($matches[1]);
+                    // Remove markdown formatting
+                    $text = preg_replace('/\*\*(.+?)\*\*/', '$1', $text);
+                    $text = preg_replace('/\*(.+?)\*/', '$1', $text);
+                    
+                    if (!empty($text)) {
+                        $section->addListItem($text, 0, [
+                            'size' => 11,
+                            'name' => 'Arial',
+                        ]);
+                        $inList = true;
+                    }
+                    continue;
+                }
+
+                // Numbered list
+                if (preg_match('/^\d+\.\s+(.+)$/', $line, $matches)) {
+                    $text = $this->sanitizeTextForWord($matches[1]);
+                    // Remove markdown formatting
+                    $text = preg_replace('/\*\*(.+?)\*\*/', '$1', $text);
+                    $text = preg_replace('/\*(.+?)\*/', '$1', $text);
+                    
+                    if (!empty($text)) {
+                        $section->addListItem($text, 0, [
+                            'size' => 11,
+                            'name' => 'Arial',
+                        ], null, \PhpOffice\PhpWord\Style\ListItem::TYPE_NUMBER);
+                        $inList = true;
+                    }
+                    continue;
+                }
+
+                // Normal paragraph
+                $text = $this->sanitizeTextForWord($line);
+                // Remove markdown formatting
+                $text = preg_replace('/\*\*(.+?)\*\*/', '$1', $text);
+                $text = preg_replace('/\*(.+?)\*/', '$1', $text);
+                $text = preg_replace('/__(.+?)__/', '$1', $text);
+                $text = preg_replace('/_(.+?)_/', '$1', $text);
+                
+                if (!empty($text)) {
+                    $section->addText($text, [
+                        'size' => 11,
+                        'name' => 'Arial',
+                    ], [
+                        'spaceAfter' => 100,
+                        'alignment' => \PhpOffice\PhpWord\SimpleType\Jc::BOTH
+                    ]);
+                }
+                $inList = false;
+
+            } catch (\Exception $e) {
+                Log::warning('Error parsing line in markdown', [
+                    'line' => mb_substr($line, 0, 100),
+                    'error' => $e->getMessage(),
+                ]);
+                continue;
+            }
+        }
+
+        // Render any remaining table
+        if ($inTable && !empty($tableRows)) {
+            $this->renderSimpleTable($section, $tableRows);
+        }
+    }
+
+    /**
+     * Render simple table from markdown
+     */
+    private function renderSimpleTable($section, $tableRows)
+    {
+        if (empty($tableRows)) {
+            return;
+        }
+
+        try {
+            // Parse table rows
+            $parsedRows = [];
+            foreach ($tableRows as $row) {
+                $row = trim($row);
+                $row = preg_replace('/^\||\|$/', '', $row); // Remove outer pipes
+                $cells = array_map('trim', explode('|', $row));
+                
+                // Filter out empty rows
+                if (!empty(array_filter($cells, fn($c) => !empty($c)))) {
+                    $parsedRows[] = $cells;
+                }
+            }
+
+            if (empty($parsedRows)) {
+                return;
+            }
+
+            // Calculate column count
+            $colCount = max(array_map('count', $parsedRows));
+            if ($colCount === 0) {
+                return;
+            }
+
+            // Calculate cell width
+            $cellWidth = (int) (9000 / $colCount);
+
+            // Create table
+            $table = $section->addTable([
+                'borderSize' => 6,
+                'borderColor' => '999999',
+                'cellMargin' => 80,
+            ]);
+
+            foreach ($parsedRows as $rowIdx => $cells) {
+                $isHeader = ($rowIdx === 0);
+                $table->addRow();
+                
+                for ($c = 0; $c < $colCount; $c++) {
+                    $cellText = isset($cells[$c]) ? $cells[$c] : '';
+                    
+                    // Remove markdown formatting
+                    $cellText = preg_replace('/\*\*(.+?)\*\*/', '$1', $cellText);
+                    $cellText = preg_replace('/\*(.+?)\*/', '$1', $cellText);
+                    $cellText = $this->sanitizeTextForWord($cellText);
+
+                    $cellStyle = $isHeader ? ['bgColor' => '1F3864'] : [];
+                    $cell = $table->addCell($cellWidth, $cellStyle);
+                    
+                    $cell->addText($cellText, [
+                        'name' => 'Arial',
+                        'size' => 10,
+                        'bold' => $isHeader,
+                        'color' => $isHeader ? 'FFFFFF' : '000000',
+                    ], [
+                        'spaceAfter' => 40
+                    ]);
+                }
+            }
+
+            $section->addTextBreak();
+
+        } catch (\Exception $e) {
+            Log::error('Error rendering table', [
+                'error' => $e->getMessage(),
+                'rows_count' => count($tableRows),
+            ]);
         }
     }
 
@@ -572,6 +797,9 @@ class LaporanVMTSController extends Controller
         }
 
         $colCount = max(array_map('count', $parsedRows));
+        
+        // Calculate cell width in twips (total width ~9000 twips for content area)
+        $cellWidth = (int) (9000 / $colCount);
 
         $table = $section->addTable([
             'borderSize'  => 6,
@@ -589,7 +817,7 @@ class LaporanVMTSController extends Controller
                 $cellText = $this->sanitizeTextForWord($cellText);
 
                 $cellStyle = $isHeader ? ['bgColor' => '1F3864'] : [];
-                $cell = $table->addCell(null, $cellStyle);
+                $cell = $table->addCell($cellWidth, $cellStyle);
                 $cell->addText($cellText, [
                     'name'  => 'Arial',
                     'size'  => 10,
@@ -607,6 +835,10 @@ class LaporanVMTSController extends Controller
      */
     private function cleanMarkdownForWord($content)
     {
+        if (empty($content)) {
+            return '';
+        }
+        
         // Remove null bytes first
         $content = str_replace("\0", '', $content);
         
@@ -634,14 +866,27 @@ class LaporanVMTSController extends Controller
         // Remove control characters except newlines, tabs, and carriage returns
         $content = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/', '', $content);
         
+        // Remove problematic Unicode characters
+        $content = preg_replace('/[\x{FEFF}\x{FFFD}\x{200B}-\x{200D}\x{2060}\x{FFFE}\x{FFFF}]/u', '', $content);
+        
+        // Remove XML special characters that might cause issues
+        $content = str_replace(['<', '>'], ['(', ')'], $content);
+        // Replace & with 'dan' only if it's not part of a word
+        $content = preg_replace('/\s+&\s+/', ' dan ', $content);
+        
         // Ensure valid UTF-8
-        $content = mb_convert_encoding($content, 'UTF-8', 'UTF-8');
+        if (!mb_check_encoding($content, 'UTF-8')) {
+            $content = mb_convert_encoding($content, 'UTF-8', 'UTF-8');
+        }
+        
+        // Final cleanup
+        $content = trim($content);
         
         return $content;
     }
 
     /**
-     * Sanitize text for Word document compatibility
+     * Sanitize text for Word document compatibility (SAFE VERSION)
      */
     private function sanitizeTextForWord($text)
     {
@@ -652,25 +897,24 @@ class LaporanVMTSController extends Controller
         // Convert to string if not already
         $text = (string) $text;
         
-        // Remove null bytes first
+        // Remove null bytes
         $text = str_replace("\0", '', $text);
         
         // Remove control characters except newlines, tabs, and carriage returns
         $text = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/', '', $text);
 
-        // NOTE: Do NOT HTML-encode &, <, > here.
-        // PhpWord handles XML escaping internally — double-encoding corrupts the .docx file.
-        
         // Remove zero-width characters and other invisible Unicode characters
         $text = preg_replace('/[\x{FEFF}\x{FFFD}\x{200B}-\x{200D}\x{2060}\x{FFFE}\x{FFFF}]/u', '', $text);
         
-        // Remove any invalid UTF-8 sequences
-        $text = mb_convert_encoding($text, 'UTF-8', 'UTF-8');
+        // Ensure valid UTF-8
+        if (!mb_check_encoding($text, 'UTF-8')) {
+            $text = mb_convert_encoding($text, 'UTF-8', 'UTF-8');
+        }
         
         // Trim whitespace
         $text = trim($text);
         
-        // Limit length to prevent memory issues (per line)
+        // Limit length to prevent memory issues
         if (mb_strlen($text) > 10000) {
             $text = mb_substr($text, 0, 10000) . '...';
         }
@@ -689,13 +933,16 @@ class LaporanVMTSController extends Controller
                 'periode_VMTS' => 'required|string',
             ]);
 
-            $laporan = LaporanGJM::create([
-                'user_id' => Auth::id(),
+            // Simpan judul dan periode di instruksi_prompt sebagai JSON
+            $instruksiPrompt = [
                 'judul' => $request->judul_laporan,
-                'periode' => $request->periode_VMTS,
-                'jenis_laporan' => 'vmts',
-                'konten' => '',
-                'status' => 'draft',
+                'periode_VMTS' => $request->periode_VMTS,
+            ];
+
+            $laporan = LaporanGJM::create([
+                'jenis_laporan' => 'VMTS',
+                'ringkasan_mutu_institusi' => $request->judul_laporan, // Simpan juga di field ini sebagai fallback
+                'instruksi_prompt' => $instruksiPrompt,
                 'status_laporan' => 'draft',
                 'created_by' => Auth::id(),
             ]);
@@ -703,6 +950,8 @@ class LaporanVMTSController extends Controller
             Log::info('Draft Laporan VMTS created', [
                 'laporan_id' => $laporan->id,
                 'user_id' => Auth::id(),
+                'judul' => $request->judul_laporan,
+                'periode' => $request->periode_VMTS,
             ]);
 
             return response()->json([
@@ -710,8 +959,8 @@ class LaporanVMTSController extends Controller
                 'message' => 'Draft laporan VMTS berhasil dibuat',
                 'data' => [
                     'id' => $laporan->id,
-                    'judul' => $laporan->judul,
-                    'periode' => $laporan->periode,
+                    'judul' => $request->judul_laporan,
+                    'periode' => $request->periode_VMTS,
                 ],
             ]);
 
@@ -788,6 +1037,44 @@ class LaporanVMTSController extends Controller
                 'has_history' => !empty($conversationHistory)
             ]);
 
+            // ========== CACHE CHECK ==========
+            // Build cache context for VMTS feature
+            $cacheContext = [
+                'feature' => 'vmts',  // ← IMPORTANT for evaluation tracking
+                'type' => 'laporan_vmts',
+                'laporan_id' => $request->input('laporan_id'),
+                'has_files' => !empty($fileContents),
+                'has_conversation' => !empty($conversationHistory),
+            ];
+
+            // Check cache first (only for single messages, not conversations)
+            $hasConversationHistory = !empty($conversationHistory);
+            $cachedResponse = null;
+            
+            if (!$hasConversationHistory) {
+                $cachedResponse = $this->cacheService->getCachedResponse($userPrompt, $cacheContext);
+                
+                if ($cachedResponse && $cachedResponse['success']) {
+                    Log::info('VMTS AI: Cache hit', [
+                        'cache_id' => $cachedResponse['cache_id'] ?? null,
+                        'usage_count' => $cachedResponse['usage_count'] ?? 0,
+                        'similarity' => $cachedResponse['similarity'] ?? 1.0,
+                    ]);
+
+                    return response()->json([
+                        'success' => true,
+                        'response' => $cachedResponse['text'],
+                        'model_info' => $cachedResponse['model'] ?? 'AI',
+                        'provider' => $cachedResponse['provider'] ?? 'cache',
+                        'files_processed' => count($fileContents),
+                        'cached' => true,
+                        'cache_id' => $cachedResponse['cache_id'] ?? null,
+                        'usage_count' => $cachedResponse['usage_count'] ?? 0,
+                    ]);
+                }
+            }
+            // ========== END CACHE CHECK ==========
+
             // Call AI service
             $result = $this->aiService->generateText($fullPrompt, [
                 'temperature' => 0.7,
@@ -795,12 +1082,36 @@ class LaporanVMTSController extends Controller
             ]);
 
             if ($result['success']) {
+                // ========== CACHE SAVE ==========
+                // Save to cache only for single messages (not conversations)
+                if (!$hasConversationHistory && !($result['cached'] ?? false)) {
+                    $responseTime = isset($result['processing_time_ms']) ? $result['processing_time_ms'] / 1000 : null;
+                    $this->cacheService->cacheResponse(
+                        $userPrompt,
+                        $cacheContext,
+                        $result['text'],
+                        $result['provider'] ?? 'unknown',
+                        $result['model'] ?? 'unknown',
+                        $responseTime
+                    );
+                    
+                    Log::info('VMTS AI: Response cached', [
+                        'prompt_length' => strlen($userPrompt),
+                        'response_length' => strlen($result['text']),
+                        'response_time' => $responseTime,
+                        'provider' => $result['provider'],
+                        'model' => $result['model']
+                    ]);
+                }
+                // ========== END CACHE SAVE ==========
+
                 return response()->json([
                     'success' => true,
                     'response' => $result['text'],
                     'model_info' => $result['model'] ?? 'AI',
                     'provider' => $result['provider'] ?? 'unknown',
                     'files_processed' => count($fileContents),
+                    'cached' => $result['cached'] ?? false,
                 ]);
             } else {
                 throw new \Exception($result['error'] ?? 'AI generation failed');
@@ -979,25 +1290,49 @@ class LaporanVMTSController extends Controller
     }
 
     /**
-     * Extract content from Excel file
+     * Extract content from Excel file with detailed structure
      */
     private function extractExcelContent($filePath)
     {
         try {
             $spreadsheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($filePath);
-            $content = "=== DATA EXCEL SURVEI VMTS ===\n\n";
+            $content = "=== DATA EXCEL SURVEI SOSIALISASI DAN PEMAHAMAN VISI-MISI ===\n\n";
+            $content .= "INSTRUKSI PENTING UNTUK AI:\n";
+            $content .= "- Baca SEMUA sheet/tab yang ada di bawah ini\n";
+            $content .= "- Setiap sheet berisi data survei untuk unit yang berbeda\n";
+            $content .= "- Analisis data responden, pertanyaan, dan jawaban\n";
+            $content .= "- Hitung statistik (jumlah responden, distribusi jawaban)\n";
+            $content .= "- Buat tabel perbandingan antar unit\n";
+            $content .= "- GUNAKAN DATA AKTUAL YANG ADA DI BAWAH INI - JANGAN GUNAKAN PLACEHOLDER!\n\n";
+            $content .= str_repeat('=', 100) . "\n\n";
 
+            $sheetCount = 0;
+            $totalDataExtracted = 0;
+            
             foreach ($spreadsheet->getAllSheets() as $sheet) {
+                $sheetCount++;
                 $sheetName = $sheet->getTitle();
-                $content .= "SHEET: {$sheetName}\n";
-                $content .= str_repeat('=', 80) . "\n\n";
+                
+                $content .= "╔" . str_repeat('═', 98) . "╗\n";
+                $content .= "║ SHEET #{$sheetCount}: {$sheetName}" . str_repeat(' ', 98 - strlen("║ SHEET #{$sheetCount}: {$sheetName}")) . "║\n";
+                $content .= "╚" . str_repeat('═', 98) . "╝\n\n";
 
                 $highestRow = $sheet->getHighestRow();
                 $highestColumn = $sheet->getHighestColumn();
                 $highestColumnIndex = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::columnIndexFromString($highestColumn);
 
-                // Read all data
-                for ($row = 1; $row <= min($highestRow, 1000); $row++) {
+                $content .= "📊 INFORMASI SHEET:\n";
+                $content .= "   - Total Baris: {$highestRow}\n";
+                $content .= "   - Total Kolom: {$highestColumnIndex}\n";
+                $content .= "   - Nama Sheet: {$sheetName}\n\n";
+
+                // Read ALL data as table (preserve structure)
+                $content .= "📋 DATA LENGKAP (Format Tabel Markdown):\n\n";
+                
+                $tableData = [];
+                $respondentCount = 0;
+                
+                for ($row = 1; $row <= min($highestRow, 500); $row++) {
                     $rowData = [];
                     $hasContent = false;
                     
@@ -1005,27 +1340,73 @@ class LaporanVMTSController extends Controller
                         $cell = $sheet->getCellByColumnAndRow($col, $row);
                         $cellValue = $cell->getCalculatedValue();
                         
+                        // Clean cell value
                         if ($cellValue !== null && $cellValue !== '') {
                             $hasContent = true;
-                            $rowData[] = $cellValue;
+                            $cellValue = trim(str_replace(["\n", "\r", "\t"], ' ', $cellValue));
                         } else {
-                            $rowData[] = '';
+                            $cellValue = '';
                         }
+                        
+                        $rowData[] = $cellValue;
                     }
                     
                     if ($hasContent) {
-                        $content .= implode(' | ', $rowData) . "\n";
+                        $tableData[] = $rowData;
+                        if ($row > 1) $respondentCount++; // Count data rows (excluding header)
                     }
                 }
-                
-                $content .= "\n\n";
+
+                // Format as Markdown table
+                if (!empty($tableData)) {
+                    $content .= "| " . implode(" | ", $tableData[0]) . " |\n"; // Header
+                    $content .= "|" . str_repeat(" --- |", count($tableData[0])) . "\n"; // Separator
+                    
+                    // Data rows (limit to first 100 for readability)
+                    $dataRowCount = min(100, count($tableData) - 1);
+                    for ($i = 1; $i <= $dataRowCount; $i++) {
+                        if (isset($tableData[$i])) {
+                            $content .= "| " . implode(" | ", $tableData[$i]) . " |\n";
+                        }
+                    }
+                    
+                    if (count($tableData) > 101) {
+                        $content .= "\n... (dan " . (count($tableData) - 101) . " baris data lainnya)\n";
+                    }
+                    
+                    $totalDataExtracted += $respondentCount;
+                }
+
+                $content .= "\n";
+                $content .= "✅ JUMLAH RESPONDEN DI SHEET INI: {$respondentCount}\n";
+                $content .= "\n" . str_repeat('=', 100) . "\n\n";
             }
+
+            $content .= "📊 RINGKASAN EKSTRAKSI:\n";
+            $content .= "   - Total Sheet: {$sheetCount}\n";
+            $content .= "   - Total Responden: {$totalDataExtracted}\n";
+            $content .= "   - Status: Data berhasil diekstrak\n\n";
+            
+            $content .= "⚠️ PERINGATAN UNTUK AI:\n";
+            $content .= "   - GUNAKAN data di atas untuk membuat laporan\n";
+            $content .= "   - HITUNG jumlah responden dari setiap sheet\n";
+            $content .= "   - ANALISIS distribusi jawaban untuk setiap pertanyaan\n";
+            $content .= "   - JANGAN gunakan placeholder seperti [hitung dari data] atau [distribusi]\n";
+            $content .= "   - WAJIB mengisi semua tabel dengan ANGKA AKTUAL dari data di atas\n\n";
+
+            Log::info('Excel content extracted successfully', [
+                'sheets' => $sheetCount,
+                'total_respondents' => $totalDataExtracted,
+            ]);
 
             return $content;
 
         } catch (\Exception $e) {
-            Log::error('Excel extraction error', ['error' => $e->getMessage()]);
-            return "Error membaca file Excel: " . $e->getMessage();
+            Log::error('Excel extraction error', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            return "❌ Error membaca file Excel: " . $e->getMessage() . "\n\nSilakan upload file Excel yang valid.";
         }
     }
 
@@ -1088,28 +1469,149 @@ class LaporanVMTSController extends Controller
      */
     private function buildVMTSPrompt($userMessage, $fileContents, $conversationHistory)
     {
-        $prompt = "Anda adalah AI Expert untuk Gugus Jaminan Mutu (GJM) Institut Teknologi Del.\n\n";
+        $prompt = "Anda adalah AI Expert untuk Gugus Jaminan Mutu (GJM) Institut Teknologi Del yang SANGAT AHLI dalam analisis data survei dan pembuatan laporan akademik.\n\n";
         
-        $prompt .= "SPESIALISASI: Membuat LAPORAN ANALISIS DATA HASIL SURVEI SOSIALISASI DAN PEMAHAMAN VISI-MISI.\n\n";
+        $prompt .= "TUGAS UTAMA: Membuat LAPORAN ANALISIS DATA HASIL SURVEI SOSIALISASI DAN PEMAHAMAN VISI-MISI yang LENGKAP dan PROFESIONAL.\n\n";
         
-        $prompt .= "STRUKTUR LAPORAN:\n";
-        $prompt .= "I. Pendahuluan\n";
-        $prompt .= "II. Metode Penelitian (Kuesioner Likert 1-6, SPSS)\n";
-        $prompt .= "III. Hasil Analisis Deskriptif\n";
-        $prompt .= "   - Gambaran Umum Responden (tabel)\n";
-        $prompt .= "   - Analisis Per Butir Pertanyaan P1-P10 (tabel dengan interpretasi)\n";
-        $prompt .= "IV. Pembahasan (Pola Umum + Analisis Komparatif)\n";
-        $prompt .= "V. Kesimpulan (4-5 poin)\n";
-        $prompt .= "VI. Rekomendasi (5 rekomendasi spesifik)\n\n";
+        $prompt .= "STRUKTUR LAPORAN WAJIB (HARUS LENGKAP):\n\n";
         
-        $prompt .= "ATURAN:\n";
-        $prompt .= "1. Gunakan Bahasa Indonesia formal dan profesional\n";
-        $prompt .= "2. Semua tabel HARUS format Markdown: | Kolom | Data |\n";
-        $prompt .= "3. Interpretasi: 1.0-2.0=rendah, 2.1-4.0=sedang, 4.1-6.0=tinggi\n";
-        $prompt .= "4. Analisis mendalam, bukan hanya deskripsi angka\n";
-        $prompt .= "5. Gunakan data AKTUAL dari file, jangan buat data fiktif\n\n";
+        $prompt .= "# I. Pendahuluan\n";
+        $prompt .= "- Jelaskan pentingnya visi-misi dalam institusi pendidikan tinggi\n";
+        $prompt .= "- Tujuan survei: mengukur tingkat sosialisasi, pemahaman, dan implementasi visi-misi\n";
+        $prompt .= "- Responden: Fakultas/Program Studi yang disurvei (sebutkan dari data)\n";
+        $prompt .= "- Konteks: Institut Teknologi Del\n\n";
         
-        $prompt .= str_repeat('=', 80) . "\n\n";
+        $prompt .= "# II. Metode Penelitian\n";
+        $prompt .= "- Instrumen: Kuesioner dengan skala Likert 1-6\n";
+        $prompt .= "- Skala: 1 = sangat tidak setuju, 6 = sangat setuju\n";
+        $prompt .= "- Analisis: Statistical Package for the Social Sciences (SPSS)\n";
+        $prompt .= "- Statistik: mean, median, variance untuk setiap butir pertanyaan (P1-P10)\n\n";
+        
+        $prompt .= "# III. Hasil Analisis Deskriptif\n\n";
+        
+        $prompt .= "## 1. Gambaran Umum Responden\n";
+        $prompt .= "WAJIB buat tabel Markdown seperti ini (gunakan data AKTUAL dari Excel):\n\n";
+        $prompt .= "| Unit | Jumlah Responden | Rentang Skala | Catatan |\n";
+        $prompt .= "|------|------------------|---------------|----------|\n";
+        $prompt .= "| Fakultas Vokasi | [hitung dari data] | 1-6 | Data agregat keseluruhan |\n";
+        $prompt .= "| Perguruan Tinggi | [hitung dari data] | 1-6 | [keterangan] |\n";
+        $prompt .= "| Program Studi D4 TRPL | [hitung dari data] | 1-6 | [keterangan] |\n";
+        $prompt .= "| Program Studi D3 TI | [hitung dari data] | 1-6 | [keterangan] |\n";
+        $prompt .= "| Program Studi D3 TK | [hitung dari data] | 1-6 | [keterangan] |\n\n";
+        
+        $prompt .= "CARA MENGHITUNG:\n";
+        $prompt .= "- Hitung jumlah responden di setiap sheet Excel\n";
+        $prompt .= "- Sheet 'Fakultas Vokasi' = jumlah responden Fakultas Vokasi\n";
+        $prompt .= "- Sheet 'Perguruan Tinggi' = jumlah responden Perguruan Tinggi\n";
+        $prompt .= "- Sheet 'Program Studi D4 TRPL' = jumlah responden D4 TRPL\n";
+        $prompt .= "- Sheet 'Program Studi D3 Teknologi Informasi' = jumlah responden D3 TI\n";
+        $prompt .= "- Sheet 'Program Studi D3 Teknologi Komputer' = jumlah responden D3 TK\n\n";
+        
+        $prompt .= "## 2. Analisis Per Butir Pertanyaan\n";
+        $prompt .= "Dari data Excel, identifikasi pertanyaan-pertanyaan survei (biasanya di baris pertama).\n";
+        $prompt .= "Untuk setiap pertanyaan, analisis distribusi jawaban dari semua responden.\n\n";
+        
+        $prompt .= "CONTOH PERTANYAAN YANG MUNGKIN ADA:\n";
+        $prompt .= "- Status responden (Mahasiswa/Stakeholder/Dosen/Karyawan)\n";
+        $prompt .= "- Lama mengenal IT Del\n";
+        $prompt .= "- Tingkat pengetahuan visi-misi\n";
+        $prompt .= "- Sumber informasi visi-misi\n";
+        $prompt .= "- Frekuensi sosialisasi\n";
+        $prompt .= "- Tingkat pemahaman\n";
+        $prompt .= "- Aspek yang terakomodasi\n";
+        $prompt .= "- Dukungan terhadap kompetensi\n";
+        $prompt .= "- Kebutuhan perbaikan\n\n";
+        
+        $prompt .= "BUAT TABEL ANALISIS seperti ini (gunakan data AKTUAL):\n\n";
+        $prompt .= "| No | Aspek yang Dinilai | Fak. Vokasi | Perg. Tinggi | D4 TRPL | D3 TI | D3 TK | Interpretasi |\n";
+        $prompt .= "|----|--------------------|-----------|--------------|---------|---------|---------|--------------|\n";
+        $prompt .= "| 1 | Status Responden | [distribusi] | [distribusi] | [distribusi] | [distribusi] | [distribusi] | [analisis] |\n";
+        $prompt .= "| 2 | Lama Mengenal IT Del | [distribusi] | [distribusi] | [distribusi] | [distribusi] | [distribusi] | [analisis] |\n";
+        $prompt .= "| 3 | Tingkat Pengetahuan Visi-Misi | [distribusi] | [distribusi] | [distribusi] | [distribusi] | [distribusi] | [analisis] |\n";
+        $prompt .= "| ... | ... | ... | ... | ... | ... | ... | ... |\n\n";
+        
+        $prompt .= "CARA ANALISIS:\n";
+        $prompt .= "1. Untuk setiap pertanyaan, hitung berapa responden yang menjawab setiap opsi\n";
+        $prompt .= "2. Contoh: 'Mengetahui' = 30 orang (60%), 'Cukup Mengetahui' = 15 orang (30%), dst\n";
+        $prompt .= "3. Bandingkan distribusi antar unit\n";
+        $prompt .= "4. Berikan interpretasi: unit mana yang paling baik/perlu perbaikan\n\n";
+        
+        $prompt .= "INTERPRETASI NILAI:\n";
+        $prompt .= "- 1.0 - 2.0 = Rendah (perlu perbaikan mendesak)\n";
+        $prompt .= "- 2.1 - 4.0 = Sedang (perlu peningkatan)\n";
+        $prompt .= "- 4.1 - 6.0 = Tinggi (sudah baik, pertahankan)\n\n";
+        
+        $prompt .= "# IV. Pembahasan\n\n";
+        
+        $prompt .= "## 1. Pola Umum\n";
+        $prompt .= "Analisis pola umum dari data (minimal 5 poin):\n";
+        $prompt .= "- Aspek mana yang paling tinggi/rendah?\n";
+        $prompt .= "- Program studi mana yang paling baik/perlu perbaikan?\n";
+        $prompt .= "- Tren sosialisasi vs pemahaman vs implementasi\n";
+        $prompt .= "- Kesenjangan antar program studi\n";
+        $prompt .= "- Faktor-faktor yang mempengaruhi\n\n";
+        
+        $prompt .= "## 2. Analisis Komparatif\n";
+        $prompt .= "Bandingkan hasil survei antar unit dengan membuat tabel:\n\n";
+        $prompt .= "| Aspek | Fak. Vokasi | Perg. Tinggi | D4 TRPL | D3 TI | D3 TK | Kesimpulan |\n";
+        $prompt .= "|-------|-------------|--------------|---------|-------|-------|-------------|\n";
+        $prompt .= "| Tingkat Pengetahuan Visi-Misi | [%] | [%] | [%] | [%] | [%] | [analisis perbandingan] |\n";
+        $prompt .= "| Frekuensi Sosialisasi | [%] | [%] | [%] | [%] | [%] | [analisis perbandingan] |\n";
+        $prompt .= "| Tingkat Pemahaman | [%] | [%] | [%] | [%] | [%] | [analisis perbandingan] |\n";
+        $prompt .= "| Dukungan terhadap Kompetensi | [%] | [%] | [%] | [%] | [%] | [analisis perbandingan] |\n";
+        $prompt .= "| Kebutuhan Perbaikan | [%] | [%] | [%] | [%] | [%] | [analisis perbandingan] |\n\n";
+        
+        $prompt .= "CARA MENGHITUNG PERSENTASE:\n";
+        $prompt .= "- Hitung berapa responden yang menjawab positif (Mengetahui, Paham, Mendukung, dll)\n";
+        $prompt .= "- Bagi dengan total responden di unit tersebut\n";
+        $prompt .= "- Kalikan 100 untuk mendapat persentase\n";
+        $prompt .= "- Contoh: 40 dari 50 responden 'Mengetahui' = 80%\n\n";
+        
+        $prompt .= "ANALISIS MENDALAM:\n";
+        $prompt .= "Setelah tabel, tulis 3-4 paragraf yang membahas:\n\n";
+        $prompt .= "**Paragraf 1: Temuan Utama**\n";
+        $prompt .= "- Unit mana yang memiliki tingkat pengetahuan tertinggi?\n";
+        $prompt .= "- Unit mana yang perlu peningkatan?\n";
+        $prompt .= "- Apa pola umum yang terlihat?\n\n";
+        
+        $prompt .= "**Paragraf 2: Perbandingan Antar Unit**\n";
+        $prompt .= "- Mengapa ada perbedaan antar unit?\n";
+        $prompt .= "- Faktor apa yang mempengaruhi?\n";
+        $prompt .= "- Apakah ada korelasi antara lama mengenal IT Del dengan tingkat pemahaman?\n\n";
+        
+        $prompt .= "**Paragraf 3: Implikasi dan Rekomendasi**\n";
+        $prompt .= "- Apa implikasi temuan ini terhadap kebijakan institusi?\n";
+        $prompt .= "- Strategi apa yang perlu dilakukan untuk unit yang lemah?\n";
+        $prompt .= "- Bagaimana best practice dari unit terbaik bisa diterapkan ke unit lain?\n\n";
+        
+        $prompt .= "# V. Kesimpulan\n";
+        $prompt .= "Buat 4-5 poin kesimpulan yang:\n";
+        $prompt .= "1. Merangkum temuan utama dari analisis\n";
+        $prompt .= "2. Menyebutkan program studi dengan performa terbaik/terlemah\n";
+        $prompt .= "3. Mengidentifikasi aspek yang perlu diperbaiki\n";
+        $prompt .= "4. Menyimpulkan tingkat keberhasilan sosialisasi visi-misi secara keseluruhan\n\n";
+        
+        $prompt .= "# VI. Rekomendasi\n";
+        $prompt .= "Buat 5 rekomendasi SPESIFIK dan ACTIONABLE:\n";
+        $prompt .= "1. Strategi peningkatan sosialisasi (dengan metode konkret)\n";
+        $prompt .= "2. Integrasi visi-misi dalam kurikulum (dengan cara implementasi)\n";
+        $prompt .= "3. Evaluasi berkala (dengan frekuensi dan metode)\n";
+        $prompt .= "4. Pelatihan untuk dosen dan tenaga kependidikan (dengan topik spesifik)\n";
+        $prompt .= "5. Membangun budaya institusional berbasis visi-misi (dengan kegiatan konkret)\n\n";
+        
+        $prompt .= str_repeat('=', 100) . "\n\n";
+        
+        $prompt .= "ATURAN PENTING:\n";
+        $prompt .= "✓ Gunakan Bahasa Indonesia formal dan profesional\n";
+        $prompt .= "✓ SEMUA tabel HARUS format Markdown dengan separator | dan header row dengan |---|---|\n";
+        $prompt .= "✓ Gunakan data AKTUAL dari file Excel yang diupload - JANGAN buat data fiktif\n";
+        $prompt .= "✓ Setiap nilai harus disertai interpretasi yang bermakna\n";
+        $prompt .= "✓ Analisis harus mendalam, bukan hanya deskripsi angka\n";
+        $prompt .= "✓ Gunakan heading Markdown: # untuk judul utama, ## untuk sub-judul\n";
+        $prompt .= "✓ Gunakan bullet points (- atau *) untuk list\n";
+        $prompt .= "✓ Paragraf harus koheren dan mengalir dengan baik\n\n";
+        
+        $prompt .= str_repeat('=', 100) . "\n\n";
 
         // Add conversation history
         if (!empty($conversationHistory)) {
@@ -1118,23 +1620,24 @@ class LaporanVMTSController extends Controller
                 $role = $msg['role'] === 'user' ? 'User' : 'Assistant';
                 $prompt .= "{$role}: {$msg['content']}\n\n";
             }
-            $prompt .= str_repeat('=', 80) . "\n\n";
+            $prompt .= str_repeat('=', 100) . "\n\n";
         }
 
         // Add file contents
         if (!empty($fileContents)) {
-            $prompt .= "=== FILE YANG DIUPLOAD ===\n\n";
+            $prompt .= "=== FILE YANG DIUPLOAD (BACA DENGAN TELITI) ===\n\n";
             foreach ($fileContents as $file) {
                 $prompt .= "📄 Filename: {$file['filename']}\n";
                 $prompt .= "📋 Type: {$file['type']}\n\n";
                 $prompt .= $file['content'] . "\n\n";
-                $prompt .= str_repeat('=', 80) . "\n\n";
+                $prompt .= str_repeat('=', 100) . "\n\n";
             }
         }
 
         // Add user message
         $prompt .= "=== INSTRUKSI USER ===\n";
         $prompt .= $userMessage . "\n\n";
+        $prompt .= str_repeat('=', 100) . "\n\n";
 
         // Add task instructions
         if (!empty($fileContents)) {
@@ -1146,20 +1649,52 @@ class LaporanVMTSController extends Controller
                 if (in_array($file['type'], ['pdf', 'docx', 'doc'])) $hasTemplate = true;
             }
 
-            $prompt .= "=== TUGAS ANDA ===\n";
+            $prompt .= "=== TUGAS ANDA (WAJIB DILAKUKAN) ===\n";
             if ($hasExcel) {
-                $prompt .= "1. ANALISIS SEMUA DATA dalam Excel (semua sheet, tabel, statistik)\n";
-                $prompt .= "2. Ekstrak data responden dan nilai mean per program studi\n";
-                $prompt .= "3. Buat laporan LENGKAP dengan semua bagian (I-VI)\n";
-                $prompt .= "4. Setiap tabel HARUS format Markdown yang benar\n";
-                $prompt .= "5. Berikan interpretasi mendalam untuk setiap temuan\n\n";
+                $prompt .= "1. BACA dan ANALISIS SEMUA DATA dalam file Excel:\n";
+                $prompt .= "   - Semua sheet (tab) yang ada\n";
+                $prompt .= "   - Semua tabel data responden\n";
+                $prompt .= "   - Semua nilai statistik (mean, median, variance)\n";
+                $prompt .= "   - Semua pertanyaan P1-P10 dengan nilai per program studi\n\n";
+                
+                $prompt .= "2. EKSTRAK informasi penting:\n";
+                $prompt .= "   - Nama fakultas dan program studi\n";
+                $prompt .= "   - Jumlah responden per unit\n";
+                $prompt .= "   - Nilai mean untuk setiap pertanyaan P1-P10\n";
+                $prompt .= "   - Interpretasi yang sudah ada di Excel (jika ada)\n\n";
+                
+                $prompt .= "3. BUAT laporan LENGKAP dengan struktur I-VI di atas\n\n";
+                
+                $prompt .= "4. PASTIKAN setiap tabel menggunakan format Markdown yang BENAR:\n";
+                $prompt .= "   | Header 1 | Header 2 | Header 3 |\n";
+                $prompt .= "   |----------|----------|----------|\n";
+                $prompt .= "   | Data 1   | Data 2   | Data 3   |\n\n";
+                
+                $prompt .= "5. BERIKAN interpretasi mendalam untuk setiap temuan:\n";
+                $prompt .= "   - Apa arti nilai tersebut?\n";
+                $prompt .= "   - Mengapa nilai tinggi/rendah?\n";
+                $prompt .= "   - Apa implikasinya?\n";
+                $prompt .= "   - Apa yang perlu dilakukan?\n\n";
             }
+            
             if ($hasTemplate) {
-                $prompt .= "- Gunakan template sebagai referensi format dan gaya penulisan\n\n";
+                $prompt .= "6. GUNAKAN template sebagai referensi:\n";
+                $prompt .= "   - Format penulisan\n";
+                $prompt .= "   - Gaya bahasa\n";
+                $prompt .= "   - Struktur paragraf\n";
+                $prompt .= "   - Cara menyajikan data\n\n";
             }
         }
 
-        $prompt .= "OUTPUT: Laporan lengkap dalam format Markdown, siap dikonversi ke Word.\n";
+        $prompt .= "OUTPUT YANG DIHARAPKAN:\n";
+        $prompt .= "- Laporan LENGKAP dan KOMPREHENSIF dalam format Markdown\n";
+        $prompt .= "- Minimal 5-7 halaman jika dikonversi ke Word\n";
+        $prompt .= "- Semua bagian (I-VI) harus ada dan lengkap\n";
+        $prompt .= "- Semua tabel harus format Markdown yang valid\n";
+        $prompt .= "- Analisis harus mendalam dan bermakna\n";
+        $prompt .= "- Siap dikonversi ke Word dengan format yang rapi\n\n";
+        
+        $prompt .= "MULAI MEMBUAT LAPORAN SEKARANG!\n";
 
         return $prompt;
     }

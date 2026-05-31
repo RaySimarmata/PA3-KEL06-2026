@@ -146,20 +146,62 @@ class LaporanTriwulanController extends Controller
                 'conversation_history' => 'nullable|array',
                 'template_id' => 'nullable|exists:template_laporan,id',
             ]);
+            
+            $userPrompt = $request->input('prompt');
+            $hasFiles = $request->hasFile('file_referensi');
+            
+            // VALIDATION: Ensure user provides instruction when uploading files
+            if ($hasFiles && empty(trim($userPrompt))) {
+                Log::warning('AI Prompt validation failed: Files uploaded without instruction', [
+                    'files_count' => count($request->file('file_referensi')),
+                    'prompt_length' => strlen($userPrompt)
+                ]);
+                
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Instruksi diperlukan! Anda telah mengupload file tetapi belum memberikan instruksi. Silakan ketik instruksi Anda, misalnya: "Analisis dokumen ini dan buat ringkasan" atau "Buat laporan berdasarkan data yang diupload".'
+                ], 400);
+            }
+            
+            // VALIDATION: Ensure prompt is meaningful (not just whitespace or very short)
+            if (strlen(trim($userPrompt)) < 5) {
+                Log::warning('AI Prompt validation failed: Prompt too short', [
+                    'prompt' => $userPrompt,
+                    'prompt_length' => strlen($userPrompt)
+                ]);
+                
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Instruksi terlalu singkat. Silakan berikan instruksi yang lebih jelas dan spesifik (minimal 5 karakter).'
+                ], 400);
+            }
 
             $aiService = app(\App\Services\UnifiedAIService::class);
             $textExtraction = app(\App\Services\TextExtractionService::class);
             $ocrService = app(\App\Services\OCRService::class);
             $vectorDbService = app(\App\Services\VectorDatabaseService::class);
             $ragService = app(\App\Services\RAGRetrievalService::class);
+            
+            // Initialize ImageContentValidationService with OCRService
+            $imageValidationService = new \App\Services\ImageContentValidationService($ocrService);
 
             $userPrompt = $request->input('prompt');
             $conversationHistory = $request->input('conversation_history', []);
             $templateId = $request->input('template_id');
             $laporanId = $request->input('laporan_id');
             
+            // Debug logging
+            Log::info('AI Prompt Request', [
+                'prompt' => substr($userPrompt, 0, 100),
+                'has_conversation_history' => !empty($conversationHistory),
+                'history_count' => count($conversationHistory),
+                'template_id' => $templateId,
+                'laporan_id' => $laporanId
+            ]);
+            
             // Build context for caching
             $cacheContext = [
+                'feature' => 'triwulan', // For evaluation tracking
                 'type' => 'laporan_triwulan',
                 'template_id' => $templateId,
                 'periode_triwulan' => $request->input('periode_triwulan'),
@@ -198,40 +240,94 @@ class LaporanTriwulanController extends Controller
             $gkmData = $this->getGKMTriwulanReports($request->input('periode_triwulan'));
             
             // System context for triwulan reports
-            $systemContext = "Anda adalah AI Assistant untuk Gugus Jaminan Mutu (GJM) Institut Teknologi Del.\n\n";
-            $systemContext .= "Tugas Anda: Membantu membuat LAPORAN triwulan berdasarkan dokumen yang diupload dan instruksi user.\n\n";
+            $systemContext = "Anda adalah AI Assistant untuk membuat laporan triwulan GJM Institut Teknologi Del.\n\n";
+            
+            $systemContext .= "CRITICAL - CONVERSATION AWARENESS:\n";
+            $systemContext .= "- Anda HARUS melihat SEMUA pesan sebelumnya dalam conversation history\n";
+            $systemContext .= "- Jika ada pesan dari 'assistant' sebelumnya, ITU ADALAH DRAFT ANDA SENDIRI\n";
+            $systemContext .= "- JANGAN PERNAH bilang 'saya tidak punya informasi sebelumnya' jika ada history\n";
+            $systemContext .= "- WAJIB gunakan draft dari pesan assistant sebelumnya sebagai BASIS\n\n";
+            
+            $systemContext .= "⚠️ ATURAN OUTPUT YANG SANGAT PENTING! ⚠️\n";
+            $systemContext .= "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n";
+            $systemContext .= "SELALU OUTPUT SEMUA 10 BAGIAN LENGKAP DENGAN KONTEN ASLI!\n";
+            $systemContext .= "JANGAN PERNAH TULIS '[copy dari draft sebelumnya]' - COPY KONTEN ASLINYA!\n";
+            $systemContext .= "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n";
+            
+            $systemContext .= "ATURAN INSTRUKSI:\n\n";
+            
+            $systemContext .= "1. 'Buat laporan lengkap' → Buat draft BARU dengan SEMUA 10 bagian\n\n";
+            
+            $systemContext .= "2. 'Perbaiki/Ubah [bagian X]' → Output SEMUA 10 bagian:\n";
+            $systemContext .= "   - Bagian X: TULIS KONTEN BARU yang diperbaiki\n";
+            $systemContext .= "   - Bagian lain: COPY KONTEN ASLI dari draft sebelumnya (JANGAN tulis '[copy...]')\n";
+            $systemContext .= "   - WAJIB output semua 10 bagian dengan konten lengkap!\n\n";
+            
+            $systemContext .= "3. 'Ubah [teks A] jadi [teks B]' → Output SEMUA 10 bagian:\n";
+            $systemContext .= "   - Cari teks A di draft sebelumnya\n";
+            $systemContext .= "   - Ganti dengan teks B\n";
+            $systemContext .= "   - Output SEMUA bagian dengan konten lengkap\n";
+            $systemContext .= "   - Bagian yang tidak berubah: COPY KONTEN ASLI (bukan '[copy...]')\n\n";
+            
+            $systemContext .= "4. Multiple changes (contoh: 'Ubah A jadi B dan ubah C jadi D'):\n";
+            $systemContext .= "   - Lakukan SEMUA perubahan yang diminta\n";
+            $systemContext .= "   - Output SEMUA 10 bagian dengan konten lengkap\n";
+            $systemContext .= "   - Bagian yang tidak berubah: COPY KONTEN ASLI\n\n";
+            
+            $systemContext .= "✅ CONTOH OUTPUT YANG BENAR:\n";
+            $systemContext .= "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n";
+            $systemContext .= "User: 'Perbaiki EVALUASI'\n\n";
+            $systemContext .= "AI Output:\n";
+            $systemContext .= "# LATAR BELAKANG\n";
+            $systemContext .= "Fakultas Vokasi Institut Teknologi Del memiliki peran penting dalam menjaga...\n";
+            $systemContext .= "[KONTEN ASLI LENGKAP dari draft sebelumnya]\n\n";
+            $systemContext .= "# DASAR\n";
+            $systemContext .= "Pelaksanaan kegiatan ini didasarkan pada...\n";
+            $systemContext .= "[KONTEN ASLI LENGKAP dari draft sebelumnya]\n\n";
+            $systemContext .= "# TUJUAN\n";
+            $systemContext .= "Kegiatan ini bertujuan untuk...\n";
+            $systemContext .= "[KONTEN ASLI LENGKAP dari draft sebelumnya]\n\n";
+            $systemContext .= "... [semua bagian lain dengan KONTEN ASLI LENGKAP]\n\n";
+            $systemContext .= "# EVALUASI\n";
+            $systemContext .= "Evaluasi dilakukan dengan membandingkan target program kerja...\n";
+            $systemContext .= "[KONTEN BARU YANG DIPERBAIKI - INI YANG BERUBAH!]\n\n";
+            $systemContext .= "# SARAN\n";
+            $systemContext .= "Berdasarkan evaluasi di atas, disarankan untuk...\n";
+            $systemContext .= "[KONTEN ASLI LENGKAP dari draft sebelumnya]\n";
+            $systemContext .= "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n";
+            
+            $systemContext .= "❌ CONTOH OUTPUT YANG SALAH:\n";
+            $systemContext .= "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n";
+            $systemContext .= "User: 'Perbaiki EVALUASI'\n\n";
+            $systemContext .= "AI Output:\n";
+            $systemContext .= "# LATAR BELAKANG\n";
+            $systemContext .= "[copy dari draft sebelumnya - TIDAK BERUBAH]  ← SALAH! Harus konten asli!\n\n";
+            $systemContext .= "# EVALUASI\n";
+            $systemContext .= "[konten evaluasi yang diperbaiki]\n";
+            $systemContext .= "← SALAH! Bagian lain tidak ada konten aslinya!\n";
+            $systemContext .= "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n";
+            
+            $systemContext .= "INGAT:\n";
+            $systemContext .= "- SELALU output SEMUA 10 bagian dengan KONTEN LENGKAP\n";
+            $systemContext .= "- JANGAN PERNAH tulis '[copy dari draft sebelumnya]'\n";
+            $systemContext .= "- COPY KONTEN ASLI dari draft sebelumnya untuk bagian yang tidak berubah\n";
+            $systemContext .= "- Hanya ubah bagian yang diminta user\n";
+            $systemContext .= "- Jangan pernah output hanya 1 bagian!\n";
+            $systemContext .= "- Jangan pernah skip konten dengan placeholder!\n\n";
             
             if ($templateStructure) {
-                $systemContext .= "STRUKTUR TEMPLATE YANG HARUS DIIKUTI:\n";
+                $systemContext .= "STRUKTUR TEMPLATE:\n";
                 $systemContext .= $templateStructure . "\n\n";
-                $systemContext .= "PENTING: Anda HARUS mengikuti struktur template di atas dengan KETAT. Gunakan markdown heading level 1 (#) untuk setiap bagian utama sesuai template.\n";
-                $systemContext .= "Jangan menambah atau mengurangi bagian dari template. Isi setiap bagian dengan konten yang relevan berdasarkan dokumen yang diupload.\n\n";
             } else {
-                // Default structure jika tidak ada template
-                $systemContext .= "PENTING: Gunakan STRUKTUR WAJIB berikut dengan markdown heading level 1 (#):\n\n";
-                $systemContext .= "# LATAR BELAKANG\n";
-                $systemContext .= "[Jelaskan konteks dan alasan pembuatan laporan]\n\n";
-                $systemContext .= "# DASAR\n";
-                $systemContext .= "[Jelaskan dasar hukum dan kebijakan yang menjadi landasan]\n\n";
-                $systemContext .= "# TUJUAN\n";
-                $systemContext .= "[Jelaskan tujuan laporan dan kegiatan yang dilakukan]\n\n";
-                $systemContext .= "# RUANG LINGKUP\n";
-                $systemContext .= "[Jelaskan cakupan laporan dan area yang dibahas]\n\n";
-                $systemContext .= "# PROGRAM KERJA\n";
-                $systemContext .= "[Jelaskan program kerja yang dilaksanakan]\n\n";
-                $systemContext .= "# PELAKSANAAN\n";
-                $systemContext .= "[Jelaskan pelaksanaan program kerja dan capaiannya]\n\n";
-                $systemContext .= "# HAMBATAN\n";
-                $systemContext .= "[Jelaskan hambatan yang dihadapi]\n\n";
-                $systemContext .= "# PEMECAHAN MASALAH\n";
-                $systemContext .= "[Jelaskan solusi untuk mengatasi hambatan]\n\n";
-                $systemContext .= "# EVALUASI\n";
-                $systemContext .= "[Jelaskan evaluasi dan analisis capaian]\n\n";
-                $systemContext .= "# SARAN\n";
-                $systemContext .= "[Jelaskan saran dan rekomendasi untuk perbaikan]\n\n";
+                $systemContext .= "STRUKTUR WAJIB (10 bagian):\n";
+                $systemContext .= "# LATAR BELAKANG\n# DASAR\n# TUJUAN\n# RUANG LINGKUP\n# PROGRAM KERJA\n";
+                $systemContext .= "# PELAKSANAAN\n# HAMBATAN\n# PEMECAHAN MASALAH\n# EVALUASI\n# SARAN\n\n";
             }
             
-            $systemContext .= "Gunakan Bahasa Indonesia formal dan profesional. Setiap bagian harus berisi konten yang substantif dan relevan.\n\n";
+            $systemContext .= "FORMAT OUTPUT:\n";
+            $systemContext .= "- Gunakan markdown heading level 1 (#) untuk judul bagian\n";
+            $systemContext .= "- Gunakan Bahasa Indonesia formal\n";
+            $systemContext .= "- WAJIB output SEMUA 10 bagian dengan KONTEN LENGKAP (bukan placeholder)\n\n";
 
             // Extract file content if uploaded
             $filesContext = [];
@@ -249,9 +345,61 @@ class LaporanTriwulanController extends Controller
                     if (in_array($fileExtension, ['jpg', 'jpeg', 'png', 'gif', 'webp'])) {
                         // Process image with OCR first
                         try {
-                            // Store image permanently for later use in Word document
-                            $permanentPath = $file->store('laporan_gjm/images', 'local');
+                            // Store image TEMPORARILY first for validation
+                            $tempPath = $file->store('temp_validation', 'local');
+                            $fullImagePath = storage_path('app/' . $tempPath);
+                            
+                            // VALIDATION: Check if image is relevant for Laporan Triwulan
+                            Log::info('Starting image validation', [
+                                'filename' => $fileName,
+                                'path' => $fullImagePath,
+                                'exists' => file_exists($fullImagePath)
+                            ]);
+                            
+                            $validationResult = $imageValidationService->validateImageRelevance(
+                                $fullImagePath,
+                                'laporan_triwulan'
+                            );
+                            
+                            Log::info('Image content validation', [
+                                'filename' => $fileName,
+                                'is_valid' => $validationResult['is_valid'],
+                                'reason' => $validationResult['reason'],
+                                'confidence' => $validationResult['confidence']
+                            ]);
+                            
+                            // STRICT VALIDATION: Reject if not valid (regardless of confidence)
+                            // Only allow if explicitly valid OR confidence is very low (< 0.5)
+                            if (!$validationResult['is_valid'] && $validationResult['confidence'] >= 0.5) {
+                                Log::warning('Image rejected due to irrelevant content', [
+                                    'filename' => $fileName,
+                                    'reason' => $validationResult['reason'],
+                                    'confidence' => $validationResult['confidence']
+                                ]);
+                                
+                                // Delete the temp file
+                                if (file_exists($fullImagePath)) {
+                                    @unlink($fullImagePath);
+                                }
+                                
+                                return response()->json([
+                                    'success' => false,
+                                    'message' => "Gambar '{$fileName}' tidak relevan dengan Laporan Triwulan.\n\nAlasan: {$validationResult['reason']}\n\nSilakan upload gambar yang relevan seperti:\n• Dokumentasi kegiatan kampus\n• Daftar hadir\n• Grafik/chart data akademik\n• Screenshot sistem akademik\n• Dokumentasi monitoring mutu\n• Foto kegiatan perkuliahan"
+                                ], 400);
+                            }
+                            
+                            // If validation passed, move to permanent storage
+                            $permanentPath = 'laporan_gjm/images/' . uniqid() . '_' . $fileName;
+                            Storage::disk('local')->move($tempPath, $permanentPath);
                             $fullImagePath = storage_path('app/' . $permanentPath);
+                            
+                            // Log if allowed with low confidence
+                            if (!$validationResult['is_valid'] && $validationResult['confidence'] < 0.5) {
+                                Log::info('Image allowed with warning (very low confidence)', [
+                                    'filename' => $fileName,
+                                    'confidence' => $validationResult['confidence']
+                                ]);
+                            }
                             
                             // Extract text using OCR
                             $ocrResult = $ocrService->extractText($fullImagePath);
@@ -358,17 +506,71 @@ class LaporanTriwulanController extends Controller
                 }
             }
 
-            // Build conversation messages
+            // Build conversation messages with proper context
             $messages = [];
             
-            // If there's conversation history, include it
+            // Add system context as first message
+            $messages[] = [
+                'role' => 'system',
+                'content' => $systemContext
+            ];
+            
+            // If there's conversation history, include it (for multi-turn conversation)
+            // IMPORTANT: Limit conversation history to prevent token overflow
             if (!empty($conversationHistory)) {
-                foreach ($conversationHistory as $msg) {
-                    $messages[] = [
-                        'role' => $msg['role'] ?? 'user',
-                        'content' => $msg['content'] ?? ''
+                // Estimate tokens (rough: 1 token ≈ 4 characters)
+                $maxHistoryTokens = 4000; // Reserve tokens for history
+                $currentTokens = 0;
+                $trimmedHistory = [];
+                
+                // Process history in reverse (keep most recent)
+                $reversedHistory = array_reverse($conversationHistory);
+                
+                foreach ($reversedHistory as $msg) {
+                    $role = $msg['role'] ?? 'user';
+                    $content = $msg['content'] ?? '';
+                    
+                    // Skip empty messages
+                    if (empty($content)) continue;
+                    
+                    // Normalize role (assistant -> ai)
+                    if ($role === 'assistant' || $role === 'ai') {
+                        $role = 'assistant';
+                    }
+                    
+                    // Estimate tokens for this message
+                    $messageTokens = (int) (strlen($content) / 4);
+                    
+                    // Check if adding this message would exceed limit
+                    if ($currentTokens + $messageTokens > $maxHistoryTokens) {
+                        Log::info('Conversation history truncated', [
+                            'kept_messages' => count($trimmedHistory),
+                            'total_messages' => count($conversationHistory),
+                            'estimated_tokens' => $currentTokens
+                        ]);
+                        break;
+                    }
+                    
+                    $trimmedHistory[] = [
+                        'role' => $role,
+                        'content' => $content
                     ];
+                    $currentTokens += $messageTokens;
                 }
+                
+                // Reverse back to chronological order
+                $trimmedHistory = array_reverse($trimmedHistory);
+                
+                // Add to messages
+                foreach ($trimmedHistory as $msg) {
+                    $messages[] = $msg;
+                }
+                
+                Log::info('Conversation history processed', [
+                    'original_count' => count($conversationHistory),
+                    'kept_count' => count($trimmedHistory),
+                    'estimated_tokens' => $currentTokens
+                ]);
             }
 
             // Add current user message
@@ -376,7 +578,7 @@ class LaporanTriwulanController extends Controller
             
             // Process uploaded documents
             if (!empty($filesContext)) {
-                $currentMessage .= "Saya telah mengupload beberapa dokumen pendukung:\n\n";
+                $currentMessage .= "DOKUMEN YANG DIUPLOAD:\n\n";
                 
                 foreach ($filesContext as $fileData) {
                     // Truncate very long content to prevent API limits
@@ -408,7 +610,7 @@ class LaporanTriwulanController extends Controller
                     ]);
                     
                     if (!empty($ragResults)) {
-                        $ragContext = "Context dari gambar yang telah diupload sebelumnya:\n\n";
+                        $ragContext = "CONTEXT DARI GAMBAR SEBELUMNYA:\n\n";
                         foreach ($ragResults as $result) {
                             $ragContext .= "- " . $result['text'] . "\n";
                             $ragContext .= "  (Relevance: " . round($result['similarity'] * 100, 1) . "%)\n\n";
@@ -430,15 +632,15 @@ class LaporanTriwulanController extends Controller
             
             // Add GKM monthly reports context
             if (!empty($gkmData)) {
-                $currentMessage .= "Data Laporan GKM Bulanan untuk periode triwulan ini:\n\n";
+                $currentMessage .= "DATA LAPORAN GKM BULANAN:\n\n";
                 $currentMessage .= $gkmData . "\n\n";
             }
             
             // Add OCR texts from current upload
             if (!empty($ocrTexts)) {
-                $currentMessage .= "Teks yang diekstrak dari gambar yang baru diupload:\n\n";
+                $currentMessage .= "TEKS DARI GAMBAR YANG DIUPLOAD:\n\n";
                 foreach ($ocrTexts as $ocrData) {
-                    $currentMessage .= "**{$ocrData['filename']}** (OCR Method: {$ocrData['method']}, Confidence: {$ocrData['confidence']}%):\n";
+                    $currentMessage .= "**{$ocrData['filename']}** (OCR: {$ocrData['method']}, Confidence: {$ocrData['confidence']}%):\n";
                     $currentMessage .= "```\n" . $ocrData['text'] . "\n```\n\n";
                 }
             }
@@ -450,73 +652,439 @@ class LaporanTriwulanController extends Controller
             
             // Process uploaded images (will be handled by Claude Vision)
             if (!empty($imageContents)) {
-                $currentMessage .= "Saya juga telah mengupload " . count($imageContents) . " gambar dokumentasi:\n";
+                $currentMessage .= "GAMBAR DOKUMENTASI (" . count($imageContents) . " file):\n";
                 foreach ($imageContents as $imageData) {
                     $currentMessage .= "- {$imageData['filename']}\n";
                 }
-                $currentMessage .= "\nMohon analisis gambar-gambar tersebut dan sertakan informasi relevan dalam laporan.\n\n";
+                $currentMessage .= "\nAnalisis gambar dan sertakan informasi relevan dalam laporan.\n\n";
             }
             
-            $currentMessage .= "Instruksi dari user: " . $userPrompt . "\n\n";
+            // Add user instruction - THIS IS THE KEY PART
+            $currentMessage .= "===== INSTRUKSI USER =====\n";
+            $currentMessage .= $userPrompt . "\n";
+            $currentMessage .= "===== END INSTRUKSI =====\n\n";
             
-            if ($templateStructure) {
-                $currentMessage .= "PENTING: Anda HARUS menghasilkan draft laporan yang mengikuti STRUKTUR TEMPLATE yang telah diberikan di system context.\n\n";
-                $currentMessage .= "Gunakan semua dokumen dan gambar yang saya upload sebagai sumber data dan informasi untuk mengisi setiap bagian template.\n\n";
-                $currentMessage .= "Setiap bagian harus berisi minimal 2-3 paragraf dengan konten yang substantif dan relevan berdasarkan dokumen yang diupload.\n";
-            } else {
-                $currentMessage .= "PENTING: Anda HARUS menghasilkan SEMUA 10 bagian berikut dengan konten yang substantif:\n\n";
-                $currentMessage .= "1. # LATAR BELAKANG\n";
-                $currentMessage .= "2. # DASAR\n";
-                $currentMessage .= "3. # TUJUAN\n";
-                $currentMessage .= "4. # RUANG LINGKUP\n";
-                $currentMessage .= "5. # PROGRAM KERJA\n";
-                $currentMessage .= "6. # PELAKSANAAN\n";
-                $currentMessage .= "7. # HAMBATAN\n";
-                $currentMessage .= "8. # PEMECAHAN MASALAH\n";
-                $currentMessage .= "9. # EVALUASI\n";
-                $currentMessage .= "10. # SARAN\n\n";
-                $currentMessage .= "Jangan skip bagian manapun. Setiap bagian harus berisi minimal 2-3 paragraf dengan konten yang relevan.\n";
+            // CRITICAL: Remind AI about conversation history
+            if (!empty($conversationHistory) && count($conversationHistory) > 0) {
+                $currentMessage .= "⚠️ PENTING - CONVERSATION HISTORY:\n";
+                $currentMessage .= "Ada " . count($conversationHistory) . " pesan sebelumnya dalam conversation history.\n";
+                $currentMessage .= "Pesan terakhir dari assistant adalah DRAFT ANDA SENDIRI.\n";
+                $currentMessage .= "WAJIB gunakan draft tersebut sebagai BASIS untuk perubahan.\n";
+                $currentMessage .= "JANGAN bilang 'tidak ada informasi sebelumnya'!\n\n";
             }
             
-            $currentMessage .= "Gunakan informasi dari semua dokumen dan gambar yang diupload untuk membuat laporan yang komprehensif dan akurat.\n";
+            // Detect instruction type and provide specific guidance
+            $instructionType = 'unknown';
+            $affectedParts = [];
+            
+            if (preg_match('/^(buat|buatkan|generate)/i', $userPrompt)) {
+                // CREATE NEW DRAFT
+                $instructionType = 'create';
+                $currentMessage .= "CATATAN: User meminta membuat draft BARU.\n";
+                $currentMessage .= "Action: Buat draft LENGKAP dengan SEMUA 10 bagian.\n";
+                
+            } elseif (preg_match('/\s+dan\s+/i', $userPrompt)) {
+                // MULTIPLE CHANGES - Detect "dan" keyword
+                // Try to extract all change patterns
+                $instructionType = 'multi_change';
+                $changesList = [];
+                
+                // Split by "dan" to get individual instructions
+                $parts = preg_split('/\s+dan\s+/i', $userPrompt);
+                
+                foreach ($parts as $part) {
+                    $part = trim($part);
+                    
+                    // Pattern 1: "ubah X jadi Y"
+                    if (preg_match('/(ubah|ganti|update|perbaiki|tingkatkan)\s+(.+?)(?:\s+jadi\s+|\s+menjadi\s+)(.+)/i', $part, $match)) {
+                        $oldText = trim($match[2]);
+                        $newText = trim($match[3]);
+                        
+                        // Try to detect section name
+                        $sectionMap = [
+                            'SARAN' => 'SARAN',
+                            'PENUTUP' => 'PENUTUP', 
+                            'EVALUASI' => 'EVALUASI',
+                            'LATAR BELAKANG' => 'LATAR BELAKANG',
+                            'DASAR' => 'DASAR',
+                            'TUJUAN' => 'TUJUAN',
+                            'RUANG LINGKUP' => 'RUANG LINGKUP',
+                            'PROGRAM KERJA' => 'PROGRAM KERJA',
+                            'PELAKSANAAN' => 'PELAKSANAAN',
+                            'HAMBATAN' => 'HAMBATAN',
+                            'PEMECAHAN MASALAH' => 'PEMECAHAN MASALAH'
+                        ];
+                        
+                        $detectedSection = null;
+                        $normalizedOldText = strtoupper($oldText);
+                        foreach ($sectionMap as $key => $value) {
+                            if (str_contains($normalizedOldText, $key)) {
+                                $detectedSection = $key;
+                                $affectedParts[] = $key;
+                                // Remove section name from old text
+                                $oldText = trim(preg_replace('/' . preg_quote($key, '/') . '/i', '', $oldText));
+                                break;
+                            }
+                        }
+                        
+                        $changesList[] = [
+                            'section' => $detectedSection,
+                            'old' => $oldText,
+                            'new' => $newText,
+                            'type' => 'replace'
+                        ];
+                        
+                    } 
+                    // Pattern 2: "perbaiki/ubah bagian X"
+                    elseif (preg_match('/(perbaiki|ubah|tingkatkan|lengkapi)(?:\s+bagian)?\s+(.+)/i', $part, $match)) {
+                        $section = trim($match[2]);
+                        
+                        // Remove common modifiers
+                        $section = preg_replace('/\s+(agar|lebih|bagus|detail|lengkap|formal|profesional|komprehensif|jadi|menjadi|dengan).*$/i', '', $section);
+                        $section = trim($section);
+                        
+                        // Normalize section name
+                        $sectionMap = [
+                            'SARAN' => 'SARAN',
+                            'PENUTUP' => 'PENUTUP', 
+                            'EVALUASI' => 'EVALUASI',
+                            'LATAR BELAKANG' => 'LATAR BELAKANG',
+                            'DASAR' => 'DASAR',
+                            'TUJUAN' => 'TUJUAN',
+                            'RUANG LINGKUP' => 'RUANG LINGKUP',
+                            'PROGRAM KERJA' => 'PROGRAM KERJA',
+                            'PELAKSANAAN' => 'PELAKSANAAN',
+                            'HAMBATAN' => 'HAMBATAN',
+                            'PEMECAHAN MASALAH' => 'PEMECAHAN MASALAH'
+                        ];
+                        
+                        $normalizedSection = strtoupper($section);
+                        foreach ($sectionMap as $key => $value) {
+                            if (str_contains($normalizedSection, $key) || str_contains($key, $normalizedSection)) {
+                                $section = $key;
+                                break;
+                            }
+                        }
+                        
+                        $affectedParts[] = $section;
+                        $changesList[] = [
+                            'section' => $section,
+                            'old' => null,
+                            'new' => null,
+                            'type' => 'improve'
+                        ];
+                    }
+                }
+                
+                if (!empty($changesList)) {
+                    $currentMessage .= "CATATAN: User meminta melakukan BEBERAPA perubahan sekaligus.\n";
+                    $currentMessage .= "Jumlah perubahan: " . count($changesList) . "\n";
+                    $currentMessage .= "Action yang harus dilakukan:\n\n";
+                    
+                    foreach ($changesList as $i => $change) {
+                        if ($change['type'] === 'replace') {
+                            if ($change['section']) {
+                                $currentMessage .= ($i + 1) . ". Di bagian '{$change['section']}': Cari '{$change['old']}' → Ganti jadi '{$change['new']}'\n";
+                            } else {
+                                $currentMessage .= ($i + 1) . ". Cari '{$change['old']}' → Ganti jadi '{$change['new']}'\n";
+                            }
+                        } elseif ($change['type'] === 'improve') {
+                            $currentMessage .= ($i + 1) . ". Perbaiki/tingkatkan bagian '{$change['section']}'\n";
+                        }
+                    }
+                    
+                    $currentMessage .= "\n⚠️⚠️⚠️ CRITICAL - MULTIPLE CHANGES ⚠️⚠️⚠️\n";
+                    $currentMessage .= "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n";
+                    $currentMessage .= "User meminta " . count($changesList) . " perubahan sekaligus.\n";
+                    $currentMessage .= "WAJIB lakukan SEMUA perubahan yang diminta!\n\n";
+                    
+                    $currentMessage .= "LANGKAH-LANGKAH:\n";
+                    $currentMessage .= "1. Ambil draft LENGKAP dari pesan assistant sebelumnya\n";
+                    $currentMessage .= "2. Lakukan SEMUA " . count($changesList) . " perubahan yang diminta\n";
+                    $currentMessage .= "3. Output SEMUA 10 bagian dengan konten lengkap\n";
+                    $currentMessage .= "4. Bagian yang tidak berubah: COPY konten asli (bukan placeholder)\n\n";
+                    
+                    $currentMessage .= "CONTOH OUTPUT YANG BENAR:\n";
+                    $currentMessage .= "# LATAR BELAKANG\n[konten lengkap - mungkin ada perubahan]\n\n";
+                    $currentMessage .= "# DASAR\n[konten lengkap - mungkin ada perubahan]\n\n";
+                    $currentMessage .= "# TUJUAN\n[konten lengkap]\n\n";
+                    $currentMessage .= "... [semua bagian lain dengan konten lengkap]\n";
+                    $currentMessage .= "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n";
+                    
+                    $currentMessage .= "PENTING:\n";
+                    $currentMessage .= "- Lihat draft di pesan assistant sebelumnya\n";
+                    $currentMessage .= "- Lakukan SEMUA perubahan yang diminta\n";
+                    $currentMessage .= "- Output SEMUA 10 bagian dengan konten lengkap\n";
+                    $currentMessage .= "- JANGAN gunakan placeholder seperti '[copy dari draft sebelumnya]'\n\n";
+                } else {
+                    // Fallback to unknown if no changes detected
+                    $instructionType = 'unknown';
+                }
+                
+            } elseif (preg_match('/(ubah|ganti|update|perbaiki)\s+(.+?)\s+(?:jadi|menjadi)\s+(.+)/i', $userPrompt, $match)) {
+                // SINGLE SPECIFIC TEXT CHANGE
+                $instructionType = 'single_change';
+                $oldText = trim($match[2]);
+                $newText = trim($match[3]);
+                
+                // Try to detect section name
+                $sectionMap = [
+                    'SARAN' => 'SARAN',
+                    'PENUTUP' => 'PENUTUP', 
+                    'EVALUASI' => 'EVALUASI',
+                    'LATAR BELAKANG' => 'LATAR BELAKANG',
+                    'DASAR' => 'DASAR',
+                    'TUJUAN' => 'TUJUAN',
+                    'RUANG LINGKUP' => 'RUANG LINGKUP',
+                    'PROGRAM KERJA' => 'PROGRAM KERJA',
+                    'PELAKSANAAN' => 'PELAKSANAAN',
+                    'HAMBATAN' => 'HAMBATAN',
+                    'PEMECAHAN MASALAH' => 'PEMECAHAN MASALAH'
+                ];
+                
+                $detectedSection = null;
+                $normalizedOldText = strtoupper($oldText);
+                foreach ($sectionMap as $key => $value) {
+                    if (str_contains($normalizedOldText, $key)) {
+                        $detectedSection = $key;
+                        $affectedParts[] = $key;
+                        // Remove section name from old text
+                        $oldText = trim(preg_replace('/' . preg_quote($key, '/') . '/i', '', $oldText));
+                        break;
+                    }
+                }
+                
+                $currentMessage .= "CATATAN: User meminta mengubah teks spesifik.\n";
+                if ($detectedSection) {
+                    $currentMessage .= "Bagian yang terdeteksi: {$detectedSection}\n";
+                }
+                $currentMessage .= "Action: Cari '{$oldText}' di draft sebelumnya → Ganti jadi '{$newText}'\n\n";
+                
+                $currentMessage .= "⚠️⚠️⚠️ CRITICAL - OUTPUT RULES ⚠️⚠️⚠️\n";
+                $currentMessage .= "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n";
+                $currentMessage .= "LANGKAH-LANGKAH:\n";
+                $currentMessage .= "1. Ambil draft LENGKAP dari pesan assistant sebelumnya\n";
+                $currentMessage .= "2. Cari teks '{$oldText}' di draft tersebut\n";
+                $currentMessage .= "3. Ganti dengan '{$newText}'\n";
+                $currentMessage .= "4. Output SEMUA 10 bagian dengan konten lengkap\n";
+                $currentMessage .= "5. Bagian yang tidak berubah: COPY konten asli (bukan placeholder)\n\n";
+                
+                $currentMessage .= "CONTOH OUTPUT YANG BENAR:\n";
+                $currentMessage .= "# LATAR BELAKANG\n[konten lengkap - mungkin ada perubahan di sini]\n\n";
+                $currentMessage .= "# DASAR\n[konten lengkap]\n\n";
+                $currentMessage .= "... [semua bagian lain dengan konten lengkap]\n";
+                $currentMessage .= "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n";
+                
+                $currentMessage .= "PENTING: Lihat draft di pesan assistant sebelumnya untuk menemukan teks yang akan diubah.\n";
+                
+            } elseif (preg_match('/(perbaiki|ubah|tingkatkan|lengkapi)(?:\s+agar)?(?:\s+lebih)?(?:\s+bagus)?(?:\s+detail)?(?:\s+lengkap)?\s+(.+)/i', $userPrompt, $match)) {
+                // MODIFY SECTION - with flexible modifiers
+                $instructionType = 'modify_section';
+                $part = trim($match[2]);
+                
+                // Extract section name more intelligently
+                // Remove common words that are not section names
+                $part = preg_replace('/\s+(agar|lebih|bagus|detail|lengkap|formal|profesional|komprehensif)$/i', '', $part);
+                $part = trim($part);
+                
+                // Normalize section names
+                $sectionMap = [
+                    'SARAN' => 'SARAN',
+                    'PENUTUP' => 'PENUTUP', 
+                    'EVALUASI' => 'EVALUASI',
+                    'LATAR BELAKANG' => 'LATAR BELAKANG',
+                    'DASAR' => 'DASAR',
+                    'TUJUAN' => 'TUJUAN',
+                    'RUANG LINGKUP' => 'RUANG LINGKUP',
+                    'PROGRAM KERJA' => 'PROGRAM KERJA',
+                    'PELAKSANAAN' => 'PELAKSANAAN',
+                    'HAMBATAN' => 'HAMBATAN',
+                    'PEMECAHAN MASALAH' => 'PEMECAHAN MASALAH'
+                ];
+                
+                // Find matching section
+                $normalizedPart = strtoupper($part);
+                foreach ($sectionMap as $key => $value) {
+                    if (str_contains($normalizedPart, $key) || str_contains($key, $normalizedPart)) {
+                        $part = $key;
+                        break;
+                    }
+                }
+                
+                $affectedParts[] = $part;
+                
+                $currentMessage .= "CATATAN: User meminta mengubah bagian '{$part}'.\n";
+                $currentMessage .= "Action: Improve/modify bagian '{$part}' berdasarkan draft sebelumnya\n";
+                $currentMessage .= "\n";
+                $currentMessage .= "⚠️⚠️⚠️ CRITICAL - OUTPUT RULES ⚠️⚠️⚠️\n";
+                $currentMessage .= "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n";
+                $currentMessage .= "OUTPUT FORMAT YANG BENAR:\n";
+                $currentMessage .= "# {$part}\n";
+                $currentMessage .= "[konten {$part} yang diperbaiki]\n";
+                $currentMessage .= "\n";
+                $currentMessage .= "JANGAN OUTPUT:\n";
+                $currentMessage .= "❌ LATAR BELAKANG\n";
+                $currentMessage .= "❌ DASAR\n";
+                $currentMessage .= "❌ TUJUAN\n";
+                $currentMessage .= "❌ RUANG LINGKUP\n";
+                $currentMessage .= "❌ PROGRAM KERJA\n";
+                $currentMessage .= "❌ PELAKSANAAN\n";
+                $currentMessage .= "❌ HAMBATAN DAN PEMECAHAN MASALAH\n";
+                $currentMessage .= "❌ EVALUASI\n";
+                $currentMessage .= "❌ PENUTUP\n";
+                $currentMessage .= "❌ SARAN (kecuali ini yang diminta)\n";
+                $currentMessage .= "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n";
+                $currentMessage .= "\n";
+                $currentMessage .= "HANYA output bagian '{$part}' saja!\n";
+                $currentMessage .= "Jika Anda output lebih dari 1 bagian, itu adalah KESALAHAN FATAL!\n";
+                
+            } elseif (preg_match('/(tambah|tambahkan)\s+(.+)/i', $userPrompt)) {
+                // ADD CONTENT
+                $instructionType = 'add';
+                $currentMessage .= "CATATAN: User meminta menambahkan konten.\n";
+                $currentMessage .= "Action: Tambahkan konten tanpa mengubah yang sudah ada\n";
+                $currentMessage .= "Output: Bagian yang ditambahkan\n";
+                
+            } elseif (preg_match('/(hapus|remove|buang)\s+(.+)/i', $userPrompt)) {
+                // DELETE CONTENT
+                $instructionType = 'delete';
+                $currentMessage .= "CATATAN: User meminta menghapus konten.\n";
+                $currentMessage .= "Action: Hapus bagian yang diminta\n";
+                $currentMessage .= "Output: Konfirmasi penghapusan\n";
+            }
+            
+            // Log instruction type for debugging
+            Log::info('Instruction type detected', [
+                'type' => $instructionType,
+                'affected_parts' => $affectedParts,
+                'user_prompt' => $userPrompt,
+                'changes_count' => isset($changesList) ? count($changesList) : 0,
+                'changes_detail' => isset($changesList) ? $changesList : null
+            ]);
             
             $messages[] = [
                 'role' => 'user',
                 'content' => $currentMessage
             ];
 
-            // Build full prompt for UnifiedAIService
-            $fullPrompt = $systemContext . "\n\n";
-            foreach ($messages as $msg) {
-                $fullPrompt .= strtoupper($msg['role']) . ": " . $msg['content'] . "\n\n";
-            }
-
-            // Call AI service (UnifiedAIService doesn't support vision yet)
-            $aiResult = $aiService->generateText($fullPrompt, ['max_tokens' => 4096]);
+            // Call AI service using Chat Completions API with conversation history
+            // This properly supports multi-turn conversations
+            // Add retry mechanism for better reliability
+            $maxRetries = 2;
+            $retryCount = 0;
+            $aiResult = null;
+            $lastError = null;
             
-            if (!$aiResult['success'] || empty($aiResult['text'])) {
-                Log::error('AI returned empty response', [
+            while ($retryCount <= $maxRetries) {
+                try {
+                    $aiResult = $aiService->generateChat($messages, [
+                        'max_tokens' => 8192,
+                        'temperature' => 0.7
+                    ]);
+                    
+                    // If successful, break the loop
+                    if ($aiResult['success'] && !empty($aiResult['text'])) {
+                        break;
+                    }
+                    
+                    // If not successful but no exception, retry
+                    $lastError = $aiResult['error'] ?? 'AI returned empty response';
+                    $retryCount++;
+                    if ($retryCount <= $maxRetries) {
+                        Log::warning('AI generation failed, retrying...', [
+                            'attempt' => $retryCount,
+                            'error' => $lastError
+                        ]);
+                        usleep(1000000); // Wait 1 second before retry
+                    }
+                    
+                } catch (\Exception $e) {
+                    $lastError = $e->getMessage();
+                    $retryCount++;
+                    if ($retryCount <= $maxRetries) {
+                        Log::warning('AI generation exception, retrying...', [
+                            'attempt' => $retryCount,
+                            'error' => $lastError
+                        ]);
+                        usleep(1000000); // Wait 1 second before retry
+                    } else {
+                        // Last retry failed, set error result
+                        $aiResult = [
+                            'success' => false,
+                            'error' => $lastError,
+                            'provider' => 'unknown'
+                        ];
+                    }
+                }
+            }
+            
+            if (!$aiResult || !$aiResult['success'] || empty($aiResult['text'])) {
+                Log::error('AI returned empty response after all retries', [
                     'prompt_length' => strlen($userPrompt),
                     'files_count' => count($filesContext),
                     'images_count' => count($imageContents),
-                    'error' => $aiResult['error'] ?? 'Unknown error'
+                    'messages_count' => count($messages),
+                    'conversation_turns' => count(array_filter($messages, fn($m) => ($m['role'] ?? '') !== 'system')),
+                    'error' => $lastError ?? ($aiResult['error'] ?? 'Unknown error'),
+                    'provider' => $aiResult['provider'] ?? 'unknown',
+                    'retries_attempted' => $retryCount
                 ]);
+                
+                // More specific and helpful error messages
+                $errorMessage = 'Layanan AI mengalami masalah. ';
+                $errorDetails = $lastError ?? ($aiResult['error'] ?? '');
+                
+                if (str_contains($errorDetails, 'Rate limit') || str_contains($errorDetails, '429')) {
+                    $errorMessage .= 'Terlalu banyak permintaan. Silakan tunggu 1-2 menit dan coba lagi.';
+                } elseif (str_contains($errorDetails, 'token') || str_contains($errorDetails, 'context_length')) {
+                    $errorMessage .= 'Percakapan terlalu panjang. Silakan klik tombol "Clear Conversation" dan mulai baru.';
+                } elseif (str_contains($errorDetails, 'API key') || str_contains($errorDetails, 'authentication')) {
+                    $errorMessage .= 'Konfigurasi API tidak valid. Silakan hubungi administrator.';
+                } elseif (str_contains($errorDetails, 'timeout') || str_contains($errorDetails, 'timed out')) {
+                    $errorMessage .= 'Request timeout. Silakan coba lagi dengan pesan yang lebih singkat.';
+                } elseif (str_contains($errorDetails, 'network') || str_contains($errorDetails, 'connection')) {
+                    $errorMessage .= 'Masalah koneksi jaringan. Silakan periksa koneksi internet Anda.';
+                } else {
+                    $errorMessage .= 'Silakan coba lagi. Jika masalah berlanjut, refresh halaman atau hubungi administrator.';
+                }
                 
                 return response()->json([
                     'success' => false,
-                    'message' => 'Layanan AI sedang tidak tersedia. Silakan coba lagi dalam beberapa menit atau hubungi administrator.'
+                    'message' => $errorMessage,
+                    'debug_info' => [
+                        'messages_count' => count($messages),
+                        'conversation_turns' => count(array_filter($messages, fn($m) => ($m['role'] ?? '') !== 'system')),
+                        'provider' => $aiResult['provider'] ?? 'unknown',
+                        'error_detail' => $errorDetails,
+                        'retries_attempted' => $retryCount
+                    ]
                 ], 503);
             }
             
             $aiResponse = $aiResult['text'];
+            
+            // DISABLE BACKEND FILTER - Let frontend handle the merge
+            // Frontend will extract requested section and merge with full draft
+            // This ensures all sections are always visible to user
+            
+            // Log instruction type for debugging
+            Log::info('AI Response received - NO BACKEND FILTER', [
+                'instruction_type' => $instructionType,
+                'requested_sections' => $affectedParts ?? [],
+                'response_length' => strlen($aiResponse),
+                'sections_in_response' => preg_match_all('/^#\s+[A-Z\s]+$/m', $aiResponse),
+                'note' => 'Frontend will handle section merge'
+            ]);
 
             // Cache the response for future use
+            $responseTime = isset($aiResult['processing_time_ms']) ? $aiResult['processing_time_ms'] / 1000 : null;
             $cacheService->cacheResponse(
                 $userPrompt,
                 $cacheContext,
                 $aiResponse,
                 $aiResult['provider'],
-                $aiResult['model']
+                $aiResult['model'],
+                $responseTime
             );
 
             Log::info('AI Prompt successful', [
@@ -535,30 +1103,58 @@ class LaporanTriwulanController extends Controller
                 'response' => $aiResponse,
                 'model_info' => $aiResult['provider'] . ' (' . $aiResult['model'] . ')',
                 'cached' => false,
+                'conversation_context' => [
+                    'total_messages' => count($messages),
+                    'is_continuation' => !empty($conversationHistory),
+                ]
             ]);
 
         } catch (\Exception $e) {
             Log::error('AI Prompt failed', [
                 'error' => $e->getMessage(),
+                'error_class' => get_class($e),
                 'trace' => $e->getTraceAsString(),
                 'user_prompt' => substr($userPrompt ?? '', 0, 100),
                 'files_count' => count($filesContext ?? []),
-                'images_count' => count($imageContents ?? [])
+                'images_count' => count($imageContents ?? []),
+                'messages_count' => count($messages ?? []),
+                'line' => $e->getLine(),
+                'file' => $e->getFile()
             ]);
 
             // Check if it's a specific AI service error
-            if (str_contains($e->getMessage(), 'Rate limit') || 
-                str_contains($e->getMessage(), 'quota') ||
-                str_contains($e->getMessage(), 'API key')) {
+            $errorMessage = $e->getMessage();
+            
+            if (str_contains($errorMessage, 'Rate limit') || 
+                str_contains($errorMessage, 'quota') ||
+                str_contains($errorMessage, '429')) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Layanan AI mengalami masalah: ' . $e->getMessage()
+                    'message' => 'Layanan AI sedang sibuk (rate limit). Silakan tunggu 1-2 menit dan coba lagi.'
+                ], 429);
+            }
+            
+            if (str_contains($errorMessage, 'API key') ||
+                str_contains($errorMessage, 'authentication') ||
+                str_contains($errorMessage, 'unauthorized')) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Konfigurasi API tidak valid. Silakan hubungi administrator.'
                 ], 500);
+            }
+            
+            if (str_contains($errorMessage, 'timeout') ||
+                str_contains($errorMessage, 'timed out')) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Request timeout. Silakan coba lagi dengan pesan yang lebih singkat.'
+                ], 504);
             }
 
             return response()->json([
                 'success' => false,
-                'message' => 'Terjadi kesalahan: ' . $e->getMessage()
+                'message' => 'Terjadi kesalahan: ' . $errorMessage,
+                'error_type' => get_class($e)
             ], 500);
         }
     }
@@ -1140,19 +1736,27 @@ class LaporanTriwulanController extends Controller
 
         // Add formatted data for display
         $laporanList->getCollection()->transform(function ($laporan) {
-            $instruksi = json_decode($laporan->instruksi_prompt, true);
-            $periodeTriwulan = $instruksi['periode_triwulan'] ?? '-';
+            // instruksi_prompt sudah berupa array karena cast di model
+            $instruksi = is_array($laporan->instruksi_prompt) ? $laporan->instruksi_prompt : [];
+            $periodeTriwulan = $instruksi['periode_triwulan'] ?? null;
             $tahun = $instruksi['tahun'] ?? date('Y');
             
             // Format periode
             $periodeLabels = [
-                '1' => 'Triwulan I (Jan-Mar)',
-                '2' => 'Triwulan II (Apr-Jun)',
-                '3' => 'Triwulan III (Jul-Sep)',
-                '4' => 'Triwulan IV (Okt-Des)'
+                '1' => 'Triwulan I (Januari - Maret)',
+                '2' => 'Triwulan II (April - Juni)',
+                '3' => 'Triwulan III (Juli - September)',
+                '4' => 'Triwulan IV (Oktober - Desember)'
             ];
             
-            $laporan->formatted_periode = ($periodeLabels[$periodeTriwulan] ?? 'Triwulan ' . $periodeTriwulan) . ' ' . $tahun;
+            // Jika periode_triwulan ada dan valid, gunakan label yang sesuai
+            if ($periodeTriwulan && isset($periodeLabels[$periodeTriwulan])) {
+                $laporan->formatted_periode = $periodeLabels[$periodeTriwulan] . ' - ' . $tahun;
+            } else {
+                // Fallback ke periode_mulai dan periode_akhir jika ada
+                $laporan->formatted_periode = $laporan->getPeriodeLabel();
+            }
+            
             $laporan->judul_laporan = $instruksi['judul'] ?? $laporan->ringkasan_mutu_institusi;
             
             // Status badge
@@ -1179,10 +1783,10 @@ class LaporanTriwulanController extends Controller
 
         // Generate periode list for filter
         $periodeList = [
-            '1' => 'Triwulan I (Jan-Mar)',
-            '2' => 'Triwulan II (Apr-Jun)',
-            '3' => 'Triwulan III (Jul-Sep)',
-            '4' => 'Triwulan IV (Okt-Des)'
+            '1' => 'Triwulan I (Januari - Maret)',
+            '2' => 'Triwulan II (April - Juni)',
+            '3' => 'Triwulan III (Juli - September)',
+            '4' => 'Triwulan IV (Oktober - Desember)'
         ];
 
         return view('gjm.buat-laporan.triwulan-index', compact('laporanList', 'periodeList'));
@@ -1248,5 +1852,112 @@ class LaporanTriwulanController extends Controller
         return redirect()->route('gjm.buat-laporan.triwulan.index')
             ->with('success', 'Laporan berhasil dihapus');
     }
+    
+    /**
+     * Filter AI response to only include requested sections
+     * This is a post-processing step to ensure AI follows instructions
+     * 
+     * @param string $response Full AI response
+     * @param array $requestedSections Array of section names that were requested
+     * @return string Filtered response containing only requested sections
+     */
+    private function filterResponseToRequestedSections(string $response, array $requestedSections): string
+    {
+        // Normalize requested sections (uppercase, trim)
+        $requestedSections = array_map(function($section) {
+            return strtoupper(trim($section));
+        }, $requestedSections);
+        
+        Log::info('Filtering response', [
+            'requested_sections' => $requestedSections,
+            'response_preview' => substr($response, 0, 200)
+        ]);
+        
+        // Try multiple splitting strategies
+        $filteredSections = [];
+        
+        // Strategy 1: Split by markdown headings (# SECTION)
+        if (preg_match_all('/^#\s+([^\n]+)\n(.*?)(?=^#\s+|\z)/ms', $response, $matches, PREG_SET_ORDER)) {
+            foreach ($matches as $match) {
+                $title = strtoupper(trim($match[1]));
+                $content = trim($match[2]);
+                
+                // Check if this section was requested
+                foreach ($requestedSections as $requested) {
+                    if (str_contains($title, $requested) || str_contains($requested, $title) || 
+                        levenshtein($title, $requested) <= 3) { // Allow small typos
+                        $filteredSections[] = "# " . $match[1] . "\n" . $content;
+                        Log::info('Section matched', ['title' => $title, 'requested' => $requested]);
+                        break;
+                    }
+                }
+            }
+        }
+        
+        // Strategy 2: If no markdown headings found, try uppercase headings
+        if (empty($filteredSections)) {
+            if (preg_match_all('/^([A-Z\s]+)\n(.*?)(?=^[A-Z\s]+\n|\z)/ms', $response, $matches, PREG_SET_ORDER)) {
+                foreach ($matches as $match) {
+                    $title = strtoupper(trim($match[1]));
+                    $content = trim($match[2]);
+                    
+                    // Skip if title is too short (likely not a section)
+                    if (strlen($title) < 3) continue;
+                    
+                    foreach ($requestedSections as $requested) {
+                        if (str_contains($title, $requested) || str_contains($requested, $title) || 
+                            levenshtein($title, $requested) <= 3) {
+                            $filteredSections[] = "# " . $match[1] . "\n" . $content;
+                            Log::info('Section matched (uppercase)', ['title' => $title, 'requested' => $requested]);
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Strategy 3: If still no sections found, search for keywords in text
+        if (empty($filteredSections)) {
+            foreach ($requestedSections as $requested) {
+                // Look for the section name in the text
+                if (preg_match('/(.{0,50}' . preg_quote($requested, '/') . '.{0,500})/i', $response, $match)) {
+                    $filteredSections[] = "# " . $requested . "\n" . trim($match[1]);
+                    Log::info('Section found by keyword search', ['requested' => $requested]);
+                }
+            }
+        }
+        
+        // If we found filtered sections, return them
+        if (!empty($filteredSections)) {
+            $result = implode("\n\n", $filteredSections);
+            Log::info('Filter successful', [
+                'sections_found' => count($filteredSections),
+                'result_length' => strlen($result)
+            ]);
+            return $result;
+        }
+        
+        // Last resort: If no sections matched, try to extract just the improved content
+        // Look for content that seems different from a standard template
+        foreach ($requestedSections as $requested) {
+            $pattern = '/(?:^|\n)(?:#\s*)?' . preg_quote($requested, '/') . '\s*\n(.*?)(?=\n(?:#\s*)?[A-Z\s]{3,}\n|\z)/is';
+            if (preg_match($pattern, $response, $match)) {
+                $content = trim($match[1]);
+                if (strlen($content) > 50) { // Only if substantial content
+                    Log::info('Last resort extraction successful', ['section' => $requested]);
+                    return "# " . $requested . "\n" . $content;
+                }
+            }
+        }
+        
+        // If all else fails, return original response with warning
+        Log::warning('Filter failed - returning original response', [
+            'requested_sections' => $requestedSections,
+            'response_length' => strlen($response)
+        ]);
+        
+        return $response;
+    }
 }
+
 

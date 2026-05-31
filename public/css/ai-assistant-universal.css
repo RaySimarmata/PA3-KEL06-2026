@@ -1,0 +1,561 @@
+/**
+ * Universal AI Assistant Styles
+ * Untuk semua jenis AI Assistant (Triwulan, Semester, Artefak)
+ */
+
+/* ===== AI Assistant Container ===== */
+.ai-assistant-container {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    width: 450px;
+    max-height: 80vh;
+    background: #ffffff;
+    border: 1px solid #e0e0e0;
+    border-radius: 12px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+/* ===== Header ===== */
+.ai-assistant-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 16px 20px;
+    border-radius: 12px 12px 0 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.ai-assistant-header h4 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.ai-assistant-controls {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.ai-assistant-controls .btn {
+    padding: 4px 8px;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    background: rgba(255, 255, 255, 0.1);
+    color: white;
+    border-radius: 6px;
+    transition: all 0.2s ease;
+}
+
+.ai-assistant-controls .btn:hover {
+    background: rgba(255, 255, 255, 0.2);
+    border-color: rgba(255, 255, 255, 0.5);
+}
+
+.btn-close-assistant {
+    background: none;
+    border: none;
+    color: white;
+    font-size: 18px;
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 4px;
+    transition: background-color 0.2s ease;
+}
+
+.btn-close-assistant:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+/* ===== Body ===== */
+.ai-assistant-body {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    max-height: calc(80vh - 80px);
+}
+
+/* ===== Conversation Area ===== */
+.ai-conversation {
+    flex: 1;
+    padding: 16px;
+    overflow-y: auto;
+    max-height: 400px;
+    background: #fafafa;
+    scrollbar-width: thin;
+    scrollbar-color: #ccc #f0f0f0;
+}
+
+.ai-conversation::-webkit-scrollbar {
+    width: 6px;
+}
+
+.ai-conversation::-webkit-scrollbar-track {
+    background: #f0f0f0;
+    border-radius: 3px;
+}
+
+.ai-conversation::-webkit-scrollbar-thumb {
+    background: #ccc;
+    border-radius: 3px;
+}
+
+.ai-conversation::-webkit-scrollbar-thumb:hover {
+    background: #999;
+}
+
+/* ===== Messages ===== */
+.ai-message {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 16px;
+    animation: fadeInUp 0.3s ease;
+}
+
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.ai-message i {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+
+.message-content {
+    flex: 1;
+    background: white;
+    padding: 12px 16px;
+    border-radius: 12px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    position: relative;
+}
+
+.message-content::before {
+    content: '';
+    position: absolute;
+    left: -8px;
+    top: 12px;
+    width: 0;
+    height: 0;
+    border-style: solid;
+    border-width: 8px 8px 8px 0;
+    border-color: transparent white transparent transparent;
+}
+
+.message-text {
+    margin-bottom: 8px;
+    line-height: 1.5;
+    color: #333;
+}
+
+.message-time {
+    color: #888;
+    font-size: 11px;
+}
+
+/* ===== Message Types ===== */
+.ai-message-user i {
+    background: #007bff;
+    color: white;
+}
+
+.ai-message-user .message-content {
+    background: #e3f2fd;
+    border: 1px solid #bbdefb;
+}
+
+.ai-message-user .message-content::before {
+    border-color: transparent #e3f2fd transparent transparent;
+}
+
+.ai-message-ai i {
+    background: #28a745;
+    color: white;
+}
+
+.ai-message-ai .message-content {
+    background: #f8f9fa;
+    border: 1px solid #e9ecef;
+}
+
+.ai-message-system i {
+    background: #ffc107;
+    color: #333;
+}
+
+.ai-message-system .message-content {
+    background: #fff3cd;
+    border: 1px solid #ffeaa7;
+}
+
+.ai-message-system .message-content::before {
+    border-color: transparent #fff3cd transparent transparent;
+}
+
+/* ===== File Upload Area ===== */
+.file-upload-area {
+    padding: 12px 16px;
+    border-bottom: 1px solid #e0e0e0;
+    background: #f8f9fa;
+}
+
+.upload-zone {
+    border: 2px dashed #ccc;
+    border-radius: 8px;
+    padding: 16px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    background: white;
+}
+
+.upload-zone:hover,
+.upload-zone.drag-over {
+    border-color: #007bff;
+    background: #f0f8ff;
+}
+
+.upload-zone i {
+    font-size: 24px;
+    color: #666;
+    margin-bottom: 8px;
+    display: block;
+}
+
+.upload-zone span {
+    color: #666;
+    font-size: 14px;
+}
+
+.uploaded-files {
+    margin-top: 12px;
+}
+
+.uploaded-file {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: white;
+    border: 1px solid #e0e0e0;
+    border-radius: 6px;
+    margin-bottom: 6px;
+    font-size: 13px;
+}
+
+.uploaded-file i {
+    color: #666;
+}
+
+.file-name {
+    flex: 1;
+    color: #333;
+    font-weight: 500;
+}
+
+.file-size {
+    color: #888;
+    font-size: 11px;
+}
+
+.btn-remove-file {
+    background: none;
+    border: none;
+    color: #dc3545;
+    cursor: pointer;
+    padding: 2px 4px;
+    border-radius: 3px;
+    transition: background-color 0.2s ease;
+}
+
+.btn-remove-file:hover {
+    background: #f8d7da;
+}
+
+/* ===== Input Container ===== */
+.ai-input-container {
+    padding: 16px;
+    background: white;
+    border-radius: 0 0 12px 12px;
+}
+
+.input-group {
+    display: flex;
+    gap: 8px;
+}
+
+.input-group .form-control {
+    flex: 1;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-size: 14px;
+    transition: border-color 0.2s ease;
+}
+
+.input-group .form-control:focus {
+    outline: none;
+    border-color: #007bff;
+    box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+}
+
+.input-group .btn {
+    padding: 10px 16px;
+    border-radius: 8px;
+    font-size: 14px;
+    transition: all 0.2s ease;
+}
+
+.input-group .btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+/* ===== Floating Button ===== */
+.ai-floating-btn {
+    position: fixed;
+    bottom: 30px;
+    right: 30px;
+    width: 60px;
+    height: 60px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    border-radius: 50%;
+    font-size: 24px;
+    cursor: pointer;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    transition: all 0.3s ease;
+    z-index: 9998;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+}
+
+.ai-floating-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 25px rgba(0, 0, 0, 0.2);
+}
+
+.floating-btn-label {
+    font-size: 9px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* ===== Suggestions ===== */
+.suggestions-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 8px;
+}
+
+.suggestion-btn {
+    font-size: 12px;
+    padding: 6px 12px;
+    border-radius: 16px;
+    transition: all 0.2s ease;
+    cursor: pointer;
+}
+
+.suggestion-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* ===== Content Formatting ===== */
+.message-content h3 {
+    font-size: 16px;
+    font-weight: 600;
+    margin: 12px 0 8px 0;
+    color: #333;
+}
+
+.message-content h4 {
+    font-size: 14px;
+    font-weight: 600;
+    margin: 10px 0 6px 0;
+    color: #444;
+}
+
+.message-content h5 {
+    font-size: 13px;
+    font-weight: 600;
+    margin: 8px 0 4px 0;
+    color: #555;
+}
+
+.message-content ul {
+    margin: 8px 0;
+    padding-left: 20px;
+}
+
+.message-content li {
+    margin-bottom: 4px;
+    line-height: 1.4;
+}
+
+.message-content code {
+    background: #f1f3f4;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 12px;
+    color: #d73a49;
+}
+
+.message-content strong {
+    font-weight: 600;
+    color: #333;
+}
+
+.message-content em {
+    font-style: italic;
+    color: #666;
+}
+
+/* ===== Responsive Design ===== */
+@media (max-width: 768px) {
+    .ai-assistant-container {
+        width: calc(100vw - 20px);
+        right: 10px;
+        left: 10px;
+        max-height: 70vh;
+    }
+    
+    .ai-floating-btn {
+        width: 50px;
+        height: 50px;
+        font-size: 20px;
+        bottom: 20px;
+        right: 20px;
+    }
+    
+    .floating-btn-label {
+        font-size: 8px;
+    }
+}
+
+@media (max-width: 480px) {
+    .ai-assistant-container {
+        top: 10px;
+        max-height: 80vh;
+    }
+    
+    .ai-assistant-header {
+        padding: 12px 16px;
+    }
+    
+    .ai-assistant-header h4 {
+        font-size: 14px;
+    }
+    
+    .ai-conversation {
+        max-height: 300px;
+        padding: 12px;
+    }
+    
+    .ai-input-container {
+        padding: 12px;
+    }
+}
+
+/* ===== Loading States ===== */
+.ai-message.loading .message-content {
+    background: #f8f9fa;
+    border: 1px solid #e9ecef;
+}
+
+.ai-message.loading .message-text {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #666;
+}
+
+.ai-message.loading .message-text::after {
+    content: '';
+    width: 16px;
+    height: 16px;
+    border: 2px solid #e9ecef;
+    border-top: 2px solid #007bff;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* ===== Dark Mode Support ===== */
+@media (prefers-color-scheme: dark) {
+    .ai-assistant-container {
+        background: #2d3748;
+        border-color: #4a5568;
+    }
+    
+    .ai-conversation {
+        background: #1a202c;
+    }
+    
+    .message-content {
+        background: #2d3748;
+        color: #e2e8f0;
+        border-color: #4a5568;
+    }
+    
+    .ai-message-user .message-content {
+        background: #2b6cb0;
+        border-color: #3182ce;
+    }
+    
+    .ai-message-ai .message-content {
+        background: #2d3748;
+        border-color: #4a5568;
+    }
+    
+    .upload-zone {
+        background: #2d3748;
+        border-color: #4a5568;
+        color: #e2e8f0;
+    }
+    
+    .uploaded-file {
+        background: #2d3748;
+        border-color: #4a5568;
+        color: #e2e8f0;
+    }
+    
+    .input-group .form-control {
+        background: #2d3748;
+        border-color: #4a5568;
+        color: #e2e8f0;
+    }
+}

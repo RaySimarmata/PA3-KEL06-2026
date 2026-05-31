@@ -37,6 +37,7 @@ class OCRUploadController extends Controller
             'images' => 'required|array|min:1|max:15',
             'images.*' => 'required|image|mimes:jpeg,png,jpg|max:10240', // 10MB max
             'laporan_id' => 'required|exists:laporan_gjm,id',
+            'report_type' => 'nullable|string|in:laporan_triwulan,laporan_semester,laporan_vmts',
         ]);
 
         if ($validator->fails()) {
@@ -49,24 +50,141 @@ class OCRUploadController extends Controller
         try {
             $laporanId = $request->laporan_id;
             $laporan = LaporanGJM::findOrFail($laporanId);
+            $reportType = $request->report_type ?? 'laporan_triwulan';
 
-            // Store uploaded images
+            // Initialize validation service
+            $imageValidationService = new \App\Services\ImageContentValidationService($this->ocrService);
+
+            // Store uploaded images with validation
             $imagePaths = [];
+            $rejectedImages = [];
+            $validationDetails = [];
+            
             foreach ($request->file('images') as $index => $image) {
+                $originalFilename = $image->getClientOriginalName();
                 $filename = "ocr_{$laporanId}_{$index}_" . time() . '.' . $image->getClientOriginalExtension();
                 $path = $image->storeAs("ocr_uploads/{$laporanId}", $filename, 'public');
-                $imagePaths[] = storage_path('app/public/' . $path);
+                $fullPath = storage_path('app/public/' . $path);
+                
+                // VALIDATE IMAGE CONTENT
+                Log::info('Validating uploaded image', [
+                    'original_filename' => $originalFilename,
+                    'stored_filename' => $filename,
+                    'laporan_id' => $laporanId,
+                    'report_type' => $reportType
+                ]);
+                
+                $validationResult = $imageValidationService->validateImageRelevance(
+                    $fullPath,
+                    $reportType
+                );
+                
+                Log::info('Image validation result', [
+                    'filename' => $originalFilename,
+                    'is_valid' => $validationResult['is_valid'],
+                    'confidence' => $validationResult['confidence'],
+                    'relevance_score' => $validationResult['relevance_score'] ?? 0,
+                    'reason' => $validationResult['reason']
+                ]);
+                
+                // Store validation details for response
+                $validationDetails[] = [
+                    'filename' => $originalFilename,
+                    'is_valid' => $validationResult['is_valid'],
+                    'confidence' => $validationResult['confidence'],
+                    'relevance_score' => $validationResult['relevance_score'] ?? 0,
+                    'ocr_method' => $validationResult['ocr_method'] ?? 'unknown'
+                ];
+                
+                // Reject if not valid with high confidence (>= 70%)
+                if (!$validationResult['is_valid'] && $validationResult['confidence'] >= 0.7) {
+                    // Delete the uploaded file
+                    if (file_exists($fullPath)) {
+                        @unlink($fullPath);
+                    }
+                    
+                    $rejectedImages[] = [
+                        'filename' => $originalFilename,
+                        'reason' => $validationResult['reason'],
+                        'confidence' => round($validationResult['confidence'] * 100, 1) . '%',
+                        'relevance_score' => round(($validationResult['relevance_score'] ?? 0) * 100, 1) . '%'
+                    ];
+                    
+                    Log::warning('Image rejected during upload', [
+                        'filename' => $originalFilename,
+                        'reason' => $validationResult['reason'],
+                        'confidence' => $validationResult['confidence'],
+                        'relevance_score' => $validationResult['relevance_score'] ?? 0
+                    ]);
+                    
+                    continue; // Skip this image
+                }
+                
+                // Image is valid or has low confidence (uncertain), add to processing list
+                $imagePaths[] = $fullPath;
+                
+                // Log warning if confidence is low
+                if ($validationResult['confidence'] < 0.5) {
+                    Log::warning('Image accepted with low confidence', [
+                        'filename' => $originalFilename,
+                        'confidence' => $validationResult['confidence'],
+                        'reason' => 'Validasi tidak dapat memastikan relevansi gambar'
+                    ]);
+                }
+            }
+            
+            // If all images were rejected, return error
+            if (empty($imagePaths) && !empty($rejectedImages)) {
+                $errorMessage = "❌ Semua gambar ditolak karena tidak relevan dengan Laporan Triwulan\n\n";
+                $errorMessage .= "📋 Detail Penolakan:\n";
+                foreach ($rejectedImages as $rejected) {
+                    $errorMessage .= "• {$rejected['filename']}\n";
+                    $errorMessage .= "  Confidence: {$rejected['confidence']}\n";
+                    $errorMessage .= "  Relevance: {$rejected['relevance_score']}\n\n";
+                }
+                $errorMessage .= "✅ Silakan upload gambar yang relevan seperti:\n";
+                $errorMessage .= "• Dokumentasi kegiatan kampus/akademik\n";
+                $errorMessage .= "• Daftar hadir perkuliahan\n";
+                $errorMessage .= "• Grafik/chart data monitoring\n";
+                $errorMessage .= "• Screenshot sistem akademik\n";
+                $errorMessage .= "• Dokumen RPS/Silabus\n";
+                $errorMessage .= "• Dokumentasi evaluasi mutu\n";
+                $errorMessage .= "• Tabel data akademik\n";
+                $errorMessage .= "• Surat atau memo resmi kampus";
+                
+                return response()->json([
+                    'success' => false,
+                    'message' => $errorMessage,
+                    'rejected_images' => $rejectedImages,
+                    'validation_details' => $validationDetails
+                ], 400);
+            }
+            
+            // If some images were rejected, include warning in response
+            $warningMessage = null;
+            if (!empty($rejectedImages)) {
+                $warningMessage = "⚠️ " . count($rejectedImages) . " gambar ditolak karena tidak relevan: " . 
+                    implode(', ', array_column($rejectedImages, 'filename'));
             }
 
             Log::info("Images uploaded for OCR integration", [
                 'laporan_id' => $laporanId,
-                'image_count' => count($imagePaths)
+                'image_count' => count($imagePaths),
+                'rejected_count' => count($rejectedImages),
+                'report_type' => $reportType
             ]);
 
             // Process images dengan Enhanced Laporan Service
             $result = $this->enhancedLaporanService->processImagesForLaporan($laporanId, $imagePaths);
 
             if (!$result['success']) {
+                // Clean up uploaded files if processing fails
+                foreach ($imagePaths as $imagePath) {
+                    if (file_exists($imagePath)) {
+                        @unlink($imagePath);
+                    }
+                }
+                
                 return response()->json([
                     'success' => false,
                     'message' => $result['message']
@@ -76,7 +194,15 @@ class OCRUploadController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => 'Images uploaded and integrated with Asisten Pembuatan Laporan',
-                'data' => $result['data']
+                'data' => $result['data'],
+                'warning' => $warningMessage,
+                'rejected_images' => $rejectedImages,
+                'validation_details' => $validationDetails,
+                'stats' => [
+                    'total_uploaded' => count($request->file('images')),
+                    'accepted' => count($imagePaths),
+                    'rejected' => count($rejectedImages)
+                ]
             ]);
 
         } catch (\Exception $e) {

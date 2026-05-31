@@ -98,7 +98,8 @@ class AICacheService
         array $context, 
         string $response, 
         string $provider, 
-        string $model
+        string $model,
+        ?float $responseTime = null
     ): bool {
         try {
             $cacheKey = AIResponseCache::generateCacheKey($prompt, $context);
@@ -126,6 +127,7 @@ class AICacheService
                 'usage_count' => 1,
                 'last_used_at' => now(),
                 'response_length' => strlen($response),
+                'response_time' => $responseTime,
                 'similarity_threshold' => $this->defaultSimilarityThreshold,
             ]);
 
@@ -133,6 +135,7 @@ class AICacheService
                 'cache_id' => $cached->id,
                 'prompt_length' => strlen($prompt),
                 'response_length' => strlen($response),
+                'response_time' => $responseTime,
                 'provider' => $provider,
                 'model' => $model
             ]);

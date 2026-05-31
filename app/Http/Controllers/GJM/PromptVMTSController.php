@@ -24,11 +24,13 @@ class PromptVMTSController extends Controller
 {
     protected UnifiedAIService $aiService;
     protected TextExtractionService $extractor;
+    protected $cacheService;
 
     public function __construct(UnifiedAIService $aiService, TextExtractionService $extractor)
     {
         $this->aiService   = $aiService;
         $this->extractor   = $extractor;
+        $this->cacheService = app(\App\Services\AICacheService::class);
     }
 
     /**
@@ -177,6 +179,44 @@ class PromptVMTSController extends Controller
                 $fullPrompt = substr($fullPrompt, 0, 60000) . "\n\n[prompt terpotong - harap buat analisis berdasarkan data di atas]";
             }
 
+            // Build cache context for VMTS
+            $cacheContext = [
+                'feature' => 'vmts',
+                'type' => 'laporan_vmts',
+                'has_excel_files' => !empty($excelFiles),
+                'has_ref_files' => !empty($refFiles),
+                'excel_count' => count($excelFiles),
+                'ref_count' => count($refFiles),
+            ];
+
+            // Check cache first
+            $cachedResponse = $this->cacheService->getCachedResponse($fullPrompt, $cacheContext);
+            
+            if ($cachedResponse) {
+                Log::info('VMTS Prompt: Using cached response', [
+                    'cache_id' => $cachedResponse['cache_id'],
+                    'usage_count' => $cachedResponse['usage_count'],
+                    'similarity' => $cachedResponse['similarity'] ?? 1.0,
+                    'prompt_length' => strlen($fullPrompt)
+                ]);
+
+                $aiResponse = $cachedResponse['text'];
+                $sections = $this->parseSections($aiResponse);
+
+                return response()->json([
+                    'success'        => true,
+                    'preview'        => $aiResponse,
+                    'sections'       => $sections,
+                    'model'          => $cachedResponse['provider'] . ' (' . $cachedResponse['model'] . ') [CACHED]',
+                    'uploaded_files' => $uploadedNames,
+                    'cached' => true,
+                    'cache_info' => [
+                        'usage_count' => $cachedResponse['usage_count'],
+                        'similarity' => $cachedResponse['similarity'] ?? 1.0,
+                    ]
+                ]);
+            }
+
             $aiResult = $this->aiService->generateText($fullPrompt, ['max_tokens' => 4096]);
 
             if (!$aiResult['success'] || empty($aiResult['text'])) {
@@ -187,6 +227,25 @@ class PromptVMTSController extends Controller
             }
 
             $aiResponse = $aiResult['text'];
+
+            // Cache the response for future use
+            $responseTime = isset($aiResult['processing_time_ms']) ? $aiResult['processing_time_ms'] / 1000 : null;
+            $this->cacheService->cacheResponse(
+                $fullPrompt,
+                $cacheContext,
+                $aiResponse,
+                $aiResult['provider'] ?? 'unknown',
+                $aiResult['model'] ?? 'unknown',
+                $responseTime
+            );
+
+            Log::info('VMTS Prompt: Response cached', [
+                'prompt_length' => strlen($fullPrompt),
+                'response_length' => strlen($aiResponse),
+                'response_time' => $responseTime,
+                'provider' => $aiResult['provider'],
+                'model' => $aiResult['model']
+            ]);
 
             // ── 7. Parse sections untuk akordeon ─────────────────────────────
             $sections = $this->parseSections($aiResponse);
@@ -232,7 +291,7 @@ class PromptVMTSController extends Controller
             $phpWord->setDefaultFontName('Times New Roman');
             $phpWord->setDefaultFontSize(12);
 
-            // Tambahkan section
+            // Tambahkan section dengan simple settings
             $section = $phpWord->addSection([
                 'marginTop'    => 1440,  // 1 inch in twips
                 'marginBottom' => 1440,

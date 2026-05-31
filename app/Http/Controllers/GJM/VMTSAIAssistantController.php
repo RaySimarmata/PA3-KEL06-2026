@@ -54,7 +54,8 @@ class VMTSAIAssistantController extends Controller
                 return response()->json([
                     'success' => true,
                     'response' => $result['response'],
-                    'files_processed' => $result['files_processed']
+                    'files_processed' => $result['files_processed'],
+                    'file_contents' => $result['file_contents'] ?? [], // Pass file contents for RAGAS
                 ]);
             } else {
                 return response()->json([
@@ -85,12 +86,16 @@ class VMTSAIAssistantController extends Controller
             $request->validate([
                 'content' => 'required|string',
                 'judul' => 'required|string',
-                'periode' => 'required|string'
+                'periode' => 'required|string',
+                'user_message' => 'nullable|string',
+                'file_contents' => 'nullable|array',
             ]);
 
             $content = $request->input('content');
             $judul = $request->input('judul');
             $periode = $request->input('periode');
+            $userMessage = $request->input('user_message', 'Generate laporan VMTS');
+            $fileContents = $request->input('file_contents', []);
 
             Log::info('VMTS Generate Word Request', [
                 'user_id' => Auth::id(),
@@ -98,13 +103,32 @@ class VMTSAIAssistantController extends Controller
                 'periode' => $periode
             ]);
 
+            // Generate Word document
             $result = $this->vmtsAIService->generateWordDocument($content, $judul, $periode);
 
             if ($result['success']) {
+                // Save laporan to database with RAGAS evaluation
+                $saveResult = $this->vmtsAIService->saveLaporanWithRAGAS(
+                    $content,
+                    $judul,
+                    $periode,
+                    $userMessage,
+                    $fileContents
+                );
+
+                if ($saveResult['success']) {
+                    Log::info('VMTS laporan saved with RAGAS', [
+                        'laporan_id' => $saveResult['laporan_id'],
+                        'ragas_score' => $saveResult['ragas_score'],
+                    ]);
+                }
+
                 return response()->json([
                     'success' => true,
                     'filename' => $result['filename'],
-                    'url' => $result['url']
+                    'url' => $result['url'],
+                    'laporan_id' => $saveResult['laporan_id'] ?? null,
+                    'ragas_score' => $saveResult['ragas_score'] ?? null,
                 ]);
             } else {
                 return response()->json([

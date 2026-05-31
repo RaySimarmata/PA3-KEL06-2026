@@ -25,25 +25,10 @@ class LaporanKuesioneService
         DocumentStructureService $structureService,
         AdvancedChunkingService $advancedChunkingService
     ) {
-        // Support multiple LLM providers: 'groq', 'ollama', 'openai'
-        $provider = env('LLM_PROVIDER', 'ollama');
-
-        if ($provider === 'ollama') {
-            // Local LLM via Ollama (Recommended: LLaMA 3 8B Instruct)
-            $this->apiKey = 'ollama'; // Not needed for Ollama
-            $this->baseUrl = env('OLLAMA_BASE_URL', 'http://localhost:11434/v1');
-            $this->model = env('OLLAMA_MODEL', 'llama3:8b-instruct');
-        } elseif ($provider === 'groq') {
-            // GROQ Cloud API
-            $this->apiKey = env('GROQ_API_KEY');
-            $this->baseUrl = env('GROQ_BASE_URL', 'https://api.groq.com/openai/v1');
-            $this->model = env('GROQ_MODEL', 'llama-3.3-70b-versatile');
-        } else {
-            // Fallback to generic LLM config
-            $this->apiKey = env('LLM_API_KEY');
-            $this->baseUrl = env('LLM_BASE_URL', 'http://localhost:11434/v1');
-            $this->model = env('LLM_MODEL', 'llama3:8b-instruct');
-        }
+        // Use centralized LLM configuration from config/services.php
+        $this->apiKey = config('services.llm.api_key');
+        $this->baseUrl = config('services.llm.base_url');
+        $this->model = config('services.llm.model');
 
         $this->textExtractionService = $textExtractionService;
         $this->structureService = $structureService;

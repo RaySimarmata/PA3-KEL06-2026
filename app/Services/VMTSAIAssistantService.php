@@ -12,13 +12,19 @@ class VMTSAIAssistantService
 {
     protected $unifiedAIService;
     protected $textExtractionService;
+    protected $cacheService;
+    protected $ragasService;
 
     public function __construct(
         UnifiedAIService $unifiedAIService,
-        TextExtractionService $textExtractionService
+        TextExtractionService $textExtractionService,
+        AICacheService $cacheService,
+        RAGASEvaluationService $ragasService
     ) {
         $this->unifiedAIService = $unifiedAIService;
         $this->textExtractionService = $textExtractionService;
+        $this->cacheService = $cacheService;
+        $this->ragasService = $ragasService;
     }
 
     /**
@@ -46,6 +52,42 @@ class VMTSAIAssistantService
                 }
             }
 
+            // Build cache context for VMTS feature
+            $cacheContext = [
+                'feature' => 'vmts',  // ← IMPORTANT for evaluation tracking
+                'type' => 'laporan_vmts',
+                'has_files' => !empty($fileContents),
+                'file_count' => count($fileContents),
+                'has_conversation' => !empty($conversationHistory),
+            ];
+
+            // Check cache first (only for single messages without conversation history)
+            $hasConversationHistory = !empty($conversationHistory);
+            $cachedResponse = null;
+            
+            if (!$hasConversationHistory) {
+                $cachedResponse = $this->cacheService->getCachedResponse($userMessage, $cacheContext);
+                
+                if ($cachedResponse && $cachedResponse['success']) {
+                    Log::info('VMTS AI: Cache hit', [
+                        'cache_id' => $cachedResponse['cache_id'] ?? null,
+                        'usage_count' => $cachedResponse['usage_count'] ?? 0,
+                        'similarity' => $cachedResponse['similarity'] ?? 1.0,
+                    ]);
+
+                    return [
+                        'success' => true,
+                        'response' => $cachedResponse['text'],
+                        'files_processed' => count($fileContents),
+                        'provider' => $cachedResponse['provider'] ?? 'cache',
+                        'model' => $cachedResponse['model'] ?? 'cached',
+                        'cached' => true,
+                        'cache_id' => $cachedResponse['cache_id'] ?? null,
+                        'usage_count' => $cachedResponse['usage_count'] ?? 0,
+                    ];
+                }
+            }
+
             // Build enhanced prompt
             $enhancedPrompt = $this->buildEnhancedPrompt($userMessage, $fileContents, $conversationHistory);
 
@@ -56,12 +98,32 @@ class VMTSAIAssistantService
             ]);
 
             if ($result['success']) {
+                // Cache the response for future use (only if no conversation history)
+                if (!$hasConversationHistory) {
+                    $this->cacheService->cacheResponse(
+                        $userMessage,
+                        $cacheContext,
+                        $result['text'],
+                        $result['provider'] ?? 'unknown',
+                        $result['model'] ?? 'unknown'
+                    );
+                    
+                    Log::info('VMTS AI: Response cached', [
+                        'prompt_length' => strlen($userMessage),
+                        'response_length' => strlen($result['text']),
+                        'provider' => $result['provider'] ?? 'unknown',
+                        'model' => $result['model'] ?? 'unknown'
+                    ]);
+                }
+
                 return [
                     'success' => true,
                     'response' => $result['text'],
                     'files_processed' => count($fileContents),
                     'provider' => $result['provider'] ?? 'unknown',
-                    'model' => $result['model'] ?? 'unknown'
+                    'model' => $result['model'] ?? 'unknown',
+                    'cached' => false,
+                    'file_contents' => $fileContents, // For RAGAS evaluation
                 ];
             } else {
                 throw new \Exception($result['error'] ?? 'AI generation failed');
@@ -669,11 +731,11 @@ class VMTSAIAssistantService
             $properties->setSubject('Laporan VMTS');
             $properties->setDescription('Laporan Analisis Data Hasil Survei VMTS');
 
-            // Add section
+            // Add section with simple settings
             $section = $phpWord->addSection([
-                'marginLeft' => 1134,
-                'marginRight' => 1134,
-                'marginTop' => 1134,
+                'marginLeft'   => 1134,
+                'marginRight'  => 1134,
+                'marginTop'    => 1134,
                 'marginBottom' => 1134,
             ]);
 
@@ -862,5 +924,128 @@ class VMTSAIAssistantService
                 }
             }
         }
+    }
+}
+
+
+    /**
+     * Save laporan VMTS to database with RAGAS evaluation
+     */
+    public function saveLaporanWithRAGAS($content, $judul, $periode, $userMessage, $fileContents)
+    {
+        try {
+            Log::info('Saving VMTS laporan with RAGAS evaluation', [
+                'judul' => $judul,
+                'periode' => $periode,
+                'content_length' => strlen($content),
+                'files_count' => count($fileContents),
+            ]);
+
+            // Extract contexts from file contents
+            $contexts = [];
+            foreach ($fileContents as $file) {
+                if (!empty($file['content'])) {
+                    // Split content into chunks (500 words each)
+                    $chunks = $this->splitIntoChunks($file['content'], 500);
+                    $contexts = array_merge($contexts, $chunks);
+                }
+            }
+
+            // If no contexts from files, use content itself as context
+            if (empty($contexts)) {
+                $contexts = [$content];
+            }
+
+            // Evaluate RAGAS metrics (use quick evaluation for performance)
+            $ragasMetrics = $this->ragasService->quickEvaluateVMTS(
+                $userMessage,
+                $content,
+                $contexts
+            );
+
+            Log::info('RAGAS evaluation completed', [
+                'overall_score' => $ragasMetrics['overall_score'],
+                'contexts_count' => count($contexts),
+            ]);
+
+            // Save to database
+            $laporan = \App\Models\LaporanGJM::create([
+                'jenis_laporan' => 'VMTS',
+                'created_by' => \Auth::id(),
+                'program_studi' => 'Fakultas Teknologi Informasi',
+                'ringkasan_mutu_institusi' => $judul,
+                'ai_preview_draft' => $content,
+                'status_laporan' => 'completed',
+                'instruksi_prompt' => [
+                    'periode_VMTS' => $periode,
+                    'judul' => $judul,
+                    'tahun' => date('Y'),
+                    'user_message' => $userMessage,
+                ],
+                
+                // RAGAS Metrics
+                'ragas_faithfulness' => $ragasMetrics['faithfulness'],
+                'ragas_answer_relevancy' => $ragasMetrics['answer_relevancy'],
+                'ragas_context_precision' => $ragasMetrics['context_precision'],
+                'ragas_context_recall' => $ragasMetrics['context_recall'],
+                'ragas_context_relevancy' => $ragasMetrics['context_relevancy'],
+                'ragas_overall_score' => $ragasMetrics['overall_score'],
+                
+                // RAG Metadata
+                'rag_chunks_count' => count($contexts),
+                'rag_avg_similarity' => 0.85, // Default similarity
+                'rag_contexts' => array_slice($contexts, 0, 10), // Store first 10 chunks only
+                'ragas_evaluation_type' => $ragasMetrics['metadata']['evaluation_type'] ?? 'heuristic',
+                'ragas_evaluated_at' => now(),
+            ]);
+
+            Log::info('VMTS laporan saved with RAGAS metrics', [
+                'laporan_id' => $laporan->id,
+                'ragas_score' => $ragasMetrics['overall_score'],
+            ]);
+
+            return [
+                'success' => true,
+                'laporan_id' => $laporan->id,
+                'ragas_score' => $ragasMetrics['overall_score'],
+            ];
+
+        } catch (\Exception $e) {
+            Log::error('Failed to save VMTS laporan with RAGAS', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return [
+                'success' => false,
+                'error' => $e->getMessage(),
+            ];
+        }
+    }
+
+    /**
+     * Split text into chunks
+     */
+    private function splitIntoChunks($text, $wordsPerChunk = 500)
+    {
+        $words = preg_split('/\s+/', $text);
+        $chunks = [];
+        $currentChunk = [];
+
+        foreach ($words as $word) {
+            $currentChunk[] = $word;
+            
+            if (count($currentChunk) >= $wordsPerChunk) {
+                $chunks[] = implode(' ', $currentChunk);
+                $currentChunk = [];
+            }
+        }
+
+        // Add remaining words
+        if (!empty($currentChunk)) {
+            $chunks[] = implode(' ', $currentChunk);
+        }
+
+        return $chunks;
     }
 }

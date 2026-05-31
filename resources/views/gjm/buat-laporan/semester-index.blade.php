@@ -66,7 +66,17 @@
                         @forelse($laporanList as $laporan)
                             <tr>
                                 <td class="code-mk">
-                                    Semester {{ ucfirst($laporan->periode_semester) }} - {{ $laporan->tahun }}
+                                    @php
+                                        $periodeText = '';
+                                        if ($laporan->periode_semester == 'ganjil') {
+                                            $periodeText = 'Semester Ganjil';
+                                        } elseif ($laporan->periode_semester == 'genap') {
+                                            $periodeText = 'Semester Genap';
+                                        } else {
+                                            $periodeText = 'Semester ' . ucfirst($laporan->periode_semester);
+                                        }
+                                    @endphp
+                                    {{ $periodeText }} - {{ $laporan->tahun }}
                                 </td>
                                 <td class="text-secondary">{{ $laporan->judul_laporan }}</td>
                                 <td class="text-secondary" style="font-size: 0.85rem;">

@@ -62,6 +62,15 @@ class RAGRetrievalService
         $contextParts = [];
 
         foreach ($results as $index => $result) {
+            // Check if 'text' key exists
+            if (!isset($result['text'])) {
+                Log::warning("Result missing 'text' key", [
+                    'index' => $index,
+                    'result_keys' => array_keys($result)
+                ]);
+                continue;
+            }
+            
             $similarity = round($result['similarity'] * 100, 1);
             $contextParts[] = "--- Context {$index} (Relevance: {$similarity}%) ---\n{$result['text']}\n";
         }

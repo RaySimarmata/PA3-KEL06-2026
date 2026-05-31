@@ -68,7 +68,7 @@
                         @forelse($laporanList as $laporan)
                             <tr>
                                 <td class="code-mk">
-                                    Triwulan {{ $laporan->periode_triwulan }} - {{ $laporan->tahun }}
+                                    {{ $laporan->formatted_periode }}
                                 </td>
                                 <td class="text-secondary">{{ $laporan->judul_laporan }}</td>
                                 <td class="text-secondary" style="font-size: 0.85rem;">

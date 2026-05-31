@@ -25,6 +25,7 @@ use App\Http\Controllers\GJM\PromptSemesterController;
 use App\Http\Controllers\GJM\LaporanTriwulanController;
 use App\Http\Controllers\GJM\PromptTriwulanController;
 use App\Http\Controllers\GJM\OCRUploadController;
+use App\Http\Controllers\GJM\ModelEvaluationController;
 use App\Http\Controllers\PeriodeAkademikController;
 
 // Auth Routes
@@ -162,6 +163,9 @@ Route::middleware('auth')->group(function () {
             Route::get('/', [LaporanArtefakController::class, 'index'])->name('index');
             Route::get('/create', [LaporanArtefakController::class, 'create'])->name('create');
             Route::post('/', [LaporanArtefakController::class, 'store'])->name('store');
+            
+            // AI Assistant
+            Route::post('/ai-prompt', [LaporanArtefakController::class, 'aiPrompt'])->name('ai-prompt');
 
             // Template Management (MUST BE BEFORE /{id} routes)
             Route::get('/template', [LaporanArtefakController::class, 'templateIndex'])->name('template.index');
@@ -344,6 +348,12 @@ Route::middleware('auth')->group(function () {
             Route::post('/send', [GJMKirimLaporanController::class, 'send'])->name('send');
         });
 
+        // Model Evaluation (AI Assistant Evaluation)
+        Route::prefix('model-evaluation')->name('model-evaluation.')->group(function () {
+            Route::get('/', [ModelEvaluationController::class, 'index'])->name('index');
+            Route::get('/get-data', [ModelEvaluationController::class, 'getData'])->name('get-data');
+            Route::get('/download-report', [ModelEvaluationController::class, 'downloadReport'])->name('download-report');
+        });
         // Laporan GJM Fakultas (Arsip)
         Route::prefix('laporan-gjm')->name('laporan-gjm.')->group(function () {
             Route::get('/', [LaporanGJMController::class, 'index'])->name('index');

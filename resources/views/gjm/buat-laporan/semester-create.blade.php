@@ -2051,6 +2051,7 @@
                                     ocrExtractedText.length > 0 ||
                                     conversationHistory.length > 0;
                 
+                // Jika tidak ada data dan tidak ada prompt, tampilkan pesan
                 if (!hasValidData && !prompt) {
                     appendAIMessage(`
                         <div style="background:#fff3cd;border-left:4px solid #ffc107;padding:12px;border-radius:4px;">
@@ -2060,6 +2061,22 @@
                             <p style="color:#856404;margin:8px 0 0 0;">
                                 Silakan upload file referensi atau gambar terlebih dahulu sebelum chat dengan AI.
                                 AI membutuhkan data untuk membuat laporan yang akurat.
+                            </p>
+                        </div>
+                    `);
+                    return;
+                }
+                
+                // Jika sudah ada conversation history, izinkan chat tanpa file
+                if (conversationHistory.length === 0 && !selectedFiles.length && !selectedOCRImages.length && !ocrExtractedText) {
+                    appendAIMessage(`
+                        <div style="background:#fff3cd;border-left:4px solid #ffc107;padding:12px;border-radius:4px;">
+                            <p style="color:#856404;margin:0;font-weight:600;">
+                                <i class="bi bi-info-circle-fill"></i> Upload File Terlebih Dahulu
+                            </p>
+                            <p style="color:#856404;margin:8px 0 0 0;">
+                                Untuk chat pertama, silakan upload file referensi atau gambar terlebih dahulu.
+                                Setelah itu, Anda bisa melanjutkan chat tanpa upload file lagi.
                             </p>
                         </div>
                     `);
@@ -2087,7 +2104,11 @@
                 promptInput.style.height = 'auto';
                 promptInput.placeholder = 'Ketik instruksi Anda...';
 
-                // Langsung bersihkan chip attachment setelah file dikirim
+                // Langsung bersihkan chip attachment setelah file dikirim (tapi jangan reset conversation history)
+                const currentFiles = [...selectedFiles]; // Simpan referensi file untuk request
+                const currentOCRImages = [...selectedOCRImages];
+                const currentOCRText = ocrExtractedText;
+                
                 selectedFiles = [];
                 selectedOCRImages = [];
                 ocrExtractedText = '';
@@ -2116,18 +2137,21 @@
                     if (periode) formData.append('periode_semester', periode);
                     if (template) formData.append('template_id', template);
 
-                    // Add conversation history for multi-turn chat
+                    // Add conversation history for multi-turn chat (send as individual items, not JSON string)
                     if (conversationHistory.length > 0) {
-                        formData.append('conversation_history', JSON.stringify(conversationHistory));
+                        conversationHistory.forEach((msg, index) => {
+                            formData.append(`conversation_history[${index}][role]`, msg.role);
+                            formData.append(`conversation_history[${index}][content]`, msg.content);
+                        });
                     }
 
-                    // Add files
-                    selectedFiles.forEach(function(file) {
+                    // Add files (gunakan file yang sudah disimpan sebelumnya)
+                    currentFiles.forEach(function(file) {
                         formData.append('file_referensi[]', file);
                     });
 
                     // Add OCR text if available
-                    if (ocrExtractedText) {
+                    if (currentOCRText) {
                         formData.append('ocr_extracted_text', ocrExtractedText);
                     }
 
@@ -2170,18 +2194,6 @@
                             content: aiResponse
                         });
 
-                        // Show cache info if response is cached
-                        let cacheInfo = '';
-                        if (data.cached) {
-                            const similarity = data.cache_info?.similarity || 1.0;
-                            const usageCount = data.cache_info?.usage_count || 1;
-                            cacheInfo = `<div style="background: #f0f9ff; border: 1px solid #0ea5e9; border-radius: 8px; padding: 0.75rem; margin-bottom: 1rem; font-size: 0.875rem;">
-                                <i class="bi bi-lightning-charge-fill" style="color: #0ea5e9;"></i>
-                                <strong>Response dari Cache</strong> (Hemat API Token!)<br>
-                                <small>Similarity: ${Math.round(similarity * 100)}% | Digunakan: ${usageCount}x | Provider: ${data.model_info}</small>
-                            </div>`;
-                        }
-
                         // Parse sections for preview
                         const sections = parseMarkdownSections(aiResponse);
 
@@ -2189,8 +2201,8 @@
                         currentPreviewText = aiResponse;
                         aiPreviewData.value = aiResponse;
 
-                        // Show AI message with cache info and preview inside chat
-                        appendAIMessageWithPreview(aiResponse, sections, cacheInfo);
+                        // Show AI message with preview inside chat
+                        appendAIMessageWithPreview(aiResponse, sections, '');
 
                         // Save AI preview to database for Word generation
                         saveAIPreviewToDatabase(laporanId, aiResponse, sections);
@@ -2412,4 +2424,8 @@
 
         });
     </script>
+
+    <!-- AI Prompt Assistant Semester - With All Validations -->
+    <script src="{{ asset('js/ai-prompt-assistant-semester.js') }}"></script>
+    <link rel="stylesheet" href="{{ asset('css/ai-assistant.css') }}">
 @endsection

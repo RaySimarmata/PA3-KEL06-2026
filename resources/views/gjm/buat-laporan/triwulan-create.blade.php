@@ -3,6 +3,8 @@
 @section('page-title', 'Generate Laporan Baru')
 
 @section('styles')
+    <!-- Cache Busting: Force reload CSS and JS - Version 1.2.0 -->
+    <meta name="cache-version" content="1.2.0-{{ time() }}">
     <style>
         /* ===============================================================
                                                                                                                                    AI PROMPT ASSISTANT — TRIWULAN
@@ -1954,6 +1956,188 @@
             }
 
             // ================================================================
+            // SMART SECTION MERGE HELPERS
+            // Detect if user asked to modify a specific section,
+            // extract the modified section from AI response,
+            // and merge it back into the last full draft.
+            // ================================================================
+
+            /**
+             * Detect if user prompt is asking to modify a specific section.
+             * Returns the normalized section name or null.
+             */
+            function detectSectionModifyRequest(prompt) {
+                const sectionNames = [
+                    'LATAR BELAKANG', 'DASAR', 'TUJUAN', 'RUANG LINGKUP',
+                    'PROGRAM KERJA', 'PELAKSANAAN', 'HAMBATAN',
+                    'PEMECAHAN MASALAH', 'EVALUASI', 'SARAN', 'PENUTUP'
+                ];
+
+                // Check if prompt starts with create/buat → full draft, no merge needed
+                if (/^(buat|buatkan|generate)/i.test(prompt)) {
+                    return null;
+                }
+
+                // Match patterns like "perbaiki LATAR BELAKANG", "ubah bagian EVALUASI", etc.
+                const modifyMatch = prompt.match(
+                    /(perbaiki|ubah|tingkatkan|lengkapi|ganti|update|revisi)(?:\s+(?:bagian|section))?\s+(.+)/i
+                );
+
+                if (!modifyMatch) return null;
+
+                let requestedPart = modifyMatch[2].trim().toUpperCase();
+                // Remove trailing modifiers
+                requestedPart = requestedPart.replace(
+                    /\s+(AGAR|LEBIH|BAGUS|DETAIL|LENGKAP|FORMAL|PROFESIONAL|KOMPREHENSIF|JADI|MENJADI|DENGAN|SUPAYA|BIAR).*$/i, ''
+                ).trim();
+
+                // Find the best matching section name
+                for (const name of sectionNames) {
+                    if (requestedPart.includes(name) || name.includes(requestedPart)) {
+                        return name;
+                    }
+                }
+
+                // Partial match (e.g. "LATAR" → "LATAR BELAKANG")
+                for (const name of sectionNames) {
+                    if (name.startsWith(requestedPart) || requestedPart.startsWith(name.split(' ')[0])) {
+                        return name;
+                    }
+                }
+
+                return requestedPart; // Return as-is if no known match
+            }
+
+            /**
+             * Find the last full draft from conversationHistory.
+             * A full draft has 5+ markdown sections.
+             */
+            function getLastFullDraftFromHistory() {
+                for (let i = conversationHistory.length - 1; i >= 0; i--) {
+                    const msg = conversationHistory[i];
+                    if (msg.role !== 'assistant') continue;
+
+                    const sectionMatches = msg.content.match(/^# [A-Z][A-Z\s]+$/gm);
+                    const sectionCount = sectionMatches ? sectionMatches.length : 0;
+
+                    if (sectionCount >= 5) {
+                        console.log('[SmartMerge] Found full draft at history index', i, 'with', sectionCount, 'sections');
+                        return msg.content;
+                    }
+                }
+
+                // Also check currentPreviewText as fallback
+                if (currentPreviewText) {
+                    const sectionMatches = currentPreviewText.match(/^# [A-Z][A-Z\s]+$/gm);
+                    const sectionCount = sectionMatches ? sectionMatches.length : 0;
+                    if (sectionCount >= 5) {
+                        console.log('[SmartMerge] Using currentPreviewText as full draft with', sectionCount, 'sections');
+                        return currentPreviewText;
+                    }
+                }
+
+                return null;
+            }
+
+            /**
+             * Extract a specific section from the AI response.
+             * Returns {title, content} or null.
+             */
+            function extractSectionFromResponse(response, sectionName) {
+                // Pattern: # SECTION_NAME\n...content...\n(# NEXT_SECTION or end)
+                const escapedName = sectionName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                const pattern = new RegExp(
+                    '^#\\s+(' + escapedName + ')\\s*\\n([\\s\\S]*?)(?=^#\\s+[A-Z][A-Z\\s]*$|$)',
+                    'mi'
+                );
+                const match = response.match(pattern);
+
+                if (match) {
+                    return { title: match[1].trim(), content: match[2].trim() };
+                }
+
+                // Fallback: if AI returned only one section or bare text
+                const allSections = parseMarkdownSections(response);
+                if (allSections.length === 1) {
+                    return { title: allSections[0].title.trim(), content: allSections[0].content.trim() };
+                }
+
+                // If no sections found at all, treat entire response as the section content
+                if (allSections.length === 0 && response.trim().length > 0) {
+                    return { title: sectionName, content: response.trim() };
+                }
+
+                return null;
+            }
+
+            /**
+             * Merge a modified section back into the full draft.
+             * Replaces the matching section in fullDraft with the new content.
+             */
+            function mergeSectionIntoDraft(fullDraft, modifiedSection) {
+                const { title, content } = modifiedSection;
+                const escapedTitle = title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+                // Try to find and replace the section
+                const pattern = new RegExp(
+                    '^#\\s+' + escapedTitle + '\\s*\\n[\\s\\S]*?(?=^#\\s+[A-Z][A-Z\\s]*$|$)',
+                    'mi'
+                );
+
+                if (pattern.test(fullDraft)) {
+                    console.log('[SmartMerge] Replacing section:', title);
+                    return fullDraft.replace(pattern, '# ' + title + '\n' + content + '\n\n');
+                }
+
+                // Section not found in draft — append at the end
+                console.log('[SmartMerge] Section not found, appending:', title);
+                return fullDraft + '\n\n# ' + title + '\n' + content;
+            }
+
+            /**
+             * Main merge function: given AI response + user prompt,
+             * detect if merge is needed and return the merged full draft.
+             */
+            function smartMergeResponse(aiResponse, userPrompt) {
+                const requestedSection = detectSectionModifyRequest(userPrompt);
+
+                if (!requestedSection) {
+                    // User asked for a full draft or non-section-modify action
+                    console.log('[SmartMerge] No section modify detected, using response as-is');
+                    return aiResponse;
+                }
+
+                console.log('[SmartMerge] Detected section modify request:', requestedSection);
+
+                // Count sections in AI response
+                const responseSections = parseMarkdownSections(aiResponse);
+                if (responseSections.length >= 5) {
+                    // AI already returned a full draft (all sections), no merge needed
+                    console.log('[SmartMerge] AI returned full draft (' + responseSections.length + ' sections), no merge needed');
+                    return aiResponse;
+                }
+
+                // AI returned only partial response (1-4 sections), need to merge
+                const lastFullDraft = getLastFullDraftFromHistory();
+                if (!lastFullDraft) {
+                    console.warn('[SmartMerge] No previous full draft found, cannot merge');
+                    return aiResponse;
+                }
+
+                // Extract the modified section from AI response
+                const extracted = extractSectionFromResponse(aiResponse, requestedSection);
+                if (!extracted) {
+                    console.warn('[SmartMerge] Could not extract section from AI response');
+                    return aiResponse;
+                }
+
+                console.log('[SmartMerge] Merging section "' + extracted.title + '" into full draft');
+                const merged = mergeSectionIntoDraft(lastFullDraft, extracted);
+                console.log('[SmartMerge] Merge complete. Sections in merged:', parseMarkdownSections(merged).length);
+                return merged;
+            }
+
+            // ================================================================
             // Create Draft Laporan
             // ================================================================
             const btnCreateDraft = document.getElementById('btn-create-draft');
@@ -2047,26 +2231,141 @@
                     return;
                 }
 
-                // Cek apakah ada data yang tersedia
-                const hasValidData = selectedFiles.length > 0 || 
-                                    selectedOCRImages.length > 0 || 
-                                    ocrExtractedText.length > 0 ||
-                                    conversationHistory.length > 0;
+                // CRITICAL VALIDATION: File upload validation
+                const hasFiles = selectedFiles.length > 0 || selectedOCRImages.length > 0;
+                const hasOCRText = ocrExtractedText && ocrExtractedText.length > 0;
+                const hasConversation = conversationHistory.length > 0;
                 
-                if (!hasValidData && !prompt) {
+                console.log('🔍 VALIDATION CHECK:', {
+                    prompt: prompt,
+                    promptLength: prompt.length,
+                    hasFiles: hasFiles,
+                    hasOCRText: hasOCRText,
+                    hasConversation: hasConversation,
+                    selectedFiles: selectedFiles.length,
+                    selectedOCRImages: selectedOCRImages.length
+                });
+
+                // VALIDATION 1: MUST have files for first interaction
+                if (!hasConversation && !hasFiles && !hasOCRText) {
+                    console.warn('❌ VALIDATION FAILED: No files uploaded for first interaction');
                     appendAIMessage(`
-                        <div style="background:#fff3cd;border-left:4px solid #ffc107;padding:12px;border-radius:4px;">
-                            <p style="color:#856404;margin:0;font-weight:600;">
-                                <i class="bi bi-info-circle-fill"></i> Upload File Terlebih Dahulu
+                        <div style="background:#fee2e2;border-left:4px solid #dc2626;padding:15px;border-radius:6px;">
+                            <p style="color:#dc2626;margin:0;font-weight:700;font-size:16px;">
+                                <i class="bi bi-exclamation-triangle-fill"></i> UPLOAD FILE TERLEBIH DAHULU!
                             </p>
-                            <p style="color:#856404;margin:8px 0 0 0;">
-                                Silakan upload file referensi atau gambar terlebih dahulu sebelum chat dengan AI.
-                                AI membutuhkan data untuk membuat laporan yang akurat.
+                            <p style="color:#dc2626;margin:10px 0 0 0;line-height:1.6;">
+                                Untuk chat pertama dengan AI, Anda <strong>WAJIB upload file</strong> terlebih dahulu.
+                            </p>
+                            <p style="color:#dc2626;margin:10px 0 0 0;line-height:1.6;">
+                                <strong>File yang didukung:</strong>
+                            </p>
+                            <ul style="color:#dc2626;margin:8px 0 0 20px;line-height:1.6;">
+                                <li>📄 Dokumen: PDF, DOCX, TXT, XLSX</li>
+                                <li>🖼️ Gambar: JPG, PNG, GIF, WEBP</li>
+                            </ul>
+                            <p style="color:#dc2626;margin:10px 0 0 0;line-height:1.6;">
+                                <strong>Cara upload:</strong> Klik tombol 📎 (attachment) di sebelah kolom chat.
+                            </p>
+                            <p style="color:#dc2626;margin:10px 0 0 0;font-style:italic;">
+                                Setelah upload file, baru Anda bisa chat dengan AI.
                             </p>
                         </div>
                     `);
+                    
+                    // Focus to attachment button or input
+                    setTimeout(() => {
+                        const attachBtn = document.getElementById('btn-attachment');
+                        if (attachBtn) {
+                            attachBtn.focus();
+                        } else {
+                            promptInput.focus();
+                        }
+                    }, 100);
                     return;
                 }
+
+                // VALIDATION 2: No instruction provided
+                if (!prompt || prompt.length === 0) {
+                    if (hasFiles || hasOCRText) {
+                        console.warn('❌ VALIDATION FAILED: Files uploaded without instruction');
+                        appendAIMessage(`
+                            <div style="background:#fee2e2;border-left:4px solid #dc2626;padding:15px;border-radius:6px;">
+                                <p style="color:#dc2626;margin:0;font-weight:700;font-size:16px;">
+                                    <i class="bi bi-exclamation-triangle-fill"></i> INSTRUKSI WAJIB DIISI!
+                                </p>
+                                <p style="color:#dc2626;margin:10px 0 0 0;line-height:1.6;">
+                                    Anda telah mengupload <strong>${selectedFiles.length + selectedOCRImages.length} file</strong>, 
+                                    tetapi belum memberikan instruksi.
+                                </p>
+                                <p style="color:#dc2626;margin:10px 0 0 0;line-height:1.6;">
+                                    <strong>Silakan ketik instruksi Anda terlebih dahulu</strong>, misalnya:
+                                </p>
+                                <ul style="color:#dc2626;margin:8px 0 0 20px;line-height:1.6;">
+                                    <li>"Analisis dokumen ini dan buat ringkasan"</li>
+                                    <li>"Buat laporan berdasarkan data yang diupload"</li>
+                                    <li>"Ekstrak informasi penting dari dokumen"</li>
+                                </ul>
+                                <p style="color:#dc2626;margin:10px 0 0 0;font-style:italic;">
+                                    File tidak akan diproses tanpa instruksi yang jelas.
+                                </p>
+                            </div>
+                        `);
+                        
+                        // Focus back to input
+                        setTimeout(() => {
+                            promptInput.focus();
+                        }, 100);
+                        return;
+                    } else {
+                        console.warn('❌ VALIDATION FAILED: No instruction provided');
+                        appendAIMessage(`
+                            <div style="background:#fff3cd;border-left:4px solid #ffc107;padding:12px;border-radius:4px;">
+                                <p style="color:#856404;margin:0;font-weight:600;">
+                                    <i class="bi bi-info-circle-fill"></i> Silakan masukkan instruksi atau pertanyaan Anda
+                                </p>
+                            </div>
+                        `);
+                        
+                        // Focus back to input
+                        setTimeout(() => {
+                            promptInput.focus();
+                        }, 100);
+                        return;
+                    }
+                }
+
+                // VALIDATION 3: Instruction too short
+                if (prompt && prompt.length < 5) {
+                    console.warn('❌ VALIDATION FAILED: Instruction too short (' + prompt.length + ' chars)');
+                    appendAIMessage(`
+                        <div style="background:#fee2e2;border-left:4px solid #dc2626;padding:15px;border-radius:6px;">
+                            <p style="color:#dc2626;margin:0;font-weight:700;">
+                                <i class="bi bi-exclamation-triangle-fill"></i> Instruksi terlalu singkat!
+                            </p>
+                            <p style="color:#dc2626;margin:10px 0 0 0;line-height:1.6;">
+                                Instruksi Anda hanya <strong>${prompt.length} karakter</strong>.<br>
+                                Silakan berikan instruksi yang lebih jelas dan spesifik (minimal 5 karakter).
+                            </p>
+                            <p style="color:#dc2626;margin:10px 0 0 0;line-height:1.6;">
+                                <strong>Contoh instruksi yang baik:</strong>
+                            </p>
+                            <ul style="color:#dc2626;margin:8px 0 0 20px;line-height:1.6;">
+                                <li>"Analisis dokumen ini"</li>
+                                <li>"Buat ringkasan"</li>
+                                <li>"Ekstrak data penting"</li>
+                            </ul>
+                        </div>
+                    `);
+                    
+                    // Focus back to input
+                    setTimeout(() => {
+                        promptInput.focus();
+                    }, 100);
+                    return;
+                }
+                
+                console.log('✅ VALIDATION PASSED: Proceeding with request');
 
                 // Tangkap file yang dipilih sebelum OCR memproses (karena OCR akan clear selectedOCRImages)
                 const allFilesForBubble = [...selectedFiles, ...selectedOCRImages];
@@ -2089,7 +2388,11 @@
                 promptInput.style.height = 'auto';
                 promptInput.placeholder = 'Ketik instruksi Anda...';
 
-                // Langsung bersihkan chip attachment setelah file dikirim
+                // Langsung bersihkan chip attachment setelah file dikirim (tapi jangan reset conversation history)
+                const currentFiles = [...selectedFiles]; // Simpan referensi file untuk request
+                const currentOCRImages = [...selectedOCRImages];
+                const currentOCRText = ocrExtractedText;
+                
                 selectedFiles = [];
                 selectedOCRImages = [];
                 ocrExtractedText = '';
@@ -2118,19 +2421,22 @@
                     if (periode) formData.append('periode_triwulan', periode);
                     if (template) formData.append('template_id', template);
 
-                    // Add conversation history for multi-turn chat
+                    // Add conversation history for multi-turn chat (send as individual items, not JSON string)
                     if (conversationHistory.length > 0) {
-                        formData.append('conversation_history', JSON.stringify(conversationHistory));
+                        conversationHistory.forEach((msg, index) => {
+                            formData.append(`conversation_history[${index}][role]`, msg.role);
+                            formData.append(`conversation_history[${index}][content]`, msg.content);
+                        });
                     }
 
-                    // Add files
-                    selectedFiles.forEach(function(file) {
+                    // Add files (gunakan file yang sudah disimpan sebelumnya)
+                    currentFiles.forEach(function(file) {
                         formData.append('file_referensi[]', file);
                     });
 
                     // Add OCR text if available
-                    if (ocrExtractedText) {
-                        formData.append('ocr_extracted_text', ocrExtractedText);
+                    if (currentOCRText) {
+                        formData.append('ocr_extracted_text', currentOCRText);
                     }
 
                     // Client-side timeout 120 detik agar loading tidak terus-menerus
@@ -2160,29 +2466,23 @@
                     const data = await response.json();
 
                     if (data.success) {
-                        const aiResponse = data.response;
+                        const aiResponseRaw = data.response;
+
+                        // SMART MERGE: If user asked to modify a specific section,
+                        // merge the AI's partial response into the last full draft
+                        // so ALL sections remain visible.
+                        const userPromptText = prompt || 'Analisis file dan gambar yang saya upload';
+                        const aiResponse = smartMergeResponse(aiResponseRaw, userPromptText);
 
                         // Save to conversation history for multi-turn chat
                         conversationHistory.push({
                             role: 'user',
-                            content: prompt || 'Analisis file dan gambar yang saya upload'
+                            content: userPromptText
                         });
                         conversationHistory.push({
                             role: 'assistant',
                             content: aiResponse
                         });
-
-                        // Show cache info if response is cached
-                        let cacheInfo = '';
-                        if (data.cached) {
-                            const similarity = data.cache_info?.similarity || 1.0;
-                            const usageCount = data.cache_info?.usage_count || 1;
-                            cacheInfo = `<div style="background: #f0f9ff; border: 1px solid #0ea5e9; border-radius: 8px; padding: 0.75rem; margin-bottom: 1rem; font-size: 0.875rem;">
-                                <i class="bi bi-lightning-charge-fill" style="color: #0ea5e9;"></i>
-                                <strong>Response dari Cache</strong> (Hemat API Token!)<br>
-                                <small>Similarity: ${Math.round(similarity * 100)}% | Digunakan: ${usageCount}x | Provider: ${data.model_info}</small>
-                            </div>`;
-                        }
 
                         // Parse sections for preview
                         const sections = parseMarkdownSections(aiResponse);
@@ -2191,8 +2491,8 @@
                         currentPreviewText = aiResponse;
                         aiPreviewData.value = aiResponse;
 
-                        // Show AI message with cache info and preview inside chat
-                        appendAIMessageWithPreview(aiResponse, sections, cacheInfo);
+                        // Show AI message with preview inside chat
+                        appendAIMessageWithPreview(aiResponse, sections, '');
 
                         // Save AI preview to database for Word generation
                         saveAIPreviewToDatabase(laporanId, aiResponse, sections);

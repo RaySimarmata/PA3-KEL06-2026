@@ -2288,60 +2288,71 @@
                         throw new Error('Server error ' + response.status);
                     }
 
-                    // Response is JSON with download URL
-                    const data = await response.json();
-                    console.log('JSON response:', data);
+                    // Check if response is a file (Word document)
+                    const contentType = response.headers.get('content-type');
+                    console.log('Response content-type:', contentType);
 
-                    if (data.success && data.download_url) {
-                        // Method 1: Try direct download with fetch and blob
-                        try {
-                            const fileResponse = await fetch(data.download_url);
-                            const blob = await fileResponse.blob();
-                            const url = window.URL.createObjectURL(blob);
-                            const a = document.createElement('a');
-                            a.style.display = 'none';
-                            a.href = url;
-                            a.download = data.filename || 'Laporan_VMTS.docx';
-                            document.body.appendChild(a);
-                            a.click();
-                            window.URL.revokeObjectURL(url);
-                            document.body.removeChild(a);
-                            
-                            console.log('✓ Download triggered successfully via blob');
-                        } catch (blobError) {
-                            // Fallback: Open in new window
-                            console.warn('Blob download failed, using window.open fallback:', blobError);
-                            window.open(data.download_url, '_blank');
+                    if (contentType && (contentType.includes('application/vnd.openxmlformats') ||
+                            contentType.includes('application/octet-stream'))) {
+                        // Download file
+                        const blob = await response.blob();
+                        const url = window.URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+
+                        // Get filename from Content-Disposition header or use default
+                        const contentDisposition = response.headers.get('content-disposition');
+                        let filename = 'Laporan_VMTS_' + Date.now() + '.docx';
+                        if (contentDisposition) {
+                            const filenameMatch = contentDisposition.match(
+                                /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+                            if (filenameMatch) {
+                                filename = filenameMatch[1].replace(/['"]/g, '');
+                            }
                         }
 
-                        // Create direct download URL using the route
-                        const directDownloadUrl = '{{ route('gjm.buat-laporan.vmts.download', ['id' => ':id', 'format' => 'word']) }}'.replace(':id', laporanId);
+                        a.download = filename;
+                        document.body.appendChild(a);
+                        a.click();
+                        window.URL.revokeObjectURL(url);
+                        document.body.removeChild(a);
 
-                        // Show success message in chat
+                        // Show success message in chat with file info
                         appendAIMessage(
-                            '<p style="color:#16a34a;"><i class="bi bi-check-circle-fill"></i> <strong>Laporan Word berhasil di-generate!</strong><br>' +
-                            '<small>📁 File: <strong>' + (data.filename || 'Laporan_VMTS.docx') + '</strong></small><br>' +
-                            '<small>📊 Ukuran: <strong>' + (data.file_size ? Math.round(data.file_size / 1024) + ' KB' : 'N/A') + '</strong></small><br>' +
-                            '<small>💾 File akan otomatis terdownload. Jika tidak, klik tombol di bawah:</small><br>' +
-                            '<div class="mt-2">' +
-                            '<a href="' + directDownloadUrl + '" class="btn btn-sm btn-success me-2">' +
-                            '<i class="bi bi-download"></i> Download Laporan</a>' +
-                            '<a href="' + data.download_url + '" target="_blank" class="btn btn-sm btn-outline-primary">' +
-                            '<i class="bi bi-eye"></i> Lihat File</a>' +
-                            '</div></p>'
-                        );
+                            '<p style="color:#16a34a;"><i class="bi bi-check-circle-fill"></i> <strong>Laporan Word berhasil di-generate dan didownload!</strong><br><small>📁 File tersimpan di folder <strong>Downloads</strong> Anda dengan nama: <strong>' +
+                            filename + '</strong></small></p>');
 
                         // Show browser notification if supported
                         if ('Notification' in window && Notification.permission === 'granted') {
-                            new Notification('Laporan Berhasil Dibuat', {
-                                body: 'File ' + (data.filename || 'Laporan_VMTS.docx') + ' siap didownload',
+                            new Notification('Download Selesai', {
+                                body: 'File ' + filename + ' berhasil didownload',
                                 icon: '/favicon.ico'
                             });
                         } else if ('Notification' in window && Notification.permission !== 'denied') {
+                            // Request permission for future notifications
                             Notification.requestPermission();
                         }
+
                     } else {
-                        throw new Error(data.message || 'Gagal membuat laporan');
+                        // Response is JSON (error or redirect)
+                        const data = await response.json();
+                        console.log('JSON response:', data);
+
+                        if (data.success) {
+                            appendAIMessage(
+                                '<p style="color:#16a34a;"><i class="bi bi-check-circle-fill"></i> <strong>Laporan berhasil dibuat!</strong></p>'
+                            );
+
+                            // If there's a redirect URL, show option to view
+                            if (data.redirect) {
+                                appendAIMessage(
+                                    '<p><a href="' + data.redirect +
+                                    '" target="_blank" class="btn btn-sm btn-primary"><i class="bi bi-eye"></i> Lihat Laporan</a></p>'
+                                );
+                            }
+                        } else {
+                            throw new Error(data.message || 'Gagal membuat laporan');
+                        }
                     }
 
                     // Re-enable button
@@ -2375,4 +2386,8 @@
 
         });
     </script>
+
+    <!-- AI Prompt Assistant VMTS - With All Validations -->
+    <script src="{{ asset('js/ai-prompt-assistant-vmts.js') }}"></script>
+    <link rel="stylesheet" href="{{ asset('css/ai-assistant.css') }}">
 @endsection

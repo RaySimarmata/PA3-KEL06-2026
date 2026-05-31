@@ -91,6 +91,369 @@ class LaporanArtefakController extends Controller
     }
 
     /**
+     * AI Prompt Assistant - Process user prompt + file for Laporan Artefak
+     * Returns AI-generated summary/draft for preview
+     */
+    public function aiPrompt(Request $request)
+    {
+        try {
+            $request->validate([
+                'prompt' => 'required|string',
+                'file_referensi' => 'nullable|array',
+                'file_referensi.*' => 'file|mimes:docx,doc,pdf,txt,xlsx,xls,jpg,jpeg,png,gif,webp|max:10240',
+                'conversation_history' => 'nullable|array',
+                'template_id' => 'nullable|exists:template_laporan,id',
+                'periode' => 'nullable|string',
+            ]);
+
+            $aiService = app(\App\Services\UnifiedAIService::class);
+            $textExtraction = app(\App\Services\TextExtractionService::class);
+            $ocrService = app(\App\Services\OCRService::class);
+
+            $userPrompt = $request->input('prompt');
+            $conversationHistory = $request->input('conversation_history', []);
+            $templateId = $request->input('template_id');
+            $periode = $request->input('periode');
+            
+            // Get template structure if template is selected
+            $templateStructure = $this->extractTemplateStructure($templateId);
+            
+            // System context for Artefak reports
+            $systemContext = "Anda adalah AI Assistant untuk Gugus Kendali Mutu (GKM) Institut Teknologi Del.\n\n";
+            $systemContext .= "Tugas Anda: Membantu membuat LAPORAN ARTEFAK/VMTS berdasarkan dokumen yang diupload dan instruksi user.\n\n";
+            $systemContext .= "PENTING - CONVERSATION CONTEXT:\n";
+            $systemContext .= "- Ini mungkin percakapan lanjutan. Jika user meminta perubahan atau perbaikan, modifikasi konten yang sudah ada.\n";
+            $systemContext .= "- Jika user mengatakan 'ubah bagian X', 'perbaiki Y', atau 'tambahkan Z', lakukan perubahan pada draft sebelumnya.\n";
+            $systemContext .= "- Pertahankan konsistensi dengan respons sebelumnya kecuali diminta mengubahnya.\n";
+            $systemContext .= "- Jika ini permintaan pertama, buat draft lengkap. Jika permintaan lanjutan, fokus pada perubahan yang diminta.\n\n";
+            
+            if ($templateStructure) {
+                $systemContext .= "STRUKTUR TEMPLATE YANG HARUS DIIKUTI:\n";
+                $systemContext .= $templateStructure . "\n\n";
+                $systemContext .= "PENTING: Anda HARUS mengikuti struktur template di atas dengan KETAT. Gunakan markdown heading level 1 (#) untuk setiap bagian utama sesuai template.\n";
+                $systemContext .= "Jangan menambah atau mengurangi bagian dari template. Isi setiap bagian dengan konten yang relevan berdasarkan dokumen yang diupload.\n\n";
+            } else {
+                // Default structure untuk laporan artefak
+                $systemContext .= "PENTING: Gunakan STRUKTUR WAJIB berikut dengan markdown heading level 1 (#):\n\n";
+                $systemContext .= "# RINGKASAN EKSEKUTIF\n";
+                $systemContext .= "[Ringkasan singkat laporan dan temuan utama]\n\n";
+                $systemContext .= "# PENDAHULUAN\n";
+                $systemContext .= "[Latar belakang dan tujuan laporan artefak]\n\n";
+                $systemContext .= "# METODOLOGI\n";
+                $systemContext .= "[Metode pengumpulan dan analisis data artefak]\n\n";
+                $systemContext .= "# TEMUAN UTAMA\n";
+                $systemContext .= "[Hasil analisis artefak dan dokumen]\n\n";
+                $systemContext .= "# ANALISIS KUALITAS\n";
+                $systemContext .= "[Evaluasi kualitas artefak berdasarkan standar]\n\n";
+                $systemContext .= "# REKOMENDASI\n";
+                $systemContext .= "[Saran perbaikan dan tindak lanjut]\n\n";
+                $systemContext .= "# KESIMPULAN\n";
+                $systemContext .= "[Kesimpulan dan ringkasan rekomendasi]\n\n";
+            }
+            
+            $systemContext .= "Fokus pada analisis artefak akademik seperti RPS, silabus, materi kuliah, dan dokumen pembelajaran.\n";
+            $systemContext .= "Gunakan Bahasa Indonesia formal dan profesional. Setiap bagian harus berisi konten yang substantif dan relevan.\n\n";
+
+            // Extract file content if uploaded
+            $filesContext = [];
+            $imageContents = [];
+            $ocrTexts = [];
+            
+            if ($request->hasFile('file_referensi')) {
+                $files = $request->file('file_referensi');
+                
+                foreach ($files as $index => $file) {
+                    $fileName = $file->getClientOriginalName();
+                    $fileExtension = strtolower($file->getClientOriginalExtension());
+                    
+                    // Check if it's an image
+                    if (in_array($fileExtension, ['jpg', 'jpeg', 'png', 'gif', 'webp'])) {
+                        // Process image with OCR
+                        try {
+                            $imagePath = $file->store('temp_uploads', 'local');
+                            $fullImagePath = storage_path('app/' . $imagePath);
+                            
+                            // Extract text using OCR
+                            $ocrResult = $ocrService->extractText($fullImagePath);
+                            
+                            if ($ocrResult['success'] && !empty($ocrResult['text'])) {
+                                $ocrText = is_array($ocrResult['text']) ? json_encode($ocrResult['text']) : (string)$ocrResult['text'];
+                                
+                                $ocrTexts[] = [
+                                    'filename' => $fileName,
+                                    'text' => $ocrText,
+                                    'method' => $ocrResult['method'],
+                                    'confidence' => $ocrResult['confidence']
+                                ];
+                            }
+                            
+                            // Clean up temp file
+                            if (file_exists($fullImagePath)) {
+                                @unlink($fullImagePath);
+                            }
+                            
+                            Log::info('Image processed with OCR for Artefak', [
+                                'filename' => $fileName,
+                                'ocr_text_length' => isset($ocrText) ? strlen($ocrText) : 0
+                            ]);
+                        } catch (\Exception $e) {
+                            Log::error('Image processing failed for Artefak', [
+                                'filename' => $fileName,
+                                'error' => $e->getMessage()
+                            ]);
+                        }
+                    } else {
+                        // Process document file
+                        $filePath = $file->store('temp_uploads', 'local');
+                        $fullPath = storage_path('app/' . $filePath);
+                        
+                        try {
+                            $result = $textExtraction->extractFromFile($fullPath);
+                            $fileContent = $result['text'] ?? '';
+                            
+                            $filesContext[] = [
+                                'filename' => $fileName,
+                                'content' => $fileContent,
+                                'type' => $this->categorizeArtefakFile($fileName)
+                            ];
+                            
+                            Log::info('Document extracted for Artefak AI prompt', [
+                                'filename' => $fileName,
+                                'size' => strlen($fileContent),
+                                'type' => $this->categorizeArtefakFile($fileName)
+                            ]);
+                        } catch (\Exception $e) {
+                            Log::error('File extraction failed for Artefak', [
+                                'filename' => $fileName,
+                                'error' => $e->getMessage()
+                            ]);
+                            return response()->json([
+                                'success' => false,
+                                'message' => 'Gagal membaca file ' . $fileName . ': ' . $e->getMessage()
+                            ], 400);
+                        } finally {
+                            // Clean up temp file
+                            if (file_exists($fullPath)) {
+                                @unlink($fullPath);
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Build conversation messages for Chat Completions API
+            $messages = [];
+            
+            // Add system context as first message
+            $messages[] = [
+                'role' => 'system',
+                'content' => $systemContext
+            ];
+            
+            // If there's conversation history, include it (for multi-turn conversation)
+            if (!empty($conversationHistory)) {
+                foreach ($conversationHistory as $msg) {
+                    $role = $msg['role'] ?? 'user';
+                    $content = $msg['content'] ?? '';
+                    
+                    // Skip empty messages
+                    if (empty($content)) continue;
+                    
+                    // Normalize role
+                    if ($role === 'assistant' || $role === 'ai') {
+                        $role = 'assistant';
+                    }
+                    
+                    $messages[] = [
+                        'role' => $role,
+                        'content' => $content
+                    ];
+                }
+            }
+
+            // Add current user message
+            $currentMessage = '';
+            
+            // Add periode context if provided
+            if (!empty($periode)) {
+                $currentMessage .= "PERIODE LAPORAN: {$periode}\n\n";
+            }
+            
+            // Process uploaded documents
+            if (!empty($filesContext)) {
+                $currentMessage .= "Saya telah mengupload beberapa dokumen artefak:\n\n";
+                
+                foreach ($filesContext as $fileData) {
+                    // Truncate very long content
+                    $content = $fileData['content'];
+                    $maxFileContentLength = 15000;
+                    
+                    if (strlen($content) > $maxFileContentLength) {
+                        $content = substr($content, 0, $maxFileContentLength) . "\n\n[DOKUMEN DIPOTONG - HANYA BAGIAN AWAL YANG DIPROSES]";
+                    }
+                    
+                    $currentMessage .= "**{$fileData['filename']}** ({$fileData['type']}):\n";
+                    $currentMessage .= "```\n" . $content . "\n```\n\n";
+                }
+            }
+            
+            // Add OCR texts from current upload
+            if (!empty($ocrTexts)) {
+                $currentMessage .= "Teks yang diekstrak dari gambar artefak:\n\n";
+                foreach ($ocrTexts as $ocrData) {
+                    $currentMessage .= "**{$ocrData['filename']}** (OCR Method: {$ocrData['method']}, Confidence: {$ocrData['confidence']}%):\n";
+                    $currentMessage .= "```\n" . $ocrData['text'] . "\n```\n\n";
+                }
+            }
+            
+            $currentMessage .= "Instruksi dari user: " . $userPrompt . "\n\n";
+            
+            if ($templateStructure) {
+                $currentMessage .= "PENTING: Anda HARUS menghasilkan draft laporan artefak yang mengikuti STRUKTUR TEMPLATE yang telah diberikan di system context.\n\n";
+                $currentMessage .= "Gunakan semua dokumen artefak yang saya upload sebagai sumber data dan informasi untuk mengisi setiap bagian template.\n\n";
+                $currentMessage .= "Setiap bagian harus berisi minimal 2-3 paragraf dengan konten yang substantif dan relevan berdasarkan analisis artefak.\n";
+            } else {
+                $currentMessage .= "PENTING: Anda HARUS menghasilkan SEMUA 7 bagian berikut dengan konten yang substantif:\n\n";
+                $currentMessage .= "1. # RINGKASAN EKSEKUTIF\n";
+                $currentMessage .= "2. # PENDAHULUAN\n";
+                $currentMessage .= "3. # METODOLOGI\n";
+                $currentMessage .= "4. # TEMUAN UTAMA\n";
+                $currentMessage .= "5. # ANALISIS KUALITAS\n";
+                $currentMessage .= "6. # REKOMENDASI\n";
+                $currentMessage .= "7. # KESIMPULAN\n\n";
+                $currentMessage .= "Jangan skip bagian manapun. Setiap bagian harus berisi minimal 2-3 paragraf dengan analisis yang mendalam.\n";
+            }
+            
+            $currentMessage .= "Fokus pada evaluasi kualitas artefak akademik dan berikan rekomendasi perbaikan yang konkret.\n";
+            
+            $messages[] = [
+                'role' => 'user',
+                'content' => $currentMessage
+            ];
+
+            // Call AI service using Chat Completions API with conversation history
+            $aiResult = $aiService->generateChat($messages, [
+                'max_tokens' => 8192, // Increased token limit
+                'temperature' => 0.7
+            ]);
+            
+            if (!$aiResult['success'] || empty($aiResult['text'])) {
+                Log::error('AI returned empty response for Artefak', [
+                    'prompt_length' => strlen($userPrompt),
+                    'files_count' => count($filesContext),
+                    'images_count' => count($imageContents),
+                    'messages_count' => count($messages),
+                    'conversation_turns' => count(array_filter($messages, fn($m) => ($m['role'] ?? '') !== 'system')),
+                    'error' => $aiResult['error'] ?? 'Unknown error',
+                    'provider' => $aiResult['provider'] ?? 'unknown'
+                ]);
+                
+                // More specific error messages
+                $errorMessage = 'Layanan AI mengalami masalah. ';
+                if (isset($aiResult['error'])) {
+                    if (str_contains($aiResult['error'], 'Rate limit') || str_contains($aiResult['error'], '429')) {
+                        $errorMessage .= 'Terlalu banyak permintaan, silakan tunggu sebentar dan coba lagi.';
+                    } elseif (str_contains($aiResult['error'], 'token')) {
+                        $errorMessage .= 'Percakapan terlalu panjang, silakan mulai percakapan baru.';
+                    } else {
+                        $errorMessage .= 'Silakan coba lagi dalam beberapa menit.';
+                    }
+                } else {
+                    $errorMessage .= 'Silakan coba lagi atau hubungi administrator.';
+                }
+                
+                return response()->json([
+                    'success' => false,
+                    'message' => $errorMessage,
+                    'debug_info' => [
+                        'messages_count' => count($messages),
+                        'conversation_turns' => count(array_filter($messages, fn($m) => ($m['role'] ?? '') !== 'system')),
+                        'provider' => $aiResult['provider'] ?? 'unknown'
+                    ]
+                ], 503);
+            }
+            
+            $aiResponse = $aiResult['text'];
+
+            Log::info('AI Prompt successful for Artefak', [
+                'prompt_length' => strlen($userPrompt),
+                'response_length' => strlen($aiResponse),
+                'files_count' => count($filesContext),
+                'images_count' => count($imageContents),
+                'messages_count' => count($messages),
+                'has_template' => !empty($templateStructure),
+                'provider' => $aiResult['provider'],
+                'model' => $aiResult['model']
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'response' => $aiResponse,
+                'model_info' => $aiResult['provider'] . ' (' . $aiResult['model'] . ')',
+                'cached' => false,
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('AI Prompt failed for Artefak', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'user_prompt' => substr($userPrompt ?? '', 0, 100),
+                'files_count' => count($filesContext ?? []),
+                'images_count' => count($imageContents ?? [])
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Terjadi kesalahan: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Categorize artefak file type
+     */
+    private function categorizeArtefakFile($filename)
+    {
+        $filename = strtolower($filename);
+        
+        if (str_contains($filename, 'rps') || str_contains($filename, 'silabus')) {
+            return 'RPS/Silabus';
+        } elseif (str_contains($filename, 'materi') || str_contains($filename, 'slide') || str_contains($filename, 'ppt')) {
+            return 'Materi Kuliah';
+        } elseif (str_contains($filename, 'soal') || str_contains($filename, 'ujian') || str_contains($filename, 'quiz')) {
+            return 'Soal/Evaluasi';
+        } elseif (str_contains($filename, 'tugas') || str_contains($filename, 'assignment')) {
+            return 'Tugas';
+        } elseif (str_contains($filename, 'laporan') || str_contains($filename, 'report')) {
+            return 'Laporan';
+        } else {
+            return 'Dokumen Artefak';
+        }
+    }
+
+    /**
+     * Extract template structure (placeholder - implement based on your template system)
+     */
+    private function extractTemplateStructure($templateId)
+    {
+        if (!$templateId) return null;
+        
+        try {
+            $template = TemplateLaporan::find($templateId);
+            if (!$template) return null;
+            
+            // This is a placeholder - implement based on your template structure
+            return "Template structure for artefak report...";
+        } catch (\Exception $e) {
+            Log::warning('Failed to extract template structure for Artefak', [
+                'template_id' => $templateId,
+                'error' => $e->getMessage()
+            ]);
+            return null;
+        }
+    }
+
+    /**
      * Store new laporan artefak (trigger generation)
      */
     public function store(Request $request)

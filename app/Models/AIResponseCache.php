@@ -23,6 +23,7 @@ class AIResponseCache extends Model
         'usage_count',
         'last_used_at',
         'response_length',
+        'response_time',
         'similarity_threshold',
     ];
 
@@ -31,6 +32,7 @@ class AIResponseCache extends Model
         'last_used_at' => 'datetime',
         'usage_count' => 'integer',
         'response_length' => 'integer',
+        'response_time' => 'float',
         'similarity_threshold' => 'float',
     ];
 

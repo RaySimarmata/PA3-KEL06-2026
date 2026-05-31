@@ -44,6 +44,21 @@ class LaporanGJM extends Model
         'ai_preview_used_for_generation',
         'ocr_data',
         'has_ocr_data',
+        
+        // RAGAS Metrics for VMTS
+        'ragas_faithfulness',
+        'ragas_answer_relevancy',
+        'ragas_context_precision',
+        'ragas_context_recall',
+        'ragas_context_relevancy',
+        'ragas_overall_score',
+        
+        // RAG Metadata
+        'rag_chunks_count',
+        'rag_avg_similarity',
+        'rag_contexts',
+        'ragas_evaluation_type',
+        'ragas_evaluated_at',
     ];
 
     protected $casts = [
@@ -52,13 +67,20 @@ class LaporanGJM extends Model
         'tanggal_submit' => 'date',
         'tanggal_review' => 'date',
         'ppt_generated_at' => 'datetime',
+        'instruksi_prompt' => 'array',
         'ai_sections' => 'array',
         'ai_file_details' => 'array',
         'ai_preview_created_at' => 'datetime',
         'ai_preview_used_for_generation' => 'boolean',
         'ocr_data' => 'array',
         'has_ocr_data' => 'boolean',
+        
+        // RAGAS Casts
+        'rag_contexts' => 'array',
+        'ragas_evaluated_at' => 'datetime',
     ];
+
+    protected $appends = ['periode_triwulan', 'periode_semester', 'tahun'];
 
     public function ajaran()
     {
@@ -81,6 +103,30 @@ class LaporanGJM extends Model
     }
 
     // Helper methods
+    public function getPeriodeTriwulanAttribute()
+    {
+        if (is_array($this->instruksi_prompt)) {
+            return $this->instruksi_prompt['periode_triwulan'] ?? null;
+        }
+        return null;
+    }
+
+    public function getPeriodeSemesterAttribute()
+    {
+        if (is_array($this->instruksi_prompt)) {
+            return $this->instruksi_prompt['periode_semester'] ?? null;
+        }
+        return null;
+    }
+
+    public function getTahunAttribute()
+    {
+        if (is_array($this->instruksi_prompt)) {
+            return $this->instruksi_prompt['tahun'] ?? date('Y');
+        }
+        return date('Y');
+    }
+
     public function getStatusBadgeClass()
     {
         return match($this->status_laporan) {
