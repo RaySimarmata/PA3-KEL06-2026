@@ -69,9 +69,9 @@
                                         <option value="Upload Materi"
                                             {{ old('tipe_reminder', $jadwal->tipe_reminder) == 'Upload Materi' ? 'selected' : '' }}>
                                             Reminder Upload Materi</option>
-                                        <option value="Review Soal"
+                                        {{-- <option value="Review Soal"
                                             {{ old('tipe_reminder', $jadwal->tipe_reminder) == 'Review Soal' ? 'selected' : '' }}>
-                                            Reminder Review Soal</option>
+                                            Reminder Review Soal</option> --}}
                                     </select>
                                     @error('tipe_reminder')
                                         <div class="invalid-feedback">{{ $message }}</div>

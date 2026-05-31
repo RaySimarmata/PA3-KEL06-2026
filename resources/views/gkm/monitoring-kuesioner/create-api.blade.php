@@ -3,7 +3,7 @@
 @section('content')
 <div class="container">
 
-    <h4 class="mb-4">📊 Monitoring Kuesioner (API)</h4>
+    <h4 class="mb-4">Monitoring Kuesioner (API)</h4>
 
     {{-- 🔥 ALERT SUCCESS --}}
     @if(session('success'))
@@ -29,59 +29,122 @@
             </ul>
         </div>
     @endif
+{{-- 🔎 FILTER --}}
+<div class="card mb-4">
+    <div class="card-body">
 
-    {{-- 🔎 FILTER --}}
-    <div class="card mb-4">
-        <div class="card-body">
-            <form method="GET" class="row g-3">
+        <form method="GET" class="row g-3">
 
-                {{-- TAHUN --}}
-                <div class="col-md-3">
-                    <label class="form-label">Tahun Ajaran</label>
-                    <select name="ta" class="form-select" required>
-                        <option value="">-- Pilih Tahun --</option>
-                        @foreach($tahunList as $tahun)
-                            <option value="{{ $tahun }}" 
-                                {{ request('ta') == $tahun ? 'selected' : '' }}>
-                                {{ $tahun }}
-                            </option>
-                        @endforeach
-                    </select>
-                </div>
+            {{-- TAHUN --}}
+            <div class="col-md-3">
+                <label class="form-label">Tahun Ajaran</label>
 
-                {{-- SEMESTER --}}
-                <div class="col-md-3">
-                    <label class="form-label">Semester</label>
-                    <select name="semester" class="form-select" required>
-                        <option value="">-- Pilih Semester --</option>
-                        <option value="1" {{ request('semester') == 1 ? 'selected' : '' }}>Ganjil</option>
-                        <option value="2" {{ request('semester') == 2 ? 'selected' : '' }}>Genap</option>
-                    </select>
-                </div>
+                <select name="ta" class="form-select" required>
 
-                {{-- TINGKAT --}}
-                <div class="col-md-3">
-                    <label class="form-label">Tingkat</label>
-                    <select name="tingkat" class="form-select">
-                        <option value="">-- Semua Tingkat --</option>
-                        <option value="1" {{ request('tingkat') == '1' ? 'selected' : '' }}>Tingkat 1</option>
-                        <option value="2" {{ request('tingkat') == '2' ? 'selected' : '' }}>Tingkat 2</option>
-                        <option value="3" {{ request('tingkat') == '3' ? 'selected' : '' }}>Tingkat 3</option>
-                        <option value="4" {{ request('tingkat') == '4' ? 'selected' : '' }}>Tingkat 4</option>
-                    </select>
-                </div>
+                    <option value="">-- Pilih Tahun --</option>
 
-                {{-- BUTTON --}}
-                <div class="col-md-3 d-flex align-items-end">
-                    <button class="btn btn-primary w-100">
-                        🔍 Tampilkan Mata Kuliah
-                    </button>
-                </div>
+                    @foreach($tahunList as $tahun)
+
+                        <option value="{{ $tahun }}"
+                            {{ (int)$ta === (int)$tahun ? 'selected' : '' }}>
+
+                            {{ $tahun }}
+
+                        </option>
+
+                    @endforeach
+
+                </select>
+            </div>
+
+            {{-- SEMESTER --}}
+            <div class="col-md-3">
+                <label class="form-label">Semester</label>
+
+                <select name="semester" class="form-select" required>
+
+                    <option value="">-- Pilih Semester --</option>
+
+                    <option value="1"
+                        {{ ($semester ?? $semesterAktif) == 1 ? 'selected' : '' }}>
+                        Ganjil
+                    </option>
+
+                    <option value="2"
+                        {{ ($semester ?? $semesterAktif) == 2 ? 'selected' : '' }}>
+                        Genap
+                    </option>
+
+                </select>
+            </div>
+
+            {{-- TINGKAT --}}
+            <div class="col-md-3">
+                <label class="form-label">Tingkat</label>
+
+                <select name="tingkat" class="form-select">
+
+                    <option value="">Semua Tingkat</option>
+
+                    <option value="1"
+                        {{ request('tingkat') == '1' ? 'selected' : '' }}>
+                        Tingkat 1
+                    </option>
+
+                    <option value="2"
+                        {{ request('tingkat') == '2' ? 'selected' : '' }}>
+                        Tingkat 2
+                    </option>
+
+                    <option value="3"
+                        {{ request('tingkat') == '3' ? 'selected' : '' }}>
+                        Tingkat 3
+                    </option>
+
+                    <option value="4"
+                        {{ request('tingkat') == '4' ? 'selected' : '' }}>
+                        Tingkat 4
+                    </option>
+
+                </select>
+            </div>
+
+            {{-- BUTTON FILTER --}}
+            <div class="col-md-3 d-flex align-items-end">
+
+                <button class="btn btn-primary w-100">
+                    🔍 Tampilkan Mata Kuliah
+                </button>
+
+            </div>
+
+        </form>
+
+        {{-- 🔥 BUTTON SYNC DIPISAH --}}
+        <div class="mt-3">
+
+            <form action="{{ route('gkm.monitoring-kuesioner.sync-semester') }}"
+                  method="POST">
+
+                @csrf
+
+                {{-- biar ikut filter yg dipilih --}}
+                <input type="hidden" name="ta" value="{{ $ta }}">
+                <input type="hidden" name="semester" value="{{ $semester }}">
+                <input type="hidden" name="tingkat" value="{{ request('tingkat') }}">
+
+                <button class="btn btn-success">
+
+                    Analaisis Semua Kusioner
+
+                </button>
 
             </form>
-        </div>
-    </div>
 
+        </div>
+
+    </div>
+</div>
     {{-- 📋 TABEL --}}
     <div class="card">
         <div class="card-body">

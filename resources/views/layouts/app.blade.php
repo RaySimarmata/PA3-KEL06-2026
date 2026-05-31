@@ -7,6 +7,7 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>@yield('title', 'Sistem GJK & GKM')</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
     
     <!-- GKM Global Styles -->
@@ -428,6 +429,13 @@
                 width: 100%;
             }
         }
+        .modal {
+    z-index: 99999 !important;
+}
+
+.modal-backdrop {
+    z-index: 99998 !important;
+}
     </style>
     @yield('styles')
 </head>
@@ -509,7 +517,7 @@
                                 <i class="bi bi-chevron-down dropdown-icon"></i>
                             </a>
                             <div class="dropdown-submenu">
-                                <a href="{{ route('gkm.monitoring-kuesioner.index') }}"
+                                <a href="{{ route('gkm.monitoring-kuesioner.create-api') }}"
                                     class="nav-item {{ request()->routeIs('gkm.monitoring-kuesioner.*') ? 'active' : '' }}">
                                     <i class="bi bi-clipboard-data"></i> Monitoring Kuesioner
                                 </a>

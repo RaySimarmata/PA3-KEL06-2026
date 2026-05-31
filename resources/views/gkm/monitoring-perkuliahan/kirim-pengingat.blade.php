@@ -36,12 +36,12 @@
                             <i class="bi bi-file-earmark-text"></i> Reminder Upload Materi
                         </button>
                     </li>
-                    <li class="nav-item" role="presentation">
+                    {{-- <li class="nav-item" role="presentation">
                         <button class="nav-link" id="soal-tab" data-bs-toggle="tab" data-bs-target="#soal" type="button"
                             role="tab" style="font-weight: 500; color: #6c757d; border: none; padding: 0.75rem 1.5rem;">
                             <i class="bi bi-clipboard-check"></i> Reminder Review Soal
                         </button>
-                    </li>
+                    </li> --}}  
                 </ul>
 
                 <div class="tab-content" id="reminderTabContent">

@@ -6,7 +6,7 @@
 <div class="container-fluid">
     <!-- Welcome Section -->
     <div class="mb-4">
-        <h3>Selamat Datang, {{ $user->nama_user }} 👋</h3>
+        <h3>Selamat Datang, {{ $user->nama_user }}</h3>
         <p class="text-muted mb-0">Laporan Bulan: {{ $periode }}</p>
     </div>
 

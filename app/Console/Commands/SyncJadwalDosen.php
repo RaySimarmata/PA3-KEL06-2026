@@ -12,22 +12,43 @@ class SyncJadwalDosen extends Command
     protected $description = 'Sync jadwal dosen secara async';
 
     public function handle()
-    {
-        $semester = $this->argument('semester');
-        $tahun = $this->argument('tahun');
+{
+    /*
+    |--------------------------------------------------------------------------
+    | AMBIL PERIODE AKADEMIK AKTIF
+    |--------------------------------------------------------------------------
+    */
+    $periodeAktif = \App\Models\PeriodeAkademik::where('is_active', true)
+        ->first();
 
-        $dosenList = Dosenn::select('pegawai_id')->get();
+    if (!$periodeAktif) {
 
-        foreach ($dosenList as $dosen) {
+        $this->error('Periode akademik aktif tidak ditemukan');
 
-            // 🔥 dispatch ke queue (async)
-            SyncJadwalDosenJob::dispatch(
-                $dosen->pegawai_id,
-                $semester,
-                $tahun
-            );
-        }
-
-        $this->info('Semua job berhasil dikirim ke queue!');
+        return;
     }
+
+    $semester = $periodeAktif->semester;
+    $tahun = $periodeAktif->tahun_ajaran;
+
+    /*
+    |--------------------------------------------------------------------------
+    | AMBIL SEMUA DOSEN
+    |--------------------------------------------------------------------------
+    */
+    $dosenList = Dosenn::select('pegawai_id')->get();
+
+    foreach ($dosenList as $dosen) {
+
+        SyncJadwalDosenJob::dispatch(
+            $dosen->pegawai_id,
+            $semester,
+            $tahun
+        );
+    }
+
+    $this->info(
+        "Sync jadwal dosen periode {$tahun} semester {$semester} berhasil dikirim ke queue"
+    );
+}
 }

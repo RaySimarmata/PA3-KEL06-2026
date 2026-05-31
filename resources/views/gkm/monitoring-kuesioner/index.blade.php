@@ -194,7 +194,7 @@
                     <td class="text-center">
                         <div class="btn-group">
 
-                            <a href="{{ route('gkm.monitoring-kuesioner.show', $k->id) }}"
+                            <a href="{{ route('gkm.monitoring-kuesioner.showa', $k->id) }}"
                                class="btn btn-sm btn-outline-primary"
                                title="Lihat Detail">
                                 <i class="bi bi-eye"></i>

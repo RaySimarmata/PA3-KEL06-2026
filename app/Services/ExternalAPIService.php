@@ -27,42 +27,142 @@ class ExternalAPIService
      * @return string|null
      */
     private function getToken($forceRefresh = false)
-    {
-        if ($forceRefresh) {
-            \Cache::forget('library_api_token');
+{
+    /*
+    |--------------------------------------------------------------------------
+    | FORCE REFRESH TOKEN
+    |--------------------------------------------------------------------------
+    */
+    if ($forceRefresh) {
+        \Cache::forget('library_api_token');
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | CEK TOKEN DARI CACHE
+    |--------------------------------------------------------------------------
+    */
+    $cachedToken = \Cache::get('library_api_token');
+
+    if (!empty($cachedToken)) {
+
+        Log::info('Using cached Library API token');
+
+        return $cachedToken;
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | CONFIG
+    |--------------------------------------------------------------------------
+    */
+    $baseUrl = rtrim(config('services.library.url'), '/');
+
+    $username = trim(config('services.library.username'));
+    $password = trim(config('services.library.password'));
+
+    /*
+    |--------------------------------------------------------------------------
+    | DEBUG CONFIG
+    |--------------------------------------------------------------------------
+    */
+    Log::info('LIBRARY API CONFIG CHECK', [
+        'url' => $baseUrl,
+        'username' => $username,
+        'username_length' => strlen($username),
+        'password_length' => strlen($password),
+    ]);
+
+    try {
+
+        /*
+        |--------------------------------------------------------------------------
+        | REQUEST TOKEN
+        |--------------------------------------------------------------------------
+        */
+        $response = Http::retry(3, 1000)
+            ->timeout(20)
+            ->asForm()
+            ->acceptJson()
+            ->post(
+                $baseUrl . '/jwt-api/do-auth',
+                [
+                    'username' => $username,
+                    'password' => $password,
+                ]
+            );
+
+        $data = $response->json();
+
+        /*
+        |--------------------------------------------------------------------------
+        | DEBUG RESPONSE
+        |--------------------------------------------------------------------------
+        */
+        Log::info('LIBRARY API TOKEN RESPONSE', [
+            'status' => $response->status(),
+            'response' => $data,
+        ]);
+
+        /*
+        |--------------------------------------------------------------------------
+        | SUCCESS
+        |--------------------------------------------------------------------------
+        */
+        if (
+            $response->successful()
+            &&
+            isset($data['token'])
+            &&
+            !empty($data['token'])
+        ) {
+
+            /*
+            |--------------------------------------------------------------------------
+            | SIMPAN TOKEN KE CACHE
+            |--------------------------------------------------------------------------
+            */
+            \Cache::put(
+                'library_api_token',
+                $data['token'],
+                now()->addSeconds(3500)
+            );
+
+            Log::info('Library API token refreshed successfully');
+
+            return $data['token'];
         }
 
-        return \Cache::remember('library_api_token', 3500, function () {
-            $baseUrl = config('services.library.url');
-            
-            try {
-                $response = Http::asForm()->post($baseUrl . '/jwt-api/do-auth', [
-                    'username' => config('services.library.username'),
-                    'password' => config('services.library.password'),
-                ]);
+        /*
+        |--------------------------------------------------------------------------
+        | FAILED LOGIN
+        |--------------------------------------------------------------------------
+        */
+        Log::error('Failed to get library API token', [
+            'status' => $response->status(),
+            'response' => $data
+        ]);
 
-                $data = $response->json();
+        return null;
 
-                if ($response->successful() && isset($data['token'])) {
-                    Log::info('Library API token refreshed successfully');
-                    return $data['token'];
-                }
+    } catch (\Exception $e) {
 
-                Log::error('Failed to get library API token', [
-                    'status' => $response->status(),
-                    'response' => $data
-                ]);
+        /*
+        |--------------------------------------------------------------------------
+        | EXCEPTION
+        |--------------------------------------------------------------------------
+        */
+        Log::error('Library API token exception', [
+            'message' => $e->getMessage(),
+            'line' => $e->getLine(),
+            'file' => $e->getFile(),
+        ]);
 
-                return null;
-            } catch (\Exception $e) {
-                Log::error('Library API token exception', [
-                    'error' => $e->getMessage()
-                ]);
-                return null;
-            }
-        });
+        return null;
     }
-    public function getAccessToken()
+}
+
+public function getAccessToken()
 {
     return $this->token;
 }
@@ -126,6 +226,8 @@ class ExternalAPIService
      * 
      * @return array|null
      */
+
+    
     public function getDosenFromAPI()
     {
         try {
@@ -852,7 +954,9 @@ class ExternalAPIService
                         'nama_mk' => $jadwal['nama_mk'] ?? '-',
                         'sks' => $jadwal['sks'] ?? '-',
                         'semester' => $semesterValue == 1 ? 'Ganjil' : 'Genap',
-                        'tahun_ajaran' => $tahunAjaranValue ?? '-'
+                        'tahun_ajaran' => $tahunAjaranValue ?? '-',
+                        'kelas' => $jadwal['kelas'] ?? '-',
+                        'jadwal_id' => $jadwal['jadwal_id'] ?? null,
                     ];
                 }, $jadwalList);
             }

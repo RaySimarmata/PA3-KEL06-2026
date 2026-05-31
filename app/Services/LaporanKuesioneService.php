@@ -476,207 +476,207 @@ class LaporanKuesioneService
     /**
      * Call AI API (supports Ollama, GROQ, OpenAI-compatible)
      */
-    private function callAI($systemMessage, $userPrompt, $maxTokens = 4000)
-    {
-        $maxRetries = 3;
-        $retryDelay = 2; // seconds
+    // private function callAI($systemMessage, $userPrompt, $maxTokens = 4000)
+    // {
+    //     $maxRetries = 3;
+    //     $retryDelay = 2; // seconds
 
-        for ($attempt = 1; $attempt <= $maxRetries; $attempt++) {
-            try {
-                Log::info("=== Calling AI API (Attempt $attempt/$maxRetries) ===", [
-                    'model' => $this->model,
-                    'base_url' => $this->baseUrl,
-                    'prompt_length' => strlen($userPrompt),
-                    'max_tokens' => $maxTokens
-                ]);
+    //     for ($attempt = 1; $attempt <= $maxRetries; $attempt++) {
+    //         try {
+    //             Log::info("=== Calling AI API (Attempt $attempt/$maxRetries) ===", [
+    //                 'model' => $this->model,
+    //                 'base_url' => $this->baseUrl,
+    //                 'prompt_length' => strlen($userPrompt),
+    //                 'max_tokens' => $maxTokens
+    //             ]);
 
-                $headers = ['Content-Type' => 'application/json'];
+    //             $headers = ['Content-Type' => 'application/json'];
 
-                // Add Authorization header only if API key is not 'ollama'
-                if ($this->apiKey && $this->apiKey !== 'ollama') {
-                    $headers['Authorization'] = 'Bearer ' . $this->apiKey;
-                }
+    //             // Add Authorization header only if API key is not 'ollama'
+    //             if ($this->apiKey && $this->apiKey !== 'ollama') {
+    //                 $headers['Authorization'] = 'Bearer ' . $this->apiKey;
+    //             }
 
-                $response = Http::withHeaders($headers)
-                    ->timeout(180) // 3 minutes for local models
-                    ->post($this->baseUrl . '/chat/completions', [
-                        'model' => $this->model,
-                        'messages' => [
-                            $systemMessage,
-                            [
-                                'role' => 'user',
-                                'content' => $userPrompt
-                            ]
-                        ],
-                        'temperature' => 0.7,
-                        'max_tokens' => $maxTokens,
-                        'stream' => false,
-                    ]);
+    //             $response = Http::withHeaders($headers)
+    //                 ->timeout(180) // 3 minutes for local models
+    //                 ->post($this->baseUrl . '/chat/completions', [
+    //                     'model' => $this->model,
+    //                     'messages' => [
+    //                         $systemMessage,
+    //                         [
+    //                             'role' => 'user',
+    //                             'content' => $userPrompt
+    //                         ]
+    //                     ],
+    //                     'temperature' => 0.7,
+    //                     'max_tokens' => $maxTokens,
+    //                     'stream' => false,
+    //                 ]);
 
-                Log::info("AI API Response Status", [
-                    'status' => $response->status(),
-                    'successful' => $response->successful(),
-                    'attempt' => $attempt
-                ]);
+    //             Log::info("AI API Response Status", [
+    //                 'status' => $response->status(),
+    //                 'successful' => $response->successful(),
+    //                 'attempt' => $attempt
+    //             ]);
 
-                if ($response->successful()) {
-                    $data = $response->json();
-                    $content = $data['choices'][0]['message']['content'] ?? null;
+    //             if ($response->successful()) {
+    //                 $data = $response->json();
+    //                 $content = $data['choices'][0]['message']['content'] ?? null;
 
-                    if (!$content) {
-                        Log::error('AI Response Empty', [
-                            'response_data' => $data
-                        ]);
-                        throw new \Exception('AI response kosong. Periksa konfigurasi model atau coba lagi.');
-                    }
+    //                 if (!$content) {
+    //                     Log::error('AI Response Empty', [
+    //                         'response_data' => $data
+    //                     ]);
+    //                     throw new \Exception('AI response kosong. Periksa konfigurasi model atau coba lagi.');
+    //                 }
 
-                    Log::info("AI Response Received", [
-                        'has_content' => !empty($content),
-                        'content_length' => $content ? strlen($content) : 0,
-                        'attempt' => $attempt
-                    ]);
+    //                 Log::info("AI Response Received", [
+    //                     'has_content' => !empty($content),
+    //                     'content_length' => $content ? strlen($content) : 0,
+    //                     'attempt' => $attempt
+    //                 ]);
 
-                    return $content;
-                }
+    //                 return $content;
+    //             }
 
-                $errorBody = $response->body();
-                $statusCode = $response->status();
+    //             $errorBody = $response->body();
+    //             $statusCode = $response->status();
 
-                Log::error('AI API Error', [
-                    'status' => $statusCode,
-                    'body' => $errorBody,
-                    'attempt' => $attempt
-                ]);
+    //             Log::error('AI API Error', [
+    //                 'status' => $statusCode,
+    //                 'body' => $errorBody,
+    //                 'attempt' => $attempt
+    //             ]);
 
-                // Parse error message for better user feedback
-                $errorMessage = 'AI API error (HTTP ' . $statusCode . ')';
-                $isRateLimitError = false;
+    //             // Parse error message for better user feedback
+    //             $errorMessage = 'AI API error (HTTP ' . $statusCode . ')';
+    //             $isRateLimitError = false;
 
-                try {
-                    $errorData = json_decode($errorBody, true);
-                    if (isset($errorData['error']['message'])) {
-                        $errorMessage .= ': ' . $errorData['error']['message'];
+    //             try {
+    //                 $errorData = json_decode($errorBody, true);
+    //                 if (isset($errorData['error']['message'])) {
+    //                     $errorMessage .= ': ' . $errorData['error']['message'];
 
-                        // Check if it's a rate limit error
-                        if (isset($errorData['error']['code']) &&
-                            $errorData['error']['code'] === 'rate_limit_exceeded') {
-                            $isRateLimitError = true;
-                        }
-                    } elseif (isset($errorData['message'])) {
-                        $errorMessage .= ': ' . $errorData['message'];
-                    }
-                } catch (\Exception $e) {
-                    // If can't parse error, use raw body
-                    if (strlen($errorBody) < 200) {
-                        $errorMessage .= ': ' . $errorBody;
-                    }
-                }
+    //                     // Check if it's a rate limit error
+    //                     if (isset($errorData['error']['code']) &&
+    //                         $errorData['error']['code'] === 'rate_limit_exceeded') {
+    //                         $isRateLimitError = true;
+    //                     }
+    //                 } elseif (isset($errorData['message'])) {
+    //                     $errorMessage .= ': ' . $errorData['message'];
+    //                 }
+    //             } catch (\Exception $e) {
+    //                 // If can't parse error, use raw body
+    //                 if (strlen($errorBody) < 200) {
+    //                     $errorMessage .= ': ' . $errorBody;
+    //                 }
+    //             }
 
-                // Retry on rate limit errors (413, 429)
-                if (($statusCode === 413 || $statusCode === 429 || $isRateLimitError) && $attempt < $maxRetries) {
-                    $waitTime = $retryDelay * $attempt; // Exponential backoff
-                    Log::warning("Rate limit hit, retrying in {$waitTime} seconds...", [
-                        'attempt' => $attempt,
-                        'max_retries' => $maxRetries
-                    ]);
-                    sleep($waitTime);
-                    continue; // Retry
-                }
+    //             // Retry on rate limit errors (413, 429)
+    //             if (($statusCode === 413 || $statusCode === 429 || $isRateLimitError) && $attempt < $maxRetries) {
+    //                 $waitTime = $retryDelay * $attempt; // Exponential backoff
+    //                 Log::warning("Rate limit hit, retrying in {$waitTime} seconds...", [
+    //                     'attempt' => $attempt,
+    //                     'max_retries' => $maxRetries
+    //                 ]);
+    //                 sleep($waitTime);
+    //                 continue; // Retry
+    //             }
 
-                throw new \Exception($errorMessage);
+    //             throw new \Exception($errorMessage);
 
-            } catch (\Illuminate\Http\Client\ConnectionException $e) {
-                Log::error('AI API Connection Error', [
-                    'message' => $e->getMessage(),
-                    'base_url' => $this->baseUrl,
-                    'attempt' => $attempt
-                ]);
+    //         } catch (\Illuminate\Http\Client\ConnectionException $e) {
+    //             Log::error('AI API Connection Error', [
+    //                 'message' => $e->getMessage(),
+    //                 'base_url' => $this->baseUrl,
+    //                 'attempt' => $attempt
+    //             ]);
 
-                if ($attempt < $maxRetries) {
-                    $waitTime = $retryDelay * $attempt;
-                    Log::warning("Connection failed, retrying in {$waitTime} seconds...");
-                    sleep($waitTime);
-                    continue;
-                }
+    //             if ($attempt < $maxRetries) {
+    //                 $waitTime = $retryDelay * $attempt;
+    //                 Log::warning("Connection failed, retrying in {$waitTime} seconds...");
+    //                 sleep($waitTime);
+    //                 continue;
+    //             }
 
-                throw new \Exception('Tidak dapat terhubung ke AI service. Pastikan service berjalan di: ' . $this->baseUrl);
+    //             throw new \Exception('Tidak dapat terhubung ke AI service. Pastikan service berjalan di: ' . $this->baseUrl);
 
-            } catch (\Illuminate\Http\Client\RequestException $e) {
-                Log::error('AI API Request Error', [
-                    'message' => $e->getMessage(),
-                    'attempt' => $attempt
-                ]);
-                throw new \Exception('Request ke AI service gagal: ' . $e->getMessage());
+    //         } catch (\Illuminate\Http\Client\RequestException $e) {
+    //             Log::error('AI API Request Error', [
+    //                 'message' => $e->getMessage(),
+    //                 'attempt' => $attempt
+    //             ]);
+    //             throw new \Exception('Request ke AI service gagal: ' . $e->getMessage());
 
-            } catch (\Exception $e) {
-                // Re-throw if already our custom exception
-                if (strpos($e->getMessage(), 'AI') !== false ||
-                    strpos($e->getMessage(), 'Tidak dapat terhubung') !== false ||
-                    strpos($e->getMessage(), 'Request ke AI') !== false) {
-                    throw $e;
-                }
+    //         } catch (\Exception $e) {
+    //             // Re-throw if already our custom exception
+    //             if (strpos($e->getMessage(), 'AI') !== false ||
+    //                 strpos($e->getMessage(), 'Tidak dapat terhubung') !== false ||
+    //                 strpos($e->getMessage(), 'Request ke AI') !== false) {
+    //                 throw $e;
+    //             }
 
-                Log::error('AI API Exception', [
-                    'message' => $e->getMessage(),
-                    'trace' => $e->getTraceAsString(),
-                    'attempt' => $attempt
-                ]);
-                throw new \Exception('Error saat memanggil AI: ' . $e->getMessage());
-            }
-        }
+    //             Log::error('AI API Exception', [
+    //                 'message' => $e->getMessage(),
+    //                 'trace' => $e->getTraceAsString(),
+    //                 'attempt' => $attempt
+    //             ]);
+    //             throw new \Exception('Error saat memanggil AI: ' . $e->getMessage());
+    //         }
+    //     }
 
-        throw new \Exception('AI request gagal setelah ' . $maxRetries . ' percobaan');
-    }
+    //     throw new \Exception('AI request gagal setelah ' . $maxRetries . ' percobaan');
+    // }
 
     /**
      * Get Active Template
      */
-    public function getActiveTemplate($jenisTemplate = 'laporan_bulanan')
-    {
-        return TemplateLaporan::active()
-            ->jenis($jenisTemplate)
-            ->latest()
-            ->first();
-    }
+    // public function getActiveTemplate($jenisTemplate = 'laporan_bulanan')
+    // {
+    //     return TemplateLaporan::active()
+    //         ->jenis($jenisTemplate)
+    //         ->latest()
+    //         ->first();
+    // }
 
     /**
      * Singkatkan kalimat rekomendasi dengan menghapus boilerplate yang panjang
      * dan menyederhanakan pola bahasa yang berulang.
      */
-    private function shortenRekomendasi(string $text): string
-    {
-        // 1. Strip prefix "Perlu peningkatan pada aspek: "
-        //    Ubah "Perlu peningkatan pada aspek: X" → "Perlu peningkatan [inti X]"
-        if (preg_match('/^Perlu peningkatan pada aspek:\s*(.+)$/i', $text, $m)) {
-            $core = trim($m[1]);
-            // Ekstrak kata kunci inti dari kalimat panjang
-            $core = $this->extractCorePhrase($core);
-            return 'Perlu peningkatan ' . lcfirst($core) . '.';
-        }
+    // private function shortenRekomendasi(string $text): string
+    // {
+    //     // 1. Strip prefix "Perlu peningkatan pada aspek: "
+    //     //    Ubah "Perlu peningkatan pada aspek: X" → "Perlu peningkatan [inti X]"
+    //     if (preg_match('/^Perlu peningkatan pada aspek:\s*(.+)$/i', $text, $m)) {
+    //         $core = trim($m[1]);
+    //         // Ekstrak kata kunci inti dari kalimat panjang
+    //         $core = $this->extractCorePhrase($core);
+    //         return 'Perlu peningkatan ' . lcfirst($core) . '.';
+    //     }
 
-        // 2. "Dosen/TA harus lebih baik dalam X" → "Dosen/TA perlu X."
-        if (preg_match('/^Dosen\/TA harus lebih baik dalam\s*(.+)$/i', $text, $m)) {
-            $core = rtrim(trim($m[1]), '.');
-            return 'Dosen/TA perlu ' . lcfirst($core) . '.';
-        }
+    //     // 2. "Dosen/TA harus lebih baik dalam X" → "Dosen/TA perlu X."
+    //     if (preg_match('/^Dosen\/TA harus lebih baik dalam\s*(.+)$/i', $text, $m)) {
+    //         $core = rtrim(trim($m[1]), '.');
+    //         return 'Dosen/TA perlu ' . lcfirst($core) . '.';
+    //     }
 
-        // 3. "Dosen/TA perlu meningkatkan X" → tetap, tapi potong jika terlalu panjang
-        if (preg_match('/^(Dosen\/TA perlu [^.]{1,80})/i', $text, $m)) {
-            return rtrim($m[1], '.') . '.';
-        }
+    //     // 3. "Dosen/TA perlu meningkatkan X" → tetap, tapi potong jika terlalu panjang
+    //     if (preg_match('/^(Dosen\/TA perlu [^.]{1,80})/i', $text, $m)) {
+    //         return rtrim($m[1], '.') . '.';
+    //     }
 
-        // 4. Potong kalimat sangat panjang (> 100 karakter) pada kata terakhir sebelum batas
-        if (mb_strlen($text) > 100) {
-            $cut = mb_substr($text, 0, 97);
-            $lastSpace = mb_strrpos($cut, ' ');
-            if ($lastSpace !== false) {
-                $cut = mb_substr($cut, 0, $lastSpace);
-            }
-            return rtrim($cut, '.,;') . '.';
-        }
+    //     // 4. Potong kalimat sangat panjang (> 100 karakter) pada kata terakhir sebelum batas
+    //     if (mb_strlen($text) > 100) {
+    //         $cut = mb_substr($text, 0, 97);
+    //         $lastSpace = mb_strrpos($cut, ' ');
+    //         if ($lastSpace !== false) {
+    //             $cut = mb_substr($cut, 0, $lastSpace);
+    //         }
+    //         return rtrim($cut, '.,;') . '.';
+    //     }
 
-        return rtrim($text, '.') . '.';
-    }
+    //     return rtrim($text, '.') . '.';
+    // }
 
     /**
      * Ekstrak frasa inti dari kalimat panjang (untuk dipakai setelah "Perlu peningkatan").
@@ -1630,7 +1630,7 @@ Your output will be converted to Word document, so it must be clean, professiona
         $prompt = "Kamu adalah penulis laporan Gugus Kendali Mutu (GKM) profesional.\n";
         $prompt .= "Tulis dengan gaya formal Indonesia, berdasarkan data hasil kuesioner mahasiswa.\n\n";
 
-        $prompt .= "KONTEKS DOKUMEN:\n" . substr($context, 0, 10000) . "\n\n";
+        $prompt .= "KONTEKS DOKUMEN:\n" . substr($context, 0, 60000) . "\n\n";
 
         $prompt .= "TUGAS:\n";
         $prompt .= "Hasilkan konten laporan dalam format JSON dengan kunci-kunci berikut SESUAI TEMPLATE:\n\n";
@@ -1762,7 +1762,7 @@ If you cannot generate valid JSON, return this fallback:
 
         // Reduce max_tokens to 8000 to avoid exceeding model limits
         // Groq llama-3.3-70b has 128k context but response is limited
-        $aiResponse = $this->callAI($systemMessage, $prompt, 8000);
+        $aiResponse = $this->callAI($systemMessage, $prompt, 4000);
 
         if (!$aiResponse) {
             Log::error('AI failed to produce a response');

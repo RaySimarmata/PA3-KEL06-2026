@@ -2,7 +2,7 @@
 
 namespace App\Services;
 
-use App\Models\AIResponseCache;
+use App\Models\AIResponseCacheMongo;
 use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
 
@@ -10,24 +10,26 @@ class AICacheService
 {
     private float $defaultSimilarityThreshold = 0.85;
     private int $maxCacheAge = 30; // days
-    
+
     /**
      * Check if there's a cached response for the given prompt and context
      */
     public function getCachedResponse(string $prompt, array $context = []): ?array
     {
         try {
+
             // Generate cache key for exact match
-            $cacheKey = AIResponseCache::generateCacheKey($prompt, $context);
-            
+            $cacheKey = AIResponseCacheMongo::generateCacheKey($prompt, $context);
+
             // Try exact match first
-            $cached = AIResponseCache::where('cache_key', $cacheKey)
+            $cached = AIResponseCacheMongo::where('cache_key', $cacheKey)
                 ->where('created_at', '>', Carbon::now()->subDays($this->maxCacheAge))
                 ->first();
 
             if ($cached) {
+
                 $cached->incrementUsage();
-                
+
                 Log::info('AI Cache: Exact match found', [
                     'cache_id' => $cached->id,
                     'usage_count' => $cached->usage_count,
@@ -47,12 +49,21 @@ class AICacheService
             }
 
             // Try similarity match
-            $similarCached = AIResponseCache::findSimilar($prompt, $context, $this->defaultSimilarityThreshold);
-            
+            $similarCached = AIResponseCacheMongo::findSimilar(
+                $prompt,
+                $context,
+                $this->defaultSimilarityThreshold
+            );
+
             if ($similarCached) {
-                $similarity = AIResponseCache::calculateSimilarity($prompt, $similarCached->original_prompt);
+
+                $similarity = AIResponseCacheMongo::calculateSimilarity(
+                    $prompt,
+                    $similarCached->original_prompt
+                );
+
                 $similarCached->incrementUsage();
-                
+
                 Log::info('AI Cache: Similar match found', [
                     'cache_id' => $similarCached->id,
                     'similarity' => $similarity,
@@ -81,11 +92,12 @@ class AICacheService
             return null;
 
         } catch (\Exception $e) {
+
             Log::error('AI Cache: Error retrieving cached response', [
                 'error' => $e->getMessage(),
                 'prompt_preview' => substr($prompt, 0, 100) . '...'
             ]);
-            
+
             return null;
         }
     }
@@ -94,28 +106,34 @@ class AICacheService
      * Cache a new AI response
      */
     public function cacheResponse(
-        string $prompt, 
-        array $context, 
-        string $response, 
-        string $provider, 
+        string $prompt,
+        array $context,
+        string $response,
+        string $provider,
         string $model
     ): bool {
+
         try {
-            $cacheKey = AIResponseCache::generateCacheKey($prompt, $context);
-            $promptHash = AIResponseCache::generatePromptHash($prompt);
+
+            $cacheKey = AIResponseCacheMongo::generateCacheKey($prompt, $context);
+
+            $promptHash = AIResponseCacheMongo::generatePromptHash($prompt);
 
             // Check if already exists (avoid duplicates)
-            $existing = AIResponseCache::where('cache_key', $cacheKey)->first();
+            $existing = AIResponseCacheMongo::where('cache_key', $cacheKey)->first();
+
             if ($existing) {
+
                 Log::info('AI Cache: Response already cached', [
                     'cache_id' => $existing->id,
                     'prompt_preview' => substr($prompt, 0, 100) . '...'
                 ]);
+
                 return true;
             }
 
             // Create new cache entry
-            $cached = AIResponseCache::create([
+            $cached = AIResponseCacheMongo::create([
                 'cache_key' => $cacheKey,
                 'prompt_hash' => $promptHash,
                 'original_prompt' => $prompt,
@@ -140,13 +158,14 @@ class AICacheService
             return true;
 
         } catch (\Exception $e) {
+
             Log::error('AI Cache: Error caching response', [
                 'error' => $e->getMessage(),
                 'prompt_preview' => substr($prompt, 0, 100) . '...',
                 'provider' => $provider,
                 'model' => $model
             ]);
-            
+
             return false;
         }
     }
@@ -157,8 +176,9 @@ class AICacheService
     public function cleanOldEntries(): int
     {
         try {
-            $deleted = AIResponseCache::cleanOldEntries($this->maxCacheAge);
-            
+
+            $deleted = AIResponseCacheMongo::cleanOldEntries($this->maxCacheAge);
+
             Log::info('AI Cache: Cleaned old entries', [
                 'deleted_count' => $deleted,
                 'max_age_days' => $this->maxCacheAge
@@ -167,10 +187,11 @@ class AICacheService
             return $deleted;
 
         } catch (\Exception $e) {
+
             Log::error('AI Cache: Error cleaning old entries', [
                 'error' => $e->getMessage()
             ]);
-            
+
             return 0;
         }
     }
@@ -181,12 +202,15 @@ class AICacheService
     public function getStatistics(): array
     {
         try {
-            return AIResponseCache::getStatistics();
+
+            return AIResponseCacheMongo::getStatistics();
+
         } catch (\Exception $e) {
+
             Log::error('AI Cache: Error getting statistics', [
                 'error' => $e->getMessage()
             ]);
-            
+
             return [
                 'total_entries' => 0,
                 'total_usage' => 0,
@@ -198,19 +222,24 @@ class AICacheService
     }
 
     /**
-     * Invalidate cache for specific context (e.g., when template changes)
+     * Invalidate cache for specific context
      */
     public function invalidateByContext(array $contextFilter): int
     {
         try {
-            $query = AIResponseCache::query();
-            
+
+            $query = AIResponseCacheMongo::query();
+
             foreach ($contextFilter as $key => $value) {
-                $query->whereJsonContains('context_metadata->' . $key, $value);
+
+                $query->where(
+                    'context_metadata.' . $key,
+                    $value
+                );
             }
-            
+
             $deleted = $query->delete();
-            
+
             Log::info('AI Cache: Invalidated cache by context', [
                 'context_filter' => $contextFilter,
                 'deleted_count' => $deleted
@@ -219,11 +248,12 @@ class AICacheService
             return $deleted;
 
         } catch (\Exception $e) {
+
             Log::error('AI Cache: Error invalidating cache by context', [
                 'error' => $e->getMessage(),
                 'context_filter' => $contextFilter
             ]);
-            
+
             return 0;
         }
     }

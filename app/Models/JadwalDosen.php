@@ -17,6 +17,8 @@ class JadwalDosen extends Model
         'kuliah_id',
         'semester',
         'tahun_ajaran',
+        'kelas',
+        'is_manual',
     ];
 
     /**

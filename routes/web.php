@@ -4,6 +4,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\GKM\DashboardController as GKMDashboardController;
 use App\Http\Controllers\GKM\DataMasterController;
+use App\Http\Controllers\GKM\DataMasterApiController;
 use App\Http\Controllers\GKM\MonitoringRPSController;
 use App\Http\Controllers\GKM\MonitoringPerkuliahanController;
 use App\Http\Controllers\GKM\MonitoringKuesioneController;
@@ -26,6 +27,7 @@ use App\Http\Controllers\GJM\LaporanTriwulanController;
 use App\Http\Controllers\GJM\PromptTriwulanController;
 use App\Http\Controllers\GJM\OCRUploadController;
 use App\Http\Controllers\PeriodeAkademikController;
+use App\Models\AIResponseCacheMongo;
 
 // Auth Routes
 Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
@@ -33,6 +35,27 @@ Route::post('/login', [AuthController::class, 'login'])->name('login.store');
 Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 Route::get('/register', [AuthController::class, 'showRegister'])->name('register');
 Route::post('/register', [AuthController::class, 'register'])->name('register.store');
+
+Route::get('/test-mongo', function () {
+
+    AIResponseCacheMongo::create([
+        'cache_key' => 'test123',
+        'prompt_hash' => 'hash123',
+        'original_prompt' => 'berapa dosen belum upload rps',
+        'context_metadata' => [
+            'prodi' => 'IF'
+        ],
+        'ai_response' => '12 dosen belum upload',
+        'ai_provider' => 'groq',
+        'ai_model' => 'llama3',
+        'usage_count' => 1,
+        'last_used_at' => now(),
+        'response_length' => 100,
+        'similarity_threshold' => 0.85,
+    ]);
+
+    return 'MongoDB berhasil';
+});
 
 Route::middleware('auth')->group(function () {
     Route::get('/', function () {
@@ -54,36 +77,107 @@ Route::middleware('auth')->group(function () {
     });
         // Data Master
         Route::prefix('data-master')->name('data-master.')->group(function () {
-            Route::get('/', [DataMasterController::class, 'index'])->name('index');
-            Route::get('/penugasan-dosen', [DataMasterController::class, 'penugasanDosen'])->name('penugasan-dosen');
-            Route::get('/dosen-pengajar', [DataMasterController::class, 'dosenPengajar'])->name('dosen');
-            Route::post('/dosen-pengajar', [DataMasterController::class, 'storeDosen'])->name('dosen.store');
-            Route::put('/dosen-pengajar/{id}', [DataMasterController::class, 'updateDosen'])->name('dosen.update');
-            Route::delete('/dosen-pengajar/{id}', [DataMasterController::class, 'destroyDosen'])->name('dosen.destroy');
-            Route::get('/matakuliah', [DataMasterController::class, 'matakuliah'])->name('matakuliah');
-            Route::post('/dosen/update-email', [DataMasterController::class, 'updateEmail'])
-    ->name('dosen.update.email');
-            Route::post('/matakuliah', [DataMasterController::class, 'storeMatakuliah'])->name('matakuliah.store');
-            Route::put('/matakuliah/{id}', [DataMasterController::class, 'updateMatakuliah'])->name('matakuliah.update');
-            Route::delete('/matakuliah/{id}', [DataMasterController::class, 'destroyMatakuliah'])->name('matakuliah.destroy');
-            Route::get('/periode-akademik', [DataMasterController::class, 'periodeAkademik'])->name('periode');
-            Route::post('/periode-akademik', [DataMasterController::class, 'storePeriode'])->name('periode.store');
-            Route::put('/periode-akademik/{id}', [DataMasterController::class, 'updatePeriode'])->name('periode.update');
-            Route::delete('/periode-akademik/{id}', [DataMasterController::class, 'destroyPeriode'])->name('periode.destroy');
-            Route::post('/periode-akademik/{id}/activate', [DataMasterController::class, 'activatePeriode'])->name('periode.activate');
-            Route::get('/kelas', [DataMasterController::class, 'kelas'])->name('kelas');
-            Route::post('/kelas', [DataMasterController::class, 'storeKelas'])->name('kelas.store');
-            Route::put('/kelas/{id}', [DataMasterController::class, 'updateKelas'])->name('kelas.update');
-            Route::delete('/kelas/{id}', [DataMasterController::class, 'destroyKelas'])->name('kelas.destroy');
-            Route::get('/template-laporan', [DataMasterController::class, 'templateLaporan'])->name('template');
-            Route::post('/template-laporan', [DataMasterController::class, 'storeTemplate'])->name('template.store');
-            Route::get('/template-laporan/{id}/download', [DataMasterController::class, 'downloadTemplate'])->name('template.download');
-            Route::delete('/template-laporan/{id}', [DataMasterController::class, 'destroyTemplate'])->name('template.destroy');
-            Route::get('/periodeA', [PeriodeAkademikController::class, 'index'])->name('periodeA');
-            Route::post('/periodeA', [PeriodeAkademikController::class, 'store'])->name('periodeA.store');
-            Route::get('/periode/active', [PeriodeAkademikController::class, 'getActive'])->name('periode.active');
-        });
 
+    Route::get('/', [DataMasterController::class, 'index'])->name('index');
+
+    Route::get('/penugasan-dosen', [DataMasterController::class, 'penugasanDosen'])
+        ->name('penugasan-dosen');
+
+    Route::get('/dosen-pengajar', [DataMasterController::class, 'dosenPengajar'])
+        ->name('dosen');
+
+    Route::post('/dosen-pengajar', [DataMasterController::class, 'storeDosen'])
+        ->name('dosen.store');
+
+    Route::put('/dosen-pengajar/{id}', [DataMasterController::class, 'updateDosen'])
+        ->name('dosen.update');
+
+    Route::delete('/dosen-pengajar/{id}', [DataMasterController::class, 'destroyDosen'])
+        ->name('dosen.destroy');
+
+    /*
+    |--------------------------------------------------------------------------
+    | MASTER MATAKULIAH
+    |--------------------------------------------------------------------------
+    */
+
+    Route::get('/matakuliah', [DataMasterApiController::class, 'Dmatakuliah'])
+        ->name('matakuliah');
+
+    Route::get(
+    '/matakuliah/{kodeMk}/detail',
+    [DataMasterApiController::class, 'detailMatakuliah']
+)->name('matakuliah.detail');
+
+    Route::post('/matakuliah/dosen/store', [DataMasterApiController::class, 'storeDosenMatkul'])
+        ->name('matakuliah.dosen.store');
+
+    Route::delete('/matakuliah/dosen/delete', [DataMasterApiController::class, 'deleteDosenMatkul'])
+        ->name('matakuliah.dosen.delete');
+
+    Route::post('/dosen/update-email', [DataMasterApiController::class, 'updateEmail'])
+        ->name('dosen.update.email');
+
+    Route::post('/matakuliah', [DataMasterApiController::class, 'storeMatakuliah'])
+        ->name('matakuliah.store'); 
+
+    Route::put('/matakuliah/{id}', [DataMasterApiController::class, 'updateMatakuliah'])
+        ->name('matakuliah.update');
+
+    Route::delete('/matakuliah/{id}', [DataMasterApiController::class, 'destroyMatakuliah'])
+        ->name('matakuliah.destroy');
+
+    Route::get('/periode-akademik', [DataMasterController::class, 'periodeAkademik'])
+        ->name('periode');
+
+    Route::post('/periode-akademik', [DataMasterController::class, 'storePeriode'])
+        ->name('periode.store');
+
+    Route::put('/periode-akademik/{id}', [DataMasterController::class, 'updatePeriode'])
+        ->name('periode.update');
+
+    Route::delete('/periode-akademik/{id}', [DataMasterController::class, 'destroyPeriode'])
+        ->name('periode.destroy');
+
+    Route::post('/periode-akademik/{id}/activate', [DataMasterController::class, 'activatePeriode'])
+        ->name('periode.activate');
+
+    Route::get('/kelas', [DataMasterController::class, 'kelas'])
+        ->name('kelas');
+
+    Route::post('/kelas', [DataMasterController::class, 'storeKelas'])
+        ->name('kelas.store');
+
+    Route::put('/kelas/{id}', [DataMasterController::class, 'updateKelas'])
+        ->name('kelas.update');
+
+    Route::delete('/kelas/{id}', [DataMasterController::class, 'destroyKelas'])
+        ->name('kelas.destroy');
+
+    Route::get('/template-laporan', [DataMasterController::class, 'templateLaporan'])
+        ->name('template');
+
+    Route::post('/template-laporan', [DataMasterController::class, 'storeTemplate'])
+        ->name('template.store');
+
+    Route::get('/template-laporan/{id}/download', [DataMasterController::class, 'downloadTemplate'])
+        ->name('template.download');
+
+    Route::delete('/template-laporan/{id}', [DataMasterController::class, 'destroyTemplate'])
+        ->name('template.destroy');
+
+    Route::get('/periodeA', [PeriodeAkademikController::class, 'index'])
+        ->name('periodeA');
+
+    Route::post('/periodeA', [PeriodeAkademikController::class, 'store'])
+        ->name('periodeA.store');
+
+    Route::post('/periodeA/{id}/aktifkan', [PeriodeAkademikController::class, 'setActive'])
+        ->name('periodeA.aktifkan');
+
+    Route::get('/periode/active', [PeriodeAkademikController::class, 'getActive'])
+        ->name('periode.active');
+});
         // Monitoring RPS & Materi
         Route::prefix('monitoring-rps')->name('monitoring-rps.')->group(function () {
             Route::get('/', [MonitoringRPSController::class, 'index'])->name('index');
@@ -112,24 +206,28 @@ Route::middleware('auth')->group(function () {
 
         // Monitoring Kuesioner
         Route::prefix('monitoring-kuesioner')->name('monitoring-kuesioner.')->group(function () {
+
+
+
             Route::get('/', [MonitoringKuesioneController::class, 'index'])->name('index');
              Route::get('/create-api', [MonitoringKuesioneController::class, 'indexApi'])->name('create-api');
     Route::post('/process-api', [MonitoringKuesioneController::class, 'processFromApi'])->name('processFromApi');
     // 🔹 list mata kuliah (filter TA + semester)
     Route::get('/create-api', [MonitoringKuesioneController::class, 'indexApi'])
         ->name('create-api');
+        Route::post('/create-api/sync-semester', [MonitoringKuesioneController::class, 'syncSemuaKuesioner'])->name('sync-semester');
 
     // 🔹 API untuk pencarian matakuliah
     Route::get('/api/search-matkul', [MonitoringKuesioneController::class, 'searchMatkul'])
-        ->name('api.search-matkul');
-
+        ->name('api.search-matkul');    
     // 🔹 list kuesioner per mata kuliah
     Route::get('/kuesioner', [MonitoringKuesioneController::class, 'listKuesioner'])
         ->name('listKuesioner');
 
             Route::get('/create', [MonitoringKuesioneController::class, 'create'])->name('create');
             Route::post('/store', [MonitoringKuesioneController::class, 'store'])->name('store');
-            Route::get('/{id}', [MonitoringKuesioneController::class, 'show'])->name('show');
+            // Route::get('/{id}', [MonitoringKuesioneController::class, 'show'])->name('show');
+            Route::get('/{id}',[MonitoringKuesioneController::class, 'showKuesioner'])->name('showa');
             Route::delete('/{id}', [MonitoringKuesioneController::class, 'destroy'])->name('destroy');
             Route::get('/{id}/report', [MonitoringKuesioneController::class, 'generateReport'])->name('report');
         });
@@ -208,6 +306,7 @@ Route::middleware('auth')->group(function () {
     // GJM Routes
     Route::prefix('gjm')->name('gjm.')->group(function () {
         Route::get('/dashboard', [GJMDashboardController::class, 'index'])->name('dashboard');
+        Route::post('/analisis', [GjmDashboardController::class, 'analisis'])->name('analisis');
 
         // Test AI endpoint
         Route::post('/test-ai', function(Request $request) {

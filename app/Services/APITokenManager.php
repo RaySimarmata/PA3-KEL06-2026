@@ -16,9 +16,9 @@ class APITokenManager
 
     public function __construct()
     {
-        $this->baseUrl = env('API_BASE_URL', 'http://localhost');
-        $this->username = env('API_USERNAME');
-        $this->password = env('API_PASSWORD');
+        $this->baseUrl = env('LIBRARY_API_URL', 'https://cis.del.ac.id/api');
+        $this->username = env('LIBRARY_API_USERNAME');
+        $this->password = env('LIBRARY_API_PASSWORD');
     }
 
     /**

@@ -527,4 +527,638 @@ class DataMasterApiController extends Controller
             ], 500);
         }
     }
+      /**
+ * =========================================================
+ * MASTER DATA MATAKULIAH
+ * =========================================================
+ */
+
+/**
+ * LIST MATAKULIAH
+ */
+public function Dmatakuliah(Request $request)
+{
+    try {
+
+        $user = Auth::user();
+
+        $baseUrl = config('services.library.url');
+
+        /*
+        |--------------------------------------------------------------------------
+        | PERIODE AKADEMIK AKTIF
+        |--------------------------------------------------------------------------
+        */
+        $periodeAktif = \App\Models\PeriodeAkademik::where('is_active', true)
+            ->first();
+
+        /*
+        |--------------------------------------------------------------------------
+        | DEFAULT FILTER
+        |--------------------------------------------------------------------------
+        */
+        $ta = $request->ta;
+
+        $semester = $request->semester;
+
+        /*
+        |--------------------------------------------------------------------------
+        | JIKA FILTER BELUM DIPILIH
+        | MAKA PAKAI PERIODE AKTIF
+        |--------------------------------------------------------------------------
+        */
+        if (!$ta || !$semester) {
+
+            if ($periodeAktif) {
+
+                $ta = $periodeAktif->tahun_ajaran;
+
+                $semester = $periodeAktif->semester;
+
+            } else {
+
+                $ta = date('Y');
+
+                $semester = 1;
+            }
+        }
+
+        $selectedTingkat = $request->tingkat ?? 1;
+
+        /*
+        |--------------------------------------------------------------------------
+        | MAP PRODI GKM LOGIN
+        |--------------------------------------------------------------------------
+        */
+        $prodiKode = $user->prodi->kode_prodi ?? 'TRPL';
+
+        $prodiIdMap = [
+            'TRPL' => 4,
+            'TI'   => 1,
+            'SI'   => 2,
+            'NM'   => 3,
+        ];
+
+        $prodiId = $prodiIdMap[$prodiKode] ?? 4;
+
+        /*
+        |--------------------------------------------------------------------------
+        | AMBIL DATA MATKUL DARI API
+        |--------------------------------------------------------------------------
+        */
+        $response = $this->callApi(
+            $baseUrl . '/library-api/matkul-by-prodi-sem-ta',
+            [
+                'prodi_id' => $prodiId,
+                'sem_ta'   => $semester,
+                'ta'       => $ta
+            ]
+        );
+
+        $matakuliahList = $response['data'] ?? [];
+
+        // /*
+        // |--------------------------------------------------------------------------
+        // | FILTER TINGKAT
+        // |--------------------------------------------------------------------------
+        // */
+        // if (!empty($selectedTingkat)) {
+
+        //     $matakuliahList = array_filter($matakuliahList, function ($mk) use ($selectedTingkat) {
+
+        //         $kodeMk = (string) ($mk['kode_mk'] ?? '');
+
+        //         if (strlen($kodeMk) < 5) {
+        //             return false;
+        //         }
+
+        //         /*
+        //         |--------------------------------------------------------------------------
+        //         | CONTOH:
+        //         | IF214 => tingkat 2
+        //         | IF314 => tingkat 3
+        //         |--------------------------------------------------------------------------
+        //         */
+        //         $tingkatMk = substr($kodeMk, 3, 1);
+
+        //         return $tingkatMk == $selectedTingkat;
+        //     });
+        // }
+
+        /*
+|--------------------------------------------------------------------------
+| FILTER TINGKAT & SEMESTER BERDASARKAN KODE MK
+|--------------------------------------------------------------------------
+// *//*
+|--------------------------------------------------------------------------
+| FILTER TINGKAT & SEMESTER BERDASARKAN KODE MK
+|--------------------------------------------------------------------------
+*/
+if (!empty($selectedTingkat)) {
+
+    $matakuliahList = array_filter($matakuliahList, function ($mk) use ($selectedTingkat, $semester) {
+
+        $kodeMk = strtoupper(trim($mk['kode_mk'] ?? ''));
+
+        // minimal panjang kode
+        if (strlen($kodeMk) < 5) {
+            return false;
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | CONTOH:
+        | KU41205
+        |
+        | index 0 = K
+        | index 1 = U
+        | index 2 = 4
+        | index 3 = 1  -> tingkat
+        | index 4 = 2  -> semester
+        |--------------------------------------------------------------------------
+        */
+
+        // digit tingkat
+        $tingkatMk = substr($kodeMk, 3, 1);
+
+        // digit semester
+        $semesterMk = (int) substr($kodeMk, 4, 1);
+
+        /*
+        |--------------------------------------------------------------------------
+        | FILTER GANJIL / GENAP
+        |--------------------------------------------------------------------------
+        */
+        $isSemesterRequestGenap = $semester % 2 == 0;
+        $isSemesterMkGenap = $semesterMk % 2 == 0;
+
+        return
+            $tingkatMk == $selectedTingkat
+            &&
+            $isSemesterRequestGenap == $isSemesterMkGenap;
+    });
+}
+        /*
+        |--------------------------------------------------------------------------
+        | SEARCH
+        |--------------------------------------------------------------------------
+        */
+        if ($request->search) {
+
+            $search = strtolower($request->search);
+
+            $matakuliahList = array_filter($matakuliahList, function ($mk) use ($search) {
+
+                return
+                    str_contains(
+                        strtolower($mk['nama_matkul'] ?? ''),
+                        $search
+                    )
+                    ||
+                    str_contains(
+                        strtolower($mk['kode_mk'] ?? ''),
+                        $search
+                    );
+            });
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | SORT
+        |--------------------------------------------------------------------------
+        */
+        usort($matakuliahList, function ($a, $b) {
+
+            return strcmp(
+                $a['nama_matkul'] ?? '',
+                $b['nama_matkul'] ?? ''
+            );
+        });
+
+        return view('gkm.data-master.matakuliah', [
+            'user'             => $user,
+            'matakuliahList'   => $matakuliahList,
+            'ta'               => $ta,
+            'semester'         => $semester,
+            'selectedTingkat'  => $selectedTingkat,
+            'prodiKode'        => $prodiKode,
+            'prodiId'          => $prodiId,
+            'periodeAktif'     => $periodeAktif
+        ]);
+
+    } catch (\Exception $e) {
+
+        Log::error('MASTER MATKUL ERROR', [
+            'message' => $e->getMessage()
+        ]);
+
+        return back()->with('error', 'Gagal mengambil data matakuliah');
+    }
+}
+
+/**
+ * DETAIL MATAKULIAH
+ */
+public function detailMatakuliah($kodeMk, Request $request)
+{
+    try {
+
+        $user = Auth::user();
+
+        $baseUrl = config('services.library.url');
+
+        /*
+        |--------------------------------------------------------------------------
+        | PERIODE AKADEMIK AKTIF
+        |--------------------------------------------------------------------------
+        */
+        $periodeAktif = \App\Models\PeriodeAkademik::where('is_active', true)
+            ->first();
+
+        /*
+        |--------------------------------------------------------------------------
+        | DEFAULT FILTER
+        |--------------------------------------------------------------------------
+        */
+        $ta = $request->ta;
+
+        $semester = $request->semester;
+
+        /*
+        |--------------------------------------------------------------------------
+        | JIKA FILTER KOSONG
+        |--------------------------------------------------------------------------
+        */
+        if (!$ta || !$semester) {
+
+            if ($periodeAktif) {
+
+                $ta = $periodeAktif->tahun_ajaran;
+
+                $semester = $periodeAktif->semester;
+
+            } else {
+
+                $ta = date('Y');
+
+                $semester = 1;
+            }
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | MAP PRODI LOGIN
+        |--------------------------------------------------------------------------
+        */
+        $prodiKode = $user->prodi->kode_prodi ?? 'TRPL';
+
+        $prodiIdMap = [
+            'TRPL' => 4,
+            'TI'   => 1,
+            'NM'   => 3,
+        ];
+
+        $prodiId = $prodiIdMap[$prodiKode] ?? 4;
+
+        $prodiClassMap = [
+    'TRPL' => 'TRPL',
+    'TI'   => 'TI',
+    'NM'   => 'TK',
+];
+$classCode = $prodiClassMap[$prodiKode] ?? 'TRPL';
+
+        /*
+        |--------------------------------------------------------------------------
+        | AMBIL DATA MATKUL DARI API
+        |--------------------------------------------------------------------------
+        */
+        $response = $this->callApi(
+            $baseUrl . '/library-api/matkul-by-prodi-sem-ta',
+            [
+                'prodi_id' => $prodiId,
+                'sem_ta'   => $semester,
+                'ta'       => $ta
+            ]
+        );
+
+        $matkulList = $response['data'] ?? [];
+
+        /*
+        |--------------------------------------------------------------------------
+        | CARI MATAKULIAH
+        |--------------------------------------------------------------------------
+        */
+        $matkul = collect($matkulList)
+            ->first(function ($item) use ($kodeMk) {
+
+                return strtoupper(
+                    trim((string) ($item['kode_mk'] ?? ''))
+                ) === strtoupper(
+                    trim((string) $kodeMk)
+                );
+            });
+
+        /*
+        |--------------------------------------------------------------------------
+        | JIKA TIDAK DITEMUKAN
+        |--------------------------------------------------------------------------
+        */
+        if (!$matkul) {
+
+            return back()->with(
+                'error',
+                'Matakuliah tidak ditemukan'
+            );
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | DOSEN PENGAJAR DARI DATABASE HASIL SYNC
+        |--------------------------------------------------------------------------
+        */
+       $dosenPengajar = \DB::table('jadwal_dosen as jd')
+
+    ->leftJoin('dosenn as d', function ($join) {
+
+        $join->on(
+            \DB::raw('TRIM(jd.pegawai_id)'),
+            '=',
+            \DB::raw('TRIM(d.pegawai_id)')
+        );
+    })
+
+    ->whereNotNull('d.jabatan_akademik')
+
+    ->whereRaw("
+        TRIM(UPPER(d.jabatan_akademik)) <> 'A'
+    ")
+
+    /*
+    |--------------------------------------------------------------------------
+    | FILTER KODE MATAKULIAH
+    |--------------------------------------------------------------------------
+    */
+    ->whereRaw(
+        'UPPER(TRIM(jd.kode_mk)) = ?',
+        [strtoupper(trim($kodeMk))]
+    )
+
+    /*
+    |--------------------------------------------------------------------------
+    | FILTER PERIODE AKADEMIK
+    |--------------------------------------------------------------------------
+    */
+    ->where('jd.semester', $semester)
+
+    ->where('jd.tahun_ajaran', $ta)
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | FILTER KELAS SESUAI PRODI
+    |--------------------------------------------------------------------------
+    | CONTOH:
+    | TRPL => 41TRPL1
+    | TI   => 32TI2
+    |--------------------------------------------------------------------------
+    */
+    ->where(function ($query) use ($classCode, $kodeMk) {
+
+    $query->where(function ($q) use ($classCode) {
+
+        // data hasil sync API
+        $q->where('jd.kelas', 'LIKE', '%' . $classCode . '%');
+    })
+
+    ->orWhere(function ($q) use ($kodeMk) {
+
+        // data manual HARUS tetap per matkul
+        $q->where('jd.is_manual', true)
+          ->where('jd.kode_mk', $kodeMk);
+    });
+})
+
+    /*
+    |--------------------------------------------------------------------------
+    | HANYA DOSEN YANG PUNYA DATA
+    |--------------------------------------------------------------------------
+    */
+    ->whereNotNull('jd.pegawai_id')
+
+    /*
+    |--------------------------------------------------------------------------
+    | SELECT
+    |--------------------------------------------------------------------------
+    */
+    ->select(
+        'jd.pegawai_id',
+
+        \DB::raw('MAX(jd.kelas) as kelas'),
+        \DB::raw('MAX(jd.created_at) as last_created_at'),
+
+        \DB::raw('COALESCE(d.nama, "-") as nama'),
+
+        \DB::raw('COALESCE(d.email, "-") as email'),
+
+        \DB::raw('COALESCE(d.nidn, "-") as nidn'),
+
+        'd.prodi_id'
+    )
+
+    /*
+    |--------------------------------------------------------------------------
+    | GROUP AGAR DOSEN TIDAK DUPLIKAT
+    |--------------------------------------------------------------------------
+    */
+    ->groupBy(
+        'jd.pegawai_id',
+        'd.nama',
+        'd.email',
+        'd.nidn',
+        'd.prodi_id'
+    )
+
+    ->orderBy('last_created_at', 'asc')
+
+    ->get();
+
+        /*
+        |--------------------------------------------------------------------------
+        | LIST DOSEN UNTUK MODAL TAMBAH DOSEN
+        |--------------------------------------------------------------------------
+        */
+        $dosenList = \App\Models\Dosenn::
+    whereNotNull('pegawai_id')
+    ->whereNotNull('nama')
+    ->select(
+        'pegawai_id',
+        'nama',
+        'email',
+        'nidn',
+        'jabatan_akademik'
+    )
+    ->orderBy('nama')
+    ->get()
+    ->toArray();
+
+        return view('gkm.data-master.matakuliah-detail', [
+            'user'           => $user,
+            'matkul'         => $matkul,
+            'dosenPengajar'  => $dosenPengajar,
+            'dosenList'      => $dosenList,
+            'ta'             => $ta,
+            'semester'       => $semester,
+            'prodiId'        => $prodiId,
+            'prodiKode'      => $prodiKode
+        ]);
+
+    } catch (\Exception $e) {
+
+        Log::error('DETAIL MATKUL ERROR', [
+            'message' => $e->getMessage()
+        ]);
+
+        return back()->with(
+            'error',
+            'Gagal mengambil detail matakuliah'
+        );
+    }
+}
+/**
+ * TAMBAH DOSEN KE MATKUL
+ */
+/**
+ * TAMBAH DOSEN KE MATAKULIAH
+ */
+public function storeDosenMatkul(Request $request)
+{
+    try {
+
+        /*
+        |------------------------------------------------------------------
+        | VALIDASI
+        |------------------------------------------------------------------
+        */
+        $request->validate([
+            'kode_mk'    => 'required',
+            'pegawai_id' => 'required',
+            'nama_dosen' => 'required'
+        ]);
+
+        /*
+        |------------------------------------------------------------------
+        | AMBIL PERIODE AKADEMIK AKTIF
+        |------------------------------------------------------------------
+        */
+        $periodeAktif = \App\Models\PeriodeAkademik::where('is_active', true)
+            ->first();
+
+        if (!$periodeAktif) {
+
+            return back()->with(
+                'error',
+                'Periode akademik aktif tidak ditemukan'
+            );
+        }
+
+        /*
+        |------------------------------------------------------------------
+        | CEK DUPLIKAT
+        |------------------------------------------------------------------
+        */
+        $exists = \App\Models\JadwalDosen::where('kode_mk', $request->kode_mk)
+
+            ->where('pegawai_id', $request->pegawai_id)
+
+            ->where('semester', $periodeAktif->semester)
+
+            ->where('tahun_ajaran', $periodeAktif->tahun_ajaran)
+
+            ->exists();
+
+        if ($exists) {
+
+            return back()->with(
+                'error',
+                'Dosen sudah ada pada matakuliah ini'
+            );
+        }
+
+        /*
+        |------------------------------------------------------------------
+        | SIMPAN KE JADWAL_DOSEN
+        |------------------------------------------------------------------
+        */
+        \App\Models\JadwalDosen::create([
+
+            'pegawai_id'   => $request->pegawai_id,
+
+            'kode_mk'      => $request->kode_mk,
+
+            'semester'     => $periodeAktif->semester,
+
+            'tahun_ajaran' => $periodeAktif->tahun_ajaran,
+
+            /*
+            |--------------------------------------------------------------
+            | DATA MANUAL
+            |--------------------------------------------------------------
+            */
+            'kelas'        => null,
+
+            'kuliah_id'    => null,
+
+            'is_manual'    => true,
+        ]);
+
+        return back()->with(
+            'success',
+            'Dosen berhasil ditambahkan'
+        );
+
+    } catch (\Exception $e) {
+
+        \Log::error('STORE DOSEN MATKUL ERROR', [
+            'message' => $e->getMessage()
+        ]);
+
+        return back()->with(
+            'error',
+            'Gagal menambahkan dosen'
+        );
+    }
+}
+
+/**
+ * HAPUS DOSEN DARI MATKUL
+ */
+/**
+ * HAPUS DOSEN DARI MATAKULIAH
+ */
+public function deleteDosenMatkul(Request $request)
+{
+    $request->validate([
+        'pegawai_id' => 'required',
+        'kode_mk'    => 'required',
+    ]);
+
+    $jadwal = \App\Models\JadwalDosen::where('pegawai_id', $request->pegawai_id)
+        ->where('kode_mk', $request->kode_mk)
+        ->first();
+
+    // 1. DATA TIDAK ADA
+    if (!$jadwal) {
+        return back()->with('error', 'Data dosen tidak ditemukan');
+    }
+
+    // 2. HASIL SYNC TIDAK BOLEH DIHAPUS
+    if ((int) $jadwal->is_manual === 0) {
+        return back()->with('error', 'Data hasil sinkronisasi tidak dapat dihapus');
+    }
+
+    // 3. HANYA MANUAL YANG BOLEH DIHAPUS
+    $jadwal->delete();
+
+    return back()->with('success', 'Dosen manual berhasil dihapus');
+}
 }

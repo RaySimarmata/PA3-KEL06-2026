@@ -300,7 +300,7 @@ class AIAgentService
         $jumlahPertanyaan = 0;
         
         foreach ($indexedData['statistik_per_pertanyaan'] as $qId => $stat) {
-            $totalResponden = $stat['total_responden'];
+            $totalResponden = $stat['total_responde n'];
             $nilaiRataRata = 0;
             
             if ($totalResponden > 0) {
