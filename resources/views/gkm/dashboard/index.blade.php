@@ -90,6 +90,12 @@
                         <i class="bi bi-send"></i> Kirim Reminder Materi Perkuliahan
                     </a>
                 </div>
+                <div class="col-12 col-sm-6 col-xl-3 mb-3">
+                    <a href="{{ route('gkm.dashboard.analytics') }}" class="btn btn-info w-100 py-3"
+                        style="display: flex; justify-content: center; align-items: center; gap: .5rem;">
+                        <i class="bi bi-graph-up"></i> Analytics Monitoring
+                    </a>
+                </div>
             </div>
         </div>
 

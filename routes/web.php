@@ -71,6 +71,7 @@ Route::middleware('auth')->group(function () {
     // GKM Routes
     Route::prefix('gkm')->name('gkm.')->group(function () {
         Route::get('/dashboard', [GKMDashboardController::class, 'index'])->name('dashboard');
+        Route::get('/dashboard/analytics', [GKMDashboardController::class, 'analytics'])->name('dashboard.analytics');
 
         Route::get('/sync-jadwal', function () {
         return app(\App\Http\Controllers\GKM\MonitoringRPSController::class)
@@ -197,12 +198,12 @@ Route::middleware('auth')->group(function () {
             Route::get('/kirim-pengingat', [MonitoringPerkuliahanController::class, 'kirimPengingat'])->name('kirim-pengingat');
             Route::get('/reminder-materi', [MonitoringPerkuliahanController::class, 'reminderMateri'])->name('materi');
             Route::post('/reminder-materi/send', [MonitoringPerkuliahanController::class, 'kirimReminderUploadMateri'])->name('materi.send');
+            Route::post('/reminder-materi/filter', [MonitoringPerkuliahanController::class, 'filterRemindersByMode'])->name('materi.filter');
             Route::post('/reminder-materi/generate', [MonitoringPerkuliahanController::class, 'generateMessageMateri'])->name('materi.generate');
             Route::get('/reminder-review-soal', [MonitoringPerkuliahanController::class, 'reminderReviewSoal'])->name('soal');
             Route::post('/reminder-review-soal/send', [MonitoringPerkuliahanController::class, 'kirimReminderReviewSoal'])->name('soal.send');
             Route::post('/reminder-review-soal/generate', [MonitoringPerkuliahanController::class, 'generateMessageSoal'])->name('soal.generate');
-            Route::get('/monitoring-perkuliahan/export', [MonitoringPerkuliahanController::class, 'exportPdf'])
-    ->name('export');
+                Route::get('/export', [MonitoringPerkuliahanController::class, 'exportPdf'])->name('export');
         });
 
         // Monitoring Kuesioner
@@ -311,6 +312,7 @@ Route::middleware('auth')->group(function () {
     Route::prefix('gjm')->name('gjm.')->group(function () {
         Route::get('/dashboard', [GJMDashboardController::class, 'index'])->name('dashboard');
         Route::post('/analisis', [GjmDashboardController::class, 'analisis'])->name('analisis');
+        Route::post('/clear-cache', [GJMDashboardController::class, 'clearCache'])->name('clear-cache');
 
         // Test AI endpoint
         Route::post('/test-ai', function(Request $request) {

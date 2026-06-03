@@ -20,9 +20,16 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
 use Barryvdh\DomPDF\Facade\Pdf;
 use App\Models\PeriodeAkademik;
+use App\Services\WhatsAppService;
 
 class MonitoringRPSController extends Controller
 {
+    public function __construct(
+    WhatsAppService $whatsappService
+) {
+    $this->whatsappService = $whatsappService;
+}
+
     public function index(Request $request)
 {
     set_time_limit(180);
@@ -79,6 +86,11 @@ class MonitoringRPSController extends Controller
 
         $prodiId = $prodiIdMap[$prodiKode] ?? 4;
 
+        \Log::info('PRODI USER', [
+    'user' => $user->name,
+    'prodi_kode' => $prodiKode,
+    'prodi_id' => $prodiId
+]);
         // =========================
         // CACHE
         // =========================
@@ -419,8 +431,14 @@ private function saveSnapshotToDB(
 
             // kalau tidak ada dosen tetap simpan 1 row
             if (empty($pegawaiIds)) {
-                $pegawaiIds = [null];
-            }
+
+    \Log::warning('Skip snapshot karena dosen tidak ditemukan', [
+        'kode_mk' => $data['kode_mk'],
+        'kuliah_id' => $data['kuliah_id']
+    ]);
+
+    continue;
+}
 
             foreach ($pegawaiIds as $pegawaiId) {
 
@@ -634,50 +652,92 @@ private function saveSnapshotToDB(
 
         foreach ($dosenList as $dosen) {
 
-            $email = $dosen->email ?? $dosen->kontak_email;
+    $email = $dosen->email ?? $dosen->kontak_email;
+    $nomorTelepon = $dosen->nomor_telepon ?? null;
 
-            if (!$email) {
-                $failedCount++;
-                continue;
-            }
+    try {
 
-            try {
-                Mail::to($email)->send(
-                    new ReminderRPSMail(
-                        $request->subject,
-                        $request->message,
-                        $dosen->nama ?? $dosen->nama_lengkap
-                    )
-                );
+        // =========================
+        // EMAIL
+        // =========================
+        if (!empty($email)) {
 
-                LogEmail::create([
-                    'reminder_id' => null,
-                    'penerima_email' => $email,
-                    'subjek' => $request->subject,
-                    'isi_email' => $request->message,
-                    'status_pengiriman' => 'success',
-                    'tanggal_pengiriman' => now(),
-                    'percobaan_kirim' => 1,
-                ]);
-
-                $successCount++;
-
-            } catch (\Exception $e) {
-
-                LogEmail::create([
-                    'reminder_id' => null,
-                    'penerima_email' => $email,
-                    'subjek' => $request->subject,
-                    'isi_email' => $request->message,
-                    'status_pengiriman' => 'failed',
-                    'pesan_error' => $e->getMessage(),
-                    'tanggal_pengiriman' => now(),
-                    'percobaan_kirim' => 1,
-                ]);
-
-                $failedCount++;
-            }
+            Mail::to($email)->send(
+                new ReminderRPSMail(
+                    $request->subject,
+                    $request->message,
+                    $dosen->nama ?? $dosen->nama_lengkap
+                )
+            );
         }
+
+        // =========================
+        // WHATSAPP
+        // =========================
+        if (!empty($nomorTelepon)) {
+
+            $pesanWa =
+                "*{$request->subject}*\n\n" .
+                $request->message;
+                \Log::info('WA TRY SEND', [
+    'nomor' => $nomorTelepon,
+    'pesan' => $pesanWa
+]);
+
+            $this->whatsappService->sendMessage(
+                $nomorTelepon,
+                $pesanWa
+            );
+        }
+
+        // =========================
+        // LOG
+        // =========================
+        LogEmail::create([
+            'reminder_id' => null,
+            'penerima_email' => $email,
+            'subjek' => $request->subject,
+            'isi_email' => $request->message,
+            'status_pengiriman' => 'success',
+            'tanggal_pengiriman' => now(),
+            'percobaan_kirim' => 1,
+        ]);
+
+        // =========================
+        // UPDATE STATUS REMINDER
+        // =========================
+        RpsMonitoringSnapshot::where('pegawai_id', $dosen->pegawai_id)
+            ->where('status_rps', 'BELUM UPLOAD')
+            ->update([
+                'reminder_sent' => true,
+                'updated_at' => now()
+            ]);
+
+        $successCount++;
+
+    } catch (\Exception $e) {
+
+        LogEmail::create([
+            'reminder_id' => null,
+            'penerima_email' => $email,
+            'subjek' => $request->subject,
+            'isi_email' => $request->message,
+            'status_pengiriman' => 'failed',
+            'pesan_error' => $e->getMessage(),
+            'tanggal_pengiriman' => now(),
+            'percobaan_kirim' => 1,
+        ]);
+
+        $failedCount++;
+
+        \Log::error('Reminder gagal', [
+            'pegawai_id' => $dosen->pegawai_id,
+            'email' => $email,
+            'nomor_telepon' => $nomorTelepon,
+            'error' => $e->getMessage()
+        ]);
+    }
+}
 
         RpsMonitoringSnapshot::where('pegawai_id', $dosen->pegawai_id)
     ->where('status_rps', 'BELUM UPLOAD')

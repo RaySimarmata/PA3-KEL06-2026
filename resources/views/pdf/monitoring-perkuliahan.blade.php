@@ -39,7 +39,15 @@
             <td>{{ $mk['nama'] }}</td>
             <td>{{ $mk['dosen'] }}</td>
             @foreach($mk['weeks'] as $w)
-                <td>{{ $w == 1 ? '1' : '0' }}</td>
+                <td>
+                    @if($w === 1 || $w === 2)
+                        1
+                    @elseif($w === 0)
+                        0
+                    @else
+                        0
+                    @endif
+                </td>
             @endforeach
         </tr>
         @endforeach
@@ -66,7 +74,15 @@
             <td>{{ $mk['nama'] }}</td>
             <td>{{ $mk['dosen'] }}</td>
             @foreach($mk['weeks'] as $w)
-                <td>{{ $w == 1 ? '1' : '0' }}</td>
+                <td>
+                    @if($w === 1 || $w === 2)
+                        1
+                    @elseif($w === 0)
+                        0
+                    @else
+                        0
+                    @endif
+                </td>
             @endforeach
         </tr>
         @endforeach

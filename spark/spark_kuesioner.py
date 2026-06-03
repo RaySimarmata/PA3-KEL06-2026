@@ -10,7 +10,9 @@ from pyspark.sql.functions import (
     regexp_replace,
     current_timestamp
 )
-
+from pymongo import MongoClient
+from datetime import datetime
+from pyspark.sql.functions import struct, array
 import shutil
 import tempfile
 
@@ -43,14 +45,44 @@ spark.sparkContext.setLogLevel("ERROR")
 # =========================
 # READ DATA MONGO
 # =========================
+pipeline = """
+[
+    {
+        "$match": {
+            "is_analyzed": false
+        }
+    }
+]
+"""
+
 df = spark.read \
     .format("mongodb") \
     .option("database", "gkm_chatbot") \
     .option("collection", "kuesioner_mongos") \
+    .option("aggregation.pipeline", pipeline) \
     .load()
 
-print("TOTAL KUESIONER:")
-print(df.count())
+total_data = df.count()
+
+print("TOTAL BELUM DIANALISIS:")
+print(total_data)
+
+# =========================
+# SIMPAN KUESIONER YANG DIPROSES
+# =========================
+kuesioner_ids = [
+    row["kuesioner_id"]
+    for row in df.select("kuesioner_id").distinct().collect()
+]
+
+print("KUESIONER YANG AKAN DIPROSES:")
+print(kuesioner_ids)
+
+if total_data == 0:
+    print("TIDAK ADA DATA BARU")
+    spark.stop()
+    shutil.rmtree(temp_dir, ignore_errors=True)
+    exit()
 
 # =========================
 # AMBIL DOSEN DARI JUDUL
@@ -75,9 +107,14 @@ df = df.withColumn(
 )
 
 df = df.withColumn(
-    "kode_prodi",
-    col("prodi_item.kode")
+    "prodi",
+    col("prodi_item")
 )
+
+df = df.withColumn(
+    "jenis_kuesioner", 
+    col("jenis_kuesioner")
+    )
 
 # =========================
 # EXPLODE REKAPITULASI
@@ -87,7 +124,9 @@ rekap = df.select(
     col("kode_mk"),
     col("judul_kuesioner"),
     col("dosen_pengajar"),
-    col("kode_prodi"),
+    col("jenis_kuesioner"),
+    # col("kode_prodi"),
+    col("prodi"),
     col("periode").alias("tahun"),
     col("semester"),
     explode(col("raw_data.statistik.rekapitulasi")).alias("rekap")
@@ -101,7 +140,9 @@ detail = rekap.select(
     col("kode_mk"),
     col("judul_kuesioner"),
     col("dosen_pengajar"),
-    col("kode_prodi"),
+    col("jenis_kuesioner"),
+    # col("kode_prodi"),
+    col("prodi"),
     col("tahun"),
     col("semester"),
 
@@ -128,7 +169,9 @@ hasil = detail.select(
     col("kode_mk"),
     col("judul_kuesioner"),
     col("dosen_pengajar"),
-    col("kode_prodi"),
+    col("jenis_kuesioner"),
+    # col("kode_prodi"),
+    col("prodi"),
     col("tahun"),
     col("semester"),
     col("pertanyaan"),
@@ -178,7 +221,9 @@ analisis = hasil.groupBy(
     "kode_mk",
     "judul_kuesioner",
     "dosen_pengajar",
-    "kode_prodi",
+    "jenis_kuesioner",
+    "prodi",
+    # col("kode_prodi"),
     "tahun",
     "semester",
     "pertanyaan",
@@ -268,9 +313,10 @@ summary_mk = analisis.groupBy(
     "kode_mk",
     "judul_kuesioner",
     "dosen_pengajar",
-    "kode_prodi",
+    "prodi",
     "tahun",
-    "semester"
+    "semester",
+    "jenis_kuesioner"
 ).agg(
 
     round(
@@ -329,6 +375,29 @@ summary_mk.write \
 
 print("BERHASIL SIMPAN SUMMARY")
 
+
+# =========================
+# UPDATE STATUS ANALISIS
+# =========================
+client = MongoClient(MONGO_URI)
+
+db = client["gkm_chatbot"]
+
+db.kuesioner_mongos.update_many(
+    {
+        "kuesioner_id": {
+            "$in": kuesioner_ids
+        }
+    },
+    {
+        "$set": {
+            "is_analyzed": True,
+            "analyzed_at": datetime.utcnow()
+        }
+    }
+)
+
+print("STATUS ANALISIS BERHASIL DIUPDATE")
 # =========================
 # STOP SPARK
 # =========================

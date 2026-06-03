@@ -46,6 +46,13 @@
 
 <form id="reminderFormMateri">
     @csrf
+    <div class="mb-3 d-flex gap-2 align-items-center">
+        <label class="mb-0"></label>
+        <select id="reminderMode" class="form-select form-select-sm" style="width: 220px;" onchange="loadByMode()">
+            <option value="uts">Periode UTS</option>
+            <option value="uas">Periode UAS</option>
+        </select>
+    </div>
     
     <!-- Table Card -->
     <div class="monitoring-card mb-4">
@@ -175,7 +182,7 @@
             </div>
 
             <div class="d-flex gap-2">
-                <button type="button" class="btn btn-primary" onclick="generateMessageMateri()">
+                <button type="button" id="generateBtnMateri" class="btn btn-primary" onclick="generateMessageMateri(event)">
                     <i class="bi bi-magic"></i> Generate Pesan AI
                 </button>
                 <button type="button" class="btn btn-success" onclick="sendReminderMateri()">
@@ -235,7 +242,7 @@ function deselectAllMateri() {
     document.getElementById('selectAllCheckboxMateri').checked = false;
 }
 
-function generateMessageMateri() {
+function generateMessageMateri(event) {
     const selectedDosen = document.querySelectorAll('.dosen-checkbox-materi:checked');
     
     if (selectedDosen.length === 0) {
@@ -245,8 +252,13 @@ function generateMessageMateri() {
 
     const dosenIds = Array.from(selectedDosen).map(cb => cb.value);
     const messageTextarea = document.getElementById('messageMateri');
+    const generateBtn = event.currentTarget || event.target;
+    const originalBtnText = generateBtn.innerHTML;
+
     messageTextarea.value = 'Generating pesan dengan AI Agent...\nMohon tunggu...';
     messageTextarea.disabled = true;
+    generateBtn.disabled = true;
+    generateBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Generating...';
 
     fetch('{{ route("gkm.monitoring-perkuliahan.materi.generate") }}', {
         method: 'POST',
@@ -256,21 +268,30 @@ function generateMessageMateri() {
         },
         body: JSON.stringify({ dosen_ids: dosenIds })
     })
-    .then(response => response.json())
+    .then(response => {
+        if (!response.ok) {
+            return response.json().then(err => {
+                throw new Error(err.message || 'Server error');
+            });
+        }
+        return response.json();
+    })
     .then(data => {
         if (data.success) {
             messageTextarea.value = data.message;
         } else {
-            alert('Gagal generate pesan');
-            messageTextarea.value = '';
+            throw new Error(data.message || 'Gagal generate pesan');
         }
-        messageTextarea.disabled = false;
     })
     .catch(error => {
         console.error('Error:', error);
-        alert('Terjadi kesalahan saat generate pesan');
+        alert(error.message || 'Terjadi kesalahan saat generate pesan');
         messageTextarea.value = '';
+    })
+    .finally(() => {
         messageTextarea.disabled = false;
+        generateBtn.disabled = false;
+        generateBtn.innerHTML = originalBtnText;
     });
 }
 
@@ -344,6 +365,59 @@ function sendReminderMateri() {
     document.body.appendChild(form);
     form.submit();
 }
+
+function loadByMode() {
+    const mode = document.getElementById('reminderMode').value;
+    const tbody = document.querySelector('table.table-monitoring tbody');
+
+    // show loading row
+    tbody.innerHTML = '<tr><td colspan="8" class="text-center py-5">Memuat data...</td></tr>';
+
+    fetch('{{ route("gkm.monitoring-perkuliahan.materi.filter") }}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': '{{ csrf_token() }}'
+        },
+        body: JSON.stringify({ mode })
+    })
+    .then(res => res.json())
+    .then(json => {
+        if (!json.success) throw new Error('Gagal memuat');
+        const data = json.data || [];
+        if (data.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="8" class="text-center py-5">Tidak ada dosen untuk mode ini</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = data.map((d, i) => `
+            <tr>
+                <td class="text-center"><input type="checkbox" class="form-check-input dosen-checkbox-materi" name="dosen_ids[]" value="${d.pegawai_id}"></td>
+                <td class="text-center">${i+1}</td>
+                <td class="dosen-name">${d.nama_lengkap}</td>
+                <td class="text-secondary">${d.kontak_email}</td>
+                <td><div class="mb-1"><strong>${d.nama_matkul}</strong></div><small class="text-muted"><i class="bi bi-tag"></i> ${d.kode_mk} ${d.tingkat ? '| Tingkat '+d.tingkat : ''}</small></td>
+                <td class="text-center">` + (
+                    (d.jenis || '').split(',').map(k => k.trim()).map(k => {
+                        if (k === 'Materi Teori') return '<span class="badge bg-primary"><i class="bi bi-book"></i> Teori</span>';
+                        if (k === 'Materi Praktikum') return '<span class="badge bg-info"><i class="bi bi-laptop"></i> Praktikum</span>';
+                        return '<span class="badge bg-secondary">'+k+'</span>';
+                    }).join(' ') 
+                ) + `</td>
+                <td class="text-center"><span class="badge bg-secondary">${d.semester == '1' ? 'Ganjil' : 'Genap'}</span></td>
+                <td class="text-center"><span class="status-icon danger" title="Belum upload materi"><i class="bi bi-x-lg"></i></span></td>
+            </tr>
+        `).join('');
+    })
+    .catch(err => {
+        console.error(err);
+        tbody.innerHTML = '<tr><td colspan="8" class="text-center py-5">Gagal memuat data</td></tr>';
+    });
+}
+// Auto-load for initial selection
+document.addEventListener('DOMContentLoaded', function() {
+    try { loadByMode(); } catch (e) { console.error(e); }
+});
     </script>
 </body>
 </html>

@@ -25,31 +25,28 @@ class PerkuliahanMonitoringDetail extends Model
         'tahun_ajaran',
 
         'tingkat',
-
         'jenis_materi',
 
-        'minggu',
+        // analytics fields
+        'total_minggu',
+        'jumlah_upload',
+        'jumlah_terlambat',
+        'jumlah_belum_upload',
 
-        'status_upload',
+        'persentase_kepatuhan',
+        'status_kepatuhan',
 
-        'is_tepat_waktu',
+        // JSON data minggu
+        'detail_weeks',
 
-        'tanggal_upload',
-
+        // optional trace data
         'raw_data',
     ];
 
     protected $casts = [
         'raw_data' => 'array',
-        'tanggal_upload' => 'datetime',
-        'is_tepat_waktu' => 'boolean',
+        'detail_weeks' => 'array',
     ];
-
-    /*
-    |--------------------------------------------------------------------------
-    | RELATION DOSEN
-    |--------------------------------------------------------------------------
-    */
 
     public function dosen()
     {

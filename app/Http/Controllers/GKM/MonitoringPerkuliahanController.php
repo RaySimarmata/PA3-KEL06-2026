@@ -18,23 +18,38 @@ use App\Models\PeriodeAkademik;
 use Barryvdh\DomPDF\Facade\Pdf;
 use App\Models\JadwalDosen;
 use App\Models\Dosenn;
+use App\Models\LogEmail;
+use App\Services\WhatsAppService;
 
 class MonitoringPerkuliahanController extends Controller
 {
+    public function __construct(WhatsAppService $whatsappService)
+    {
+        $this->whatsappService = $whatsappService;
+    }
     public function index(Request $request)
     {
         $user = Auth::user();
 
         // Get filter values
-        $selectedSemester = $request->input('semester', '');
-        $selectedTahunAjaran = $request->input('tahun_ajaran', '');
+        $periodeAktif = PeriodeAkademik::getActive();
+
+$selectedSemester = $request->input(
+    'semester',
+    $periodeAktif?->semester
+);
+
+$selectedTahunAjaran = $request->input(
+    'tahun_ajaran',
+    $periodeAktif?->tahun_ajaran
+);
         $selectedTingkat = $request->input('tingkat', '');
         $periode = \App\Models\PeriodeAkademik::where('is_active', true)->first();
         $startDate = $periode ? \Carbon\Carbon::parse($periode->start_date) : null;
         
         // Check if filter is applied
-        $filterApplied = ! empty($selectedSemester) &&
-                 ! empty($selectedTahunAjaran);
+        $filterApplied = !empty($selectedSemester)
+              && !empty($selectedTahunAjaran);
         
         // Fallback: if no active periode, use a default start date based on semester and tahun ajaran
         if (!$startDate && $filterApplied) {
@@ -109,69 +124,64 @@ class MonitoringPerkuliahanController extends Controller
 
                     // Build dosen mapping - HANYA PROSES DOSEN DARI PRODI INI
                     $matkulDosenMap = Cache::remember(
-                        "matkul_dosen_map_perkuliahan_{$prodiId}_{$selectedSemester}_{$selectedTahunAjaran}",
-                        1800, // Increase cache time
-                        function () use ($dosenList, $apiService, $selectedSemester, $selectedTahunAjaran) {
-                            $map = [];
-                            $dosenProcessed = 0;
-                            $maxDosenProcess = 20; // Limit dosen processing
+    "matkul_dosen_map_perkuliahan_{$prodiId}_{$selectedSemester}_{$selectedTahunAjaran}",
+    1800,
+    function () use ($selectedSemester, $selectedTahunAjaran) {
 
-                            foreach ($dosenList as $dosen) {
-                                if ($dosenProcessed >= $maxDosenProcess) break;
-                                
-                                $pegawaiId = $dosen['pegawai_id'] ?? null;
-                                $namaDosen = $dosen['nama'] ?? null;
+        $map = [];
 
-                                if ($pegawaiId && $namaDosen) {
-                                    try {
-                                        $jadwalList = Cache::remember(
-                                            "jadwal_{$pegawaiId}_{$selectedSemester}_{$selectedTahunAjaran}",
-                                            1800,
-                                            function () use ($apiService, $pegawaiId, $selectedSemester, $selectedTahunAjaran) {
-                                                return $apiService->getJadwalByDosen($pegawaiId, $selectedSemester, $selectedTahunAjaran);
-                                            }
-                                        );
+        $jadwalList = JadwalDosen::with('dosen')
+            ->where(function ($q) use ($selectedSemester) {
 
-                                        if (! empty($jadwalList)) {
-                                            $dosenProcessed++;
-                                            foreach ($jadwalList as $jadwal) {
-                                                $kodeMk = $jadwal['kode_mk'] ?? null;
-                                                if ($kodeMk) {
-                                                    if (! isset($map[$kodeMk])) {
-                                                        $map[$kodeMk] = [];
-                                                    }
-                                                    // 🔥 SIMPAN SEBAGAI ARRAY DENGAN pegawai_id dan nama
-                                                    $exists = false;
-                                                    foreach ($map[$kodeMk] as $existing) {
-                                                        if ($existing['pegawai_id'] === $pegawaiId) {
-                                                            $exists = true;
-                                                            break;
-                                                        }
-                                                    }
-                                                    if (!$exists) {
-                                                        $map[$kodeMk][] = [
-                                                            'pegawai_id' => $pegawaiId,
-                                                            'nama' => $namaDosen
-                                                        ];
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    } catch (\Exception $e) {
-                                        Log::warning("Failed to get jadwal for dosen {$namaDosen}: ".$e->getMessage());
-                                        continue;
-                                    }
-                                }
-                            }
+                $q->where('semester', $selectedSemester);
 
-                            Log::info('MonitoringPerkuliahan - Mapping completed', [
-                                'dosen_with_jadwal' => $dosenProcessed,
-                                'matkul_with_dosen' => count($map),
-                            ]);
+                if ($selectedSemester == '1') {
+                    $q->orWhere('semester', 'Ganjil');
+                }
 
-                            return $map;
-                        }
-                    );
+                if ($selectedSemester == '2') {
+                    $q->orWhere('semester', 'Genap');
+                }
+            })
+            ->where(function ($q) use ($selectedTahunAjaran) {
+
+                $q->where('tahun_ajaran', $selectedTahunAjaran)
+                    ->orWhere('tahun_ajaran', 'LIKE', $selectedTahunAjaran . '%');
+            })
+            ->get();
+
+        foreach ($jadwalList as $jadwal) {
+
+            $kodeMk = trim($jadwal->kode_mk ?? '');
+
+            if (!$kodeMk) {
+                continue;
+            }
+
+            if (!isset($map[$kodeMk])) {
+                $map[$kodeMk] = [];
+            }
+
+            $exists = collect($map[$kodeMk])
+                ->contains(fn ($d) => $d['pegawai_id'] == $jadwal->pegawai_id);
+
+            if (!$exists) {
+
+                $map[$kodeMk][] = [
+                    'pegawai_id' => $jadwal->pegawai_id,
+                    'nama'       => $jadwal->dosen->nama ?? '-',
+                ];
+            }
+        }
+
+        Log::info('MonitoringPerkuliahan - Mapping from jadwal_dosen', [
+            'total_jadwal' => $jadwalList->count(),
+            'matkul_with_dosen' => count($map),
+        ]);
+
+        return $map;
+    }
+);
 
                     // Process each matakuliah with limits
                     foreach ($matkulData as $matkul) {
@@ -521,16 +531,67 @@ public function exportPdf(Request $request)
         ];
         $prodiId = $prodiIdMap[$prodiKode] ?? 4;
 
-        // Ambil dosen yang belum upload dari snapshot untuk SEMUA semester dan tingkat
-        $dosenBelumUpload = PerkuliahanMonitoringSnapshot::with('dosen')
-            ->where('prodi_id', $prodiId)
-            ->where('status_upload', 'BELUM UPLOAD')
-            ->whereHas('dosen', function($query) {
-                $query->whereNotNull('email')
-                      ->where('email', '!=', '');
-            })
-            ->get()
-            ->map(function($snapshot) {
+        // Reminder only at UTS (week 8) and UAS (week 16).
+        // UTS: check weeks 1-7; UAS: check weeks 1-15.
+        $periode = PeriodeAkademik::where('is_active', true)->first();
+        $startDate = $periode ? Carbon::parse($periode->start_date) : null;
+        $now = Carbon::now();
+
+        $currentWeek = null;
+        if ($startDate) {
+            $days = $startDate->diffInDays($now);
+            $currentWeek = (int) floor($days / 7) + 1;
+            if ($currentWeek < 1) $currentWeek = 1;
+            if ($currentWeek > 16) $currentWeek = 16;
+        }
+
+        $checkRange = [];
+        if ($currentWeek === 8) {
+            $checkRange = range(1, 7);
+        } elseif ($currentWeek === 16) {
+            $checkRange = range(1, 15);
+        }
+
+        if (empty($checkRange)) {
+            // Not a reminder moment - return empty list
+            $dosenBelumUpload = [];
+        } else {
+            $snapshots = PerkuliahanMonitoringSnapshot::with('dosen')
+                ->where('prodi_id', $prodiId)
+                ->where('status_upload', 'BELUM UPLOAD')
+                ->where('reminder_sent', false)
+                ->whereHas('dosen', function($query) {
+                    $query->whereNotNull('email')
+                          ->where('email', '!=', '');
+                })
+                ->get();
+
+            $filtered = $snapshots->filter(function($snapshot) use ($checkRange) {
+                $raw = $snapshot->raw_data ?? null;
+                $weeks = null;
+
+                if (is_array($raw) && isset($raw['weeks'])) {
+                    $weeks = $raw['weeks'];
+                } elseif (is_string($raw)) {
+                    $decoded = json_decode($raw, true);
+                    $weeks = $decoded['weeks'] ?? null;
+                } else {
+                    $weeks = $snapshot->detail_weeks ?? null;
+                }
+
+                if (!is_array($weeks)) return false;
+
+                foreach ($checkRange as $w) {
+                    $idx = $w - 1;
+                    if (!isset($weeks[$idx]) || $weeks[$idx] === 0 || $weeks[$idx] === null) {
+                        return true;
+                    }
+                }
+
+                return false;
+            });
+
+            $dosenBelumUpload = $filtered->map(function($snapshot) {
                 return [
                     'pegawai_id' => $snapshot->pegawai_id,
                     'nama_lengkap' => $snapshot->dosen->nama ?? '-',
@@ -542,13 +603,117 @@ public function exportPdf(Request $request)
                     'tingkat' => $snapshot->tingkat,
                     'jenis' => $snapshot->jenis_materi
                 ];
-            })
-            ->toArray();
+            })->values()->toArray();
+        }
 
         return view('gkm.monitoring-perkuliahan.materi', [
             'user' => $user,
             'dosenMateri' => $dosenBelumUpload,
         ]);
+    }
+
+    public function filterRemindersByMode(Request $request)
+    {
+        $user = Auth::user();
+
+        $mode = $request->input('mode', 'auto'); // 'uts', 'uas', 'force', or 'auto'
+
+        $prodiKode = $user->prodi ? $user->prodi->kode_prodi : 'TRPL';
+        $prodiIdMap = [
+            'TRPL' => 4,
+            'TI' => 1,
+            'NM' => 3,
+        ];
+        $prodiId = $prodiIdMap[$prodiKode] ?? 4;
+
+        // Build check ranges
+        if ($mode === 'uts') {
+            $checkRange = range(1, 7);
+        } elseif ($mode === 'uas') {
+            $checkRange = range(1, 15);
+        } elseif ($mode === 'force') {
+            $checkRange = range(1, 16);
+        } else {
+            // auto: determine from current periode
+            $periode = PeriodeAkademik::where('is_active', true)->first();
+            $startDate = $periode ? Carbon::parse($periode->start_date) : null;
+            $now = Carbon::now();
+            $currentWeek = null;
+            if ($startDate) {
+                $days = $startDate->diffInDays($now);
+                $currentWeek = (int) floor($days / 7) + 1;
+                if ($currentWeek < 1) $currentWeek = 1;
+                if ($currentWeek > 16) $currentWeek = 16;
+            }
+
+            if ($currentWeek === 8) $checkRange = range(1, 7);
+            elseif ($currentWeek === 16) $checkRange = range(1, 15);
+            else $checkRange = [];
+        }
+
+        if (empty($checkRange)) {
+            return response()->json(['success' => true, 'data' => []]);
+        }
+
+        $snapshots = PerkuliahanMonitoringSnapshot::with('dosen')
+            ->where('prodi_id', $prodiId)
+            ->where('status_upload', 'BELUM UPLOAD')
+            ->whereHas('dosen', function($query) {
+                $query->whereNotNull('email')->where('email', '!=', '');
+            })
+            ->get();
+
+        $filtered = $snapshots->filter(function($snapshot) use ($checkRange, $mode) {
+            if ($mode !== 'force' && !empty($snapshot->reminder_sent)) return false;
+
+            $raw = $snapshot->raw_data ?? null;
+            $weeks = null;
+
+            if (is_array($raw) && isset($raw['weeks'])) {
+                $weeks = $raw['weeks'];
+            } elseif (is_string($raw)) {
+                $decoded = json_decode($raw, true);
+                $weeks = $decoded['weeks'] ?? null;
+            } else {
+                $weeks = $snapshot->detail_weeks ?? null;
+            }
+
+            if (!is_array($weeks)) return false;
+
+            foreach ($checkRange as $w) {
+                $idx = $w - 1;
+                if (!isset($weeks[$idx]) || $weeks[$idx] === 0 || $weeks[$idx] === null) {
+                    return true;
+                }
+            }
+
+            return false;
+        });
+
+        // Group by pegawai + kode_mk so we only send one reminder per course per lecturer
+        $grouped = $filtered->groupBy(function($s) {
+            return ($s->pegawai_id ?? '') . '|' . ($s->kode_mk ?? '');
+        });
+
+        $data = $grouped->map(function($group) {
+            $first = $group->first();
+            $kinds = $group->pluck('jenis_materi')->unique()->values()->toArray();
+
+            return [
+                'pegawai_id' => $first->pegawai_id,
+                'nama_lengkap' => $first->dosen->nama ?? '-',
+                'kontak_email' => $first->dosen->email ?? '-',
+                'nama_matkul' => $first->nama_matkul,
+                'kode_mk' => $first->kode_mk,
+                'semester' => $first->semester,
+                'tahun_ajaran' => $first->tahun_ajaran,
+                'tingkat' => $first->tingkat,
+                // return jenis as comma-separated string for backward compatibility
+                'jenis' => implode(', ', $kinds),
+            ];
+        })->values()->toArray();
+
+        return response()->json(['success' => true, 'data' => $data]);
     }
 
     /**
@@ -694,7 +859,7 @@ if (empty($matkulDosenMap)) {
                 'has_belum_upload' => $hasBelumUpload,
             ]);
 
-            if ($hasBelumUpload) {
+                    if ($hasBelumUpload) {
 
                 foreach ($dosenList as $dosenInfo) {
 
@@ -704,25 +869,30 @@ if (empty($matkulDosenMap)) {
                         'kode_mk' => $data['kode'],
                     ]);
 
-                    $snapshot = PerkuliahanMonitoringSnapshot::updateOrCreate(
-                        [
-                            'pegawai_id' => $dosenInfo['pegawai_id'],
-                            'kode_mk' => $data['kode'],
-                            'semester' => $semester,
-                            'tahun_ajaran' => $tahunAjaran,
-                            'jenis_materi' => 'Materi Teori',
-                        ],
-                        [
-                            'prodi_kode' => $prodiKode,
-                            'prodi_id' => $prodiId,
-                            'kuliah_id' => $data['kuliah_id'] ?? null,
-                            'nama_matkul' => $data['nama'],
-                            'tingkat' => $tingkat,
-                            'status_upload' => 'BELUM UPLOAD',
-                            'reminder_sent' => false,
-                            'raw_data' => $data,
-                        ]
-                    );
+                    $key = [
+                        'pegawai_id' => $dosenInfo['pegawai_id'],
+                        'kode_mk' => $data['kode'],
+                        'semester' => $semester,
+                        'tahun_ajaran' => $tahunAjaran,
+                        'jenis_materi' => 'Materi Teori',
+                    ];
+
+                    $snapshot = PerkuliahanMonitoringSnapshot::firstOrNew($key);
+
+                    // Preserve existing reminder_sent if present; set only for newly created records
+                    if (! $snapshot->exists) {
+                        $snapshot->reminder_sent = false;
+                    }
+
+                    $snapshot->prodi_kode = $prodiKode;
+                    $snapshot->prodi_id = $prodiId;
+                    $snapshot->kuliah_id = $data['kuliah_id'] ?? null;
+                    $snapshot->nama_matkul = $data['nama'];
+                    $snapshot->tingkat = $tingkat;
+                    $snapshot->status_upload = 'BELUM UPLOAD';
+                    $snapshot->raw_data = $data;
+
+                    $snapshot->save();
 
                     Log::info('SNAPSHOT TEORI SAVED', [
                         'snapshot_id' => $snapshot->id,
@@ -798,25 +968,29 @@ if (empty($matkulDosenMap)) {
                         'kode_mk' => $data['kode'],
                     ]);
 
-                    $snapshot = PerkuliahanMonitoringSnapshot::updateOrCreate(
-                        [
-                            'pegawai_id' => $dosenInfo['pegawai_id'],
-                            'kode_mk' => $data['kode'],
-                            'semester' => $semester,
-                            'tahun_ajaran' => $tahunAjaran,
-                            'jenis_materi' => 'Materi Praktikum',
-                        ],
-                        [
-                            'prodi_kode' => $prodiKode,
-                            'prodi_id' => $prodiId,
-                            'kuliah_id' => $data['kuliah_id'] ?? null,
-                            'nama_matkul' => $data['nama'],
-                            'tingkat' => $tingkat,
-                            'status_upload' => 'BELUM UPLOAD',
-                            'reminder_sent' => false,
-                            'raw_data' => $data,
-                        ]
-                    );
+                    $key = [
+                        'pegawai_id' => $dosenInfo['pegawai_id'],
+                        'kode_mk' => $data['kode'],
+                        'semester' => $semester,
+                        'tahun_ajaran' => $tahunAjaran,
+                        'jenis_materi' => 'Materi Praktikum',
+                    ];
+
+                    $snapshot = PerkuliahanMonitoringSnapshot::firstOrNew($key);
+
+                    if (! $snapshot->exists) {
+                        $snapshot->reminder_sent = false;
+                    }
+
+                    $snapshot->prodi_kode = $prodiKode;
+                    $snapshot->prodi_id = $prodiId;
+                    $snapshot->kuliah_id = $data['kuliah_id'] ?? null;
+                    $snapshot->nama_matkul = $data['nama'];
+                    $snapshot->tingkat = $tingkat;
+                    $snapshot->status_upload = 'BELUM UPLOAD';
+                    $snapshot->raw_data = $data;
+
+                    $snapshot->save();
 
                     Log::info('SNAPSHOT PRAKTIKUM SAVED', [
                         'snapshot_id' => $snapshot->id,
@@ -872,11 +1046,10 @@ private function savePerkuliahanComplianceSnapshot(
         ]);
 
         /*
-        |--------------------------------------------------------------------------
-        | FALLBACK DOSEN MAP DARI DATABASE
-        |--------------------------------------------------------------------------
+        |--------------------------------------
+        | FALLBACK DOSEN MAP
+        |--------------------------------------
         */
-
         if (empty($matkulDosenMap)) {
 
             $matkulDosenMap = [];
@@ -907,9 +1080,7 @@ private function savePerkuliahanComplianceSnapshot(
 
                 $kodeMk = trim($jadwal->kode_mk ?? '');
 
-                if (!$kodeMk) {
-                    continue;
-                }
+                if (!$kodeMk) continue;
 
                 if (!isset($matkulDosenMap[$kodeMk])) {
                     $matkulDosenMap[$kodeMk] = [];
@@ -919,26 +1090,19 @@ private function savePerkuliahanComplianceSnapshot(
                     ->contains(fn($d) => $d['pegawai_id'] == $jadwal->pegawai_id);
 
                 if (!$exists) {
-
                     $matkulDosenMap[$kodeMk][] = [
                         'pegawai_id' => $jadwal->pegawai_id,
                         'nama' => $jadwal->dosen->nama ?? '-',
                     ];
                 }
             }
-
-            Log::info('FALLBACK DOSEN MAP RESULT', [
-                'total_map' => count($matkulDosenMap),
-                'sample_keys' => array_slice(array_keys($matkulDosenMap), 0, 10),
-            ]);
         }
 
         /*
-        |--------------------------------------------------------------------------
-        | GABUNGKAN TEORI + PRAKTIKUM
-        |--------------------------------------------------------------------------
+        |--------------------------------------
+        | GABUNG TEORI + PRAKTIKUM
+        |--------------------------------------
         */
-
         $allMateri = [
             'Materi Teori' => $materiTeori,
             'Materi Praktikum' => $materiPraktikum,
@@ -946,137 +1110,60 @@ private function savePerkuliahanComplianceSnapshot(
 
         foreach ($allMateri as $jenisMateri => $listMateri) {
 
-            Log::info('PROCESS JENIS MATERI', [
-                'jenis_materi' => $jenisMateri,
-                'jumlah_data' => count($listMateri),
-            ]);
-
             foreach ($listMateri as $data) {
 
-                Log::info('PROCESS DATA', [
-                    'kode' => $data['kode'] ?? null,
-                    'nama' => $data['nama'] ?? null,
-                    'weeks_count' => count($data['weeks'] ?? []),
-                    'weeks' => $data['weeks'] ?? [],
-                    'jenis_materi' => $jenisMateri,
-                ]);
-
-                /*
-                |--------------------------------------------------------------------------
-                | VALIDASI
-                |--------------------------------------------------------------------------
-                */
-
-                if (empty($data['kode'])) {
-
-                    Log::warning('SKIP: KODE MK KOSONG', [
-                        'data' => $data
-                    ]);
-
-                    continue;
-                }
-
-                if (!isset($matkulDosenMap[$data['kode']])) {
-
-                    Log::warning('SKIP: DOSEN MAP TIDAK DITEMUKAN', [
-                        'kode_yang_dicari' => $data['kode'],
-                        'available_keys_sample' => array_slice(array_keys($matkulDosenMap), 0, 20),
-                    ]);
-
-                    continue;
-                }
+                if (empty($data['kode'])) continue;
+                if (empty($data['weeks'])) continue;
+                if (!isset($matkulDosenMap[$data['kode']])) continue;
 
                 $dosenList = $matkulDosenMap[$data['kode']];
-
-                Log::info('DOSEN LIST FOUND', [
-                    'kode_mk' => $data['kode'],
-                    'jumlah_dosen' => count($dosenList),
-                    'dosen_list' => $dosenList,
-                ]);
-
                 $tingkat = substr($data['kode'], 3, 1);
 
-                $weeks = $data['weeks'] ?? [];
-
-                if (empty($weeks)) {
-
-                    Log::warning('SKIP: WEEKS KOSONG', [
-                        'kode_mk' => $data['kode'],
-                    ]);
-
-                    continue;
-                }
+                $weeks = $data['weeks'];
 
                 /*
-                |--------------------------------------------------------------------------
-                | HITUNG STATISTIK KEPATUHAN
-                |--------------------------------------------------------------------------
+                |--------------------------------------
+                | FILTER WEEK (EXCLUDE UTS & UAS)
+                | index 7 = minggu 8
+                | index 15 = minggu 16
+                |--------------------------------------
                 */
+                $excludedIndexes = [7, 15];
 
-                $totalMinggu = count($weeks);
+                $validWeeks = collect($weeks)
+                    ->filter(function ($value, $index) use ($excludedIndexes) {
+                        return !in_array($index, $excludedIndexes);
+                    });
 
-                $jumlahUpload = collect($weeks)
-                    ->filter(fn($v) => $v === 1)
-                    ->count();
+                /*
+                |--------------------------------------
+                | HITUNG ANALYTICS
+                |--------------------------------------
+                */
+                $totalMinggu = $validWeeks->count();
 
-                $jumlahTerlambat = collect($weeks)
-                    ->filter(fn($v) => $v === 2)
-                    ->count();
-
-                $jumlahBelumUpload = collect($weeks)
-                    ->filter(fn($v) => $v === 0 || $v === null)
-                    ->count();
+                $jumlahUpload = $validWeeks->filter(fn($v) => $v === 1)->count();
+                $jumlahTerlambat = $validWeeks->filter(fn($v) => $v === 2)->count();
+                $jumlahBelumUpload = $validWeeks->filter(fn($v) => $v === 0 || $v === null)->count();
 
                 $persentaseKepatuhan = $totalMinggu > 0
                     ? round(($jumlahUpload / $totalMinggu) * 100, 2)
                     : 0;
 
-                Log::info('STATISTIK KEPATUHAN', [
-                    'kode_mk' => $data['kode'],
-                    'total_minggu' => $totalMinggu,
-                    'jumlah_upload' => $jumlahUpload,
-                    'jumlah_terlambat' => $jumlahTerlambat,
-                    'jumlah_belum_upload' => $jumlahBelumUpload,
-                    'persentase' => $persentaseKepatuhan,
-                ]);
+                $statusKepatuhan = match (true) {
+                    $persentaseKepatuhan >= 100 => 'PATUH',
+                    $persentaseKepatuhan >= 60 => 'BELUM PATUH',
+                    default => 'KURANG PATUH',
+                };
 
                 /*
-                |--------------------------------------------------------------------------
-                | STATUS KEPATUHAN
-                |--------------------------------------------------------------------------
-                */
-
-                $statusKepatuhan = 'PATUH';
-
-                if ($persentaseKepatuhan < 100) {
-                    $statusKepatuhan = 'BELUM PATUH';
-                }
-
-                if ($persentaseKepatuhan < 60) {
-                    $statusKepatuhan = 'KURANG PATUH';
-                }
-
-                /*
-                |--------------------------------------------------------------------------
+                |--------------------------------------
                 | SAVE PER DOSEN
-                |--------------------------------------------------------------------------
+                |--------------------------------------
                 */
-
                 foreach ($dosenList as $dosenInfo) {
 
-                    Log::info('BEFORE SAVE DETAIL', [
-                        'pegawai_id' => $dosenInfo['pegawai_id'],
-                        'nama_dosen' => $dosenInfo['nama'] ?? '-',
-                        'kode_mk' => $data['kode'],
-                        'semester' => $semester,
-                        'tahun_ajaran' => $tahunAjaran,
-                        'jenis_materi' => $jenisMateri,
-                        'persentase' => $persentaseKepatuhan,
-                        'status' => $statusKepatuhan,
-                    ]);
-
                     $detail = \App\Models\PerkuliahanMonitoringDetail::updateOrCreate(
-
                         [
                             'pegawai_id' => $dosenInfo['pegawai_id'],
                             'kode_mk' => $data['kode'],
@@ -1084,7 +1171,6 @@ private function savePerkuliahanComplianceSnapshot(
                             'tahun_ajaran' => $tahunAjaran,
                             'jenis_materi' => $jenisMateri,
                         ],
-
                         [
                             'prodi_id' => $prodiId,
                             'prodi_kode' => $prodiKode,
@@ -1092,33 +1178,30 @@ private function savePerkuliahanComplianceSnapshot(
                             'kuliah_id' => $data['kuliah_id'] ?? null,
 
                             'nama_dosen' => $dosenInfo['nama'] ?? '-',
-
                             'nama_matkul' => $data['nama'] ?? '-',
 
                             'tingkat' => $tingkat,
 
+                            // analytics
                             'total_minggu' => $totalMinggu,
-
                             'jumlah_upload' => $jumlahUpload,
-
                             'jumlah_terlambat' => $jumlahTerlambat,
-
                             'jumlah_belum_upload' => $jumlahBelumUpload,
 
                             'persentase_kepatuhan' => $persentaseKepatuhan,
-
                             'status_kepatuhan' => $statusKepatuhan,
 
+                            // detail
                             'detail_weeks' => $weeks,
-
                             'raw_data' => $data,
                         ]
                     );
 
-                    Log::info('SUCCESS SAVE DETAIL', [
+                    Log::info('SNAPSHOT SAVED', [
                         'id' => $detail->id,
-                        'pegawai_id' => $detail->pegawai_id,
                         'kode_mk' => $detail->kode_mk,
+                        'persentase' => $persentaseKepatuhan,
+                        'status' => $statusKepatuhan,
                     ]);
                 }
             }
@@ -1131,8 +1214,6 @@ private function savePerkuliahanComplianceSnapshot(
         Log::error('FAILED SAVE COMPLIANCE SNAPSHOT', [
             'error' => $e->getMessage(),
             'line' => $e->getLine(),
-            'file' => $e->getFile(),
-            'trace' => $e->getTraceAsString(),
         ]);
     }
 }
@@ -1152,25 +1233,91 @@ private function savePerkuliahanComplianceSnapshot(
             $successCount = 0;
             $errors = [];
 
+            $user = Auth::user();
+            $prodiName = $user->prodi->nama ?? 'TRPL';
+            $prodiKode = $user->prodi->kode_prodi ?? 'TRPL';
+
             foreach ($dosenList as $dosen) {
                 try {
-                    $email = $dosen->email ?? $dosen->kontak_email;
-                    if (!$email) {
-                        $errors[] = "Email tidak ditemukan untuk {$dosen->nama}";
-                        continue;
+                    $email = $dosen->email ?? $dosen->kontak_email ?? null;
+                    $nomorTelepon = $dosen->nomor_telepon ?? $dosen->nomor ?? $dosen->kontak_telepon ?? null;
+
+                    // Send email if available
+                    if (!empty($email)) {
+                        Mail::to($email)->send(new ReminderUploadMateriMail(
+                            $request->subjek,
+                            $request->pesan,
+                            $dosen->nama,
+                            $prodiName,
+                            $prodiKode
+                        ));
+
+                        // Log email
+                        LogEmail::create([
+                            'reminder_id' => null,
+                            'penerima_email' => $email,
+                            'subjek' => $request->subjek,
+                            'isi_email' => $request->pesan,
+                            'status_pengiriman' => 'success',
+                            'tanggal_pengiriman' => now(),
+                            'percobaan_kirim' => 1,
+                        ]);
                     }
 
-                    Mail::to($email)->send(new ReminderUploadMateriMail(
-                        $dosen->nama,
-                        $request->pesan
-                    ));
+                    // Send WhatsApp if phone available
+                    if (!empty($nomorTelepon)) {
+                        $pesanWa = "*{$request->subjek}*\n\n" . $request->pesan;
+
+                        try {
+                            $this->whatsappService->sendMessage($nomorTelepon, $pesanWa);
+
+                            // Log WA as email-log entry for traceability
+                            LogEmail::create([
+                                'reminder_id' => null,
+                                'penerima_email' => $email ?? $nomorTelepon,
+                                'subjek' => $request->subjek,
+                                'isi_email' => $request->pesan,
+                                'status_pengiriman' => 'success',
+                                'tanggal_pengiriman' => now(),
+                                'percobaan_kirim' => 1,
+                            ]);
+                        } catch (\Exception $e) {
+                            Log::warning('Failed to send WA reminder', [
+                                'pegawai_id' => $dosen->pegawai_id,
+                                'nomor' => $nomorTelepon,
+                                'error' => $e->getMessage(),
+                            ]);
+                        }
+                    }
+
+                    // Update snapshot reminder status for this dosen
+                    \App\Models\PerkuliahanMonitoringSnapshot::where('pegawai_id', $dosen->pegawai_id)
+                        ->where('status_upload', 'BELUM UPLOAD')
+                        ->update([
+                            'reminder_sent' => true,
+                            'updated_at' => now()
+                        ]);
+
                     $successCount++;
                 } catch (\Exception $e) {
                     $errors[] = "Gagal kirim ke {$dosen->nama}: " . $e->getMessage();
                     Log::error('Failed to send materi reminder', [
                         'pegawai_id' => $dosen->pegawai_id,
                         'email' => $email ?? 'N/A',
+                        'nomor' => $nomorTelepon ?? 'N/A',
                         'error' => $e->getMessage(),
+                    ]);
+
+                    // Log failed attempt
+                    LogEmail::create([
+                        'reminder_id' => null,
+                        'penerima_email' => $email ?? $nomorTelepon ?? null,
+                        'subjek' => $request->subjek,
+                        'isi_email' => $request->pesan,
+                        'status_pengiriman' => 'failed',
+                        'pesan_error' => $e->getMessage(),
+                        'tanggal_pengiriman' => now(),
+                        'percobaan_kirim' => 1,
                     ]);
                 }
             }

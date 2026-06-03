@@ -11,17 +11,20 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('perkuliahan_monitoring_details', function (Blueprint $table) {
+       Schema::create('perkuliahan_monitoring_details', function (Blueprint $table) {
+
     $table->id();
 
     $table->string('pegawai_id');
     $table->string('nama_dosen')->nullable();
 
+    $table->bigInteger('kuliah_id')->nullable();
+
     $table->string('kode_mk');
     $table->string('nama_matkul');
 
-    $table->string('prodi_kode')->nullable();
     $table->integer('prodi_id')->nullable();
+    $table->string('prodi_kode')->nullable();
 
     $table->string('semester');
     $table->string('tahun_ajaran');
@@ -33,21 +36,57 @@ return new class extends Migration
         'Materi Praktikum'
     ]);
 
-    $table->integer('minggu');
+    /*
+    |--------------------------------------------------------------------------
+    | Statistik Kepatuhan
+    |--------------------------------------------------------------------------
+    */
 
-    $table->enum('status_upload', [
-        'OK',
-        'TERLAMBAT',
-        'BELUM_UPLOAD'
-    ]);
+    $table->integer('total_minggu')->default(0);
 
-    $table->boolean('is_tepat_waktu')->default(false);
+    $table->integer('jumlah_upload')->default(0);
 
-    $table->timestamp('tanggal_upload')->nullable();
+    $table->integer('jumlah_terlambat')->default(0);
+
+    $table->integer('jumlah_belum_upload')->default(0);
+
+    $table->decimal('persentase_kepatuhan', 5, 2)
+        ->default(0);
+
+    $table->enum('status_kepatuhan', [
+        'PATUH',
+        'BELUM PATUH',
+        'KURANG PATUH'
+    ])->default('PATUH');
+
+    /*
+    |--------------------------------------------------------------------------
+    | Detail Mingguan
+    |--------------------------------------------------------------------------
+    | contoh:
+    | [1,1,1,0,1,2,1,1,0,1,1,1,1,0,1,1]
+    |--------------------------------------------------------------------------
+    */
+
+    $table->json('detail_weeks')->nullable();
+
+    /*
+    |--------------------------------------------------------------------------
+    | Raw API Data
+    |--------------------------------------------------------------------------
+    */
 
     $table->json('raw_data')->nullable();
 
     $table->timestamps();
+
+    $table->unique([
+        'pegawai_id',
+        'kode_mk',
+        'semester',
+        'tahun_ajaran',
+        'jenis_materi'
+    ], 'uniq_perkuliahan_compliance');
 });
     }
 

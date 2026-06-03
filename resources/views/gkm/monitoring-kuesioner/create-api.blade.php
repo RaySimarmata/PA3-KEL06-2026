@@ -135,7 +135,7 @@
 
                 <button class="btn btn-success">
 
-                    Analaisis Semua Kusioner
+                    Analisis Semua Kusioner
 
                 </button>
 

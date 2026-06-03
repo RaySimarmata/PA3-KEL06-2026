@@ -15,8 +15,8 @@ return new class extends Migration
             $table->id();
             
             // Metadata
-            $table->string('periode', 7); // Format: 2026-03
-            $table->string('bulan', 20); // Maret
+            $table->string('periode', 100); // Format: 2026-03 or UTS Semester Genap 25/26
+            $table->string('bulan', 100); // Maret or UAS Semester GENAP 2025/2026
             $table->integer('tahun'); // 2026
             $table->unsignedBigInteger('prodi_id')->nullable();
             $table->unsignedBigInteger('user_id');

@@ -915,129 +915,75 @@ class DataMasterController extends Controller
     public function penugasanDosen(Request $request)
     {
         $user = Auth::user();
-        
-        // Handle AJAX request for dosen list (autocomplete)
+
+        // AJAX autocomplete dosen
         if ($request->ajax() || $request->has('get_dosen_list')) {
-            try {
-                $apiService = app(\App\Services\ExternalAPIService::class);
-                $dosenData = $apiService->getFilteredDosen();
-                
-                // Return only nama and email for autocomplete
-                $dosenList = array_map(function($dosen) {
-                    return [
-                        'nama' => $dosen['nama'] ?? '',
-                        'email' => $dosen['email'] ?? ''
-                    ];
-                }, $dosenData);
-                
-                return response()->json(['dosen' => $dosenList]);
-            } catch (\Exception $e) {
-                \Log::error('AJAX Dosen List Error: ' . $e->getMessage());
-                return response()->json(['dosen' => []]);
-            }
-        }
-        
-        // Initialize empty collection
-        $dosenList = new \Illuminate\Pagination\LengthAwarePaginator(
-            [],
-            0,
-            10,
-            1,
-            ['path' => $request->url(), 'query' => $request->query()]
-        );
-        
-        // Only fetch data if search is provided or form is submitted
-        if (!$request->has('search') && !$request->has('submitted')) {
-            return view('gkm.data-master.penugasan-dosen', compact('user', 'dosenList'));
-        }
-        
-        try {
-            $apiService = app(\App\Services\ExternalAPIService::class);
-            
-            // Fetch data from API using service
-            $dosenData = $apiService->getFilteredDosen();
-            
-            // Search by name
-            if ($request->search) {
-                $searchTerm = strtolower($request->search);
-                $dosenData = array_filter($dosenData, function($dosen) use ($searchTerm) {
-                    return isset($dosen['nama']) && 
-                           str_contains(strtolower($dosen['nama']), $searchTerm);
-                });
-            }
-            
-            // Convert to collection for pagination
-            $dosenCollection = collect(array_values($dosenData));
-            
-            // PAGINATION FIRST - before fetching jadwal
-            $perPage = 10;
-            $currentPage = $request->get('page', 1);
-            
-            // Get only current page items
-            $currentPageDosen = $dosenCollection->forPage($currentPage, $perPage)->all();
-            
-            // Get semester and year from request or use defaults
-            $currentMonth = date('n');
-            $defaultSemTa = $currentMonth >= 8 ? 1 : 2; // 1 = Ganjil (Aug-Dec), 2 = Genap (Jan-Jul)
-            
-            $semTa = $request->get('sem_ta', $defaultSemTa);
-            $ta = $request->get('ta', 2020); // Default to 2020 as API only has 2020 data
-            
-            // Fetch jadwal ONLY for current page dosen (not all dosen)
-            foreach ($currentPageDosen as &$dosen) {
-                $pegawaiId = $dosen['pegawai_id'] ?? null;
-                
-                if ($pegawaiId) {
-                    // Get jadwal from API with cache
-                    $jadwal = \Cache::remember(
-                        "jadwal_{$pegawaiId}_{$semTa}_{$ta}",
-                        3600,
-                        function() use ($apiService, $pegawaiId, $semTa, $ta) {
-                            return $apiService->getJadwalByDosen($pegawaiId, $semTa, $ta);
-                        }
-                    );
-                    
-                    // Remove duplicates based on kode_mk
-                    $uniqueJadwal = [];
-                    $seenKodeMk = [];
-            
-                    foreach ($jadwal as $mk) {
-                        $kodeMk = $mk['kode_mk'] ?? null;
-                        
-                        if ($kodeMk && !in_array($kodeMk, $seenKodeMk)) {
-                            $uniqueJadwal[] = $mk;
-                            $seenKodeMk[] = $kodeMk;
-                        }
-                    }
-                    
-                    $dosen['matakuliah'] = $uniqueJadwal;
-                } else {
-                    $dosen['matakuliah'] = [];
-                }
-            }
-            unset($dosen); // Break reference
-            
-            // Create paginator with fetched data
-            $dosenList = new \Illuminate\Pagination\LengthAwarePaginator(
-                $currentPageDosen,
-                $dosenCollection->count(),
-                $perPage,
-                $currentPage,
-                ['path' => $request->url(), 'query' => $request->query()]
+
+            $query = Dosenn::select(
+                'nama',
+                DB::raw('SUBSTRING_INDEX(email, ",", 1) as email')
             );
-            
-            return view('gkm.data-master.penugasan-dosen', compact('user', 'dosenList'));
-            
-        } catch (\Exception $e) {
-            // Fallback to database on error
-            \Log::error('API Dosen Error: ' . $e->getMessage());
-            return $this->penugasanDosenFromDatabase($request, $user);
+
+            if ($request->filled('search')) {
+                $query->where('nama', 'like', '%' . $request->search . '%');
+            }
+
+            return response()->json([
+                'dosen' => $query->orderBy('nama')->get()
+            ]);
         }
+
+        $query = Dosenn::query();
+
+        // Removed filtering by logged-in user's prodi_id so all dosen are listed
+        if ($request->filled('search')) {
+            $query->where('nama', 'like', '%' . $request->search . '%');
+        }
+
+        $dosenList = $query
+            ->orderBy('nama')
+            ->paginate(10)
+            ->appends($request->all());
+
+        // Ambil matakuliah dari tabel jadwal_dosen, manfaatkan filter semester & tahun ajaran
+        $sem = $request->filled('sem_ta') ? $request->sem_ta : null;
+        $ta = $request->filled('ta') ? $request->ta : null;
+
+        foreach ($dosenList as $dosen) {
+
+            $matakuliahQuery = DB::table('jadwal_dosen')
+                ->where('pegawai_id', $dosen->pegawai_id);
+
+            if ($sem !== null) {
+                $matakuliahQuery->where('semester', $sem);
+            }
+
+            if ($ta !== null) {
+                $matakuliahQuery->where('tahun_ajaran', $ta);
+            }
+
+            $matakuliah = $matakuliahQuery
+                ->select(
+                    'kode_mk',
+                    'kelas',
+                    'semester',
+                    'tahun_ajaran'
+                )
+                ->distinct()
+                ->get();
+
+            $dosen->matakuliah = $matakuliah;
+        }
+
+        return view(
+            'gkm.data-master.penugasan-dosen',
+            compact('user', 'dosenList')
+        );
     }
     
     private function penugasanDosenFromDatabase(Request $request, $user)
     {
-        $query = Dosen::with('matakuliah')
+        $query = Dosenn::with('matakuliah')
             ->where('status', 'aktif')
             ->orderBy('nama_lengkap');
         
