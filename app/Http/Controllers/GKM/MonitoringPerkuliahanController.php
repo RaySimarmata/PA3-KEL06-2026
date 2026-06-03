@@ -23,6 +23,34 @@ use App\Services\WhatsAppService;
 
 class MonitoringPerkuliahanController extends Controller
 {
+    /**
+     * Generate dynamic tahun ajaran list based on current year
+     * Auto-updates every 5 years
+     */
+    private function generateDynamicTahunAjaran()
+    {
+        $currentYear = (int) date('Y');
+        $baseYear = floor($currentYear / 5) * 5;
+        
+        $tahunList = [];
+        for ($i = 0; $i <= 5; $i++) {
+            $year = $baseYear + $i;
+            $tahunList[] = [
+                'id_thn_ajaran' => (string) $year,
+                'nm_thn_ajaran' => (string) $year
+            ];
+        }
+        
+        Log::info('MonitoringPerkuliahan - Generated dynamic tahun ajaran', [
+            'current_year' => $currentYear,
+            'base_year' => $baseYear,
+            'range' => $baseYear . ' - ' . ($baseYear + 5),
+            'years_generated' => array_column($tahunList, 'id_thn_ajaran')
+        ]);
+        
+        return $tahunList;
+    }
+
     public function index(Request $request)
     {
         $user = Auth::user();
@@ -172,66 +200,65 @@ $selectedTahunAjaran = $request->input(
                             'total_dosen' => count($dosenList),
                         ]);
 
-                    // Build dosen mapping - HANYA PROSES DOSEN DARI PRODI INI
-                    $matkulDosenMap = Cache::remember(
-    "matkul_dosen_map_perkuliahan_{$prodiId}_{$selectedSemester}_{$selectedTahunAjaran}",
-    1800,
-    function () use ($selectedSemester, $selectedTahunAjaran) {
+                        // Build dosen mapping - HANYA PROSES DOSEN DARI PRODI INI
+                        $matkulDosenMap = Cache::remember(
+                            "matkul_dosen_map_perkuliahan_{$prodiId}_{$selectedSemester}_{$selectedTahunAjaran}",
+                            1800,
+                            function () use ($selectedSemester, $selectedTahunAjaran) {
 
-        $map = [];
+                                $map = [];
 
-        $jadwalList = JadwalDosen::with('dosen')
-            ->where(function ($q) use ($selectedSemester) {
+                                $jadwalList = JadwalDosen::with('dosen')
+                                    ->where(function ($q) use ($selectedSemester) {
 
-                $q->where('semester', $selectedSemester);
+                                        $q->where('semester', $selectedSemester);
 
-                if ($selectedSemester == '1') {
-                    $q->orWhere('semester', 'Ganjil');
-                }
+                                        if ($selectedSemester == '1') {
+                                            $q->orWhere('semester', 'Ganjil');
+                                        }
 
-                if ($selectedSemester == '2') {
-                    $q->orWhere('semester', 'Genap');
-                }
-            })
-            ->where(function ($q) use ($selectedTahunAjaran) {
+                                        if ($selectedSemester == '2') {
+                                            $q->orWhere('semester', 'Genap');
+                                        }
+                                    })
+                                    ->where(function ($q) use ($selectedTahunAjaran) {
 
-                $q->where('tahun_ajaran', $selectedTahunAjaran)
-                    ->orWhere('tahun_ajaran', 'LIKE', $selectedTahunAjaran . '%');
-            })
-            ->get();
+                                        $q->where('tahun_ajaran', $selectedTahunAjaran)
+                                            ->orWhere('tahun_ajaran', 'LIKE', $selectedTahunAjaran . '%');
+                                    })
+                                    ->get();
 
-        foreach ($jadwalList as $jadwal) {
+                                foreach ($jadwalList as $jadwal) {
 
-            $kodeMk = trim($jadwal->kode_mk ?? '');
+                                    $kodeMk = trim($jadwal->kode_mk ?? '');
 
-            if (!$kodeMk) {
-                continue;
-            }
+                                    if (!$kodeMk) {
+                                        continue;
+                                    }
 
-            if (!isset($map[$kodeMk])) {
-                $map[$kodeMk] = [];
-            }
+                                    if (!isset($map[$kodeMk])) {
+                                        $map[$kodeMk] = [];
+                                    }
 
-            $exists = collect($map[$kodeMk])
-                ->contains(fn ($d) => $d['pegawai_id'] == $jadwal->pegawai_id);
+                                    $exists = collect($map[$kodeMk])
+                                        ->contains(fn ($d) => $d['pegawai_id'] == $jadwal->pegawai_id);
 
-            if (!$exists) {
+                                    if (!$exists) {
+                                        $map[$kodeMk][] = [
+                                            'pegawai_id' => $jadwal->pegawai_id,
+                                            'nama'       => $jadwal->dosen->nama ?? '-',
+                                        ];
+                                    }
+                                }
 
-                $map[$kodeMk][] = [
-                    'pegawai_id' => $jadwal->pegawai_id,
-                    'nama'       => $jadwal->dosen->nama ?? '-',
-                ];
-            }
-        }
+                                return $map;
+                            }
+                        );
 
-                            Log::info('MonitoringPerkuliahan - Mapping completed', [
-                                'dosen_with_jadwal' => $dosenProcessed,
-                                'matkul_with_dosen' => count($map),
-                            ]);
-
-                            return $map;
-                        }
-                    );
+                        Log::info('MonitoringPerkuliahan - Mapping completed', [
+                            'matkul_with_dosen' => count($matkulDosenMap),
+                        ]);
+                    }
 
                     // Process each matakuliah with limits
                     foreach ($matkulData as $matkul) {
@@ -471,14 +498,14 @@ $selectedTahunAjaran = $request->input(
                     );
 
                     $this->savePerkuliahanComplianceSnapshot(
-        $materiTeori,
-        $materiPraktikum,
-        $matkulDosenMap,
-        $prodiId,
-        $prodiKode,
-        $selectedSemester,
-        $selectedTahunAjaran
-    );
+                        $materiTeori,
+                        $materiPraktikum,
+                        $matkulDosenMap,
+                        $prodiId,
+                        $prodiKode,
+                        $selectedSemester,
+                        $selectedTahunAjaran
+                    );
                 }
             } catch (\Exception $e) {
                 Log::error('MonitoringPerkuliahan Index Error', [
