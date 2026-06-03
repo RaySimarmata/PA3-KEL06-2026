@@ -638,6 +638,30 @@ class LaporanSemesterController extends Controller
                     'provider' => $aiResult['provider'],
                     'model' => $aiResult['model']
                 ]);
+                
+                // Create evaluation test entry for model evaluation tracking
+                try {
+                    $evaluationService = app(\App\Services\AIEvaluationService::class);
+                    $evaluationService->createAIResponseTest([
+                        'test_name' => 'Laporan Semester - ' . date('Y-m-d H:i:s'),
+                        'feature' => 'semester',
+                        'query' => $userPrompt,
+                        'expected_response' => null, // No ground truth for user-generated content
+                        'actual_response' => $aiResponse,
+                    ]);
+                    
+                    Log::info('AI Evaluation test created', [
+                        'feature' => 'semester',
+                        'prompt_length' => strlen($userPrompt),
+                        'response_length' => strlen($aiResponse),
+                    ]);
+                } catch (\Exception $e) {
+                    // Don't fail the request if evaluation logging fails
+                    Log::warning('Failed to create AI evaluation test', [
+                        'error' => $e->getMessage(),
+                        'feature' => 'semester'
+                    ]);
+                }
             }
             // ========== END CACHE SAVE ==========
 

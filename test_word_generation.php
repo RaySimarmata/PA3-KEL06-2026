@@ -1,157 +1,178 @@
 <?php
 /**
- * Test script untuk memverifikasi Word document generation
+ * Test script untuk verify Word generation dari database
+ * Menguji KuesioneWordGenerationService::generateWordDocument()
+ * 
  * Run: php test_word_generation.php
  */
 
-require __DIR__ . '/vendor/autoload.php';
+require __DIR__.'/vendor/autoload.php';
 
-use PhpOffice\PhpWord\PhpWord;
-use PhpOffice\PhpWord\IOFactory;
+$app = require_once __DIR__.'/bootstrap/app.php';
+$app->make('Illuminate\Contracts\Console\Kernel')->bootstrap();
 
-echo "Testing Word Document Generation...\n\n";
+use App\Models\LaporanBulanan;
+use App\Services\KuesioneWordGenerationService;
+use Illuminate\Support\Facades\Log;
 
-try {
-    // Create new document
-    $phpWord = new PhpWord();
-    
-    // Set document properties
-    $properties = $phpWord->getDocInfo();
-    $properties->setCreator('Test');
-    $properties->setTitle('Test Document');
-    
-    // Set default font
-    $phpWord->setDefaultFontName('Arial');
-    $phpWord->setDefaultFontSize(11);
-    
-    // Add section with integer twip values
-    $sectionStyle = [
-        'orientation'  => 'portrait',
-        'marginLeft'   => 1701,   // 3 cm
-        'marginRight'  => 1701,   // 3 cm
-        'marginTop'    => 1701,   // 3 cm
-        'marginBottom' => 1701,   // 3 cm
-        'pageSizeW'    => 11906,  // A4 width in twips
-        'pageSizeH'    => 16838,  // A4 height in twips
-    ];
-    
-    $section = $phpWord->addSection($sectionStyle);
-    
-    // Add title
-    $section->addText('Test Document', [
-        'bold' => true,
-        'size' => 16,
-        'name' => 'Arial',
-        'color' => '000000'
-    ], [
-        'alignment' => \PhpOffice\PhpWord\SimpleType\Jc::CENTER,
-        'spaceAfter' => 200
-    ]);
-    
-    // Add some content
-    $section->addText('This is a test paragraph with some content.', [
-        'size' => 11,
-        'name' => 'Arial',
-        'color' => '000000'
-    ], ['spaceAfter' => 120]);
-    
-    // Add a table
-    $table = $section->addTable([
-        'borderSize'  => 6,
-        'borderColor' => '999999',
-        'cellMargin'  => 80,
-        'width'       => 100 * 50,
-        'unit'        => \PhpOffice\PhpWord\Style\Table::WIDTH_PERCENT,
-    ]);
-    
-    $table->addRow();
-    $table->addCell(3000, ['bgColor' => '1F3864'])->addText('Header 1', [
-        'name'  => 'Arial',
-        'size'  => 10,
-        'bold'  => true,
-        'color' => 'FFFFFF',
-    ]);
-    $table->addCell(3000, ['bgColor' => '1F3864'])->addText('Header 2', [
-        'name'  => 'Arial',
-        'size'  => 10,
-        'bold'  => true,
-        'color' => 'FFFFFF',
-    ]);
-    
-    $table->addRow();
-    $table->addCell(3000)->addText('Data 1', ['name' => 'Arial', 'size' => 10]);
-    $table->addCell(3000)->addText('Data 2', ['name' => 'Arial', 'size' => 10]);
-    
-    // Save document
-    $filename = 'test_document_' . time() . '.docx';
-    $filepath = __DIR__ . '/storage/app/public/' . $filename;
-    
-    // Create directory if not exists
-    if (!file_exists(dirname($filepath))) {
-        mkdir(dirname($filepath), 0755, true);
-    }
-    
-    $objWriter = IOFactory::createWriter($phpWord, 'Word2007');
-    $tempFilepath = $filepath . '.tmp';
-    $objWriter->save($tempFilepath);
-    
-    echo "Document saved to temp file: $tempFilepath\n";
-    
-    // Post-process: fix float values
-    $zip = new \ZipArchive();
-    if ($zip->open($tempFilepath) === true) {
-        $docXml = $zip->getFromName('word/document.xml');
-        if ($docXml !== false) {
-            $fixed = preg_replace_callback(
-                '/(w:(?:w|h|top|bottom|left|right|gutter|space|header|footer))="([\d]+\.[\d]+)"/',
-                function($m) {
-                    return $m[1] . '="' . (string) (int) round((float) $m[2]) . '"';
-                },
-                $docXml
-            );
-            
-            if ($fixed && $fixed !== $docXml) {
-                $zip->deleteName('word/document.xml');
-                $zip->addFromString('word/document.xml', $fixed);
-                echo "Fixed float values in XML\n";
-            }
-        }
-        $zip->close();
-    }
-    
-    // Move to final location
-    rename($tempFilepath, $filepath);
-    
-    // Validate
-    $fileSize = filesize($filepath);
-    echo "File size: $fileSize bytes\n";
-    
-    if ($fileSize < 5120) {
-        throw new Exception('File too small!');
-    }
-    
-    // Validate ZIP
-    $zip = new \ZipArchive();
-    $zipStatus = $zip->open($filepath, \ZipArchive::CHECKCONS);
-    if ($zipStatus !== true) {
-        throw new Exception('Invalid ZIP: ' . $zipStatus);
-    }
-    
-    // Check required files
-    $requiredFiles = ['word/document.xml', '[Content_Types].xml', '_rels/.rels'];
-    foreach ($requiredFiles as $requiredFile) {
-        if ($zip->locateName($requiredFile) === false) {
-            $zip->close();
-            throw new Exception('Missing file: ' . $requiredFile);
-        }
-    }
-    $zip->close();
-    
-    echo "\n✓ SUCCESS! Document created and validated: $filepath\n";
-    echo "You can now open this file in Microsoft Word to verify.\n";
-    
-} catch (Exception $e) {
-    echo "\n✗ ERROR: " . $e->getMessage() . "\n";
-    echo $e->getTraceAsString() . "\n";
+echo "========================================\n";
+echo "TEST: Word Generation from Database\n";
+echo "========================================\n\n";
+
+// Find the most recent laporan kuesioner
+$laporan = LaporanBulanan::whereNotNull('periode')
+    ->latest()
+    ->first();
+
+if (!$laporan) {
+    echo "❌ ERROR: No laporan found in database\n";
+    echo "   Please create a laporan first via the web interface.\n";
     exit(1);
 }
+
+echo "✅ Found laporan:\n";
+echo "   - ID: {$laporan->id}\n";
+echo "   - Periode: {$laporan->periode}\n";
+echo "   - User ID: {$laporan->user_id}\n";
+echo "   - Status: {$laporan->status}\n";
+echo "   - File Word: " . ($laporan->file_word ?? 'Not generated yet') . "\n\n";
+
+// Get user and prodi info
+$user = \App\Models\User::find($laporan->user_id);
+$prodiNama = $user && $user->prodi ? $user->prodi->nama_prodi : 'N/A';
+$prodiKode = $user && $user->prodi ? $user->prodi->kode_prodi : null;
+
+echo "✅ User info:\n";
+echo "   - Prodi: {$prodiNama}\n";
+echo "   - Prodi Kode: " . ($prodiKode ?? 'N/A') . "\n\n";
+
+// Determine semester
+$periode = $laporan->periode;
+$year = (int) substr($periode, 0, 4);
+$month = (int) substr($periode, 5, 2);
+$semester = ($month <= 6) ? 2 : 1;
+$semesterText = ($semester == 1) ? 'GANJIL' : 'GENAP';
+
+echo "✅ Semester calculation:\n";
+echo "   - Year: {$year}\n";
+echo "   - Month: {$month}\n";
+echo "   - Semester: {$semester} ({$semesterText})\n\n";
+
+// Query kuesioner data
+echo "Querying kuesioner_uploads table...\n";
+$uploads = \App\Models\KuesioneUpload::query()
+    ->where('semester', $semester)
+    ->when($prodiKode, function($q) use ($prodiKode) {
+        $q->whereHas('user', function($uq) use ($prodiKode) {
+            $uq->whereHas('prodi', function($pq) use ($prodiKode) {
+                $pq->where('kode_prodi', $prodiKode);
+            });
+        });
+    })
+    ->with('user.prodi')
+    ->orderBy('tingkat', 'asc')
+    ->orderBy('nama_matakuliah', 'asc')
+    ->get();
+
+echo "✅ Found {$uploads->count()} kuesioner uploads\n\n";
+
+if ($uploads->count() === 0) {
+    echo "⚠️  WARNING: No kuesioner data found for this periode!\n";
+    echo "   The Word document will still be generated but with empty data.\n\n";
+} else {
+    // Show sample data
+    echo "Sample data (first 5):\n";
+    foreach ($uploads->take(5) as $idx => $upload) {
+        echo "   " . ($idx + 1) . ". Tingkat {$upload->tingkat} - {$upload->nama_matakuliah} - Index: {$upload->index_kepuasan}\n";
+    }
+    echo "\n";
+    
+    // Group by tingkat
+    $dataByTingkat = $uploads->groupBy(function($item) {
+        $tingkat = $item->tingkat;
+        if (is_numeric($tingkat)) {
+            return (int)$tingkat;
+        }
+        return 1;
+    });
+    
+    echo "Grouped by tingkat:\n";
+    foreach ($dataByTingkat as $tingkat => $data) {
+        echo "   - Tingkat {$tingkat}: {$data->count()} matakuliah\n";
+    }
+    echo "\n";
+    
+    // Calculate average index
+    $avgIndex = round($uploads->avg('index_kepuasan'), 2);
+    echo "Average Index Kepuasan: {$avgIndex}\n";
+    echo "Status: " . ($avgIndex >= 2.8 ? "✅ Melampaui minimum" : "❌ Belum mencapai minimum") . "\n\n";
+}
+
+// Generate Word document
+echo "========================================\n";
+echo "GENERATING WORD DOCUMENT\n";
+echo "========================================\n\n";
+
+$wordService = new KuesioneWordGenerationService();
+
+echo "Calling generateWordDocument()...\n";
+$startTime = microtime(true);
+
+try {
+    $result = $wordService->generateWordDocument($laporan);
+    $endTime = microtime(true);
+    $duration = round($endTime - $startTime, 2);
+    
+    if ($result) {
+        echo "✅ SUCCESS! Word document generated in {$duration} seconds\n\n";
+        
+        // Refresh laporan to get updated file_word
+        $laporan->refresh();
+        
+        echo "File details:\n";
+        echo "   - File Path: {$laporan->file_word}\n";
+        
+        $fullPath = storage_path('app/' . $laporan->file_word);
+        if (file_exists($fullPath)) {
+            $fileSize = filesize($fullPath);
+            $fileSizeKB = round($fileSize / 1024, 2);
+            echo "   - Full Path: {$fullPath}\n";
+            echo "   - File Size: {$fileSizeKB} KB\n";
+            echo "   - File exists: ✅ YES\n\n";
+            
+            echo "========================================\n";
+            echo "TEST PASSED! ✅\n";
+            echo "========================================\n\n";
+            echo "Next steps:\n";
+            echo "1. Download the file from: /gkm/laporan-kuesioner/download/{$laporan->id}?format=word\n";
+            echo "2. Open in Microsoft Word\n";
+            echo "3. Verify:\n";
+            echo "   - No {{...}} placeholders visible\n";
+            echo "   - All tingkat sections have data\n";
+            echo "   - Tables are formatted correctly\n";
+            echo "   - Index Kepuasan = {$avgIndex} (not 0.00)\n";
+            echo "   - Kesimpulan mentions the correct index value\n\n";
+        } else {
+            echo "   - Full Path: {$fullPath}\n";
+            echo "   - File exists: ❌ NO\n\n";
+            echo "⚠️  WARNING: File was reported as generated but doesn't exist!\n";
+        }
+        
+    } else {
+        $endTime = microtime(true);
+        $duration = round($endTime - $startTime, 2);
+        echo "❌ FAILED! generateWordDocument() returned false in {$duration} seconds\n\n";
+        echo "Check logs in storage/logs/laravel.log for details\n";
+    }
+    
+} catch (\Exception $e) {
+    $endTime = microtime(true);
+    $duration = round($endTime - $startTime, 2);
+    echo "❌ EXCEPTION after {$duration} seconds!\n";
+    echo "Error: {$e->getMessage()}\n";
+    echo "File: {$e->getFile()}:{$e->getLine()}\n\n";
+    echo "Stack trace:\n";
+    echo $e->getTraceAsString() . "\n";
+}
+
+echo "\n";

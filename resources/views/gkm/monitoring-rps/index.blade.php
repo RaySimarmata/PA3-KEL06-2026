@@ -78,7 +78,7 @@
 
         @if(session('cache_cleared'))
         <div class="alert alert-success mt-3 mb-0">
-            <i class="bi bi-check-circle"></i> Cache berhasil dihapus
+            <i class="bi bi-check-circle"></i> Cache berhasil dihapus. Data dosen akan dimuat ulang dari database.
         </div>
         @endif
 

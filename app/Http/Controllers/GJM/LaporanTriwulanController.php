@@ -1087,6 +1087,30 @@ class LaporanTriwulanController extends Controller
                 $responseTime
             );
 
+            // Create evaluation test entry for model evaluation tracking
+            try {
+                $evaluationService = app(\App\Services\AIEvaluationService::class);
+                $evaluationService->createAIResponseTest([
+                    'test_name' => 'Laporan Triwulan - ' . date('Y-m-d H:i:s'),
+                    'feature' => 'triwulan',
+                    'query' => $userPrompt,
+                    'expected_response' => null, // No ground truth for user-generated content
+                    'actual_response' => $aiResponse,
+                ]);
+                
+                Log::info('AI Evaluation test created', [
+                    'feature' => 'triwulan',
+                    'prompt_length' => strlen($userPrompt),
+                    'response_length' => strlen($aiResponse),
+                ]);
+            } catch (\Exception $e) {
+                // Don't fail the request if evaluation logging fails
+                Log::warning('Failed to create AI evaluation test', [
+                    'error' => $e->getMessage(),
+                    'feature' => 'triwulan'
+                ]);
+            }
+
             Log::info('AI Prompt successful', [
                 'prompt_length' => strlen($userPrompt),
                 'response_length' => strlen($aiResponse),

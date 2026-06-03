@@ -27,7 +27,7 @@
         <form method="GET" id="filterForm">
             <div class="row g-3 align-items-end">
 
-                <div class="col-md-3">
+                <div class="col-md-4">
                     <label>Periode</label>
                     <select name="periode" class="form-select" onchange="filterForm.submit()">
                         <option value="">Semua</option>
@@ -36,7 +36,7 @@
                     </select>
                 </div>
 
-                <div class="col-md-3">
+                <div class="col-md-4">
                     <label>Status</label>
                     <select name="status" class="form-select" onchange="filterForm.submit()">
                         <option value="">Semua</option>
@@ -47,16 +47,7 @@
                     </select>
                 </div>
 
-                <div class="col-md-3">
-                    <label>Prodi</label>
-                    <select name="prodi" class="form-select" onchange="filterForm.submit()">
-                        <option value="">Semua</option>
-                        <option value="trpl">TRPL</option>
-                        <option value="si">SI</option>
-                    </select>
-                </div>
-
-                <div class="col-md-3">
+                <div class="col-md-4">
                     <button class="btn btn-primary w-100">
                         <i class="bi bi-funnel"></i> Filter
                     </button>
@@ -89,20 +80,20 @@
                 <thead>
                     <tr>
                         <th style="width: 3%;">No</th>
-                        <th style="width: 15%;">Nama File</th>
+                        <th style="width: 13%;">Nama File</th>
                         <th style="width: 8%;">Periode</th>
-                        <th style="width: 15%;">Matakuliah</th>
-                        <th style="width: 8%;">Kode</th>
-                        <th style="width: 5%;" class="text-center">Tingkat</th>
-                        <th style="width: 15%;">Dosen</th>
-                        <th style="width: 8%;">Prodi</th>
-                        <th style="width: 6%;" class="text-center">Sumber</th>
-                        <th style="width: 5%;" class="text-center">Resp.</th>
-                        <th style="width: 5%;" class="text-center">Index</th>
-                        <th style="width: 5%;" class="text-center">%</th>
-                        <th style="width: 8%;" class="text-center">Status</th>
-                        <th style="width: 10%;">Tanggal</th>
-                        <th style="width: 8%;" class="text-center">Aksi</th>
+                        <th style="width: 13%;">Matakuliah</th>
+                        <th style="width: 7%;">Kode</th>
+                        <th style="width: 4%;" class="text-center">Tkt</th>
+                        <th style="width: 5%;" class="text-center">Jenis</th>
+                        <th style="width: 13%;">Dosen</th>
+                        <th style="width: 5%;" class="text-center">Sumber</th>
+                        <th style="width: 4%;" class="text-center">Resp.</th>
+                        <th style="width: 4%;" class="text-center">Index</th>
+                        <th style="width: 4%;" class="text-center">%</th>
+                        <th style="width: 7%;" class="text-center">Status</th>
+                        <th style="width: 9%;">Tanggal</th>
+                        <th style="width: 7%;" class="text-center">Aksi</th>
                     </tr>
                 </thead>
 
@@ -126,17 +117,44 @@
 
                     <td>{{ $k->nama_file }}</td>
                     <td>{{ $k->periode }}</td>
-                    <td>{{ $k->nama_matakuliah ?? '-' }}</td>
+                    <td>
+                        @if($k->nama_matakuliah)
+                            {{ $k->nama_matakuliah }}
+                        @else
+                            @php
+                                $matkul = \App\Models\Matakuliah::where('kode_mk', $k->kode_matakuliah)->first();
+                            @endphp
+                            {{ $matkul->nama_mk ?? '-' }}
+                        @endif
+                    </td>
                     <td class="code-mk">{{ $k->kode_matakuliah ?? '-' }}</td>
                     <td class="text-center">{{ $k->tingkat ?? '-' }}</td>
-                    <td class="dosen-name">
-                        {{ \App\Models\Dosenn::where('pegawai_id', $k->pegawai_id)->first()->nama ?? '-' }}
+                    
+                    {{-- JENIS KUESIONER --}}
+                    <td class="text-center">
+                        @if($k->jenis_kuesioner)
+                            @if($k->jenis_kuesioner === 'UTS')
+                                <span class="badge bg-warning">UTS</span>
+                            @elseif($k->jenis_kuesioner === 'UAS')
+                                <span class="badge bg-primary">UAS</span>
+                            @else
+                                <span class="badge bg-secondary">{{ $k->jenis_kuesioner }}</span>
+                            @endif
+                        @else
+                            -
+                        @endif
                     </td>
-                    <td>{{ $k->user->prodi->nama_prodi ?? '-' }}</td>
+                    
+                    <td class="dosen-name">
+                        @php
+                            $dosen = \App\Models\Dosenn::where('pegawai_id', $k->pegawai_id)->first();
+                        @endphp
+                        {{ $dosen->nama ?? '-' }}
+                    </td>
 
                     {{-- SUMBER --}}
                     <td class="text-center">
-                        @if($k->sumber_data === 'api')
+                        @if($k->source === 'api')
                             <span class="badge bg-success">API</span>
                         @else
                             <span class="badge bg-secondary">Excel</span>
@@ -194,7 +212,7 @@
                     <td class="text-center">
                         <div class="btn-group">
 
-                            <a href="{{ route('gkm.monitoring-kuesioner.showa', $k->id) }}"
+                            <a href="{{ route('gkm.monitoring-kuesioner.show', $k->id) }}"
                                class="btn btn-sm btn-outline-primary"
                                title="Lihat Detail">
                                 <i class="bi bi-eye"></i>
@@ -225,7 +243,7 @@
 
                 @empty
                 <tr>
-                    <td colspan="15" class="text-center py-5">
+                    <td colspan="14" class="text-center py-5">
                         <div class="text-muted">
                             <i class="bi bi-inbox" style="font-size: 3rem;"></i>
                             <p class="mt-3 mb-0">Belum ada data kuesioner</p>

@@ -44,19 +44,9 @@ class MonitoringRPSController extends Controller
         $periodeAktif = PeriodeAkademik::where('is_active', true)->first();
 
         // =========================
-        // TAHUN AJARAN (CACHE)
+        // TAHUN AJARAN (DYNAMIC AUTO-UPDATE)
         // =========================
-        $tahunAjaranList = \Cache::remember('tahun_ajaran_list', 600, function () use ($apiService) {
-            $result = $apiService->getTahunAjaran();
-
-            return !empty($result) ? $result : [
-                ['id_thn_ajaran' => '2020', 'nm_thn_ajaran' => '2020'],
-                ['id_thn_ajaran' => '2021', 'nm_thn_ajaran' => '2021'],
-                ['id_thn_ajaran' => '2022', 'nm_thn_ajaran' => '2022'],
-                ['id_thn_ajaran' => '2023', 'nm_thn_ajaran' => '2023'],
-                ['id_thn_ajaran' => '2024', 'nm_thn_ajaran' => '2024'],
-            ];
-        });
+        $tahunAjaranList = $this->generateDynamicTahunAjaran();
 
         // =========================
         // FILTER
@@ -71,7 +61,7 @@ class MonitoringRPSController extends Controller
             }
         }
 
-        $selectedTingkat = $request->input('tingkat', 1);
+        $selectedTingkat = $request->input('tingkat', null);
 
         // =========================
         // PRODI
@@ -109,6 +99,7 @@ class MonitoringRPSController extends Controller
             );
 
             if (!empty($matkulList)) {
+                // Save to database snapshot
                 $this->saveSnapshotToDB(
                     $matkulList,
                     $prodiId,
@@ -117,8 +108,22 @@ class MonitoringRPSController extends Controller
                     $selectedTahunAjaran
                 );
 
+                // Cache the result
                 \Cache::put($cacheKey, $matkulList, 1800);
+                
+                \Log::info('MonitoringRPS - Data cached and saved to snapshot', [
+                    'prodi_id' => $prodiId,
+                    'semester' => $selectedSemester,
+                    'tahun_ajaran' => $selectedTahunAjaran,
+                    'tingkat' => $selectedTingkat,
+                    'count' => count($matkulList)
+                ]);
             }
+        } else {
+            \Log::info('MonitoringRPS - Data loaded from cache', [
+                'cache_key' => $cacheKey,
+                'count' => count($matkulList)
+            ]);
         }
 
         // =========================
@@ -216,7 +221,7 @@ public function syncSemuaJadwal($semester, $tahun)
                     ],
                     [
                         'kuliah_id' => $jadwal['kuliah_id'] ?? null,
-                        
+
                     ]
                 );
             }
@@ -292,24 +297,68 @@ public function exportPdf(Request $request)
     | 2. AMBIL DOSEN DARI DATABASE (JADWAL DOSEN)
     |----------------------------------------
     */
-    $jadwalDosenList = \Cache::remember(
-        "jadwal_dosen_{$selectedSemester}_{$selectedTahunAjaran}",
-        1800,
-        function () use ($selectedSemester, $selectedTahunAjaran) {
+    \Log::info('MonitoringRPS - Start fetching jadwal dosen', [
+        'semester' => $selectedSemester,
+        'tahun_ajaran' => $selectedTahunAjaran
+    ]);
 
-            return \DB::table('jadwal_dosen as jd')
-                ->leftJoin('dosenn as d', 'jd.pegawai_id', '=', 'd.pegawai_id')
-                ->where('jd.semester', $selectedSemester)
-                ->where('jd.tahun_ajaran', $selectedTahunAjaran)
-                ->select(
-                    'jd.kode_mk',
-                    'jd.pegawai_id',
-                    'jd.is_manual',
-                    'd.nama'
-                )
-                ->get();
-        }
-    );
+    // 🔥 QUERY DOSEN TANPA CACHE DULU - UNTUK DEBUG
+    \Log::info('MonitoringRPS - Debug: Query params', [
+        'selectedSemester' => $selectedSemester,
+        'selectedTahunAjaran' => $selectedTahunAjaran
+    ]);
+
+    // Konversi semester input ke format yang ada di database
+    $semesterVariations = [];
+    
+    if ($selectedSemester == '1') {
+        $semesterVariations = ['1', 'Ganjil', 'ganjil', 'GANJIL'];
+    } elseif ($selectedSemester == '2') {
+        $semesterVariations = ['2', 'Genap', 'genap', 'GENAP'];
+    } else {
+        // Jika tidak ada filter semester, ambil semua
+        $semesterVariations = ['1', '2', 'Ganjil', 'ganjil', 'GANJIL', 'Genap', 'genap', 'GENAP'];
+    }
+
+    // Query dengan LEFT JOIN untuk memastikan semua jadwal terambil
+    $jadwalDosenList = \DB::table('jadwal_dosen as jd')
+        ->leftJoin('dosenn as d', 'jd.pegawai_id', '=', 'd.pegawai_id')
+        ->whereIn('jd.semester', $semesterVariations)
+        ->where(function ($q) use ($selectedTahunAjaran) {
+            // Coba berbagai format tahun ajaran
+            $q->where('jd.tahun_ajaran', $selectedTahunAjaran)
+              ->orWhere('jd.tahun_ajaran', 'LIKE', $selectedTahunAjaran . '%')
+              ->orWhere('jd.tahun_ajaran', 'LIKE', '%' . $selectedTahunAjaran)
+              ->orWhere('jd.tahun_ajaran', 'LIKE', '%' . $selectedTahunAjaran . '%');
+        })
+        ->select(
+            'jd.kode_mk',
+            'jd.pegawai_id',
+            'jd.is_manual',
+            'd.nama',
+            'jd.semester',
+            'jd.tahun_ajaran'
+        )
+        ->get();
+
+    \Log::info('MonitoringRPS - Jadwal dosen query result', [
+        'semester_filter' => $semesterVariations,
+        'tahun_filter' => $selectedTahunAjaran,
+        'count' => $jadwalDosenList->count(),
+        'sample' => $jadwalDosenList->take(10)->map(function($r) {
+            return [
+                'kode_mk' => $r->kode_mk,
+                'nama' => $r->nama,
+                'pegawai_id' => $r->pegawai_id,
+                'semester' => $r->semester,
+                'tahun_ajaran' => $r->tahun_ajaran
+            ];
+        })->toArray()
+    ]);
+
+    \Log::info('MonitoringRPS - Jadwal dosen fetched', [
+        'count' => $jadwalDosenList->count()
+    ]);
 
     /*
     |----------------------------------------
@@ -320,7 +369,14 @@ public function exportPdf(Request $request)
 
     foreach ($jadwalDosenList as $item) {
 
-        $kodeMk = $item->kode_mk;
+        $kodeMk = trim($item->kode_mk ?? '');
+
+        if (!$kodeMk) {
+            \Log::warning('MonitoringRPS - Empty kode_mk found', [
+                'item' => (array)$item
+            ]);
+            continue;
+        }
 
         if (!isset($matkulDosenMap[$kodeMk])) {
             $matkulDosenMap[$kodeMk] = [];
@@ -333,17 +389,35 @@ public function exportPdf(Request $request)
         ];
     }
 
+    \Log::info('MonitoringRPS - Matkul dosen map built', [
+        'matkul_count' => count($matkulDosenMap),
+        'total_mappings' => array_sum(array_map('count', $matkulDosenMap)),
+        'sample_keys' => array_slice(array_keys($matkulDosenMap), 0, 10),
+        'sample_data' => array_slice($matkulDosenMap, 0, 3, true)
+    ]);
+
     /*
     |----------------------------------------
     | 4. LOOP MATKUL
     |----------------------------------------
     */
+    \Log::info('MonitoringRPS - Start processing matkul', [
+        'total_matkul' => count($matkulData),
+        'sample_matkul' => array_slice($matkulData, 0, 3)
+    ]);
+
     foreach ($matkulData as $matkul) {
 
         $kuliahId = $matkul['kuliah_id'] ?? null;
-        $kodeMk   = (string) ($matkul['kode_mk'] ?? '');
+        $kodeMk   = trim((string) ($matkul['kode_mk'] ?? ''));
 
-        if (!$kuliahId || strlen($kodeMk) < 5) continue;
+        if (!$kuliahId || strlen($kodeMk) < 5) {
+            \Log::warning('MonitoringRPS - Skipping matkul due to invalid data', [
+                'kuliah_id' => $kuliahId,
+                'kode_mk' => $kodeMk
+            ]);
+            continue;
+        }
 
         /*
         | FILTER TINGKAT
@@ -376,15 +450,42 @@ public function exportPdf(Request $request)
             $pegawaiIds = [];
             $dosenNama  = '-';
 
-            if (isset($matkulDosenMap[$kodeMk])) {
+            // Cek dengan berbagai variasi kode MK (case-insensitive, trim spaces)
+            $foundKey = null;
+            foreach (array_keys($matkulDosenMap) as $key) {
+                if (strcasecmp(trim($key), $kodeMk) === 0) {
+                    $foundKey = $key;
+                    break;
+                }
+            }
 
-                $uniqueDosen = collect($matkulDosenMap[$kodeMk])
-    ->unique('pegawai_id')
-    ->values();
+            if ($foundKey && isset($matkulDosenMap[$foundKey])) {
 
-$pegawaiIds = $uniqueDosen->pluck('pegawai_id')->toArray();
+                $uniqueDosen = collect($matkulDosenMap[$foundKey])
+                    ->unique('pegawai_id')
+                    ->values();
 
-$dosenNama = $uniqueDosen->pluck('nama')->implode(', ');
+                $pegawaiIds = $uniqueDosen->pluck('pegawai_id')->toArray();
+                $dosenNama = $uniqueDosen->pluck('nama')->filter()->implode(', ');
+                
+                if (empty($dosenNama) || $dosenNama === '') {
+                    $dosenNama = '-';
+                }
+                
+                \Log::info('MonitoringRPS - Dosen found for matkul', [
+                    'kode_mk' => $kodeMk,
+                    'found_key' => $foundKey,
+                    'dosen' => $dosenNama,
+                    'pegawai_ids' => $pegawaiIds,
+                    'dosen_count' => count($pegawaiIds)
+                ]);
+            } else {
+                \Log::warning('MonitoringRPS - No dosen found for matkul', [
+                    'kode_mk' => $kodeMk,
+                    'kode_mk_length' => strlen($kodeMk),
+                    'available_keys_sample' => array_slice(array_keys($matkulDosenMap), 0, 5),
+                    'total_available_keys' => count($matkulDosenMap)
+                ]);
             }
 
             $matkulList[] = [
@@ -484,43 +585,47 @@ private function saveSnapshotToDB(
         try {
             $user = Auth::user();
             $prodiKode = $user->prodi ? $user->prodi->kode_prodi : 'TRPL';
-            
+
             $prodiIdMap = [
                 'TRPL' => 4,
                 'TI' => 1,
                 'NM' => 3,
             ];
-            
+
             $prodiId = $prodiIdMap[$prodiKode] ?? 4;
-            
+
             // Get current filter values
             $selectedSemester = $request->input('semester', '1');
-            $selectedTahunAjaran = $request->input('tahun_ajaran', '2020');
-            
+            $selectedTahunAjaran = $request->input('tahun_ajaran', '2025');
+            $selectedTingkat = $request->input('tingkat', '');
+
             // Clear main cache
-            $cacheKey = "monitoring_rps_{$prodiId}_{$selectedSemester}_{$selectedTahunAjaran}";
+            $cacheKey = "monitoring_rps_{$prodiId}_{$selectedSemester}_{$selectedTahunAjaran}_{$selectedTingkat}";
             \Cache::forget($cacheKey);
-            
+
             // Clear related caches
             \Cache::forget("matkul_{$prodiId}_{$selectedSemester}_{$selectedTahunAjaran}");
+            \Cache::forget("jadwal_dosen_rps_{$selectedSemester}_{$selectedTahunAjaran}");
             \Cache::forget("matkul_dosen_map_{$prodiId}_{$selectedSemester}_{$selectedTahunAjaran}");
-            
-            \Log::info('Cache cleared manually', [
+
+            \Log::info('MonitoringRPS - Cache cleared manually', [
                 'prodi_id' => $prodiId,
                 'semester' => $selectedSemester,
-                'tahun_ajaran' => $selectedTahunAjaran
+                'tahun_ajaran' => $selectedTahunAjaran,
+                'tingkat' => $selectedTingkat
             ]);
-            
+
             return redirect()->route('gkm.monitoring-rps.index', [
                 'semester' => $selectedSemester,
-                'tahun_ajaran' => $selectedTahunAjaran
+                'tahun_ajaran' => $selectedTahunAjaran,
+                'tingkat' => $selectedTingkat
             ])->with('cache_cleared', true);
-            
+
         } catch (\Exception $e) {
             \Log::error('Failed to clear cache', [
                 'error' => $e->getMessage()
             ]);
-            
+
             return redirect()->back()->with('error', 'Gagal menghapus cache');
         }
     }
@@ -612,8 +717,8 @@ private function saveSnapshotToDB(
         if (!$dosenList || $dosenList->isEmpty()) {
         return "Tidak ada data dosen yang dipilih.";
     }
-        $namaDosen = $dosenList->count() > 1 
-            ? 'Bapak/Ibu Dosen' 
+        $namaDosen = $dosenList->count() > 1
+            ? 'Bapak/Ibu Dosen'
             : 'Bapak/Ibu ' . ($dosenList->first()->nama ?? $dosenList->first()->nama_lengkap);
 
         $message = "Kepada Yth.\n";
@@ -764,7 +869,7 @@ private function saveSnapshotToDB(
 
         // Ambil dosen untuk filter
         $dosenList = Dosenn::get();
-        
+
         // Ambil log email
         $logEmailList = LogEmail::when($dosenId, function ($query) use ($dosenId) {
                 // Cari dosen berdasarkan ID
@@ -777,5 +882,46 @@ private function saveSnapshotToDB(
             ->paginate(10);
 
         return view('gkm.monitoring-rps.history', compact('user', 'logEmailList', 'dosenList', 'dosenId'));
+    }
+
+    /**
+     * Generate dynamic tahun ajaran list based on current year
+     * Auto-updates every 5 years
+     * 
+     * Example:
+     * - Current year 2025-2029: Shows 2025, 2026, 2027, 2028, 2029, 2030
+     * - Current year 2030-2034: Shows 2030, 2031, 2032, 2033, 2034, 2035
+     * - Current year 2035-2039: Shows 2035, 2036, 2037, 2038, 2039, 2040
+     */
+    private function generateDynamicTahunAjaran()
+    {
+        $currentYear = (int) date('Y');
+        
+        // Determine base year (start of 5-year range)
+        // Formula: floor(currentYear / 5) * 5
+        // Examples:
+        // - 2025-2029 → baseYear = 2025
+        // - 2030-2034 → baseYear = 2030
+        // - 2035-2039 → baseYear = 2035
+        $baseYear = floor($currentYear / 5) * 5;
+        
+        // Generate 6 years (current 5-year range + 1 next year)
+        $tahunList = [];
+        for ($i = 0; $i <= 5; $i++) {
+            $year = $baseYear + $i;
+            $tahunList[] = [
+                'id_thn_ajaran' => (string) $year,
+                'nm_thn_ajaran' => (string) $year
+            ];
+        }
+        
+        Log::info('Generated dynamic tahun ajaran', [
+            'current_year' => $currentYear,
+            'base_year' => $baseYear,
+            'range' => $baseYear . ' - ' . ($baseYear + 5),
+            'years_generated' => array_column($tahunList, 'id_thn_ajaran')
+        ]);
+        
+        return $tahunList;
     }
 }

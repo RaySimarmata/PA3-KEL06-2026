@@ -58,20 +58,18 @@
                 <table class="table table-monitoring">
                     <thead>
                         <tr>
-                            <th style="width: 15%;">Periode</th>
-                            <th style="width: 15%;">Program Studi</th>
-                            <th style="width: 10%;" class="text-center">Total RPS</th>
-                            <th style="width: 10%;" class="text-center">Total Materi</th>
-                            <th style="width: 12%;" class="text-center">Status</th>
-                            <th style="width: 13%;">Dibuat</th>
-                            <th style="width: 25%;" class="text-center">Aksi</th>
+                            <th style="width: 18%;">Periode</th>
+                            <th style="width: 12%;" class="text-center">Total RPS</th>
+                            <th style="width: 12%;" class="text-center">Total Materi</th>
+                            <th style="width: 15%;" class="text-center">Status</th>
+                            <th style="width: 15%;">Dibuat</th>
+                            <th style="width: 28%;" class="text-center">Aksi</th>
                         </tr>
                     </thead>
                     <tbody>
                         @forelse($laporanList as $laporan)
                             <tr>
                                 <td class="code-mk">{{ $laporan->formatted_periode }}</td>
-                                <td class="text-secondary">{{ $laporan->prodi->nama_prodi ?? '-' }}</td>
                                 <td class="text-center">
                                     <span class="badge-gkm info">{{ $laporan->total_rps ?? 0 }}</span>
                                 </td>
@@ -116,7 +114,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="7" class="text-center py-5">
+                                <td colspan="6" class="text-center py-5">
                                     <div class="empty-state">
                                         <i class="bi bi-inbox"></i>
                                         <p>Belum ada laporan. <a href="{{ route('gkm.laporan-artefak.create') }}" style="color: #5B9BD5; font-weight: 600;">Generate laporan baru</a></p>

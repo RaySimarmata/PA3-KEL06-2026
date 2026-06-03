@@ -19,8 +19,8 @@ class KirimLaporanController extends Controller
 
     public function index()
     {
-        // Ambil laporan kuesioner yang sudah selesai
-        $laporanList = \App\Models\LaporanBulanan::where('prodi_id', auth()->user()->prodi_id)
+        // Ambil laporan kuesioner yang sudah selesai untuk user yang login
+        $laporanList = \App\Models\LaporanBulanan::where('user_id', auth()->id())
             ->where('status', 'completed')
             ->orderBy('tahun', 'desc')
             ->orderBy('bulan', 'desc')

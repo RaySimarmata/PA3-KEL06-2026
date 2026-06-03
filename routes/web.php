@@ -121,7 +121,7 @@ Route::middleware('auth')->group(function () {
         ->name('dosen.update.email');
 
     Route::post('/matakuliah', [DataMasterApiController::class, 'storeMatakuliah'])
-        ->name('matakuliah.store'); 
+        ->name('matakuliah.store');
 
     Route::put('/matakuliah/{id}', [DataMasterApiController::class, 'updateMatakuliah'])
         ->name('matakuliah.update');
@@ -221,14 +221,15 @@ Route::middleware('auth')->group(function () {
 
     // 🔹 API untuk pencarian matakuliah
     Route::get('/api/search-matkul', [MonitoringKuesioneController::class, 'searchMatkul'])
-        ->name('api.search-matkul');    
+        ->name('api.search-matkul');
     // 🔹 list kuesioner per mata kuliah
     Route::get('/kuesioner', [MonitoringKuesioneController::class, 'listKuesioner'])
         ->name('listKuesioner');
 
             Route::get('/create', [MonitoringKuesioneController::class, 'create'])->name('create');
             Route::post('/store', [MonitoringKuesioneController::class, 'store'])->name('store');
-            // Route::get('/{id}', [MonitoringKuesioneController::class, 'show'])->name('show');
+            Route::get('/view/{id}', [MonitoringKuesioneController::class, 'show'])->name('show');
+            Route::post('/{id}/reprocess', [MonitoringKuesioneController::class, 'reprocess'])->name('reprocess');
             Route::get('/{id}',[MonitoringKuesioneController::class, 'showKuesioner'])->name('showa');
             Route::delete('/{id}', [MonitoringKuesioneController::class, 'destroy'])->name('destroy');
             Route::get('/{id}/report', [MonitoringKuesioneController::class, 'generateReport'])->name('report');
@@ -240,6 +241,12 @@ Route::middleware('auth')->group(function () {
             Route::get('/', [LaporanKuesioneController::class, 'index'])->name('index');
             Route::get('/create', [LaporanKuesioneController::class, 'create'])->name('create');
             Route::post('/', [LaporanKuesioneController::class, 'store'])->name('store');
+
+            // AI Assistant Routes for Generate Laporan Kuesioner Baru
+            Route::post('/create-draft', [LaporanKuesioneController::class, 'createDraft'])->name('create-draft');
+            Route::post('/ai-prompt', [LaporanKuesioneController::class, 'aiPrompt'])->name('ai-prompt');
+            Route::post('/save-preview', [LaporanKuesioneController::class, 'savePreview'])->name('save-preview');
+            Route::post('/generate-word', [LaporanKuesioneController::class, 'generateWordDocument'])->name('generate-word');
 
             // Template Management (MUST BE BEFORE /{id} routes)
             Route::get('/template', [LaporanKuesioneController::class, 'templateIndex'])->name('template.index');
@@ -262,9 +269,12 @@ Route::middleware('auth')->group(function () {
             Route::get('/', [LaporanArtefakController::class, 'index'])->name('index');
             Route::get('/create', [LaporanArtefakController::class, 'create'])->name('create');
             Route::post('/', [LaporanArtefakController::class, 'store'])->name('store');
-            
+
             // AI Assistant
+            Route::post('/create-draft', [LaporanArtefakController::class, 'createDraft'])->name('create-draft');
             Route::post('/ai-prompt', [LaporanArtefakController::class, 'aiPrompt'])->name('ai-prompt');
+            Route::post('/save-preview', [LaporanArtefakController::class, 'savePreview'])->name('save-preview');
+            Route::post('/generate-word', [LaporanArtefakController::class, 'generateWordDocument'])->name('generate-word');
 
             // Template Management (MUST BE BEFORE /{id} routes)
             Route::get('/template', [LaporanArtefakController::class, 'templateIndex'])->name('template.index');

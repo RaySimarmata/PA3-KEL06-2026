@@ -246,6 +246,30 @@ class PromptVMTSController extends Controller
                 'provider' => $aiResult['provider'],
                 'model' => $aiResult['model']
             ]);
+            
+            // Create evaluation test entry for model evaluation tracking
+            try {
+                $evaluationService = app(\App\Services\AIEvaluationService::class);
+                $evaluationService->createAIResponseTest([
+                    'test_name' => 'Prompt VMTS - ' . date('Y-m-d H:i:s'),
+                    'feature' => 'vmts',
+                    'query' => $fullPrompt,
+                    'expected_response' => null, // No ground truth for user-generated content
+                    'actual_response' => $aiResponse,
+                ]);
+                
+                Log::info('AI Evaluation test created', [
+                    'feature' => 'vmts_prompt',
+                    'prompt_length' => strlen($fullPrompt),
+                    'response_length' => strlen($aiResponse),
+                ]);
+            } catch (\Exception $e) {
+                // Don't fail the request if evaluation logging fails
+                Log::warning('Failed to create AI evaluation test', [
+                    'error' => $e->getMessage(),
+                    'feature' => 'vmts_prompt'
+                ]);
+            }
 
             // ── 7. Parse sections untuk akordeon ─────────────────────────────
             $sections = $this->parseSections($aiResponse);

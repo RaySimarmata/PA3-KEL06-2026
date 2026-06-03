@@ -30,19 +30,19 @@ class DataMasterController extends Controller
     public function dosenPengajar()
     {
         $user = Auth::user();
-        
+
         // Filter dosen berdasarkan prodi GKM
         $query = Dosen::with('prodi')->orderBy('nama_lengkap');
-        
+
         if ($user->prodi_id) {
             $query->where('prodi_id', $user->prodi_id);
         }
-        
+
         $dosenList = $query->paginate(10);
-        
+
         // Get daftar kelas berdasarkan prodi
         $kelasList = Dosen::getKelasListByProdi($user->prodi_id);
-        
+
         return view('gkm.data-master.dosen', compact('user', 'dosenList', 'kelasList'));
     }
 
@@ -165,7 +165,7 @@ class DataMasterController extends Controller
             if ($existingUser) {
                 // Jika user sudah ada, gunakan user tersebut
                 $userId = $existingUser->id;
-                
+
                 // Update prodi_id user jika belum ada
                 if (!$existingUser->prodi_id) {
                     $existingUser->update(['prodi_id' => $prodiId]);
@@ -173,7 +173,7 @@ class DataMasterController extends Controller
             } else {
                 // Generate username dari email (bagian sebelum @)
                 $username = explode('@', $request->kontak_email)[0];
-                
+
                 // Pastikan username unik
                 $baseUsername = $username;
                 $counter = 1;
@@ -341,16 +341,16 @@ class DataMasterController extends Controller
     {
         try {
             $dosen = Dosen::findOrFail($id);
-            
+
             DB::beginTransaction();
-            
+
             // Hapus user terkait
             if ($dosen->user) {
                 $dosen->user->delete();
             }
-            
+
             $dosen->delete();
-            
+
             DB::commit();
 
             return redirect()->route('gkm.data-master.dosen')
@@ -365,25 +365,25 @@ class DataMasterController extends Controller
     public function matakuliah()
     {
         $user = Auth::user();
-        
+
         // Filter matakuliah berdasarkan prodi GKM
         $query = Matakuliah::with(['prodi', 'dosen'])->orderBy('kode_mk');
-        
+
         if ($user->prodi_id) {
             $query->where('prodi_id', $user->prodi_id);
         }
-        
+
         $matakuliahList = $query->paginate(10);
-        
+
         // Filter dosen berdasarkan prodi GKM
         $dosenQuery = Dosen::where('status', 'aktif')->orderBy('nama_lengkap');
-        
+
         if ($user->prodi_id) {
             $dosenQuery->where('prodi_id', $user->prodi_id);
         }
-        
+
         $dosenList = $dosenQuery->get();
-        
+
         return view('gkm.data-master.matakuliah', compact('user', 'matakuliahList', 'dosenList'));
     }
 
@@ -521,16 +521,16 @@ class DataMasterController extends Controller
     public function templateLaporan()
     {
         $user = Auth::user();
-        
+
         // Filter template berdasarkan prodi GKM
         $query = TemplateLaporan::with('prodi')->orderBy('created_at', 'desc');
-        
+
         if ($user->prodi_id) {
             $query->where('prodi_id', $user->prodi_id);
         }
-        
+
         $templateList = $query->paginate(10);
-        
+
         return view('gkm.data-master.template', compact('user', 'templateList'));
     }
 
@@ -552,10 +552,10 @@ class DataMasterController extends Controller
             $originalName = $file->getClientOriginalName();
             $extension = $file->getClientOriginalExtension();
             $fileSize = $file->getSize();
-            
+
             // Generate unique filename
             $fileName = time() . '_' . str_replace(' ', '_', $originalName);
-            
+
             // Store file
             $filePath = $file->storeAs('templates', $fileName, 'public');
 
@@ -587,7 +587,7 @@ class DataMasterController extends Controller
     {
         try {
             $template = TemplateLaporan::findOrFail($id);
-            
+
             if (!Storage::disk('public')->exists($template->file_path)) {
                 return redirect()->back()
                     ->with('error', 'File tidak ditemukan');
@@ -604,7 +604,7 @@ class DataMasterController extends Controller
     {
         try {
             $template = TemplateLaporan::findOrFail($id);
-            
+
             // Hapus file dari storage
             if (Storage::disk('public')->exists($template->file_path)) {
                 Storage::disk('public')->delete($template->file_path);
@@ -623,16 +623,16 @@ class DataMasterController extends Controller
     public function periodeAkademik()
     {
         $user = Auth::user();
-        
+
         // Filter periode berdasarkan prodi GKM
         $query = Ajaran::with('prodi')->orderBy('tahun_ajaran', 'desc')->orderBy('semester', 'desc');
-        
+
         if ($user->prodi_id) {
             $query->where('prodi_id', $user->prodi_id);
         }
-        
+
         $periodeList = $query->paginate(10);
-        
+
         return view('gkm.data-master.periode', compact('user', 'periodeList'));
     }
 
@@ -743,7 +743,7 @@ class DataMasterController extends Controller
     {
         try {
             $periode = Ajaran::findOrFail($id);
-            
+
             if ($periode->status == 'aktif') {
                 return redirect()->back()
                     ->with('error', 'Tidak dapat menghapus periode yang sedang aktif');
@@ -764,15 +764,15 @@ class DataMasterController extends Controller
     public function kelas()
     {
         $user = Auth::user();
-        
+
         $query = Kelas::with('prodi')->orderBy('kode_kelas');
-        
+
         if ($user->prodi_id) {
             $query->where('prodi_id', $user->prodi_id);
         }
-        
+
         $kelasList = $query->paginate(10);
-        
+
         return view('gkm.data-master.kelas', compact('user', 'kelasList'));
     }
 
@@ -893,10 +893,10 @@ class DataMasterController extends Controller
     {
         try {
             $kelas = Kelas::findOrFail($id);
-            
+
             // Cek apakah kelas sedang digunakan oleh dosen wali
             $dosenWali = Dosen::where('kelas_wali', $kelas->kode_kelas)->count();
-            
+
             if ($dosenWali > 0) {
                 return redirect()->back()
                     ->with('error', 'Tidak dapat menghapus kelas yang sedang digunakan oleh dosen wali');
@@ -918,85 +918,180 @@ class DataMasterController extends Controller
 
         // AJAX autocomplete dosen
         if ($request->ajax() || $request->has('get_dosen_list')) {
-
-            $query = Dosenn::select(
-                'nama',
-                DB::raw('SUBSTRING_INDEX(email, ",", 1) as email')
-            );
-
-            if ($request->filled('search')) {
-                $query->where('nama', 'like', '%' . $request->search . '%');
+            try {
+                $apiService = app(\App\Services\ExternalAPIService::class);
+                $dosenData = $apiService->getFilteredDosen();
+                
+                // Return only nama and email for autocomplete
+                $dosenList = array_map(function($dosen) {
+                    return [
+                        'nama' => $dosen['nama'] ?? '',
+                        'email' => $dosen['email'] ?? ''
+                    ];
+                }, $dosenData);
+                
+                return response()->json(['dosen' => $dosenList]);
+            } catch (\Exception $e) {
+                \Log::error('AJAX Dosen List Error: ' . $e->getMessage());
+                return response()->json(['dosen' => []]);
             }
-
-            return response()->json([
-                'dosen' => $query->orderBy('nama')->get()
-            ]);
         }
-
-        $query = Dosenn::query();
-
-        // Removed filtering by logged-in user's prodi_id so all dosen are listed
-        if ($request->filled('search')) {
-            $query->where('nama', 'like', '%' . $request->search . '%');
-        }
-
-        $dosenList = $query
-            ->orderBy('nama')
-            ->paginate(10)
-            ->appends($request->all());
-
-        // Ambil matakuliah dari tabel jadwal_dosen, manfaatkan filter semester & tahun ajaran
-        $sem = $request->filled('sem_ta') ? $request->sem_ta : null;
-        $ta = $request->filled('ta') ? $request->ta : null;
-
-        foreach ($dosenList as $dosen) {
-
-            $matakuliahQuery = DB::table('jadwal_dosen')
-                ->where('pegawai_id', $dosen->pegawai_id);
-
-            if ($sem !== null) {
-                $matakuliahQuery->where('semester', $sem);
-            }
-
-            if ($ta !== null) {
-                $matakuliahQuery->where('tahun_ajaran', $ta);
-            }
-
-            $matakuliah = $matakuliahQuery
-                ->select(
-                    'kode_mk',
-                    'kelas',
-                    'semester',
-                    'tahun_ajaran'
-                )
-                ->distinct()
-                ->get();
-
-            $dosen->matakuliah = $matakuliah;
-        }
-
-        return view(
-            'gkm.data-master.penugasan-dosen',
-            compact('user', 'dosenList')
+        
+        // Initialize empty collection
+        $dosenList = new \Illuminate\Pagination\LengthAwarePaginator(
+            [],
+            0,
+            10,
+            1,
+            ['path' => $request->url(), 'query' => $request->query()]
         );
+        
+        // Only fetch data if search is provided or form is submitted
+        if (!$request->has('search') && !$request->has('submitted')) {
+            return view('gkm.data-master.penugasan-dosen', compact('user', 'dosenList'));
+        }
+        
+        try {
+            $apiService = app(\App\Services\ExternalAPIService::class);
+            
+            // Fetch data from API using service
+            $dosenData = $apiService->getFilteredDosen();
+            
+            // Search by name
+            if ($request->search) {
+                $searchTerm = strtolower($request->search);
+                $dosenData = array_filter($dosenData, function($dosen) use ($searchTerm) {
+                    return isset($dosen['nama']) && 
+                           str_contains(strtolower($dosen['nama']), $searchTerm);
+                });
+            }
+            
+            // Convert to collection for pagination
+            $dosenCollection = collect(array_values($dosenData));
+            
+            // PAGINATION FIRST - before fetching jadwal
+            $perPage = 10;
+            $currentPage = $request->get('page', 1);
+            
+            // Get only current page items
+            $currentPageDosen = $dosenCollection->forPage($currentPage, $perPage)->all();
+            
+            // Get semester and year from request or use defaults
+            $currentMonth = date('n');
+            $defaultSemTa = $currentMonth >= 8 ? 1 : 2; // 1 = Ganjil (Aug-Dec), 2 = Genap (Jan-Jul)
+            
+            $semTa = $request->get('sem_ta', $defaultSemTa);
+            $ta = $request->get('ta', 2020); // Default to 2020 as API only has 2020 data
+            
+            // Fetch jadwal ONLY for current page dosen (not all dosen)
+            foreach ($currentPageDosen as &$dosen) {
+                $pegawaiId = $dosen['pegawai_id'] ?? null;
+                
+                if ($pegawaiId) {
+                    // Get jadwal from API with cache
+                    $jadwal = \Cache::remember(
+                        "jadwal_{$pegawaiId}_{$semTa}_{$ta}",
+                        3600,
+                        function() use ($apiService, $pegawaiId, $semTa, $ta) {
+                            return $apiService->getJadwalByDosen($pegawaiId, $semTa, $ta);
+                        }
+                    );
+                    
+                    // Remove duplicates based on kode_mk
+                    $uniqueJadwal = [];
+                    $seenKodeMk = [];
+            
+                    foreach ($jadwal as $mk) {
+                        $kodeMk = $mk['kode_mk'] ?? null;
+                        
+                        if ($kodeMk && !in_array($kodeMk, $seenKodeMk)) {
+                            $uniqueJadwal[] = $mk;
+                            $seenKodeMk[] = $kodeMk;
+                        }
+                    }
+                    
+                    $dosen['matakuliah'] = $uniqueJadwal;
+                } else {
+                    $dosen['matakuliah'] = [];
+                }
+            }
+            unset($dosen); // Break reference
+            
+            // Create paginator with fetched data
+            $dosenList = new \Illuminate\Pagination\LengthAwarePaginator(
+                $currentPageDosen,
+                $dosenCollection->count(),
+                $perPage,
+                $currentPage,
+                ['path' => $request->url(), 'query' => $request->query()]
+            );
+            
+            return view('gkm.data-master.penugasan-dosen', compact('user', 'dosenList'));
+            
+        } catch (\Exception $e) {
+            // Fallback to database on error
+            \Log::error('API Dosen Error: ' . $e->getMessage());
+            return $this->penugasanDosenFromDatabase($request, $user);
+        }
     }
-    
+
     private function penugasanDosenFromDatabase(Request $request, $user)
     {
         $query = Dosenn::with('matakuliah')
             ->where('status', 'aktif')
             ->orderBy('nama_lengkap');
-        
+
         if ($user->prodi_id) {
             $query->where('prodi_id', $user->prodi_id);
         }
-        
+
         if ($request->search) {
             $query->where('nama_lengkap', 'like', '%' . $request->search . '%');
         }
-        
+
         $dosenList = $query->paginate(10)->appends($request->all());
-        
-        return view('gkm.data-master.penugasan-dosen', compact('user', 'dosenList'));
+
+        // Generate tahun ajaran list for view
+        $tahunAjaranList = $this->generateDynamicTahunAjaran();
+
+        return view('gkm.data-master.penugasan-dosen', compact('user', 'dosenList', 'tahunAjaranList'));
+    }
+
+    /**
+     * Generate dynamic tahun ajaran list based on current year
+     * Auto-updates every 5 years
+     *
+     * Formula: floor(currentYear / 5) * 5
+     * Examples:
+     * - Current year 2025-2029: Shows 2025, 2026, 2027, 2028, 2029, 2030
+     * - Current year 2030-2034: Shows 2030, 2031, 2032, 2033, 2034, 2035
+     * - Current year 2035-2039: Shows 2035, 2036, 2037, 2038, 2039, 2040
+     */
+    private function generateDynamicTahunAjaran()
+    {
+        $currentYear = (int) date('Y');
+
+        // Determine base year (start of 5-year range)
+        // Formula: floor(currentYear / 5) * 5
+        $baseYear = floor($currentYear / 5) * 5;
+
+        // Generate 6 years (current 5-year range + 1 next year)
+        $tahunList = [];
+        for ($i = 0; $i <= 5; $i++) {
+            $year = $baseYear + $i;
+            $tahunList[] = [
+                'id_thn_ajaran' => (string) $year,
+                'nm_thn_ajaran' => (string) $year
+            ];
+        }
+
+        \Log::info('Generated dynamic tahun ajaran for Penugasan Dosen', [
+            'current_year' => $currentYear,
+            'base_year' => $baseYear,
+            'range' => $baseYear . ' - ' . ($baseYear + 5),
+            'years_generated' => array_column($tahunList, 'id_thn_ajaran')
+        ]);
+
+        return $tahunList;
     }
 }

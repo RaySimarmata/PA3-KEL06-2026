@@ -137,6 +137,7 @@
 
                     Analisis Semua Kusioner
 
+                    📊 Analisis Semua Kuesioner
                 </button>
 
             </form>

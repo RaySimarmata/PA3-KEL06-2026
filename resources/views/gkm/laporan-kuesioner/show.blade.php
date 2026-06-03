@@ -48,8 +48,19 @@
                                 </p>
                             @elseif($laporan->status == 'error')
                                 <p class="mb-0 text-danger">
-                                    <i class="bi bi-exclamation-triangle"></i> Terjadi error: {{ $laporan->error_message }}
+                                    <i class="bi bi-exclamation-triangle"></i> <strong>Terjadi error:</strong> {{ $laporan->error_message }}
                                 </p>
+                                @if(str_contains($laporan->error_message, 'Tidak ada kuesioner'))
+                                    <div class="alert alert-info mt-3 mb-0">
+                                        <strong>Langkah untuk mengatasi:</strong>
+                                        <ol class="mb-0 mt-2">
+                                            <li>Upload kuesioner mahasiswa terlebih dahulu di halaman <a href="{{ route('gkm.monitoring-kuesioner.index') }}" class="alert-link"><strong>Monitoring Kuesioner</strong></a></li>
+                                            <li>Pastikan kuesioner sudah dianalisis (status: Completed)</li>
+                                            <li>Pastikan periode kuesioner sesuai dengan periode laporan ({{ $laporan->formatted_periode }})</li>
+                                            <li>Setelah ada data kuesioner, hapus laporan ini dan generate ulang</li>
+                                        </ol>
+                                    </div>
+                                @endif
                             @endif
                         </div>
                         @if(in_array($laporan->status, ['pending', 'processing']))

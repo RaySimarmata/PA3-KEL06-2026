@@ -28,19 +28,13 @@ class LaporanArtefakController extends Controller
      */
     public function index(Request $request)
     {
-        $query = LaporanGKM::with(['user', 'prodi', 'template'])
+        $query = LaporanGKM::with(['user', 'template'])
             ->where('jenis_laporan', 'artefak')
             ->orderBy('created_at', 'desc');
 
         // Filter by periode
         if ($request->filled('periode')) {
             $query->where('periode', $request->periode);
-        }
-
-        // Filter by prodi (for GKM TRPL)
-        $user = Auth::user();
-        if ($user->prodi_id) {
-            $query->where('prodi_id', $user->prodi_id);
         }
 
         // Filter by status
@@ -66,12 +60,12 @@ class LaporanArtefakController extends Controller
     public function create()
     {
         $user = Auth::user();
-        
+
         // Get active template directly from model
         $template = TemplateLaporan::where('jenis_template', 'laporan_artefak')
             ->where('is_active', true)
             ->first();
-        
+
         // Get available templates
         $templates = TemplateLaporan::where('jenis_template', 'laporan_artefak')
             ->where('is_active', true)
@@ -88,6 +82,94 @@ class LaporanArtefakController extends Controller
         }
 
         return view('gkm.laporan-artefak.create', compact('template', 'templates', 'periodes'));
+    }
+
+    /**
+     * Create draft laporan artefak
+     */
+    public function createDraft(Request $request)
+    {
+        try {
+            $request->validate([
+                'judul_laporan' => 'required|string|max:255',
+                'periode' => 'required|string|regex:/^\d{4}-\d{2}$/',
+                'template_id' => 'nullable|exists:template_laporan,id',
+            ]);
+
+            $user = Auth::user();
+            $periode = $request->periode;
+            
+            // Parse periode
+            $periodeObj = Carbon::createFromFormat('Y-m', $periode);
+            $bulan = $periodeObj->locale('id')->translatedFormat('F');
+            $tahun = $periodeObj->year;
+
+            // Check if draft already exists for this user + periode
+            $existing = LaporanGKM::where('periode', $periode)
+                ->where('user_id', $user->id)
+                ->where('jenis_laporan', 'artefak')
+                ->where('status', 'pending')
+                ->first();
+
+            if ($existing) {
+                // Return existing draft
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Draft laporan sudah ada',
+                    'data' => [
+                        'id' => $existing->id,
+                        'judul' => $existing->judul_laporan,
+                        'periode' => $periode,
+                    ],
+                ]);
+            }
+
+            // Create new draft
+            $laporan = LaporanGKM::create([
+                'periode' => $periode,
+                'bulan' => $bulan,
+                'tahun' => $tahun,
+                'user_id' => $user->id,
+                'template_id' => $request->template_id,
+                'jenis_laporan' => 'artefak',
+                'judul_laporan' => $request->judul_laporan,
+                'status' => 'pending',
+            ]);
+
+            Log::info('Draft Laporan Artefak created', [
+                'laporan_id' => $laporan->id,
+                'user_id' => $user->id,
+                'periode' => $periode,
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Draft laporan artefak berhasil dibuat',
+                'data' => [
+                    'id' => $laporan->id,
+                    'judul' => $laporan->judul_laporan,
+                    'periode' => $periode,
+                ],
+            ]);
+
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validasi gagal: ' . implode(', ', $e->validator->errors()->all()),
+                'errors' => $e->validator->errors(),
+            ], 422);
+
+        } catch (\Exception $e) {
+            Log::error('Failed to create draft laporan artefak', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal membuat draft: ' . $e->getMessage(),
+            ], 500);
+        }
     }
 
     /**
@@ -114,10 +196,209 @@ class LaporanArtefakController extends Controller
             $conversationHistory = $request->input('conversation_history', []);
             $templateId = $request->input('template_id');
             $periode = $request->input('periode');
+
+            // Build context for caching
+            $cacheContext = [
+                'feature' => 'artefak', // For evaluation tracking
+                'type' => 'laporan_artefak',
+                'template_id' => $templateId,
+                'periode' => $periode,
+                'has_files' => $request->hasFile('file_referensi'),
+                'file_count' => $request->hasFile('file_referensi') ? count($request->file('file_referensi')) : 0,
+            ];
+
+            // Check cache first
+            $cacheService = app(\App\Services\AICacheService::class);
+            $cachedResponse = $cacheService->getCachedResponse($userPrompt, $cacheContext);
             
+            if ($cachedResponse) {
+                Log::info('AI Prompt Artefak: Using cached response', [
+                    'cache_id' => $cachedResponse['cache_id'],
+                    'usage_count' => $cachedResponse['usage_count'],
+                    'similarity' => $cachedResponse['similarity'] ?? 1.0,
+                    'prompt_length' => strlen($userPrompt)
+                ]);
+
+                return response()->json([
+                    'success' => true,
+                    'response' => $cachedResponse['text'],
+                    'model_info' => $cachedResponse['provider'] . ' (' . $cachedResponse['model'] . ') [CACHED]',
+                    'cached' => true,
+                    'cache_info' => [
+                        'usage_count' => $cachedResponse['usage_count'],
+                        'similarity' => $cachedResponse['similarity'] ?? 1.0,
+                    ]
+                ]);
+            }
+
+            // Ambil data RPS dan Materi dari database jika tidak ada file upload
+            $databaseContext = '';
+            if (!$request->hasFile('file_referensi') || $request->file('file_referensi') === null) {
+                $databaseContext = $this->getArtefakDataFromDatabase($periode);
+                Log::info('Using database context for Artefak AI', [
+                    'periode' => $periode,
+                    'context_length' => strlen($databaseContext)
+                ]);
+            }
+
+            // =========================================================================
+            // AUTO-GENERATE LAPORAN LENGKAP DENGAN SERVICE
+            // Jika user prompt mengandung keyword "buat laporan", "generate laporan",
+            // "buatkan laporan", dll, langsung gunakan LaporanArtefakService
+            // =========================================================================
+            $triggerKeywords = [
+                'buat laporan',
+                'buatkan laporan',
+                'generate laporan',
+                'bikin laporan',
+                'buat laporan artefak',
+                'buatkan laporan artefak',
+                'generate laporan artefak',
+                'laporan rps dan materi',
+                'laporan rps',
+                'laporan materi',
+                'generate report',
+            ];
+
+            $userPromptLower = strtolower($userPrompt);
+            $shouldAutoGenerate = false;
+
+            foreach ($triggerKeywords as $keyword) {
+                if (str_contains($userPromptLower, $keyword)) {
+                    $shouldAutoGenerate = true;
+                    break;
+                }
+            }
+
+            if ($shouldAutoGenerate) {
+                try {
+                    Log::info('Auto-generate laporan artefak triggered', [
+                        'prompt' => $userPrompt,
+                        'periode' => $periode,
+                        'template_id' => $templateId,
+                    ]);
+
+                    // Create laporan record if doesn't exist
+                    $laporan = LaporanGKM::where('periode', $periode)
+                        ->where('jenis_laporan', 'artefak')
+                        ->where('user_id', Auth::id())
+                        ->where('status', '!=', 'completed')
+                        ->latest()
+                        ->first();
+
+                    if (!$laporan) {
+                        // Create new laporan record
+                        $periodeObj = Carbon::createFromFormat('Y-m', $periode);
+                        
+                        $laporan = LaporanGKM::create([
+                            'user_id' => Auth::id(),
+                            'periode' => $periode,
+                            'bulan' => $periodeObj->month,
+                            'tahun' => $periodeObj->year,
+                            'jenis_laporan' => 'artefak',
+                            'judul_laporan' => 'Laporan Monitoring Artefak Perkuliahan ' . $periodeObj->format('F Y'),
+                            'template_id' => $templateId,
+                            'status' => 'pending',
+                        ]);
+
+                        Log::info('Created new laporan artefak for auto-generation', [
+                            'laporan_id' => $laporan->id,
+                        ]);
+                    }
+
+                    // Call LaporanArtefakService to generate full report
+                    $generatedLaporan = $this->laporanService->generateLaporan($laporan->id);
+
+                    // Get download URL
+                    $downloadUrl = route('gkm.laporan-artefak.download', ['id' => $generatedLaporan->id]);
+                    
+                    // Format response for user
+                    $aiResponse = "✅ **LAPORAN ARTEFAK BERHASIL DIBUAT!**\n\n";
+                    $aiResponse .= "Saya telah membuat laporan monitoring artefak perkuliahan lengkap untuk periode **{$periode}** menggunakan data dari sistem monitoring.\n\n";
+                    
+                    $aiResponse .= "## 📊 Ringkasan Data\n\n";
+                    $aiResponse .= "- **Total Matakuliah**: {$generatedLaporan->total_rps}\n";
+                    $aiResponse .= "- **RPS Sudah Upload**: " . ($generatedLaporan->total_rps > 0 ? round(($generatedLaporan->total_rps / $generatedLaporan->total_rps) * 100, 1) : 0) . "%\n";
+                    $aiResponse .= "- **Materi Sudah Upload**: " . ($generatedLaporan->total_materi > 0 ? round(($generatedLaporan->total_materi / $generatedLaporan->total_materi) * 100, 1) : 0) . "%\n\n";
+                    
+                    $aiResponse .= "## 📄 File Laporan\n\n";
+                    $aiResponse .= "Laporan Word (.docx) telah dibuat dengan lengkap meliputi:\n";
+                    $aiResponse .= "- ✅ Tabel RPS dan status upload\n";
+                    $aiResponse .= "- ✅ Tabel Materi (Week 1-16)\n";
+                    $aiResponse .= "- ✅ Hasil pemeriksaan dan analisis ketercapaian\n";
+                    $aiResponse .= "- ✅ Tabel hambatan dan saran pemecahan masalah\n";
+                    $aiResponse .= "- ✅ Tindak lanjut dan kesimpulan\n\n";
+                    
+                    $aiResponse .= "📥 **[Download Laporan Word]({$downloadUrl})**\n\n";
+                    $aiResponse .= "Anda dapat mendownload file Word dan langsung menggunakannya atau melakukan penyesuaian sesuai kebutuhan.\n\n";
+                    $aiResponse .= "Jika Anda membutuhkan perubahan atau penyesuaian pada laporan, silakan beritahu saya!";
+
+                    // Save to cache for consistency
+                    $cacheService->cacheResponse(
+                        $userPrompt,
+                        $cacheContext,
+                        $aiResponse,
+                        'LaporanArtefakService',
+                        'auto-generate',
+                        null
+                    );
+
+                    // Create evaluation test entry for model evaluation tracking
+                    try {
+                        $evaluationService = app(\App\Services\AIEvaluationService::class);
+                        $evaluationService->createAIResponseTest([
+                            'test_name' => 'Laporan Artefak Auto - ' . date('Y-m-d H:i:s'),
+                            'feature' => 'artefak',
+                            'query' => $userPrompt,
+                            'expected_response' => null,
+                            'actual_response' => $aiResponse,
+                        ]);
+                        
+                        Log::info('AI Evaluation test created', [
+                            'feature' => 'artefak_auto',
+                            'prompt_length' => strlen($userPrompt),
+                            'response_length' => strlen($aiResponse),
+                        ]);
+                    } catch (\Exception $e) {
+                        Log::warning('Failed to create AI evaluation test', [
+                            'error' => $e->getMessage(),
+                            'feature' => 'artefak_auto'
+                        ]);
+                    }
+
+                    Log::info('Auto-generated laporan artefak successfully', [
+                        'laporan_id' => $generatedLaporan->id,
+                        'file_word' => $generatedLaporan->file_word,
+                    ]);
+
+                    return response()->json([
+                        'success' => true,
+                        'response' => $aiResponse,
+                        'model_info' => 'LaporanArtefakService (Auto-Generate)',
+                        'cached' => false,
+                        'auto_generated' => true,
+                        'laporan_id' => $generatedLaporan->id,
+                        'download_url' => $downloadUrl,
+                    ]);
+
+                } catch (\Exception $e) {
+                    Log::error('Auto-generate laporan artefak failed', [
+                        'error' => $e->getMessage(),
+                        'trace' => $e->getTraceAsString(),
+                    ]);
+
+                    // Fallback to regular AI chat if auto-generate fails
+                    $shouldAutoGenerate = false;
+                    Log::info('Falling back to regular AI chat after auto-generate failure');
+                }
+            }
+
+            // Continue with regular AI chat if auto-generate is not triggered or failed
+            // =========================================================================
+
             // Get template structure if template is selected
             $templateStructure = $this->extractTemplateStructure($templateId);
-            
+
             // System context for Artefak reports
             $systemContext = "Anda adalah AI Assistant untuk Gugus Kendali Mutu (GKM) Institut Teknologi Del.\n\n";
             $systemContext .= "Tugas Anda: Membantu membuat LAPORAN ARTEFAK/VMTS berdasarkan dokumen yang diupload dan instruksi user.\n\n";
@@ -126,7 +407,7 @@ class LaporanArtefakController extends Controller
             $systemContext .= "- Jika user mengatakan 'ubah bagian X', 'perbaiki Y', atau 'tambahkan Z', lakukan perubahan pada draft sebelumnya.\n";
             $systemContext .= "- Pertahankan konsistensi dengan respons sebelumnya kecuali diminta mengubahnya.\n";
             $systemContext .= "- Jika ini permintaan pertama, buat draft lengkap. Jika permintaan lanjutan, fokus pada perubahan yang diminta.\n\n";
-            
+
             if ($templateStructure) {
                 $systemContext .= "STRUKTUR TEMPLATE YANG HARUS DIIKUTI:\n";
                 $systemContext .= $templateStructure . "\n\n";
@@ -150,7 +431,7 @@ class LaporanArtefakController extends Controller
                 $systemContext .= "# KESIMPULAN\n";
                 $systemContext .= "[Kesimpulan dan ringkasan rekomendasi]\n\n";
             }
-            
+
             $systemContext .= "Fokus pada analisis artefak akademik seperti RPS, silabus, materi kuliah, dan dokumen pembelajaran.\n";
             $systemContext .= "Gunakan Bahasa Indonesia formal dan profesional. Setiap bagian harus berisi konten yang substantif dan relevan.\n\n";
 
@@ -158,27 +439,27 @@ class LaporanArtefakController extends Controller
             $filesContext = [];
             $imageContents = [];
             $ocrTexts = [];
-            
+
             if ($request->hasFile('file_referensi')) {
                 $files = $request->file('file_referensi');
-                
+
                 foreach ($files as $index => $file) {
                     $fileName = $file->getClientOriginalName();
                     $fileExtension = strtolower($file->getClientOriginalExtension());
-                    
+
                     // Check if it's an image
                     if (in_array($fileExtension, ['jpg', 'jpeg', 'png', 'gif', 'webp'])) {
                         // Process image with OCR
                         try {
                             $imagePath = $file->store('temp_uploads', 'local');
                             $fullImagePath = storage_path('app/' . $imagePath);
-                            
+
                             // Extract text using OCR
                             $ocrResult = $ocrService->extractText($fullImagePath);
-                            
+
                             if ($ocrResult['success'] && !empty($ocrResult['text'])) {
                                 $ocrText = is_array($ocrResult['text']) ? json_encode($ocrResult['text']) : (string)$ocrResult['text'];
-                                
+
                                 $ocrTexts[] = [
                                     'filename' => $fileName,
                                     'text' => $ocrText,
@@ -186,12 +467,12 @@ class LaporanArtefakController extends Controller
                                     'confidence' => $ocrResult['confidence']
                                 ];
                             }
-                            
+
                             // Clean up temp file
                             if (file_exists($fullImagePath)) {
                                 @unlink($fullImagePath);
                             }
-                            
+
                             Log::info('Image processed with OCR for Artefak', [
                                 'filename' => $fileName,
                                 'ocr_text_length' => isset($ocrText) ? strlen($ocrText) : 0
@@ -206,17 +487,17 @@ class LaporanArtefakController extends Controller
                         // Process document file
                         $filePath = $file->store('temp_uploads', 'local');
                         $fullPath = storage_path('app/' . $filePath);
-                        
+
                         try {
                             $result = $textExtraction->extractFromFile($fullPath);
                             $fileContent = $result['text'] ?? '';
-                            
+
                             $filesContext[] = [
                                 'filename' => $fileName,
                                 'content' => $fileContent,
                                 'type' => $this->categorizeArtefakFile($fileName)
                             ];
-                            
+
                             Log::info('Document extracted for Artefak AI prompt', [
                                 'filename' => $fileName,
                                 'size' => strlen($fileContent),
@@ -243,27 +524,27 @@ class LaporanArtefakController extends Controller
 
             // Build conversation messages for Chat Completions API
             $messages = [];
-            
+
             // Add system context as first message
             $messages[] = [
                 'role' => 'system',
                 'content' => $systemContext
             ];
-            
+
             // If there's conversation history, include it (for multi-turn conversation)
             if (!empty($conversationHistory)) {
                 foreach ($conversationHistory as $msg) {
                     $role = $msg['role'] ?? 'user';
                     $content = $msg['content'] ?? '';
-                    
+
                     // Skip empty messages
                     if (empty($content)) continue;
-                    
+
                     // Normalize role
                     if ($role === 'assistant' || $role === 'ai') {
                         $role = 'assistant';
                     }
-                    
+
                     $messages[] = [
                         'role' => $role,
                         'content' => $content
@@ -273,30 +554,37 @@ class LaporanArtefakController extends Controller
 
             // Add current user message
             $currentMessage = '';
-            
+
             // Add periode context if provided
             if (!empty($periode)) {
                 $currentMessage .= "PERIODE LAPORAN: {$periode}\n\n";
             }
-            
+
+            // Add database context (RPS & Materi data) if no file upload
+            if (!empty($databaseContext)) {
+                $currentMessage .= "===== DATA RPS DAN MATERI DARI DATABASE =====\n\n";
+                $currentMessage .= $databaseContext . "\n\n";
+                $currentMessage .= "===== END DATA DATABASE =====\n\n";
+            }
+
             // Process uploaded documents
             if (!empty($filesContext)) {
                 $currentMessage .= "Saya telah mengupload beberapa dokumen artefak:\n\n";
-                
+
                 foreach ($filesContext as $fileData) {
                     // Truncate very long content
                     $content = $fileData['content'];
                     $maxFileContentLength = 15000;
-                    
+
                     if (strlen($content) > $maxFileContentLength) {
                         $content = substr($content, 0, $maxFileContentLength) . "\n\n[DOKUMEN DIPOTONG - HANYA BAGIAN AWAL YANG DIPROSES]";
                     }
-                    
+
                     $currentMessage .= "**{$fileData['filename']}** ({$fileData['type']}):\n";
                     $currentMessage .= "```\n" . $content . "\n```\n\n";
                 }
             }
-            
+
             // Add OCR texts from current upload
             if (!empty($ocrTexts)) {
                 $currentMessage .= "Teks yang diekstrak dari gambar artefak:\n\n";
@@ -305,9 +593,9 @@ class LaporanArtefakController extends Controller
                     $currentMessage .= "```\n" . $ocrData['text'] . "\n```\n\n";
                 }
             }
-            
+
             $currentMessage .= "Instruksi dari user: " . $userPrompt . "\n\n";
-            
+
             if ($templateStructure) {
                 $currentMessage .= "PENTING: Anda HARUS menghasilkan draft laporan artefak yang mengikuti STRUKTUR TEMPLATE yang telah diberikan di system context.\n\n";
                 $currentMessage .= "Gunakan semua dokumen artefak yang saya upload sebagai sumber data dan informasi untuk mengisi setiap bagian template.\n\n";
@@ -323,9 +611,9 @@ class LaporanArtefakController extends Controller
                 $currentMessage .= "7. # KESIMPULAN\n\n";
                 $currentMessage .= "Jangan skip bagian manapun. Setiap bagian harus berisi minimal 2-3 paragraf dengan analisis yang mendalam.\n";
             }
-            
+
             $currentMessage .= "Fokus pada evaluasi kualitas artefak akademik dan berikan rekomendasi perbaikan yang konkret.\n";
-            
+
             $messages[] = [
                 'role' => 'user',
                 'content' => $currentMessage
@@ -336,7 +624,7 @@ class LaporanArtefakController extends Controller
                 'max_tokens' => 8192, // Increased token limit
                 'temperature' => 0.7
             ]);
-            
+
             if (!$aiResult['success'] || empty($aiResult['text'])) {
                 Log::error('AI returned empty response for Artefak', [
                     'prompt_length' => strlen($userPrompt),
@@ -347,7 +635,7 @@ class LaporanArtefakController extends Controller
                     'error' => $aiResult['error'] ?? 'Unknown error',
                     'provider' => $aiResult['provider'] ?? 'unknown'
                 ]);
-                
+
                 // More specific error messages
                 $errorMessage = 'Layanan AI mengalami masalah. ';
                 if (isset($aiResult['error'])) {
@@ -361,7 +649,7 @@ class LaporanArtefakController extends Controller
                 } else {
                     $errorMessage .= 'Silakan coba lagi atau hubungi administrator.';
                 }
-                
+
                 return response()->json([
                     'success' => false,
                     'message' => $errorMessage,
@@ -372,8 +660,42 @@ class LaporanArtefakController extends Controller
                     ]
                 ], 503);
             }
-            
+
             $aiResponse = $aiResult['text'];
+
+            // Cache the response for future use
+            $responseTime = isset($aiResult['processing_time_ms']) ? $aiResult['processing_time_ms'] / 1000 : null;
+            $cacheService->cacheResponse(
+                $userPrompt,
+                $cacheContext,
+                $aiResponse,
+                $aiResult['provider'],
+                $aiResult['model'],
+                $responseTime
+            );
+
+            // Create evaluation test entry for model evaluation tracking
+            try {
+                $evaluationService = app(\App\Services\AIEvaluationService::class);
+                $evaluationService->createAIResponseTest([
+                    'test_name' => 'Laporan Artefak Chat - ' . date('Y-m-d H:i:s'),
+                    'feature' => 'artefak',
+                    'query' => $userPrompt,
+                    'expected_response' => null,
+                    'actual_response' => $aiResponse,
+                ]);
+                
+                Log::info('AI Evaluation test created', [
+                    'feature' => 'artefak_chat',
+                    'prompt_length' => strlen($userPrompt),
+                    'response_length' => strlen($aiResponse),
+                ]);
+            } catch (\Exception $e) {
+                Log::warning('Failed to create AI evaluation test', [
+                    'error' => $e->getMessage(),
+                    'feature' => 'artefak_chat'
+                ]);
+            }
 
             Log::info('AI Prompt successful for Artefak', [
                 'prompt_length' => strlen($userPrompt),
@@ -383,7 +705,8 @@ class LaporanArtefakController extends Controller
                 'messages_count' => count($messages),
                 'has_template' => !empty($templateStructure),
                 'provider' => $aiResult['provider'],
-                'model' => $aiResult['model']
+                'model' => $aiResult['model'],
+                'cached' => false
             ]);
 
             return response()->json([
@@ -410,12 +733,100 @@ class LaporanArtefakController extends Controller
     }
 
     /**
+     * Save AI preview data before generating Word document
+     * Called after user gets AI response to store it for Word generation
+     */
+    public function savePreview(Request $request)
+    {
+        try {
+            $request->validate([
+                'laporan_id' => 'required|exists:laporan_gkm,id',
+                'ai_preview_draft' => 'required|string',
+                'ai_sections' => 'nullable|string', // JSON string
+            ]);
+
+            $laporanId = $request->input('laporan_id');
+            $aiPreviewDraft = $request->input('ai_preview_draft');
+            $aiSectionsJson = $request->input('ai_sections', '[]');
+            
+            // Parse sections from JSON
+            $sections = [];
+            try {
+                $sectionsArray = json_decode($aiSectionsJson, true);
+                if (is_array($sectionsArray)) {
+                    // Convert sections array to associative array
+                    foreach ($sectionsArray as $section) {
+                        if (isset($section['title']) && isset($section['content'])) {
+                            $key = $this->sectionTitleToKey($section['title']);
+                            $sections[$key] = $section['content'];
+                        }
+                    }
+                }
+            } catch (\Exception $e) {
+                Log::warning('Failed to parse AI sections JSON for Artefak', [
+                    'laporan_id' => $laporanId,
+                    'error' => $e->getMessage()
+                ]);
+            }
+
+            // Find laporan
+            $laporan = LaporanGKM::findOrFail($laporanId);
+            
+            // Save preview data
+            $laporan->update([
+                'ai_preview_draft' => $aiPreviewDraft,
+                'ai_sections' => $sections,
+                'status' => 'preview_ready',
+            ]);
+
+            Log::info('AI preview saved for Artefak', [
+                'laporan_id' => $laporanId,
+                'sections_count' => count($sections),
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'AI preview saved successfully'
+            ]);
+
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation failed: ' . implode(', ', $e->validator->errors()->all())
+            ], 422);
+        } catch (\Exception $e) {
+            Log::error('Save AI preview failed for Artefak', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Terjadi kesalahan: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Convert section title to database key
+     */
+    private function sectionTitleToKey($title)
+    {
+        // Normalize title to key format
+        $key = strtolower(trim($title));
+        $key = preg_replace('/[^a-z0-9]+/', '_', $key);
+        $key = trim($key, '_');
+        
+        return $key;
+    }
+
+    /**
      * Categorize artefak file type
      */
     private function categorizeArtefakFile($filename)
     {
         $filename = strtolower($filename);
-        
+
         if (str_contains($filename, 'rps') || str_contains($filename, 'silabus')) {
             return 'RPS/Silabus';
         } elseif (str_contains($filename, 'materi') || str_contains($filename, 'slide') || str_contains($filename, 'ppt')) {
@@ -437,11 +848,11 @@ class LaporanArtefakController extends Controller
     private function extractTemplateStructure($templateId)
     {
         if (!$templateId) return null;
-        
+
         try {
             $template = TemplateLaporan::find($templateId);
             if (!$template) return null;
-            
+
             // This is a placeholder - implement based on your template structure
             return "Template structure for artefak report...";
         } catch (\Exception $e) {
@@ -466,12 +877,10 @@ class LaporanArtefakController extends Controller
 
         $user = Auth::user();
         $periode = $request->periode;
-        $prodiId = $user->prodi_id;
         $mode = $request->input('mode', 'sync'); // Default: sync (langsung)
 
         // Check if laporan already exists
         $existing = LaporanGKM::where('periode', $periode)
-            ->where('prodi_id', $prodiId)
             ->where('jenis_laporan', 'artefak')
             ->first();
 
@@ -489,7 +898,6 @@ class LaporanArtefakController extends Controller
             'periode' => $periode,
             'bulan' => $bulan,
             'tahun' => $tahun,
-            'prodi_id' => $prodiId,
             'user_id' => $user->id,
             'template_id' => $request->template_id,
             'jenis_laporan' => 'artefak',
@@ -501,7 +909,7 @@ class LaporanArtefakController extends Controller
             try {
                 $job = new GenerateLaporanArtefakJob($laporan->id);
                 $job->handle(app(LaporanArtefakService::class));
-                
+
                 return redirect()->route('gkm.laporan-artefak.show', $laporan->id)
                     ->with('success', 'Laporan berhasil di-generate!');
             } catch (\Exception $e) {
@@ -509,14 +917,14 @@ class LaporanArtefakController extends Controller
                     'laporan_id' => $laporan->id,
                     'error' => $e->getMessage()
                 ]);
-                
+
                 return redirect()->route('gkm.laporan-artefak.show', $laporan->id)
                     ->with('error', 'Gagal generate laporan: ' . $e->getMessage());
             }
         } else {
             // Generate dengan queue (asynchronous) - perlu queue worker
             GenerateLaporanArtefakJob::dispatch($laporan->id);
-            
+
             return redirect()->route('gkm.laporan-artefak.show', $laporan->id)
                 ->with('success', 'Laporan sedang diproses oleh AI Agent. Halaman akan otomatis refresh.');
         }
@@ -527,13 +935,17 @@ class LaporanArtefakController extends Controller
      */
     public function show($id)
     {
-        $laporan = LaporanGKM::with(['user', 'prodi', 'template'])
+        $laporan = LaporanGKM::with(['user', 'template'])
             ->where('jenis_laporan', 'artefak')
             ->findOrFail($id);
 
         // Check access
         $user = Auth::user();
-        if ($user->prodi_id && $laporan->prodi_id != $user->prodi_id) {
+        // Allow access if: user created it or is GKM/GJM coordinator
+        $hasAccess = $laporan->user_id == $user->id ||
+                     in_array($user->role, ['GKM', 'GJM']);
+        
+        if (!$hasAccess) {
             abort(403, 'Unauthorized access');
         }
 
@@ -550,7 +962,11 @@ class LaporanArtefakController extends Controller
 
             // Check access
             $user = Auth::user();
-            if ($user->prodi_id && $laporan->prodi_id != $user->prodi_id) {
+            // Allow access if: user created it or is GKM/GJM coordinator
+            $hasAccess = $laporan->user_id == $user->id ||
+                         in_array($user->role, ['GKM', 'GJM']);
+            
+            if (!$hasAccess) {
                 abort(403, 'Unauthorized access');
             }
 
@@ -560,46 +976,46 @@ class LaporanArtefakController extends Controller
 
             if ($format == 'word' && $laporan->file_word) {
                 $filePath = storage_path('app/' . $laporan->file_word);
-                
+
                 \Log::info('Attempting to download file', [
                     'laporan_id' => $id,
                     'file_path' => $filePath,
                     'file_exists' => file_exists($filePath)
                 ]);
-                
+
                 if (!file_exists($filePath)) {
                     \Log::error('File not found', ['path' => $filePath]);
                     return redirect()->back()->with('error', 'File tidak ditemukan di server.');
                 }
-                
+
                 $fileName = 'Laporan_Artefak_' . $laporan->periode . '_' . ($laporan->prodi->kode_prodi ?? 'GKM') . '.docx';
-                
+
                 return response()->download($filePath, $fileName, [
                     'Content-Type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
                 ]);
             } elseif ($format == 'pdf' && $laporan->file_pdf) {
                 $filePath = storage_path('app/' . $laporan->file_pdf);
-                
+
                 if (!file_exists($filePath)) {
                     return redirect()->back()->with('error', 'File tidak ditemukan di server.');
                 }
-                
+
                 $fileName = 'Laporan_Artefak_' . $laporan->periode . '_' . ($laporan->prodi->kode_prodi ?? 'GKM') . '.pdf';
-                
+
                 return response()->download($filePath, $fileName, [
                     'Content-Type' => 'application/pdf',
                 ]);
             }
 
             return redirect()->back()->with('error', 'File tidak tersedia.');
-            
+
         } catch (\Exception $e) {
             \Log::error('Download error', [
                 'laporan_id' => $id,
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);
-            
+
             return redirect()->back()->with('error', 'Terjadi kesalahan saat download: ' . $e->getMessage());
         }
     }
@@ -613,7 +1029,11 @@ class LaporanArtefakController extends Controller
 
         // Check access
         $user = Auth::user();
-        if ($user->prodi_id && $laporan->prodi_id != $user->prodi_id) {
+        // Allow access if: user created it or is GKM/GJM coordinator
+        $hasAccess = $laporan->user_id == $user->id ||
+                     in_array($user->role, ['GKM', 'GJM']);
+        
+        if (!$hasAccess) {
             abort(403, 'Unauthorized access');
         }
 
@@ -629,6 +1049,74 @@ class LaporanArtefakController extends Controller
 
         return redirect()->route('gkm.laporan-artefak.index')
             ->with('success', 'Laporan berhasil dihapus.');
+    }
+
+    /**
+     * Generate Word document from AI preview
+     * Called from AI Assistant after user gets AI response
+     */
+    public function generateWordDocument(Request $request)
+    {
+        try {
+            $request->validate([
+                'laporan_id' => 'required|exists:laporan_gkm,id',
+                'ai_preview_data' => 'required|string',
+            ]);
+
+            $laporanId = $request->input('laporan_id');
+            $aiPreviewData = $request->input('ai_preview_data');
+
+            $laporan = LaporanGKM::findOrFail($laporanId);
+
+            // Check access
+            $user = Auth::user();
+            $hasAccess = $laporan->user_id == $user->id || in_array($user->role, ['GKM', 'GJM']);
+            
+            if (!$hasAccess) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Unauthorized access'
+                ], 403);
+            }
+
+            Log::info('Generate Word from AI preview', [
+                'laporan_id' => $laporanId,
+                'preview_length' => strlen($aiPreviewData),
+            ]);
+
+            // Call LaporanArtefakService to generate full Word document
+            $generatedLaporan = $this->laporanService->generateLaporan($laporanId);
+
+            // Check if file was created
+            if (!$generatedLaporan->file_word || !file_exists(storage_path('app/' . $generatedLaporan->file_word))) {
+                throw new \Exception('File Word gagal dibuat');
+            }
+
+            $filePath = storage_path('app/' . $generatedLaporan->file_word);
+            $fileName = 'Laporan_Artefak_' . $generatedLaporan->periode . '_' . time() . '.docx';
+
+            Log::info('Word document generated successfully from AI preview', [
+                'laporan_id' => $laporanId,
+                'file_path' => $generatedLaporan->file_word,
+            ]);
+
+            // Return the file as download
+            return response()->download($filePath, $fileName, [
+                'Content-Type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Generate Word from AI preview failed', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'laporan_id' => $request->input('laporan_id'),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal generate laporan: ' . $e->getMessage()
+            ], 500);
+        }
     }
 
     /**
@@ -660,7 +1148,6 @@ class LaporanArtefakController extends Controller
         $request->validate([
             'nama_template' => 'required|string|max:255',
             'file_template' => 'required|file|mimes:docx,doc,pdf|max:10240',
-            'deskripsi' => 'nullable|string',
             'contoh_konten' => 'nullable|string',
         ]);
 
@@ -672,7 +1159,7 @@ class LaporanArtefakController extends Controller
             $tempPath = $file->getRealPath();
             $zip = new \ZipArchive();
             $checkResult = $zip->open($tempPath, \ZipArchive::CHECKCONS);
-            
+
             if ($checkResult !== true) {
                 return redirect()->back()
                     ->withErrors(['file_template' => 'File Word yang diupload tidak valid atau corrupt. Silakan coba file lain.'])
@@ -687,13 +1174,11 @@ class LaporanArtefakController extends Controller
 
         // Create template record
         $template = TemplateLaporan::create([
-            'prodi_id' => $user->prodi_id,
             'nama_template' => $request->nama_template,
             'nama_file' => $file->getClientOriginalName(),
             'jenis_file' => $file->getClientOriginalExtension(),
             'file_path' => $filePath,
             'ukuran_file' => $file->getSize(),
-            'deskripsi' => $request->deskripsi,
             'uploaded_by' => $user->id,
             'jenis_template' => 'laporan_artefak',
             'contoh_konten' => $request->contoh_konten,
@@ -723,12 +1208,12 @@ class LaporanArtefakController extends Controller
     {
         try {
             $result = $this->laporanService->processTemplateToVectorDB($id);
-            
-            return redirect()->back()->with('success', 
+
+            return redirect()->back()->with('success',
                 "Template berhasil di-reindex. Total chunks: {$result['chunks_indexed']}"
             );
         } catch (\Exception $e) {
-            return redirect()->back()->with('error', 
+            return redirect()->back()->with('error',
                 'Gagal reindex template: ' . $e->getMessage()
             );
         }
@@ -755,9 +1240,9 @@ class LaporanArtefakController extends Controller
 
         // Check if template is being used
         $usageCount = LaporanGKM::where('template_id', $id)
-            ->where('jenis_laporan', 'artefak')
+            ->where('jenis_laporan', 'kuesioner')
             ->count();
-            
+
         if ($usageCount > 0) {
             return redirect()->back()->with('error', "Template tidak dapat dihapus karena sedang digunakan oleh {$usageCount} laporan.");
         }
@@ -780,13 +1265,13 @@ class LaporanArtefakController extends Controller
     {
         try {
             $template = TemplateLaporan::findOrFail($id);
-            
+
             \Log::info('Template download attempt', [
                 'template_id' => $id,
                 'file_path' => $template->file_path,
                 'nama_file' => $template->nama_file
             ]);
-            
+
             // Try multiple possible file paths
             $possiblePaths = [
                 storage_path('app/public/' . $template->file_path),
@@ -794,7 +1279,7 @@ class LaporanArtefakController extends Controller
                 storage_path('app/public/templates/' . $template->nama_file),
                 storage_path('app/templates/' . $template->nama_file),
             ];
-            
+
             $filePath = null;
             foreach ($possiblePaths as $path) {
                 if (file_exists($path)) {
@@ -802,7 +1287,7 @@ class LaporanArtefakController extends Controller
                     break;
                 }
             }
-            
+
             if (!$filePath) {
                 \Log::error('Template file not found', [
                     'template_id' => $id,
@@ -810,26 +1295,157 @@ class LaporanArtefakController extends Controller
                 ]);
                 return redirect()->back()->with('error', 'File template tidak ditemukan.');
             }
-            
+
             \Log::info('Template download successful', [
                 'template_id' => $id,
                 'file_path' => $filePath
             ]);
-            
+
             $fileName = $template->nama_file;
-            
+
             return response()->download($filePath, $fileName, [
                 'Content-Type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
             ]);
-            
+
         } catch (\Exception $e) {
             \Log::error('Template download error', [
                 'template_id' => $id,
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);
-            
+
             return redirect()->back()->with('error', 'Terjadi kesalahan saat download: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Get RPS and Materi data from database for AI context
+     * 
+     * @param string|null $periode Format: YYYY-MM (e.g., "2026-06")
+     * @return string Formatted context string for AI
+     */
+    private function getArtefakDataFromDatabase($periode = null)
+    {
+        try {
+            $user = Auth::user();
+            $prodiKode = $user->prodi->kode_prodi ?? 'TRPL';
+            
+            $prodiIdMap = [
+                'TRPL' => 4,
+                'TI'   => 1,
+                'NM'   => 3,
+            ];
+            
+            $prodiId = $prodiIdMap[$prodiKode] ?? 4;
+            
+            // Parse periode to get semester and tahun ajaran
+            if ($periode) {
+                // Format: 2026-06 → Semester Genap 2025/2026
+                $year = (int) substr($periode, 0, 4);
+                $month = (int) substr($periode, 5, 2);
+                
+                // January-June = Semester Genap (year-1/year)
+                // July-December = Semester Ganjil (year/year+1)
+                if ($month <= 6) {
+                    $semester = 2; // Genap
+                    $tahunAjaran = ($year - 1) . '/' . $year;
+                } else {
+                    $semester = 1; // Ganjil
+                    $tahunAjaran = $year . '/' . ($year + 1);
+                }
+            } else {
+                // Use active periode from database
+                $periodeAktif = \App\Models\PeriodeAkademik::where('is_active', true)->first();
+                if ($periodeAktif) {
+                    $semester = $periodeAktif->semester;
+                    $tahunAjaran = $periodeAktif->tahun_ajaran;
+                } else {
+                    // Fallback to current
+                    $currentMonth = (int) date('n');
+                    $currentYear = (int) date('Y');
+                    if ($currentMonth <= 6) {
+                        $semester = 2;
+                        $tahunAjaran = ($currentYear - 1) . '/' . $currentYear;
+                    } else {
+                        $semester = 1;
+                        $tahunAjaran = $currentYear . '/' . ($currentYear + 1);
+                    }
+                }
+            }
+            
+            $context = "=== DATA ARTEFAK DARI MONITORING SISTEM ===\n\n";
+            $context .= "Program Studi: " . ($prodiKode === 'TRPL' ? 'Teknik Rekayasa Perangkat Lunak' : 
+                                            ($prodiKode === 'TI' ? 'Teknologi Informasi' : 'Teknik Elektro')) . "\n";
+            $context .= "Semester: " . ($semester == 1 ? 'Ganjil' : 'Genap') . " {$tahunAjaran}\n";
+            $context .= "Periode Pelaporan: {$periode}\n\n";
+            
+            // Get RPS monitoring data from snapshots
+            $rpsSnapshots = \DB::table('perkuliahan_monitoring_snapshots')
+                ->where('prodi_id', $prodiId)
+                ->where('semester', $semester)
+                ->where('tahun_ajaran', $tahunAjaran)
+                ->orderBy('created_at', 'desc')
+                ->first();
+            
+            if ($rpsSnapshots && isset($rpsSnapshots->monitoring_data)) {
+                $monitoringData = is_string($rpsSnapshots->monitoring_data) ? 
+                                 json_decode($rpsSnapshots->monitoring_data, true) : 
+                                 $rpsSnapshots->monitoring_data;
+                
+                if (is_array($monitoringData) && !empty($monitoringData)) {
+                    $context .= "## STATUS UPLOAD RPS DAN MATERI\n\n";
+                    $context .= "| Kode | Nama Matakuliah | Dosen Pengampu | Status RPS | Status Materi | Minggu Ke | Keterangan |\n";
+                    $context .= "|------|----------------|----------------|------------|---------------|-----------|------------|\n";
+                    
+                    $totalMK = 0;
+                    $rpsUploaded = 0;
+                    $materiUploaded = 0;
+                    
+                    foreach ($monitoringData as $matkul) {
+                        $totalMK++;
+                        $kodeMK = $matkul['kode_matakuliah'] ?? '-';
+                        $namaMK = $matkul['nama_matakuliah'] ?? '-';
+                        $dosen = $matkul['dosen_pengampu'] ?? '-';
+                        $statusRPS = $matkul['status_upload_rps'] ?? 'Belum Upload';
+                        $statusMateri = $matkul['status_materi'] ?? 'Belum Upload';
+                        $mingguKe = $matkul['minggu_ke'] ?? '-';
+                        $keterangan = $matkul['keterangan'] ?? '-';
+                        
+                        if ($statusRPS === 'Sudah Upload' || str_contains(strtolower($statusRPS), 'upload')) {
+                            $rpsUploaded++;
+                        }
+                        
+                        if ($statusMateri === 'Sudah Upload' || str_contains(strtolower($statusMateri), 'upload')) {
+                            $materiUploaded++;
+                        }
+                        
+                        $context .= "| {$kodeMK} | {$namaMK} | {$dosen} | {$statusRPS} | {$statusMateri} | {$mingguKe} | {$keterangan} |\n";
+                    }
+                    
+                    $context .= "\n";
+                    $context .= "### RINGKASAN STATISTIK\n\n";
+                    $context .= "- Total Matakuliah: {$totalMK}\n";
+                    $context .= "- RPS Sudah Diupload: {$rpsUploaded} (" . round(($rpsUploaded / $totalMK) * 100, 1) . "%)\n";
+                    $context .= "- Materi Sudah Diupload: {$materiUploaded} (" . round(($materiUploaded / $totalMK) * 100, 1) . "%)\n";
+                    $context .= "- RPS Belum Diupload: " . ($totalMK - $rpsUploaded) . "\n";
+                    $context .= "- Materi Belum Diupload: " . ($totalMK - $materiUploaded) . "\n\n";
+                }
+            } else {
+                $context .= "⚠️ Data monitoring RPS dan Materi untuk periode ini belum tersedia di sistem.\n";
+                $context .= "Silakan gunakan data umum atau upload file referensi untuk analisis yang lebih mendalam.\n\n";
+            }
+            
+            $context .= "=== END DATA ARTEFAK ===\n";
+            
+            return $context;
+            
+        } catch (\Exception $e) {
+            Log::error('Failed to get artefak data from database', [
+                'error' => $e->getMessage(),
+                'periode' => $periode
+            ]);
+            
+            return "Data artefak dari database tidak dapat diambil. Silakan upload file referensi untuk analisis.\n";
         }
     }
 }

@@ -1102,6 +1102,30 @@ class LaporanVMTSController extends Controller
                         'provider' => $result['provider'],
                         'model' => $result['model']
                     ]);
+                    
+                    // Create evaluation test entry for model evaluation tracking
+                    try {
+                        $evaluationService = app(\App\Services\AIEvaluationService::class);
+                        $evaluationService->createAIResponseTest([
+                            'test_name' => 'Laporan VMTS - ' . date('Y-m-d H:i:s'),
+                            'feature' => 'vmts',
+                            'query' => $userPrompt,
+                            'expected_response' => null, // No ground truth for user-generated content
+                            'actual_response' => $result['text'],
+                        ]);
+                        
+                        Log::info('AI Evaluation test created', [
+                            'feature' => 'vmts',
+                            'prompt_length' => strlen($userPrompt),
+                            'response_length' => strlen($result['text']),
+                        ]);
+                    } catch (\Exception $e) {
+                        // Don't fail the request if evaluation logging fails
+                        Log::warning('Failed to create AI evaluation test', [
+                            'error' => $e->getMessage(),
+                            'feature' => 'vmts'
+                        ]);
+                    }
                 }
                 // ========== END CACHE SAVE ==========
 

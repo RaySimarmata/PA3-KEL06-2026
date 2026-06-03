@@ -46,41 +46,79 @@ class LaporanKuesioneService
             'prodi_id' => $prodiId
         ]);
 
-        $query = KuesioneUpload::where('status', 'completed')
-            ->whereNotNull('hasil_analisis');
+        // Build base query - more flexible filter
+        $query = KuesioneUpload::query();
+        
+        // TEMPORARY: Remove prodi filter to get any available data
+        // Filter by prodi if specified - Check via user relationship only
+        // if ($prodiId) {
+        //     $query->whereHas('user', function ($uq) use ($prodiId) {
+        //         $uq->where('prodi_id', $prodiId);
+        //     });
+        // }
+        
+        // Get ALL records for now (will be filtered manually later if needed)
+        Log::info("Getting all kuesioner records without prodi filter (temporary)");
 
-        // Filter by prodi if specified - Check both via user and direct prodi_id if it exists
-        if ($prodiId) {
-            $query->where(function ($q) use ($prodiId) {
-                // Check via user relationship
-                $q->whereHas('user', function ($uq) use ($prodiId) {
+        // Parse periode to determine semester and tahun_ajaran
+        $year = (int) substr($periode, 0, 4);
+        $month = (int) substr($periode, 5, 2);
+        
+        if ($month <= 6) {
+            $semester = 2; // Genap
+            $tahunAjaran = ($year - 1) . '/' . $year;
+        } else {
+            $semester = 1; // Ganjil
+            $tahunAjaran = $year . '/' . ($year + 1);
+        }
+
+        Log::info("Determined semester and tahun ajaran", [
+            'semester' => $semester,
+            'tahun_ajaran' => $tahunAjaran
+        ]);
+
+        // Try to match by semester if the column exists AND has data
+        $hasSemesterData = \DB::table('kuesioner_uploads')
+            ->whereNotNull('semester')
+            ->where('semester', '!=', '')
+            ->exists();
+            
+        if (\Schema::hasColumn('kuesioner_uploads', 'semester') && $hasSemesterData) {
+            Log::info("Filtering by semester", ['semester' => $semester]);
+            $query->where('semester', $semester);
+        } else {
+            Log::warning("Semester column empty or doesn't exist, skipping semester filter");
+        }
+
+        // Get results - don't require hasil_analisis to be not null
+        // We'll use raw data if hasil_analisis is not available
+        $results = $query->orderBy('created_at', 'desc')->get();
+
+        Log::info("Query results", [
+            'count' => $results->count(),
+            'sample' => $results->take(3)->map(function($k) {
+                return [
+                    'id' => $k->id,
+                    'kode' => $k->kode_matakuliah,
+                    'nama' => $k->nama_matakuliah,
+                    'tingkat' => $k->tingkat,
+                    'has_analisis' => !empty($k->hasil_analisis),
+                    'index_kepuasan' => $k->index_kepuasan,
+                    'semester' => $k->semester
+                ];
+            })
+        ]);
+
+        // If no results, try without semester filter (get latest for any semester)
+        if ($results->isEmpty()) {
+            Log::warning("No data found with semester filter, trying without it");
+            $query = KuesioneUpload::query();
+            if ($prodiId) {
+                $query->whereHas('user', function ($uq) use ($prodiId) {
                     $uq->where('prodi_id', $prodiId);
                 });
-
-                // Fallback: check direct prodi_id if the column exists (some migrations might have it)
-                if (\Schema::hasColumn('kuesioner_uploads', 'prodi_id')) {
-                    $q->orWhere('prodi_id', $prodiId);
-                }
-            });
-        }
-
-        // Try exact match on 'periode' column first (e.g. "2025/2026 Ganjil")
-        // But the job usually passes YYYY-MM
-        $results = (clone $query)->where('periode', $periode)->get();
-
-        if ($results->count() > 0) {
-            Log::info("Found kuesioners by exact period match", ['count' => $results->count()]);
-        } else {
-            // Fallback: Filter by month in created_at (format: 2026-03)
-            Log::info("No exact period match, trying month-based filter for {$periode}");
-            $results = (clone $query)->whereRaw("DATE_FORMAT(created_at, '%Y-%m') = ?", [$periode])->get();
-        }
-
-        // Final Fallback: If still empty, just get the latest completed ones for this prodi
-        // This ensures the report is NOT empty if there's any data available
-        if ($results->isEmpty()) {
-            Log::warning("No data found for period {$periode}, falling back to latest kuesioners");
-            $results = (clone $query)->orderBy('created_at', 'desc')->limit(20)->get();
+            }
+            $results = $query->orderBy('created_at', 'desc')->limit(20)->get();
         }
 
         Log::info("Final collected kuesioner count: " . $results->count());
@@ -102,32 +140,45 @@ class LaporanKuesioneService
         $kuesioneData = [];
 
         foreach ($kuesioneList as $kuesioner) {
+            // Try to get data from hasil_analisis first, fallback to model fields
             $hasilAnalisis = $kuesioner->hasil_analisis;
-
-            if (isset($hasilAnalisis['statistik'])) {
+            
+            if (!empty($hasilAnalisis) && isset($hasilAnalisis['statistik'])) {
                 $indexKepuasan = $hasilAnalisis['statistik']['index_kepuasan'] ?? 0;
                 $responden = $hasilAnalisis['statistik']['total_responden'] ?? 0;
-
-                $totalResponden += $responden;
-                $sumIndexKepuasan += $indexKepuasan;
-
-                $kuesioneData[] = [
-                    'id' => $kuesioner->id,
-                    'nama' => $kuesioner->nama_file,
-                    'periode' => $kuesioner->periode,
-                    'nama_matakuliah' => $kuesioner->nama_matakuliah,
-                    'kode_matakuliah' => $kuesioner->kode_matakuliah,
-                    'tingkat' => $kuesioner->tingkat,
-                    'dosen_pengampu' => $kuesioner->dosen_pengampu,
-                    'responden' => $responden,
-                    'index_kepuasan' => $indexKepuasan,
-                    'persen_kepuasan' => ($indexKepuasan / 4) * 100,
-                    'ringkasan' => $hasilAnalisis['ringkasan'] ?? '',
-                    'poin_positif' => $hasilAnalisis['poin_positif'] ?? [],
-                    'area_perbaikan' => $hasilAnalisis['area_perbaikan'] ?? [],
-                    'rekomendasi' => $hasilAnalisis['rekomendasi'] ?? [],
-                ];
+                $ringkasan = $hasilAnalisis['ringkasan'] ?? '';
+                $poinPositif = $hasilAnalisis['poin_positif'] ?? [];
+                $areaPerbaikan = $hasilAnalisis['area_perbaikan'] ?? [];
+                $rekomendasi = $hasilAnalisis['rekomendasi'] ?? [];
+            } else {
+                // Fallback: use fields from model directly
+                $indexKepuasan = $kuesioner->index_kepuasan ?? 0;
+                $responden = $kuesioner->total_responden ?? 0;
+                $ringkasan = 'Data dari monitoring sistem';
+                $poinPositif = [];
+                $areaPerbaikan = [];
+                $rekomendasi = [];
             }
+
+            $totalResponden += $responden;
+            $sumIndexKepuasan += $indexKepuasan;
+
+            $kuesioneData[] = [
+                'id' => $kuesioner->id,
+                'nama' => $kuesioner->nama_file ?? $kuesioner->nama_matakuliah,
+                'periode' => $kuesioner->periode,
+                'nama_matakuliah' => $kuesioner->nama_matakuliah,
+                'kode_matakuliah' => $kuesioner->kode_matakuliah,
+                'tingkat' => $kuesioner->tingkat ?? $this->extractTingkatFromKode($kuesioner->kode_matakuliah),
+                'dosen_pengampu' => $kuesioner->dosen_pengampu,
+                'responden' => $responden,
+                'index_kepuasan' => $indexKepuasan,
+                'persen_kepuasan' => ($indexKepuasan / 4) * 100,
+                'ringkasan' => $ringkasan,
+                'poin_positif' => $poinPositif,
+                'area_perbaikan' => $areaPerbaikan,
+                'rekomendasi' => $rekomendasi,
+            ];
         }
 
         $indexKepuasanRataRata = $totalKuesioner > 0 ? $sumIndexKepuasan / $totalKuesioner : 0;
@@ -151,9 +202,33 @@ class LaporanKuesioneService
             'top_5_terendah' => $top5Terendah,
         ];
 
-        Log::info("Aggregated statistics", $aggregatedData);
+        Log::info("Aggregated statistics", [
+            'total_kuesioner' => $totalKuesioner,
+            'total_responden' => $totalResponden,
+            'index_rata_rata' => $indexKepuasanRataRata
+        ]);
 
         return $aggregatedData;
+    }
+
+    /**
+     * Extract tingkat from kode matakuliah (e.g., IF1111 -> 1, KU41203 -> 1)
+     */
+    private function extractTingkatFromKode($kodeMk)
+    {
+        if (empty($kodeMk)) return null;
+        
+        // Try to extract first digit after letters
+        if (preg_match('/^[A-Z]+(\d)/', $kodeMk, $matches)) {
+            return (int)$matches[1];
+        }
+        
+        // Fallback: look for any digit
+        if (preg_match('/(\d)/', $kodeMk, $matches)) {
+            return (int)$matches[1];
+        }
+        
+        return null;
     }
 
     /**
@@ -402,10 +477,33 @@ class LaporanKuesioneService
             // Step 5: Generate with AI
             Log::info("=== RAG STEP 5: Generating with AI ===");
 
-            $response = $this->callAI([
-                'role' => 'system',
-                'content' => 'Anda adalah AI Agent ahli dalam membuat laporan analisis kuesioner akademik. Tugas Anda adalah menganalisis data kuesioner dan membuat laporan bulanan yang komprehensif, profesional, dan actionable dalam format JSON.'
-            ], $augmentedPrompt, 4000);
+            // Use UnifiedAIService instead of direct API call
+            $aiService = app(\App\Services\UnifiedAIService::class);
+            
+            $messages = [
+                [
+                    'role' => 'system',
+                    'content' => 'Anda adalah AI Agent ahli dalam membuat laporan analisis kuesioner akademik. Tugas Anda adalah menganalisis data kuesioner dan membuat laporan bulanan yang komprehensif, profesional, dan actionable dalam format JSON.'
+                ],
+                [
+                    'role' => 'user',
+                    'content' => $augmentedPrompt
+                ]
+            ];
+
+            $aiResult = $aiService->generateChat($messages, [
+                'max_tokens' => 4000,
+                'temperature' => 0.7
+            ]);
+
+            if (!$aiResult['success'] || empty($aiResult['text'])) {
+                Log::error('AI returned empty response', [
+                    'error' => $aiResult['error'] ?? 'Unknown error'
+                ]);
+                throw new \Exception('AI tidak menghasilkan response: ' . ($aiResult['error'] ?? 'Unknown error'));
+            }
+
+            $response = $aiResult['text'];
 
             if (!$response) {
                 throw new \Exception('AI tidak menghasilkan response');
@@ -1615,7 +1713,7 @@ Your output will be converted to Word document, so it must be clean, professiona
         $prompt = "Kamu adalah penulis laporan Gugus Kendali Mutu (GKM) profesional.\n";
         $prompt .= "Tulis dengan gaya formal Indonesia, berdasarkan data hasil kuesioner mahasiswa.\n\n";
 
-        $prompt .= "KONTEKS DOKUMEN:\n" . substr($context, 0, 60000) . "\n\n";
+        $prompt .= "KONTEKS DOKUMEN:\n" . substr($context, 0, 10000) . "\n\n";
 
         $prompt .= "TUGAS:\n";
         $prompt .= "Hasilkan konten laporan dalam format JSON dengan kunci-kunci berikut SESUAI TEMPLATE:\n\n";
@@ -1747,7 +1845,7 @@ If you cannot generate valid JSON, return this fallback:
 
         // Reduce max_tokens to 8000 to avoid exceeding model limits
         // Groq llama-3.3-70b has 128k context but response is limited
-        $aiResponse = $this->callAI($systemMessage, $prompt, 4000);
+        $aiResponse = $this->callAI($systemMessage, $prompt, 8000);
 
         if (!$aiResponse) {
             Log::error('AI failed to produce a response');

@@ -42,7 +42,16 @@
                     <div class="col-md-2">
                         <label class="filter-label">Tahun Ajaran:</label>
                         <select class="form-select" name="ta">
-                            <option value="2020" selected>2020</option>
+                            @if(isset($tahunAjaranList) && count($tahunAjaranList) > 0)
+                                @foreach($tahunAjaranList as $tahun)
+                                    <option value="{{ $tahun['id_thn_ajaran'] }}" 
+                                        {{ request('ta', date('Y')) == $tahun['id_thn_ajaran'] ? 'selected' : '' }}>
+                                        {{ $tahun['nm_thn_ajaran'] }}
+                                    </option>
+                                @endforeach
+                            @else
+                                <option value="{{ date('Y') }}" selected>{{ date('Y') }}</option>
+                            @endif
                         </select>
                     </div>
                     <div class="col-md-2">

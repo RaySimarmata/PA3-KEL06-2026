@@ -82,18 +82,6 @@
                                 @enderror
                             </div>
 
-                            <!-- Deskripsi -->
-                            <div class="mb-4">
-                                <label for="deskripsi" class="filter-label">
-                                    Deskripsi <span class="text-muted" style="font-weight: 400;">(Opsional)</span>
-                                </label>
-                                <textarea name="deskripsi" id="deskripsi" class="form-control @error('deskripsi') is-invalid @enderror" rows="3"
-                                    placeholder="Deskripsi singkat tentang template ini...">{{ old('deskripsi') }}</textarea>
-                                @error('deskripsi')
-                                    <div class="invalid-feedback">{{ $message }}</div>
-                                @enderror
-                            </div>
-
                             <!-- File Upload -->
                             <div class="mb-4">
                                 <label for="file_template" class="filter-label">
