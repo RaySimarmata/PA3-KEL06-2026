@@ -134,9 +134,7 @@
                 <input type="hidden" name="tingkat" value="{{ request('tingkat') }}">
 
                 <button class="btn btn-success">
-
-                    Analaisis Semua Kusioner
-
+                    📊 Analisis Semua Kuesioner
                 </button>
 
             </form>

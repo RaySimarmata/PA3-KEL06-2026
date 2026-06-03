@@ -39,10 +39,6 @@
                                         <td><strong>Periode:</strong></td>
                                         <td>{{ $kuesioner->periode }}</td>
                                     </tr>
-                                    <tr>
-                                        <td><strong>Program Studi:</strong></td>
-                                        <td>{{ $kuesioner->user->prodi->nama_prodi ?? 'Unknown' }}</td>
-                                    </tr>
                                 </table>
                             </div>
                             <div class="col-md-6">

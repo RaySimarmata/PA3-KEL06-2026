@@ -256,28 +256,12 @@ public function getAccessToken()
      * 
      * @return array|null
      */
-    // public function getDosen()
-    // {
-    //     try {
-    //         $data = $this->callApi($this->baseUrl . '/library-api/dosen');
-            
-    //         if ($data) {
-    //             // Extract dosen array from nested structure
-    //             return $data['data']['dosen'] ?? [];
-    //         }
-
-    //         Log::warning('API Dosen failed - no data returned');
-    //         return [];
-
-    //     } catch (\Exception $e) {
-    //         Log::error('API Dosen exception', [
-    //             'message' => $e->getMessage(),
-    //             'trace' => $e->getTraceAsString()
-    //         ]);
-
-    //         return [];
-    //     }
-    // }
+    /**
+     * Get all dosen from database
+     * Returns all dosen without filtering
+     * 
+     * @return array
+     */
     public function getDosen()
     {
         return Dosenn::all()->toArray();
@@ -325,18 +309,40 @@ public function getAccessToken()
     //     return array_values($uniqueDosen);
     // }
 
+    /**
+     * Get filtered dosen for Penugasan Dosen page
+     * Filter based on prodi_id (more reliable than prodi name)
+     * Includes: TI (1), TK (3), TRPL (4)
+     * 
+     * @return array
+     */
     public function getFilteredDosen()
-{
-    return Dosenn::whereIn('prodi', [
-    'DIII Teknologi Informasi',
-    'DIII Teknologi Komputer',
-    'DIV Teknologi Rekayasa Perangkat Lunak'
-])
-->get()
-->unique('pegawai_id')
-->values()
-->toArray();
-}
+    {
+        // Filter berdasarkan prodi_id yang lebih konsisten daripada nama prodi
+        // prodi_id:
+        // 1 = DIII Teknologi Informasi (TI)
+        // 3 = DIII Teknologi Komputer (TK)
+        // 4 = Sarjana Terapan Teknologi Rekayasa Perangkat Lunak (TRPL)
+        $filteredDosen = Dosenn::whereIn('prodi_id', [1, 3, 4])
+            ->orWhere(function($query) {
+                // Fallback: cari berdasarkan nama prodi (case insensitive, with whitespace handling)
+                $query->where('prodi', 'LIKE', '%Teknologi Informasi%')
+                      ->orWhere('prodi', 'LIKE', '%Teknologi Komputer%')
+                      ->orWhere('prodi', 'LIKE', '%Teknologi Rekayasa Perangkat Lunak%')
+                      ->orWhere('prodi', 'LIKE', '%TRPL%');
+            })
+            ->get()
+            ->unique('pegawai_id')
+            ->values()
+            ->toArray();
+        
+        Log::info('Filtered Dosen', [
+            'total_count' => count($filteredDosen),
+            'sample_prodi' => array_slice(array_column($filteredDosen, 'prodi'), 0, 5)
+        ]);
+        
+        return $filteredDosen;
+    }
 
     /**
      * Get dosen by specific prodi IDs only (optimized for monitoring RPS)

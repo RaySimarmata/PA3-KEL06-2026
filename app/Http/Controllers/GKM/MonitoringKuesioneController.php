@@ -54,7 +54,28 @@ private function getPeriodeAktif()
             $q->where('prodi_id', $user->prodi_id);
         })
         ->orderBy('created_at', 'desc')
-        ->get();
+        ->get()
+        ->map(function ($k) {
+            // Pastikan nama_matakuliah terisi
+            if (empty($k->nama_matakuliah) && !empty($k->kode_matakuliah)) {
+                // Coba cari dengan berbagai variasi
+                $matkul = \App\Models\Matakuliah::where('kode_mk', $k->kode_matakuliah)
+                    ->orWhere('kode_mk', 'LIKE', '%' . $k->kode_matakuliah . '%')
+                    ->first();
+                
+                if ($matkul) {
+                    $k->nama_matakuliah = $matkul->nama_mk;
+                } else {
+                    // Jika tidak ada di tabel matakuliah, coba ambil dari API atau sumber lain
+                    // Log untuk debugging
+                    \Log::info('Matakuliah tidak ditemukan', [
+                        'kode_mk' => $k->kode_matakuliah,
+                        'kuesioner_id' => $k->id
+                    ]);
+                }
+            }
+            return $k;
+        });
 
     $laporanBulanan = KuesioneUpload::whereYear('created_at', date('Y'))
         ->whereMonth('created_at', date('m'))
@@ -200,6 +221,56 @@ if ($request->dosen_pengampu) {
     public function show($id)
     {
         $kuesioner = KuesioneUpload::with(['user', 'user.prodi'])->findOrFail($id);
+        
+        // Pastikan nama_matakuliah terisi
+        if (empty($kuesioner->nama_matakuliah) && !empty($kuesioner->kode_matakuliah)) {
+            // Coba dari database lokal
+            $matkul = \App\Models\Matakuliah::where('kode_mk', $kuesioner->kode_matakuliah)->first();
+            
+            if ($matkul) {
+                $kuesioner->nama_matakuliah = $matkul->nama_mk;
+                $kuesioner->save();
+            } else {
+                // Jika tidak ada, coba ambil dari API eksternal
+                try {
+                    $user = $kuesioner->user;
+                    if ($user && $user->prodi) {
+                        $prodiKode = $user->prodi->kode_prodi;
+                        $prodiIdMap = ['TRPL' => 4, 'TI' => 1, 'NM' => 3, 'TK' => 2];
+                        $prodiId = $prodiIdMap[$prodiKode] ?? 4;
+                        
+                        $semester = $kuesioner->semester ?? ($kuesioner->periode && stripos($kuesioner->periode, 'Genap') !== false ? '2' : '1');
+                        $ta = $kuesioner->periode;
+                        
+                        $apiService = app(\App\Services\ExternalApiService::class);
+                        $matkulData = $apiService->getMatkulByProdiSemTa($prodiId, $semester, $ta);
+                        
+                        if ($matkulData && is_array($matkulData)) {
+                            $matkulData = isset($matkulData['data']) ? $matkulData['data'] : $matkulData;
+                            
+                            foreach ($matkulData as $mk) {
+                                if (is_object($mk)) $mk = (array) $mk;
+                                
+                                if (isset($mk['kode_mk']) && $mk['kode_mk'] == $kuesioner->kode_matakuliah) {
+                                    $namaMk = $mk['nama_matkul'] ?? $mk['nama_mk'] ?? null;
+                                    if ($namaMk) {
+                                        $kuesioner->nama_matakuliah = $namaMk;
+                                        $kuesioner->save();
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } catch (\Exception $e) {
+                    \Log::warning('Failed to fetch matakuliah from API in show()', [
+                        'kuesioner_id' => $id,
+                        'error' => $e->getMessage()
+                    ]);
+                }
+            }
+        }
+        
         return view('gkm.monitoring-kuesioner.show', compact('kuesioner'));
     }
 
@@ -231,7 +302,36 @@ if ($request->dosen_pengampu) {
             return back()->withErrors(['error' => 'Analisis belum selesai. Silakan tunggu beberapa saat.']);
         }
 
+        // Pastikan nama_matakuliah terisi
+        if (empty($kuesioner->nama_matakuliah) && !empty($kuesioner->kode_matakuliah)) {
+            $matkul = \App\Models\Matakuliah::where('kode_mk', $kuesioner->kode_matakuliah)->first();
+            $kuesioner->nama_matakuliah = $matkul ? $matkul->nama_mk : null;
+        }
+
         return view('gkm.monitoring-kuesioner.report', compact('kuesioner'));
+    }
+
+    public function reprocess($id)
+    {
+        try {
+            $kuesioner = KuesioneUpload::findOrFail($id);
+
+            // Jika dari API, proses dengan API flow
+            if ($kuesioner->file_path === 'from-api' || $kuesioner->source === 'api') {
+                $kuesioner->update(['status' => 'processing']);
+                $this->processKuesionerFromApi($kuesioner->id);
+            } else {
+                // Jika dari file upload, proses dengan flow normal
+                $kuesioner->update(['status' => 'processing']);
+                $this->processKuesioneAnalysis($kuesioner->id);
+            }
+
+            return redirect()->route('gkm.monitoring-kuesioner.show', $kuesioner->id)
+                ->with('success', 'Proses analisis ulang dimulai. Silakan tunggu beberapa saat.');
+
+        } catch (\Exception $e) {
+            return back()->withErrors(['error' => 'Gagal memulai proses ulang: ' . $e->getMessage()]);
+        }
     }
 
    public function indexApi(Request $request)
@@ -383,16 +483,31 @@ public function listKuesioner(Request $request)
  */
 private function mapApiToIndexedData($apiData)
 {
+    $rekapitulasi = $apiData['statistik']['rekapitulasi'] ?? [];
+
+    if (empty($rekapitulasi)) {
+        \Log::warning('mapApiToIndexedData: rekapitulasi kosong');
+        return [
+            'metadata' => [
+                'total_responden' => $apiData['statistik']['total_responden_aktif'] ?? 0,
+                'total_pertanyaan' => 0,
+                'pertanyaan' => []
+            ],
+            'statistik_per_pertanyaan' => [],
+            'sample_responses' => []
+        ];
+    }
+
     $metadata = [
         'total_responden' => $apiData['statistik']['total_responden_aktif'],
-        'total_pertanyaan' => count($apiData['statistik']['rekapitulasi']),
+        'total_pertanyaan' => count($rekapitulasi),
         'pertanyaan' => []
     ];
 
     $statistik = [];
     $no = 1;
 
-    foreach ($apiData['statistik']['rekapitulasi'] as $item) {
+    foreach ($rekapitulasi as $item) {
 
         $qId = 'Q' . $no;
 
@@ -416,32 +531,34 @@ private function mapApiToIndexedData($apiData)
             'sangat setuju' => 'SS', 'setuju' => 'S', 'cukup setuju' => 'CS', 'tidak setuju' => 'TS',
         ];
 
-        foreach ($item['rincian_jawaban'] as $j) {
-            $label = strtoupper(trim($j['jawaban']));
+        $rincianJawaban = $item['rincian_jawaban'] ?? [];
+
+        foreach ($rincianJawaban as $j) {
+            $label = strtoupper(trim($j['jawaban'] ?? ''));
             if (isset($mapping[$label])) {
                 $target = $mapping[$label];
-                $counts[$target] += (int)$j['jumlah'];
+                $counts[$target] += (int)($j['jumlah'] ?? 0);
             } elseif (isset($mapping[strtolower($label)])) {
                 $target = $mapping[strtolower($label)];
-                $counts[$target] += (int)$j['jumlah'];
+                $counts[$target] += (int)($j['jumlah'] ?? 0);
             } else {
                 // Jika tidak dikenali, log untuk debugging
                 \Log::warning("Label jawaban tidak dikenali dari API", [
-                    'label' => $j['jawaban'],
-                    'pertanyaan' => $item['pertanyaan']
+                    'label' => $j['jawaban'] ?? 'unknown',
+                    'pertanyaan' => $item['pertanyaan'] ?? 'unknown'
                 ]);
             }
         }
 
         $metadata['pertanyaan'][] = [
             'id' => $qId,
-            'teks' => strip_tags($item['pertanyaan'])
+            'teks' => strip_tags($item['pertanyaan'] ?? '')
         ];
 
         $statistik[$qId] = [
-            'teks_pertanyaan' => strip_tags($item['pertanyaan']),
+            'teks_pertanyaan' => strip_tags($item['pertanyaan'] ?? ''),
             'distribusi' => $counts,
-            'total_responden' => $item['total_suara']
+            'total_responden' => $item['total_suara'] ?? 0
         ];
 
         $no++;
@@ -453,11 +570,72 @@ private function mapApiToIndexedData($apiData)
         'sample_responses' => []
     ];
 }
+
+/**
+ * Extract statistik dari daftar_rekap (format alternatif API)
+ */
+private function extractStatistikFromDaftarRekap($daftarRekap)
+{
+    \Log::info('Extracting statistik from daftar_rekap', [
+        'jumlah_rekap' => count($daftarRekap)
+    ]);
+
+    $totalResponden = 0;
+    $allRekapitulasi = [];
+
+    foreach ($daftarRekap as $index => $rekap) {
+        \Log::info('Processing rekap item', [
+            'index' => $index,
+            'keys' => array_keys($rekap),
+            'has_statistik' => isset($rekap['statistik']),
+            'has_data' => isset($rekap['data']),
+            'has_metadata' => isset($rekap['metadata']),
+            'rekap_sample' => array_slice($rekap, 0, 2, true) // Show first 2 keys
+        ]);
+
+        // Setiap rekap mungkin punya statistik sendiri
+        if (isset($rekap['statistik'])) {
+            $stat = $rekap['statistik'];
+            $totalResponden += (int)($stat['total_responden_aktif'] ?? 0);
+
+            if (isset($stat['rekapitulasi']) && is_array($stat['rekapitulasi'])) {
+                $allRekapitulasi = array_merge($allRekapitulasi, $stat['rekapitulasi']);
+            }
+        }
+        // Atau mungkin data ada di level rekap langsung
+        elseif (isset($rekap['data'])) {
+            // Handle format lain jika ada
+            \Log::info('Found data in rekap', ['keys' => array_keys($rekap['data'])]);
+        }
+    }
+
+    \Log::info('Extracted statistik summary', [
+        'total_responden' => $totalResponden,
+        'total_pertanyaan' => count($allRekapitulasi)
+    ]);
+
+    return [
+        'total_responden_aktif' => $totalResponden,
+        'rekapitulasi' => $allRekapitulasi
+    ];
+}
 private function extractKuesionerInfo($nama, $kodeMk)
 {
-    // 1. Ambil nama MK
-    preg_match('/Evaluasi Matakuliah (.*?) Semester/', $nama, $matchMk);
-    $nama_mk = $matchMk[1] ?? '-';
+    // 1. Ambil nama MK dengan berbagai pattern
+    $nama_mk = '-';
+    
+    // Pattern 1: "Evaluasi Mata Kuliah [NAMA] UTS/UAS Semester"
+    if (preg_match('/Evaluasi Mata Kuliah\s+(.+?)\s+(?:UTS|UAS)\s+Semester/i', $nama, $matchMk)) {
+        $nama_mk = trim($matchMk[1]);
+    }
+    // Pattern 2: "Evaluasi Matakuliah [NAMA] Semester" (tanpa UTS/UAS)
+    elseif (preg_match('/Evaluasi Matakuliah\s+(.+?)\s+Semester/i', $nama, $matchMk)) {
+        $nama_mk = trim($matchMk[1]);
+    }
+    // Pattern 3: Extract anything between "Kuliah" dan "UTS/UAS/Semester"
+    elseif (preg_match('/Kuliah\s+(.+?)\s+(?:UTS|UAS|Semester)/i', $nama, $matchMk)) {
+        $nama_mk = trim($matchMk[1]);
+    }
 
     // 2. Ambil inisial dosen
     preg_match('/\((.*?)\)/', $nama, $matchDosen);
@@ -480,7 +658,8 @@ private function extractKuesionerInfo($nama, $kodeMk)
     \Log::info('DEBUG DOSEN', [
         'judul' => $nama,
         'inisial' => $inisial,
-        'dosen_found' => $dosen
+        'dosen_found' => $dosen,
+        'nama_mk_extracted' => $nama_mk
     ]);
 
     // 4. Ambil tingkat
@@ -501,29 +680,98 @@ private function extractKuesionerInfo($nama, $kodeMk)
     ];
 }
 
+/**
+ * Deteksi jenis kuesioner dari judul (UTS, UAS, atau REGULAR)
+ */
+private function detectJenisKuesioner($judul)
+{
+    $judulUpper = strtoupper($judul);
+    
+    // Cek apakah ada kata UTS
+    if (strpos($judulUpper, 'UTS') !== false || strpos($judulUpper, 'UJIAN TENGAH') !== false) {
+        return 'UTS';
+    }
+    
+    // Cek apakah ada kata UAS
+    if (strpos($judulUpper, 'UAS') !== false || strpos($judulUpper, 'UJIAN AKHIR') !== false) {
+        return 'UAS';
+    }
+    
+    // Default REGULAR jika tidak ada UTS/UAS
+    return 'REGULAR';
+}
+
 public function processFromApi(Request $request)
 {
     $request->validate([
         'ta' => 'required',
-        'kode_mk' => 'required'
+        'kode_mk' => 'required',
+        'kuesioner_id' => 'required' // 🔥 WAJIB ada kuesioner_id spesifik
     ]);
 
     try {
+        // Get semester dari request atau dari periode aktif
+        $semester = $request->semester;
+        if (!$semester) {
+            $periodeAktif = $this->getPeriodeAktif();
+            $semester = $periodeAktif['semester'];
+        }
 
-        // 🔥 simpan dulu
+        // 🔥 Ambil nama matakuliah dari database
+        $matakuliah = \App\Models\Matakuliah::where('kode_mk', $request->kode_mk)->first();
+        $namaMk = $matakuliah ? $matakuliah->nama_mk : null;
+        
+        // 🔥 Jika tidak ada di database, coba ambil dari API eksternal
+        if (!$namaMk) {
+            try {
+                $user = auth()->user();
+                $prodiKode = $user->prodi ? $user->prodi->kode_prodi : 'TRPL';
+                $prodiIdMap = ['TRPL' => 4, 'TI' => 1, 'NM' => 3, 'TK' => 2];
+                $prodiId = $prodiIdMap[$prodiKode] ?? 4;
+                
+                $matkulData = $this->apiService->getMatkulByProdiSemTa($prodiId, $semester, $request->ta);
+                
+                if ($matkulData && is_array($matkulData)) {
+                    $matkulData = isset($matkulData['data']) ? $matkulData['data'] : $matkulData;
+                    
+                    foreach ($matkulData as $mk) {
+                        if (is_object($mk)) $mk = (array) $mk;
+                        if (isset($mk['kode_mk']) && $mk['kode_mk'] == $request->kode_mk) {
+                            $namaMk = $mk['nama_matkul'] ?? $mk['nama_mk'] ?? null;
+                            break;
+                        }
+                    }
+                }
+            } catch (\Exception $e) {
+                \Log::warning('Failed to fetch matakuliah from external API', [
+                    'error' => $e->getMessage()
+                ]);
+            }
+        }
+        
+        // 🔥 Ambil tingkat dari kode matakuliah
+        $tingkat = null;
+        if (strlen($request->kode_mk) >= 4) {
+            $tingkat = substr($request->kode_mk, 3, 1);
+        }
+
+        // 🔥 simpan dulu dengan data lengkap + kuesioner_id
         $kuesioner = KuesioneUpload::create([
             'nama_file' => 'Kuesioner API',
             'kode_matakuliah' => $request->kode_mk,
+            'nama_matakuliah' => $namaMk,
+            'tingkat' => $tingkat,
             'periode' => $request->ta,
-            'semester' => $request->semester ?? null,
+            'semester' => $semester,
+            'kuliah_id' => $request->kuesioner_id, // 🔥 SIMPAN KUESIONER_ID dari API
             'status' => 'processing',
             'file_path' => 'from-api',
             'source' => 'api',
             'user_id' => auth()->id()
         ]);
 
-        // 🔥 lempar ke function proses
-        $this->processKuesionerFromApi($kuesioner->id);
+        // 🔥 lempar ke function proses dengan kuesioner_id
+        $this->processKuesionerFromApi($kuesioner->id, $request->kuesioner_id);
 
         return redirect()
             ->route('gkm.monitoring-kuesioner.show', $kuesioner->id)
@@ -534,396 +782,153 @@ public function processFromApi(Request $request)
         return back()->with('error', $e->getMessage());
     }
 }
-public function syncSemuaKuesioner()
+public function syncSemuaKuesioner(Request $request)
 {
     try {
+        // Tingkatkan timeout untuk proses panjang
+        set_time_limit(300); // 5 menit
+        ini_set('max_execution_time', 300);
+        
+        \Log::info('===== ANALISIS SEMUA KUESIONER MULAI =====');
 
-        \Log::info('===== SYNC MULAI =====');
+        // Ambil parameter dari request
+        $ta = $request->ta;
+        $semester = $request->semester;
+        $tingkat = $request->tingkat;
 
-        // =========================
-        // 1. PERIODE AKTIF
-        // =========================
-        $periodeAktif = $this->getPeriodeAktif();
+        if (!$ta || !$semester) {
+            return back()->with('error', 'Tahun Ajaran dan Semester harus dipilih');
+        }
 
-        \Log::info('PERIODE AKTIF', $periodeAktif);
-
-        $ta = $periodeAktif['ta'];
-        $semester = $periodeAktif['semester'];
-
-        // =========================
-        // 2. USER & PRODI
-        // =========================
+        // Ambil user dan prodi
         $user = auth()->user();
-
-        \Log::info('USER LOGIN', [
-            'id' => $user->id ?? null,
-            'prodi' => $user->prodi->kode_prodi ?? null
-        ]);
-
-        $prodiKode = $user->prodi
-            ? $user->prodi->kode_prodi
-            : 'TRPL';
-
-        $prodiIdMap = [
-            'TRPL' => 4,
-            'TI'   => 1,
-            'NM'   => 3,
-            'TK'   => 2,
-        ];
-
+        $prodiKode = $user->prodi ? $user->prodi->kode_prodi : 'TRPL';
+        $prodiIdMap = ['TRPL' => 4, 'TI' => 1, 'NM' => 3, 'TK' => 2];
         $prodiId = $prodiIdMap[$prodiKode] ?? 4;
 
-        \Log::info('PRODI ID', [
-            'prodi_kode' => $prodiKode,
-            'prodi_id' => $prodiId
-        ]);
+        // Ambil semua matakuliah
+        $matkulList = $this->apiService->getMatkulByProdiSemTa($prodiId, $semester, $ta);
 
-        // =========================
-        // 3. AMBIL SEMUA MATKUL
-        // =========================
-        $matkulList = $this->apiService->getMatkulByProdiSemTa(
-            $prodiId,
-            $semester,
-            $ta
-        );
-
-        \Log::info('RAW MATKUL RESULT', [
-            'type' => gettype($matkulList),
-            'is_array' => is_array($matkulList),
-            'data' => $matkulList
-        ]);
-
-        // =========================
-        // HANDLE JIKA FORMAT ADA data[]
-        // =========================
         if (isset($matkulList['data'])) {
-
-            \Log::info('MATKUL ADA DI data[]');
-
             $matkulList = $matkulList['data'];
         }
 
-        // =========================
-        // HANDLE COLLECTION
-        // =========================
-        if ($matkulList instanceof \Illuminate\Support\Collection) {
-
-            \Log::info('MATKUL COLLECTION');
-
-            $matkulList = $matkulList->toArray();
-        }
-
-        \Log::info('TOTAL MATKUL FINAL', [
-            'jumlah' => count($matkulList)
-        ]);
-
         if (empty($matkulList)) {
-
-            \Log::warning('MATKUL KOSONG');
-
-            return back()->with(
-                'error',
-                'Matakuliah tidak ditemukan'
-            );
+            return back()->with('error', 'Tidak ada matakuliah ditemukan');
         }
 
         $success = 0;
         $failed = 0;
+        $skipped = 0;
+        $processed = 0;
+        $maxProcess = 50; // Batasi maksimal proses per request untuk menghindari timeout
 
-        // =========================
-        // 4. LOOP SEMUA MATKUL
-        // =========================
-        foreach ($matkulList as $index => $matkul) {
+        foreach ($matkulList as $matkul) {
+            // Stop jika sudah mencapai batas
+            if ($processed >= $maxProcess) {
+                \Log::info("Mencapai batas maksimal proses ({$maxProcess}), menghentikan batch ini");
+                break;
+            }
+            
+            if (is_object($matkul)) $matkul = (array) $matkul;
+
+            $kodeMk = $matkul['kode_mk'] ?? null;
+            $namaMk = $matkul['nama_matkul'] ?? $matkul['nama_mk'] ?? null;
+
+            if (!$kodeMk) continue;
+
+            // Filter tingkat jika dipilih
+            if ($tingkat && strlen($kodeMk) >= 4) {
+                $tingkatMk = substr($kodeMk, 3, 1);
+                if ($tingkatMk != $tingkat) {
+                    continue;
+                }
+            }
 
             try {
-
-                \Log::info('LOOP MATKUL', [
-                    'index' => $index,
-                    'matkul' => $matkul
-                ]);
-
-                // =========================
-                // HANDLE OBJECT
-                // =========================
-                if (is_object($matkul)) {
-
-                    $matkul = (array) $matkul;
-                }
-
-                $kodeMk = $matkul['kode_mk'] ?? null;
-
-                if (!$kodeMk) {
-
-                    \Log::warning('KODE MK NULL', [
-                        'matkul' => $matkul
-                    ]);
-
-                    continue;
-                }
-
-                \Log::info('FETCH API KUESIONER', [
-                    'kode_mk' => $kodeMk,
-                    'ta' => $ta
-                ]);
-
-                // =========================
-                // FETCH API KUESIONER
-                // =========================
+                // Ambil data kuesioner dari API
                 $apiData = $this->fetchApi($ta, $kodeMk);
 
-                \Log::info('HASIL FETCH API', [
-                    'kode_mk' => $kodeMk,
-                    'ada_data' => !empty($apiData),
-                    'jumlah_kuesioner' => count($apiData['daftar_rekap'] ?? [])
-                ]);
-
-                // =========================
-                // VALIDASI DATA
-                // =========================
-                if (
-                    !$apiData ||
-                    !isset($apiData['daftar_rekap']) ||
-                    empty($apiData['daftar_rekap'])
-                ) {
-
-                    \Log::warning('KUESIONER KOSONG', [
-                        'kode_mk' => $kodeMk
-                    ]);
-
+                if (!$apiData || !isset($apiData['daftar_rekap']) || empty($apiData['daftar_rekap'])) {
+                    \Log::info("Kode MK {$kodeMk}: tidak ada kuesioner");
+                    $skipped++;
                     continue;
                 }
 
-                /*
-                |--------------------------------------------------------------------------
-                | SORT KUESIONER BERDASARKAN ID
-                |--------------------------------------------------------------------------
-                */
-                $daftarRekap = collect($apiData['daftar_rekap'])
-                    ->sortBy(function ($item) {
+                // Loop semua kuesioner di matkul ini
+                foreach ($apiData['daftar_rekap'] as $rekap) {
+                    $metadata = $rekap['metadata'] ?? [];
+                    $judul = $metadata['judul_kuesioner'] ?? "Kuesioner {$kodeMk}";
+                    $kuesionerId = $metadata['kuesioner_id'] ?? null;
 
-                        return (int) (
-                            $item['metadata']['kuesioner_id']
-                            ?? 0
-                        );
-                    })
-                    ->values();
+                    if (!$kuesionerId) continue;
 
-                // =========================
-                // LOOP SEMUA KUESIONER
-                // =========================
-                foreach ($daftarRekap as $indexRekap => $rekap) {
+                    // Cek apakah sudah ada
+                    $existing = KuesioneUpload::where('kuliah_id', $kuesionerId)
+                        ->where('user_id', $user->id)
+                        ->first();
 
+                    if ($existing) {
+                        \Log::info("Kuesioner ID {$kuesionerId} sudah ada, skip");
+                        $skipped++;
+                        continue;
+                    }
+
+                    // Deteksi jenis kuesioner
+                    $jenisKuesioner = $this->detectJenisKuesioner($judul);
+
+                    // Tentukan tingkat
+                    $tingkatMk = null;
+                    if (strlen($kodeMk) >= 4) {
+                        $tingkatMk = substr($kodeMk, 3, 1);
+                    }
+
+                    // Simpan ke database
+                    $kuesioner = KuesioneUpload::create([
+                        'nama_file' => $judul,
+                        'kode_matakuliah' => $kodeMk,
+                        'nama_matakuliah' => $namaMk,
+                        'jenis_kuesioner' => $jenisKuesioner,
+                        'tingkat' => $tingkatMk,
+                        'periode' => $ta,
+                        'semester' => $semester,
+                        'kuliah_id' => $kuesionerId,
+                        'status' => 'processing',
+                        'file_path' => 'from-api',
+                        'source' => 'api',
+                        'user_id' => $user->id
+                    ]);
+
+                    // Proses dengan AI (async)
                     try {
-
-                        $metadata = $rekap['metadata'] ?? [];
-
-                        $judul =
-                            $metadata['judul_kuesioner']
-                            ?? ('Kuesioner ' . $kodeMk);
-
-                        $kuesionerId =
-                            $metadata['kuesioner_id']
-                            ?? null;
-
-                        if (!$kuesionerId) {
-
-                            \Log::warning('KUESIONER ID NULL', [
-                                'kode_mk' => $kodeMk,
-                                'metadata' => $metadata
-                            ]);
-
-                            continue;
-                        }
-
-                        /*
-|--------------------------------------------------------------------------
-| DETEKSI JENIS KUESIONER
-|--------------------------------------------------------------------------
-*/
-$judulUpper = strtoupper($judul);
-
-$jenisKuesioner = null;
-
-/*
-|--------------------------------------------------------------------------
-| PRIORITAS 1:
-| CEK LANGSUNG DARI JUDUL
-|--------------------------------------------------------------------------
-*/
-if (str_contains($judulUpper, 'UTS')) {
-
-    $jenisKuesioner = 'UTS';
-
-} elseif (str_contains($judulUpper, 'UAS')) {
-
-    $jenisKuesioner = 'UAS';
-}
-
-/*
-|--------------------------------------------------------------------------
-| PRIORITAS 2:
-| JIKA TIDAK ADA UTS/UAS
-|--------------------------------------------------------------------------
-*/
-if (!$jenisKuesioner) {
-
-    /*
-    |--------------------------------------------------------------------------
-    | AMBIL SEMUA ID PADA MATKUL INI
-    |--------------------------------------------------------------------------
-    */
-    $semuaId = collect($daftarRekap)
-        ->pluck('metadata.kuesioner_id')
-        ->filter()
-        ->map(fn($id) => (int) $id)
-        ->sort()
-        ->values();
-
-    $idTerkecil = $semuaId->first();
-
-    $idTerbesar = $semuaId->last();
-
-    if ((int) $kuesionerId === $idTerkecil) {
-
-        $jenisKuesioner = 'UTS';
-
-    } elseif ((int) $kuesionerId === $idTerbesar) {
-
-        $jenisKuesioner = 'UAS';
-
-    } else {
-
-        $jenisKuesioner = 'UNKNOWN';
-    }
-}
-                        // =========================
-                        // CEK DATA EXISTING
-                        // =========================
-                        $existing = KuesionerMongo::where(
-                            'kuesioner_id',
-                            $kuesionerId
-                        )->first();
-
-                        // =========================
-                        // HANDLE MULTI PRODI
-                        // =========================
-                        $listProdi = [];
-
-                        if ($existing && isset($existing->prodi)) {
-
-                            $listProdi = $existing->prodi;
-
-                            // jika object tunggal → ubah jadi array
-                            if (isset($listProdi['kode'])) {
-
-                                $listProdi = [$listProdi];
-                            }
-                        }
-
-                        // cek apakah prodi sudah ada
-                        $sudahAda = collect($listProdi)
-                            ->contains(function ($item) use ($prodiKode) {
-
-                                return ($item['kode'] ?? null)
-                                    == $prodiKode;
-                            });
-
-                        // tambah prodi baru
-                        if (!$sudahAda) {
-
-                            $listProdi[] = [
-                                'kode' => $prodiKode,
-                                'id' => $prodiId
-                            ];
-                        }
-
-                        // =========================
-                        // SAVE / UPDATE MONGO
-                        // =========================
-                        KuesionerMongo::updateOrCreate(
-
-                            [
-                                'kuesioner_id' => $kuesionerId
-                            ],
-
-                            [
-                                'judul_kuesioner' => $judul,
-
-                                'jenis_kuesioner' => $jenisKuesioner,
-
-                                'kode_mk' => $kodeMk,
-
-                                'kuesioner_id' => $kuesionerId,
-
-                                'prodi' => $listProdi,
-
-                                'periode' => $ta,
-
-                                'semester' => $semester,
-
-                                'raw_data' => $rekap,
-
-                                'updated_at' => now()
-                            ]
-                        );
-
-                        \Log::info('BERHASIL SIMPAN MONGO', [
-                            'kode_mk' => $kodeMk,
-                            'judul' => $judul,
-                            'kuesioner_id' => $kuesionerId,
-                            'jenis_kuesioner' => $jenisKuesioner
-                        ]);
-
+                        $this->processKuesionerFromApi($kuesioner->id, $kuesionerId);
                         $success++;
-
+                        $processed++;
                     } catch (\Exception $e) {
-
-                        \Log::error('GAGAL SIMPAN PER KUESIONER', [
-                            'kode_mk' => $kodeMk,
-                            'message' => $e->getMessage(),
-                            'line' => $e->getLine(),
-                            'file' => $e->getFile()
-                        ]);
-
+                        \Log::error("Gagal proses kuesioner ID {$kuesionerId}: " . $e->getMessage());
                         $failed++;
+                        $processed++;
                     }
                 }
 
             } catch (\Exception $e) {
-
-                \Log::error('GAGAL PER MATKUL', [
-                    'kode_mk' => $kodeMk ?? null,
-                    'message' => $e->getMessage(),
-                    'line' => $e->getLine(),
-                    'file' => $e->getFile()
-                ]);
-
+                \Log::error("Gagal proses matkul {$kodeMk}: " . $e->getMessage());
                 $failed++;
             }
         }
 
-        \Log::info('===== SYNC SELESAI =====', [
-            'success' => $success,
-            'failed' => $failed
-        ]);
-
-        return back()->with(
-            'success',
-            "Sync selesai. Berhasil: {$success}, Gagal: {$failed}"
-        );
+        $message = "Analisis selesai! Berhasil: {$success}, Gagal: {$failed}, Dilewati: {$skipped}";
+        if ($processed >= $maxProcess) {
+            $message .= " (Dibatasi {$maxProcess} kuesioner per batch, jalankan lagi untuk melanjutkan)";
+        }
+        
+        return redirect()
+            ->route('gkm.monitoring-kuesioner.index')
+            ->with('success', $message);
 
     } catch (\Exception $e) {
-
-        \Log::error('SYNC TOTAL GAGAL', [
-            'message' => $e->getMessage(),
-            'line' => $e->getLine(),
-            'file' => $e->getFile()
-        ]);
-
-        return back()->with(
-            'error',
-            $e->getMessage()
-        );
+        \Log::error('SYNC ERROR: ' . $e->getMessage());
+        return back()->with('error', 'Terjadi kesalahan: ' . $e->getMessage());
     }
 }
 
@@ -962,9 +967,12 @@ if (!$jenisKuesioner) {
     }
 }
 
-private function processKuesionerFromApi($kuesioneId)
+private function processKuesionerFromApi($kuesioneId, $apiKuesionerId = null)
 {
     try {
+        // Pastikan timeout cukup untuk proses ini
+        @set_time_limit(120); // 2 menit per kuesioner
+        
         $kuesioner = KuesioneUpload::findOrFail($kuesioneId);
 
         $kuesioner->update(['status' => 'processing']);
@@ -976,17 +984,54 @@ private function processKuesionerFromApi($kuesioneId)
             $kuesioner->periode,
             $kuesioner->kode_matakuliah
         );
-       
+
+        \Log::info('API Response Structure', [
+            'keys' => array_keys($apiData),
+            'has_statistik' => isset($apiData['statistik']),
+            'has_daftar_rekap' => isset($apiData['daftar_rekap']),
+            'kuesioner_id_target' => $apiKuesionerId
+        ]);
+
+        // =========================
+        // FILTER KUESIONER SPESIFIK DARI DAFTAR_REKAP
+        // =========================
+        $targetRekap = null;
+        
+        if (isset($apiData['daftar_rekap']) && is_array($apiData['daftar_rekap']) && $apiKuesionerId) {
+            // 🔥 Cari kuesioner spesifik berdasarkan kuesioner_id
+            foreach ($apiData['daftar_rekap'] as $rekap) {
+                $metadata = $rekap['metadata'] ?? [];
+                if (isset($metadata['kuesioner_id']) && $metadata['kuesioner_id'] == $apiKuesionerId) {
+                    $targetRekap = $rekap;
+                    break;
+                }
+            }
+            
+            if (!$targetRekap) {
+                throw new \Exception("Kuesioner dengan ID {$apiKuesionerId} tidak ditemukan dalam daftar_rekap");
+            }
+            
+            \Log::info('Target Kuesioner Found', [
+                'kuesioner_id' => $apiKuesionerId,
+                'judul' => $targetRekap['metadata']['judul_kuesioner'] ?? 'Unknown'
+            ]);
+            
+            // 🔥 Replace apiData dengan data kuesioner spesifik
+            $apiData = [
+                'metadata' => $targetRekap['metadata'] ?? [],
+                'statistik' => $targetRekap['statistik'] ?? [],
+                'data' => $targetRekap['data'] ?? []
+            ];
+        }
+
 KuesionerMongo::updateOrCreate(
 
     [
-                'judul_kuesioner' =>
-            $apiData['metadata']['judul_kuesioner'] ?? null,
-
-
+                'kuesioner_id' => $apiKuesionerId ?? $kuesioner->id
     ],
 
     [
+                'judul_kuesioner' => $apiData['metadata']['judul_kuesioner'] ?? 'Kuesioner API',
                 'kode_mk' => $kuesioner->kode_matakuliah,
         'periode' => $kuesioner->periode,
 
@@ -997,8 +1042,31 @@ KuesionerMongo::updateOrCreate(
 );
 // KuesionerMongo::create([ 'kuesioner_id' => $kuesioner->id, 'kode_mk' => $kuesioner->kode_matakuliah, 'periode' => $kuesioner->periode, 'raw_data' => $apiData, 'created_at' => now() ]);
 
-        if (!isset($apiData['statistik'])) {
-            throw new \Exception('Data API tidak valid');
+        // =========================
+        // VALIDASI DATA - Support multiple formats
+        // =========================
+        if (!isset($apiData['statistik']) && !isset($apiData['daftar_rekap'])) {
+            \Log::error('Invalid API response', [
+                'periode' => $kuesioner->periode,
+                'kode_mk' => $kuesioner->kode_matakuliah,
+                'response' => $apiData
+            ]);
+            throw new \Exception('Data API tidak valid - tidak ada statistik atau daftar_rekap');
+        }
+
+        // Jika punya daftar_rekap tapi tidak langsung statistik, extract dari rekap
+        if (!isset($apiData['statistik']) && isset($apiData['daftar_rekap'])) {
+            \Log::info('Using daftar_rekap format - extracting statistik');
+            $apiData['statistik'] = $this->extractStatistikFromDaftarRekap($apiData['daftar_rekap']);
+        }
+
+        // DOUBLE CHECK - pastikan statistik ada dan tidak kosong
+        if (!isset($apiData['statistik']['rekapitulasi']) || empty($apiData['statistik']['rekapitulasi'])) {
+            \Log::warning('Statistik rekapitulasi kosong', [
+                'periode' => $kuesioner->periode,
+                'kode_mk' => $kuesioner->kode_matakuliah,
+                'total_responden' => $apiData['statistik']['total_responden_aktif'] ?? 0
+            ]);
         }
 
         // =========================
@@ -1022,16 +1090,38 @@ $parsed = $this->extractKuesionerInfo(
     $kuesioner->kode_matakuliah
 );
 
+// =========================
+// AMBIL NAMA MATAKULIAH DARI DB
+// =========================
+$matakuliah = \App\Models\Matakuliah::where('kode_mk', $kuesioner->kode_matakuliah)->first();
+$namaMk = $matakuliah ? $matakuliah->nama_mk : $parsed['nama_mk'];
+
+// =========================
+// AMBIL NAMA DOSEN DARI DB
+// =========================
+$namaDosen = null;
+if ($parsed['pegawai_id']) {
+    $dosen = \App\Models\Dosenn::where('pegawai_id', $parsed['pegawai_id'])->first();
+    $namaDosen = $dosen ? $dosen->nama : null;
+}
+
+// =========================
+// DETEKSI JENIS KUESIONER (UTS/UAS/REGULAR)
+// =========================
+$jenisKuesioner = $this->detectJenisKuesioner($apiData['metadata']['judul_kuesioner'] ?? '');
+
         // =========================
         // 4. UPDATE
         // =========================
         $kuesioner->update([
     'nama_file' => $apiData['metadata']['judul_kuesioner'] ?? 'Kuesioner API',
 
-    // 🔥 HASIL PARSING
-    'nama_matakuliah' => $parsed['nama_mk'],
+    // 🔥 HASIL PARSING - gunakan data dari DB
+    'nama_matakuliah' => $namaMk,
+    'jenis_kuesioner' => $jenisKuesioner,
     'tingkat' => $parsed['tingkat'],
     'pegawai_id' => $parsed['pegawai_id'],
+    'dosen_pengampu' => $namaDosen,
 
     // 🔥 EXISTING
     'total_responden' => $apiData['statistik']['total_responden_aktif'] ?? 0,

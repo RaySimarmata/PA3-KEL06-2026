@@ -58,12 +58,11 @@
                 <table class="table table-monitoring">
                     <thead>
                         <tr>
-                            <th style="width: 20%;">Nama Template</th>
-                            <th style="width: 20%;">Deskripsi</th>
-                            <th style="width: 15%;">File</th>
+                            <th style="width: 25%;">Nama Template</th>
+                            <th style="width: 20%;">File</th>
                             <th style="width: 10%;" class="text-center">Status</th>
-                            <th style="width: 12%;">Diupload</th>
-                            <th style="width: 23%;" class="text-center">Aksi</th>
+                            <th style="width: 15%;">Diupload</th>
+                            <th style="width: 30%;" class="text-center">Aksi</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -76,9 +75,6 @@
                                             <span class="badge-gkm success">Active</span>
                                         @endif
                                     </div>
-                                </td>
-                                <td class="text-secondary" style="font-size: 0.85rem;">
-                                    {{ Str::limit($template->deskripsi, 50) }}
                                 </td>
                                 <td>
                                     <div>
@@ -158,7 +154,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="6" class="text-center py-5">
+                                <td colspan="5" class="text-center py-5">
                                     <div class="empty-state">
                                         <i class="bi bi-inbox"></i>
                                         <p>Belum ada template. <a href="{{ route('gkm.laporan-artefak.template.upload') }}" style="color: #5B9BD5; font-weight: 600;">Upload template baru</a></p>

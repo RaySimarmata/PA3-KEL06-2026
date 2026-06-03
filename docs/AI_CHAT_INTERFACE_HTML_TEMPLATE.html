@@ -1,0 +1,124 @@
+<!-- ===============================================================
+     AI CHAT INTERFACE TEMPLATE
+     Copy HTML ini ke blade file Anda
+     
+     PETUNJUK:
+     1. Ganti [TYPE] dengan: 'artefak', 'semester', atau 'triwulan'
+     2. Sesuaikan placeholder text
+     3. Sesuaikan welcome message
+     =============================================================== -->
+
+<!-- ===== AI PROMPT ASSISTANT ===== -->
+<div class="monitoring-card mb-4">
+    <div class="monitoring-header">
+        <div class="d-flex align-items-center gap-2">
+            <i class="bi bi-stars" style="color: #2563eb;"></i>
+            <h6 class="mb-0">AI Prompt Assistant</h6>
+        </div>
+    </div>
+    <div style="padding: 1.5rem;">
+        <!-- Info Box -->
+        <div class="alert-gkm info mb-3">
+            <strong>💡 Cara Menggunakan AI Assistant:</strong><br>
+            <ol style="margin: 0.5rem 0 0 0; padding-left: 1.25rem;">
+                <li>Pilih periode dan template (opsional) terlebih dahulu</li>
+                <li>Ketik instruksi Anda di kolom chat</li>
+                <li>Upload file pendukung jika diperlukan (DOCX, PDF, gambar)</li>
+                <li>Klik tombol panah (↑) untuk generate draft</li>
+                <li>AI akan memberikan response dan Anda bisa melakukan iterasi</li>
+            </ol>
+        </div>
+
+        <!-- AI Chat Wrapper -->
+        <div class="ai-chat-wrapper">
+            <!-- Chat Header -->
+            <div class="ai-chat-header">
+                <div class="ai-avatar">
+                    <i class="bi bi-stars"></i>
+                </div>
+                <div>
+                    <h6>AI Assistant - Laporan [TYPE]</h6>
+                    <small>Siap membantu Anda membuat laporan</small>
+                </div>
+            </div>
+
+            <!-- Messages Area -->
+            <div class="ai-messages" id="ai-messages">
+                <!-- Messages akan ditambahkan oleh JavaScript -->
+            </div>
+
+            <!-- Typing Indicator -->
+            <div class="typing-indicator" id="typing-indicator">
+                <div class="bubble">
+                    <div class="typing-dots">
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Input Area -->
+            <div class="ai-input-area">
+                <!-- Hidden File Inputs -->
+                <input type="file" id="file_referensi_[TYPE]" name="file_referensi[]"
+                    accept=".docx,.pdf,.txt,.xlsx,.xls,.jpg,.jpeg,.png,.gif,.bmp,.webp" multiple
+                    style="display: none;">
+                <input type="file" id="ocr_images_[TYPE]" name="ocr_images[]"
+                    accept=".jpg,.jpeg,.png,.pdf" multiple style="display: none;">
+
+                <!-- Input Container -->
+                <div style="position: relative; display: flex; align-items: center; border: 1.5px solid #d1dff5; border-radius: 12px; background: #fff; padding: 0.5rem;">
+                    <!-- Attachment Button -->
+                    <button type="button" class="btn-attachment-inline" id="btn-attachment"
+                        title="Lampirkan File & Gambar">
+                        <i class="bi bi-paperclip"></i>
+                    </button>
+
+                    <!-- Textarea Input -->
+                    <textarea class="ai-textarea-inline" id="ai-prompt-input" 
+                        placeholder="Deskripsikan laporan yang ingin Anda buat..."></textarea>
+
+                    <!-- Send Button -->
+                    <button type="button" class="btn-ask-ai-inline" id="btn-ask-ai">
+                        <span class="arrow-icon">↑</span>
+                    </button>
+                </div>
+
+                <!-- Selected Files Display -->
+                <div id="all-attachments-display" style="display: none; margin-top: 0.75rem;">
+                    <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;" id="all-attachments-list"></div>
+                </div>
+
+                <!-- OCR Processing Status -->
+                <div id="ocr-processing-status"
+                    style="display: none; margin-top: 0.75rem; padding: 0.75rem; background: #f0f9ff; border: 1px solid #0ea5e9; border-radius: 8px; font-size: 0.875rem; color: #0369a1;">
+                    <i class="bi bi-hourglass-split me-2"></i>
+                    <strong>Memproses OCR...</strong> Mengekstrak teks dari gambar yang Anda upload.
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ===============================================================
+     CATATAN PENTING:
+     
+     1. Ganti [TYPE] dengan nama laporan (artefak/semester/triwulan)
+     2. Sesuaikan:
+        - h6 title: "AI Assistant - Laporan [TYPE]"
+        - placeholder text
+        - file input IDs
+     
+     3. CSS sudah ada di @section('styles') - copy dari triwulan-create.blade.php
+     
+     4. JavaScript handler:
+        - Untuk Artefak: public/js/ai-prompt-assistant-artefak.js
+        - Untuk Semester: lihat triwulan-create.blade.php @section('scripts')
+        - Untuk Triwulan: public/js/ai-prompt-assistant-triwulan.js
+        
+     5. Controller endpoint:
+        - Artefak: POST /gkm/laporan-artefak/ai-prompt
+        - Semester: POST /gjm/laporan-semester/ai-prompt
+        - Triwulan: POST /gjm/laporan-triwulan/ai-prompt
+     =============================================================== -->

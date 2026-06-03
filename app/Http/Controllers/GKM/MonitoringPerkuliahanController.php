@@ -21,9 +21,40 @@ use App\Models\Dosenn;
 
 class MonitoringPerkuliahanController extends Controller
 {
+    /**
+     * Generate dynamic tahun ajaran list based on current year
+     * Auto-updates every 5 years
+     */
+    private function generateDynamicTahunAjaran()
+    {
+        $currentYear = (int) date('Y');
+        $baseYear = floor($currentYear / 5) * 5;
+        
+        $tahunList = [];
+        for ($i = 0; $i <= 5; $i++) {
+            $year = $baseYear + $i;
+            $tahunList[] = [
+                'id_thn_ajaran' => (string) $year,
+                'nm_thn_ajaran' => (string) $year
+            ];
+        }
+        
+        Log::info('MonitoringPerkuliahan - Generated dynamic tahun ajaran', [
+            'current_year' => $currentYear,
+            'base_year' => $baseYear,
+            'range' => $baseYear . ' - ' . ($baseYear + 5),
+            'years_generated' => array_column($tahunList, 'id_thn_ajaran')
+        ]);
+        
+        return $tahunList;
+    }
+
     public function index(Request $request)
     {
         $user = Auth::user();
+
+        // Generate dynamic tahun ajaran list
+        $tahunAjaranList = $this->generateDynamicTahunAjaran();
 
         // Get filter values
         $selectedSemester = $request->input('semester', '');
@@ -87,91 +118,137 @@ class MonitoringPerkuliahanController extends Controller
 
                 if (! empty($matkulData)) {
                     // Limit data processing to prevent timeout
-                    $maxMatkul = 20; // Process max 20 matkul to prevent timeout
+                    $maxMatkul = 100; // Increase limit untuk lebih banyak matkul
                     $processedCount = 0;
                     
-                    // Get dosen list - FILTERED BY PRODI untuk mengurangi beban API
-                    $dosenList = Cache::remember("dosen_prodi_{$prodiId}", 1800, function () use ($apiService, $prodiId) {
-                        $allDosen = $apiService->getFilteredDosen();
-
-                        // Filter dosen by prodi_id and limit
-                        $filtered = $allDosen;
-                        
-                        // Limit to first 30 dosen to prevent timeout
-                        return array_slice($filtered, 0, 30);
-                    });
-
-                    Log::info('MonitoringPerkuliahan - Dosen filtered by prodi', [
-                        'prodi_id' => $prodiId,
-                        'prodi_kode' => $prodiKode,
-                        'total_dosen' => count($dosenList),
+                    // 🔥 STRATEGY 1: Coba ambil dari Database dulu (lebih cepat dan reliable)
+                    $matkulDosenMap = [];
+                    
+                    Log::info('MonitoringPerkuliahan - Mulai mapping dari Database', [
+                        'semester' => $selectedSemester,
+                        'tahun_ajaran' => $selectedTahunAjaran,
                     ]);
 
-                    // Build dosen mapping - HANYA PROSES DOSEN DARI PRODI INI
-                    $matkulDosenMap = Cache::remember(
-                        "matkul_dosen_map_perkuliahan_{$prodiId}_{$selectedSemester}_{$selectedTahunAjaran}",
-                        1800, // Increase cache time
-                        function () use ($dosenList, $apiService, $selectedSemester, $selectedTahunAjaran) {
-                            $map = [];
-                            $dosenProcessed = 0;
-                            $maxDosenProcess = 20; // Limit dosen processing
+                    // Ambil data dosen dari database JadwalDosen
+                    $jadwalFromDB = JadwalDosen::with('dosen')
+                        ->where(function ($q) use ($selectedSemester) {
+                            $q->where('semester', $selectedSemester);
+                            // fallback semester
+                            if ($selectedSemester == '1') {
+                                $q->orWhere('semester', 'Ganjil');
+                            }
+                            if ($selectedSemester == '2') {
+                                $q->orWhere('semester', 'Genap');
+                            }
+                        })
+                        ->where(function ($q) use ($selectedTahunAjaran) {
+                            $q->where('tahun_ajaran', $selectedTahunAjaran)
+                              ->orWhere('tahun_ajaran', 'LIKE', $selectedTahunAjaran . '%');
+                        })
+                        ->get();
 
-                            foreach ($dosenList as $dosen) {
-                                if ($dosenProcessed >= $maxDosenProcess) break;
-                                
-                                $pegawaiId = $dosen['pegawai_id'] ?? null;
-                                $namaDosen = $dosen['nama'] ?? null;
+                    Log::info('MonitoringPerkuliahan - Jadwal dari DB', [
+                        'count' => $jadwalFromDB->count()
+                    ]);
 
-                                if ($pegawaiId && $namaDosen) {
-                                    try {
-                                        $jadwalList = Cache::remember(
-                                            "jadwal_{$pegawaiId}_{$selectedSemester}_{$selectedTahunAjaran}",
-                                            1800,
-                                            function () use ($apiService, $pegawaiId, $selectedSemester, $selectedTahunAjaran) {
-                                                return $apiService->getJadwalByDosen($pegawaiId, $selectedSemester, $selectedTahunAjaran);
-                                            }
-                                        );
+                    foreach ($jadwalFromDB as $jadwal) {
+                        $kodeMk = trim($jadwal->kode_mk ?? '');
+                        if (!$kodeMk || !$jadwal->dosen) continue;
 
-                                        if (! empty($jadwalList)) {
-                                            $dosenProcessed++;
-                                            foreach ($jadwalList as $jadwal) {
-                                                $kodeMk = $jadwal['kode_mk'] ?? null;
-                                                if ($kodeMk) {
-                                                    if (! isset($map[$kodeMk])) {
-                                                        $map[$kodeMk] = [];
-                                                    }
-                                                    // 🔥 SIMPAN SEBAGAI ARRAY DENGAN pegawai_id dan nama
-                                                    $exists = false;
-                                                    foreach ($map[$kodeMk] as $existing) {
-                                                        if ($existing['pegawai_id'] === $pegawaiId) {
-                                                            $exists = true;
-                                                            break;
+                        if (!isset($matkulDosenMap[$kodeMk])) {
+                            $matkulDosenMap[$kodeMk] = [];
+                        }
+
+                        // Hindari duplicate
+                        $exists = collect($matkulDosenMap[$kodeMk])
+                            ->contains(fn($d) => $d['pegawai_id'] == $jadwal->pegawai_id);
+
+                        if (!$exists) {
+                            $matkulDosenMap[$kodeMk][] = [
+                                'pegawai_id' => $jadwal->pegawai_id,
+                                'nama' => $jadwal->dosen->nama ?? '-',
+                            ];
+                        }
+                    }
+
+                    Log::info('MonitoringPerkuliahan - Mapping dari DB selesai', [
+                        'matkul_with_dosen' => count($matkulDosenMap),
+                        'sample' => array_slice($matkulDosenMap, 0, 3)
+                    ]);
+
+                    // 🔥 STRATEGY 2: Jika masih kosong, fallback ke API
+                    if (empty($matkulDosenMap)) {
+                        Log::warning('MonitoringPerkuliahan - Database kosong, fallback ke API');
+                        
+                        // Get dosen list dari API
+                        $dosenList = Cache::remember("dosen_prodi_{$prodiId}", 900, function () use ($apiService) {
+                            return $apiService->getFilteredDosen();
+                        });
+
+                        Log::info('MonitoringPerkuliahan - Dosen dari API', [
+                            'total_dosen' => count($dosenList),
+                        ]);
+
+                        // Build dosen mapping dari API
+                        $matkulDosenMap = Cache::remember(
+                            "matkul_dosen_map_perkuliahan_{$prodiId}_{$selectedSemester}_{$selectedTahunAjaran}",
+                            900, // 15 menit cache
+                            function () use ($dosenList, $apiService, $selectedSemester, $selectedTahunAjaran) {
+                                $map = [];
+
+                                foreach ($dosenList as $dosen) {
+                                    $pegawaiId = $dosen['pegawai_id'] ?? null;
+                                    $namaDosen = $dosen['nama'] ?? null;
+
+                                    if ($pegawaiId && $namaDosen) {
+                                        try {
+                                            $jadwalList = Cache::remember(
+                                                "jadwal_{$pegawaiId}_{$selectedSemester}_{$selectedTahunAjaran}",
+                                                900,
+                                                function () use ($apiService, $pegawaiId, $selectedSemester, $selectedTahunAjaran) {
+                                                    return $apiService->getJadwalByDosen($pegawaiId, $selectedSemester, $selectedTahunAjaran);
+                                                }
+                                            );
+
+                                            if (! empty($jadwalList)) {
+                                                foreach ($jadwalList as $jadwal) {
+                                                    $kodeMk = $jadwal['kode_mk'] ?? null;
+                                                    if ($kodeMk) {
+                                                        if (! isset($map[$kodeMk])) {
+                                                            $map[$kodeMk] = [];
                                                         }
-                                                    }
-                                                    if (!$exists) {
-                                                        $map[$kodeMk][] = [
-                                                            'pegawai_id' => $pegawaiId,
-                                                            'nama' => $namaDosen
-                                                        ];
+                                                        
+                                                        $exists = false;
+                                                        foreach ($map[$kodeMk] as $existing) {
+                                                            if ($existing['pegawai_id'] === $pegawaiId) {
+                                                                $exists = true;
+                                                                break;
+                                                            }
+                                                        }
+                                                        if (!$exists) {
+                                                            $map[$kodeMk][] = [
+                                                                'pegawai_id' => $pegawaiId,
+                                                                'nama' => $namaDosen
+                                                            ];
+                                                        }
                                                     }
                                                 }
                                             }
+                                        } catch (\Exception $e) {
+                                            Log::warning("Failed to get jadwal for dosen {$namaDosen}: ".$e->getMessage());
+                                            continue;
                                         }
-                                    } catch (\Exception $e) {
-                                        Log::warning("Failed to get jadwal for dosen {$namaDosen}: ".$e->getMessage());
-                                        continue;
                                     }
                                 }
+
+                                Log::info('MonitoringPerkuliahan - Mapping dari API selesai', [
+                                    'matkul_with_dosen' => count($map),
+                                ]);
+
+                                return $map;
                             }
-
-                            Log::info('MonitoringPerkuliahan - Mapping completed', [
-                                'dosen_with_jadwal' => $dosenProcessed,
-                                'matkul_with_dosen' => count($map),
-                            ]);
-
-                            return $map;
-                        }
-                    );
+                        );
+                    }
 
                     // Process each matakuliah with limits
                     foreach ($matkulData as $matkul) {
@@ -206,6 +283,16 @@ class MonitoringPerkuliahanController extends Controller
                         if (isset($matkulDosenMap[$kodeMk]) && ! empty($matkulDosenMap[$kodeMk])) {
                             // 🔥 Extract nama saja untuk display
                             $dosenPengampu = implode(', ', array_column($matkulDosenMap[$kodeMk], 'nama'));
+                            
+                            Log::info('MonitoringPerkuliahan - Dosen found', [
+                                'kode_mk' => $kodeMk,
+                                'dosen' => $dosenPengampu
+                            ]);
+                        } else {
+                            Log::warning('MonitoringPerkuliahan - Dosen NOT found', [
+                                'kode_mk' => $kodeMk,
+                                'map_keys' => array_keys($matkulDosenMap),
+                            ]);
                         }
 
                         // Default: 16 minggu (0 = belum upload)
@@ -419,6 +506,7 @@ class MonitoringPerkuliahanController extends Controller
 
         return view('gkm.monitoring-perkuliahan.index', [
             'user' => $user,
+            'tahunAjaranList' => $tahunAjaranList,
             'selectedSemester' => $selectedSemester,
             'selectedTahunAjaran' => $selectedTahunAjaran,
             'selectedTingkat' => $selectedTingkat,

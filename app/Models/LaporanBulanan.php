@@ -15,9 +15,9 @@ class LaporanBulanan extends Model
         'periode',
         'bulan',
         'tahun',
-        'prodi_id',
         'user_id',
         'template_id',
+        'judul_laporan',
         'total_kuesioner',
         'total_responden',
         'index_kepuasan_rata_rata',
@@ -49,11 +49,11 @@ class LaporanBulanan extends Model
     }
 
     /**
-     * Relasi ke Prodi
+     * Relasi ke Prodi (through user)
      */
     public function prodi()
     {
-        return $this->belongsTo(Prodi::class);
+        return $this->hasOneThrough(Prodi::class, User::class, 'id', 'id', 'user_id', 'prodi_id');
     }
 
     /**
@@ -73,11 +73,11 @@ class LaporanBulanan extends Model
     }
 
     /**
-     * Scope untuk filter by prodi
+     * Scope untuk filter by user
      */
-    public function scopeProdi($query, $prodiId)
+    public function scopeUser($query, $userId)
     {
-        return $query->where('prodi_id', $prodiId);
+        return $query->where('user_id', $userId);
     }
 
     /**

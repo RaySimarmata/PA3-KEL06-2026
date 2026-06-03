@@ -630,7 +630,7 @@
                                 <i class="bi bi-chevron-down dropdown-icon"></i>
                             </a>
                             <div class="dropdown-submenu">
-                                <a href="{{ route('gkm.monitoring-kuesioner.create-api') }}"
+                                <a href="{{ route('gkm.monitoring-kuesioner.index') }}"
                                     class="nav-item {{ request()->routeIs('gkm.monitoring-kuesioner.*') ? 'active' : '' }}">
                                     <i class="bi bi-clipboard-data"></i> Monitoring Kuesioner
                                 </a>
@@ -885,6 +885,7 @@
         });
     </script>
     @yield('scripts')
+    @stack('scripts')
 </body>
 
 </html>

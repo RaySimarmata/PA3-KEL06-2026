@@ -20,27 +20,42 @@
                         <label class="filter-label">TAHUN AJARAN</label>
                         <select name="tahun_ajaran" class="form-select">
                             <option value="">Semua Tahun Ajaran</option>
-                            <option value="2020" {{ $selectedTahunAjaran == '2020' ? 'selected' : '' }}>2020</option>
-                            <option value="2021" {{ $selectedTahunAjaran == '2021' ? 'selected' : '' }}>2021</option>
-                            <option value="2022" {{ $selectedTahunAjaran == '2022' ? 'selected' : '' }}>2022</option>
-                            <option value="2023" {{ $selectedTahunAjaran == '2023' ? 'selected' : '' }}>2023</option>
-                            <option value="2024" {{ $selectedTahunAjaran == '2024' ? 'selected' : '' }}>2024</option>
-                            <option value="2025" {{ $selectedTahunAjaran == '2025' ? 'selected' : '' }}>2025</option>
+                            @if (isset($tahunAjaranList) && count($tahunAjaranList) > 0)
+                                @foreach ($tahunAjaranList as $ta)
+                                    <option value="{{ $ta['id_thn_ajaran'] }}"
+                                        {{ $selectedTahunAjaran == $ta['id_thn_ajaran'] ? 'selected' : '' }}>
+                                        {{ $ta['nm_thn_ajaran'] }}
+                                    </option>
+                                @endforeach
+                            @else
+                                {{-- Fallback jika $tahunAjaranList tidak ada --}}
+                                @php
+                                    $currentYear = (int) date('Y');
+                                    $baseYear = floor($currentYear / 5) * 5;
+                                @endphp
+                                @for ($i = 0; $i <= 5; $i++)
+                                    @php $year = $baseYear + $i; @endphp
+                                    <option value="{{ $year }}"
+                                        {{ $selectedTahunAjaran == $year ? 'selected' : '' }}>
+                                        {{ $year }}
+                                    </option>
+                                @endfor
+                            @endif
                         </select>
                     </div>
                     <div class="col-md-4">
                         <label class="filter-label">TINGKAT</label>
                         <select name="tingkat" class="form-select">
-    <option value="">Semua Tingkat</option>
+                            <option value="">Semua Tingkat</option>
 
-    <option value="1" {{ request('tingkat') == '1' ? 'selected' : '' }}>Tingkat 1</option>
-    <option value="2" {{ request('tingkat') == '2' ? 'selected' : '' }}>Tingkat 2</option>
-    <option value="3" {{ request('tingkat') == '3' ? 'selected' : '' }}>Tingkat 3</option>
+                            <option value="1" {{ request('tingkat') == '1' ? 'selected' : '' }}>Tingkat 1</option>
+                            <option value="2" {{ request('tingkat') == '2' ? 'selected' : '' }}>Tingkat 2</option>
+                            <option value="3" {{ request('tingkat') == '3' ? 'selected' : '' }}>Tingkat 3</option>
 
-    @if(optional(auth()->user()->prodi)->kode_prodi !== 'NM' && optional(auth()->user()->prodi)->kode_prodi !== 'TI')
-        <option value="4" {{ request('tingkat') == '4' ? 'selected' : '' }}>Tingkat 4</option>
-    @endif
-</select>
+                            @if (optional(auth()->user()->prodi)->kode_prodi !== 'NM' && optional(auth()->user()->prodi)->kode_prodi !== 'TI')
+                                <option value="4" {{ request('tingkat') == '4' ? 'selected' : '' }}>Tingkat 4</option>
+                            @endif
+                        </select>
                     </div>
                     <div class="col-md-4">
                         <div class="d-flex gap-2">
@@ -51,36 +66,28 @@
                                 onclick="document.getElementById('refreshForm').submit()">
                                 <i class="bi bi-arrow-clockwise"></i> Refresh Data
                             </button>
-                            <button type="button" 
-    class="btn btn-danger flex-fill" 
-    style="padding: 0.6rem;"
-    onclick="window.location.href='{{ route('gkm.monitoring-perkuliahan.export', [
-        'semester' => $selectedSemester,
-        'tahun_ajaran' => $selectedTahunAjaran,
-        'tingkat' => $selectedTingkat
-    ]) }}'">
-    
-    <i class="bi bi-file-earmark-pdf"></i> Download PDF
-</button>
+                            <button type="button" class="btn btn-danger flex-fill" style="padding: 0.6rem;"
+                                onclick="window.location.href='{{ route('gkm.monitoring-perkuliahan.export', [
+                                    'semester' => $selectedSemester,
+                                    'tahun_ajaran' => $selectedTahunAjaran,
+                                    'tingkat' => $selectedTingkat,
+                                ]) }}'">
+
+                                <i class="bi bi-file-earmark-pdf"></i> Download PDF
+                            </button>
                         </div>
                     </div>
                 </div>
             </form>
 
             <!-- Hidden form for refresh -->
-            <form id="refreshForm" method="POST" action="{{ route('gkm.monitoring-perkuliahan.clear-cache') }}" style="display: none;">
+            <form id="refreshForm" method="POST" action="{{ route('gkm.monitoring-perkuliahan.clear-cache') }}"
+                style="display: none;">
                 @csrf
                 <input type="hidden" name="semester" value="{{ $selectedSemester }}">
                 <input type="hidden" name="tahun_ajaran" value="{{ $selectedTahunAjaran }}">
             </form>
 
-            <!-- Info message -->
-            <div class="alert alert-info mt-3 mb-0"
-                style="background-color: #d1ecf1; border-color: #bee5eb; color: #0c5460; font-size: 0.875rem;">
-                <i class="bi bi-info-circle"></i>
-                Silakan pilih Semester dan Tahun Ajaran, kemudian klik tombol Filter untuk menampilkan data monitoring
-                Perkuliahan.
-            </div>
         </div>
 
         <!-- Tabs and Monitoring Table -->
@@ -148,13 +155,15 @@
                                         <td colspan="19" class="text-center py-5">
                                             <div class="empty-state">
                                                 <i class="bi bi-exclamation-circle" style="color: #ffc107;"></i>
-                                                <p style="margin-bottom: 0.5rem;">Tidak ada data matakuliah untuk periode ini</p>
+                                                <p style="margin-bottom: 0.5rem;">Tidak ada data matakuliah untuk periode
+                                                    ini</p>
                                                 <small class="text-muted">
-                                                    Semester: {{ $selectedSemester == 1 ? 'Ganjil' : 'Genap' }} | 
+                                                    Semester: {{ $selectedSemester == 1 ? 'Ganjil' : 'Genap' }} |
                                                     Tahun Ajaran: {{ $selectedTahunAjaran }}
                                                 </small>
                                                 <br>
-                                                <small class="text-muted">Coba pilih semester atau tahun ajaran yang berbeda</small>
+                                                <small class="text-muted">Coba pilih semester atau tahun ajaran yang
+                                                    berbeda</small>
                                             </div>
                                         </td>
                                     </tr>
@@ -238,13 +247,15 @@
                                         <td colspan="19" class="text-center py-5">
                                             <div class="empty-state">
                                                 <i class="bi bi-exclamation-circle" style="color: #ffc107;"></i>
-                                                <p style="margin-bottom: 0.5rem;">Tidak ada data matakuliah untuk periode ini</p>
+                                                <p style="margin-bottom: 0.5rem;">Tidak ada data matakuliah untuk periode
+                                                    ini</p>
                                                 <small class="text-muted">
-                                                    Semester: {{ $selectedSemester == 1 ? 'Ganjil' : 'Genap' }} | 
+                                                    Semester: {{ $selectedSemester == 1 ? 'Ganjil' : 'Genap' }} |
                                                     Tahun Ajaran: {{ $selectedTahunAjaran }}
                                                 </small>
                                                 <br>
-                                                <small class="text-muted">Coba pilih semester atau tahun ajaran yang berbeda</small>
+                                                <small class="text-muted">Coba pilih semester atau tahun ajaran yang
+                                                    berbeda</small>
                                             </div>
                                         </td>
                                     </tr>
@@ -257,16 +268,16 @@
                                             @foreach ($mk['weeks'] as $status)
                                                 <td class="text-center" style="padding: 0.5rem;">
                                                     @if ($status === 1)
-    {{-- Green: File sudah upload --}}
-    <span class="status-icon success">
-        <i class="bi bi-check-lg"></i>
-    </span>
-@else
-    {{-- Red: File belum ada --}}
-    <span class="status-icon danger">
-        <i class="bi bi-x-lg"></i>
-    </span>
-@endif
+                                                        {{-- Green: File sudah upload --}}
+                                                        <span class="status-icon success">
+                                                            <i class="bi bi-check-lg"></i>
+                                                        </span>
+                                                    @else
+                                                        {{-- Red: File belum ada --}}
+                                                        <span class="status-icon danger">
+                                                            <i class="bi bi-x-lg"></i>
+                                                        </span>
+                                                    @endif
                                                 </td>
                                             @endforeach
                                         </tr>

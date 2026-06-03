@@ -5,6 +5,7 @@ namespace App\Http\Controllers\GJM;
 use App\Http\Controllers\Controller;
 use App\Models\AIEvaluationTest;
 use App\Models\AIEvaluationResult;
+use App\Models\AIResponseCacheMongo;
 use App\Models\LaporanGJM;
 use App\Services\AIEvaluationService;
 use Illuminate\Http\Request;
@@ -91,17 +92,25 @@ class ModelEvaluationController extends Controller
     {
         $dateFilter = $this->getDateFilter($period);
 
-        // Total AI requests (unique cache entries)
-        $totalRequests = DB::table('ai_response_cache')
-            ->when($dateFilter, fn($q) => $q->where('created_at', '>=', $dateFilter))
-            ->when($feature !== 'all', fn($q) => $q->whereJsonContains('context_metadata->feature', $feature))
-            ->count();
+        // Total AI requests (unique cache entries) - FIXED: Use MongoDB model
+        $query = AIResponseCacheMongo::query();
+        if ($dateFilter) {
+            $query->where('created_at', '>=', $dateFilter);
+        }
+        if ($feature !== 'all') {
+            $query->where('context_metadata.feature', $feature);
+        }
+        $totalRequests = $query->count();
 
         // Total usage count (including reuses)
-        $totalUsage = DB::table('ai_response_cache')
-            ->when($dateFilter, fn($q) => $q->where('created_at', '>=', $dateFilter))
-            ->when($feature !== 'all', fn($q) => $q->whereJsonContains('context_metadata->feature', $feature))
-            ->sum('usage_count');
+        $query2 = AIResponseCacheMongo::query();
+        if ($dateFilter) {
+            $query2->where('created_at', '>=', $dateFilter);
+        }
+        if ($feature !== 'all') {
+            $query2->where('context_metadata.feature', $feature);
+        }
+        $totalUsage = $query2->sum('usage_count');
 
         // Cache hits = total usage - initial requests (reuses only)
         $cacheHits = max(0, $totalUsage - $totalRequests);
@@ -110,16 +119,24 @@ class ModelEvaluationController extends Controller
         $cacheHitRate = $totalUsage > 0 ? ($cacheHits / $totalUsage) * 100 : 0;
 
         // Average response time (REAL from database)
-        $avgResponseTime = DB::table('ai_response_cache')
-            ->when($dateFilter, fn($q) => $q->where('created_at', '>=', $dateFilter))
-            ->when($feature !== 'all', fn($q) => $q->whereJsonContains('context_metadata->feature', $feature))
-            ->avg('response_time') ?? 0;
+        $query3 = AIResponseCacheMongo::query();
+        if ($dateFilter) {
+            $query3->where('created_at', '>=', $dateFilter);
+        }
+        if ($feature !== 'all') {
+            $query3->where('context_metadata.feature', $feature);
+        }
+        $avgResponseTime = $query3->avg('response_time') ?? 0;
 
         // Success rate (non-error responses)
-        $successfulRequests = DB::table('ai_response_cache')
-            ->when($dateFilter, fn($q) => $q->where('created_at', '>=', $dateFilter))
-            ->when($feature !== 'all', fn($q) => $q->whereJsonContains('context_metadata->feature', $feature))
-            ->whereNotNull('ai_response')
+        $query4 = AIResponseCacheMongo::query();
+        if ($dateFilter) {
+            $query4->where('created_at', '>=', $dateFilter);
+        }
+        if ($feature !== 'all') {
+            $query4->where('context_metadata.feature', $feature);
+        }
+        $successfulRequests = $query4->whereNotNull('ai_response')
             ->where('ai_response', '!=', '')
             ->count();
 
@@ -317,19 +334,35 @@ class ModelEvaluationController extends Controller
     {
         $dateFilter = $this->getDateFilter($period);
 
-        $timeline = DB::table('ai_response_cache')
-            ->select(
-                DB::raw('DATE(created_at) as date'),
-                DB::raw('COUNT(*) as new_requests'),
-                DB::raw('SUM(CASE WHEN usage_count > 1 THEN usage_count - 1 ELSE 0 END) as cache_hits')
-            )
-            ->when($dateFilter, fn($q) => $q->where('created_at', '>=', $dateFilter))
-            ->when($feature !== 'all', fn($q) => $q->whereJsonContains('context_metadata->feature', $feature))
-            ->groupBy('date')
-            ->orderBy('date', 'asc')
-            ->get();
-
-        return $timeline;
+        // FIXED: Use MongoDB model with proper aggregation
+        $query = AIResponseCacheMongo::query();
+        if ($dateFilter) {
+            $query->where('created_at', '>=', $dateFilter);
+        }
+        if ($feature !== 'all') {
+            $query->where('context_metadata.feature', $feature);
+        }
+        
+        $data = $query->orderBy('created_at', 'asc')->get();
+        
+        // Group by date manually since MongoDB aggregation might differ
+        $timeline = [];
+        foreach ($data as $entry) {
+            $date = $entry->created_at->format('Y-m-d');
+            
+            if (!isset($timeline[$date])) {
+                $timeline[$date] = [
+                    'date' => $date,
+                    'new_requests' => 0,
+                    'cache_hits' => 0,
+                ];
+            }
+            
+            $timeline[$date]['new_requests']++;
+            $timeline[$date]['cache_hits'] += max(0, ($entry->usage_count ?? 1) - 1);
+        }
+        
+        return array_values($timeline);
     }
 
     /**
@@ -355,15 +388,18 @@ class ModelEvaluationController extends Controller
         $status = [];
 
         foreach ($features as $feat) {
-            $cacheCount = DB::table('ai_response_cache')
-                ->when($dateFilter, fn($q) => $q->where('created_at', '>=', $dateFilter))
-                ->whereJsonContains('context_metadata->feature', $feat)
-                ->count();
+            // FIXED: Use MongoDB model
+            $query = AIResponseCacheMongo::query();
+            if ($dateFilter) {
+                $query->where('created_at', '>=', $dateFilter);
+            }
+            $cacheCount = $query->where('context_metadata.feature', $feat)->count();
 
-            $lastUsed = DB::table('ai_response_cache')
-                ->when($dateFilter, fn($q) => $q->where('created_at', '>=', $dateFilter))
-                ->whereJsonContains('context_metadata->feature', $feat)
-                ->max('last_used_at');
+            $query2 = AIResponseCacheMongo::where('context_metadata.feature', $feat);
+            if ($dateFilter) {
+                $query2->where('created_at', '>=', $dateFilter);
+            }
+            $lastUsed = $query2->max('last_used_at');
 
             $jenisMap = [
                 'triwulan' => 'triwulan',

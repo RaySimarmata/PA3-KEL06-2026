@@ -15,7 +15,9 @@ class KuesioneUpload extends Model
         'nama_file',
         'file_path',
         'periode',
+        'semester',
         'nama_matakuliah',
+        'jenis_kuesioner',
         'kode_matakuliah',
         'dosen_pengampu',
         'tingkat',
@@ -27,7 +29,9 @@ class KuesioneUpload extends Model
         'hasil_analisis',
         'status',
         'source',
-        'sumber_data'
+        'sumber_data',
+        'index_kepuasan',
+        'persen_kepuasan'
     ];
 
     protected $casts = [

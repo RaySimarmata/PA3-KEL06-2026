@@ -18,13 +18,34 @@
                     <a href="{{ route('gkm.laporan-kuesioner.index') }}" class="btn btn-outline-secondary">
                         <i class="bi bi-arrow-left"></i> Kembali
                     </a>
-                    <a href="{{ route('gkm.laporan-kuesioner.template.upload') }}" class="btn-reminder">
+                    <a href="{{ route('gkm.laporan-kuesioner.template.upload') }}" class="btn-reminder" id="btn-upload-template">
                         <i class="bi bi-upload"></i>
                         <span>Upload Template Baru</span>
                     </a>
                 </div>
             </div>
         </div>
+
+        <!-- Flash Messages -->
+        @if(session('success'))
+            <div class="alert alert-success alert-dismissible fade show mb-4" role="alert">
+                <div class="d-flex align-items-center">
+                    <i class="bi bi-check-circle-fill me-2" style="font-size: 1.2rem;"></i>
+                    <div>{{ session('success') }}</div>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        @endif
+
+        @if(session('error'))
+            <div class="alert alert-danger alert-dismissible fade show mb-4" role="alert">
+                <div class="d-flex align-items-center">
+                    <i class="bi bi-exclamation-triangle-fill me-2" style="font-size: 1.2rem;"></i>
+                    <div>{{ session('error') }}</div>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        @endif
 
         <!-- Info Card -->
         <div class="monitoring-card mb-4" style="border-left: 4px solid #5B9BD5;">
@@ -58,12 +79,11 @@
                 <table class="table table-monitoring">
                     <thead>
                         <tr>
-                            <th style="width: 20%;">Nama Template</th>
-                            <th style="width: 20%;">Deskripsi</th>
-                            <th style="width: 15%;">File</th>
+                            <th style="width: 25%;">Nama Template</th>
+                            <th style="width: 20%;">File</th>
                             <th style="width: 10%;" class="text-center">Status</th>
-                            <th style="width: 12%;">Diupload</th>
-                            <th style="width: 23%;" class="text-center">Aksi</th>
+                            <th style="width: 15%;">Diupload</th>
+                            <th style="width: 30%;" class="text-center">Aksi</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -76,9 +96,6 @@
                                             <span class="badge-gkm success">Active</span>
                                         @endif
                                     </div>
-                                </td>
-                                <td class="text-secondary" style="font-size: 0.85rem;">
-                                    {{ Str::limit($template->deskripsi, 50) }}
                                 </td>
                                 <td>
                                     <div>
@@ -158,7 +175,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="6" class="text-center py-5">
+                                <td colspan="5" class="text-center py-5">
                                     <div class="empty-state">
                                         <i class="bi bi-inbox"></i>
                                         <p>Belum ada template. <a href="{{ route('gkm.laporan-kuesioner.template.upload') }}" style="color: #5B9BD5; font-weight: 600;">Upload template baru</a></p>
@@ -188,6 +205,18 @@ document.addEventListener('DOMContentLoaded', function() {
     var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
         return new bootstrap.Tooltip(tooltipTriggerEl);
     });
+
+    // Debug: Test upload button click
+    const uploadBtn = document.getElementById('btn-upload-template');
+    if (uploadBtn) {
+        console.log('Upload button found:', uploadBtn);
+        uploadBtn.addEventListener('click', function(e) {
+            console.log('Upload button clicked!', this.href);
+            // Let default action continue (navigation)
+        });
+    } else {
+        console.error('Upload button not found!');
+    }
 });
 </script>
 @endpush

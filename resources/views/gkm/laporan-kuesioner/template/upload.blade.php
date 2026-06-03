@@ -43,7 +43,7 @@
                 </div>
                 
                 @if($errors->any())
-                    <div class="alert-gkm danger mb-4">
+                    <div class="alert alert-danger alert-dismissible fade show mb-4" role="alert">
                         <h6 style="font-weight: 600; margin-bottom: 0.5rem;">
                             <i class="bi bi-exclamation-triangle"></i> Terjadi Kesalahan
                         </h6>
@@ -52,6 +52,7 @@
                                 <li>{{ $error }}</li>
                             @endforeach
                         </ul>
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
                     </div>
                 @endif
 
@@ -62,7 +63,10 @@
                         <h6>Form Upload Template</h6>
                     </div>
                     <div style="padding: 1.5rem;">
-                        <form action="{{ route('gkm.laporan-kuesioner.template.store') }}" method="POST" enctype="multipart/form-data">
+                        <form action="{{ route('gkm.laporan-kuesioner.template.store') }}" 
+                              method="POST" 
+                              enctype="multipart/form-data"
+                              id="form-upload-template">
                             @csrf
 
                             <!-- Nama Template -->
@@ -106,7 +110,7 @@
                                 <a href="{{ route('gkm.laporan-kuesioner.template.index') }}" class="btn btn-outline-secondary">
                                     <i class="bi bi-x-circle"></i> Batal
                                 </a>
-                                <button type="submit" class="btn-reminder">
+                                <button type="submit" class="btn-reminder" id="btn-submit-template">
                                     <i class="bi bi-upload"></i>
                                     <span>Upload Template</span>
                                 </button>
@@ -118,3 +122,79 @@
         </div>
     </div>
 @endsection
+
+@push('scripts')
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('form-upload-template');
+    const submitBtn = document.getElementById('btn-submit-template');
+    const fileInput = document.getElementById('file_template');
+
+    console.log('Form upload template loaded');
+    console.log('Form:', form);
+    console.log('Submit button:', submitBtn);
+    console.log('File input:', fileInput);
+
+    // Test button click
+    if (submitBtn) {
+        submitBtn.addEventListener('click', function(e) {
+            console.log('Submit button clicked!');
+            console.log('Button type:', this.type);
+            
+            // Check if file is selected
+            if (fileInput && fileInput.files.length === 0) {
+                console.warn('No file selected');
+                alert('Silakan pilih file template terlebih dahulu');
+                e.preventDefault();
+                return false;
+            }
+            
+            console.log('File selected:', fileInput.files[0].name);
+            console.log('Form will submit...');
+            // Let form submit naturally
+        });
+    }
+
+    // Form submit event
+    if (form) {
+        form.addEventListener('submit', function(e) {
+            console.log('Form submit event triggered');
+            console.log('Form action:', this.action);
+            console.log('Form method:', this.method);
+            
+            // Validate
+            if (!fileInput || fileInput.files.length === 0) {
+                console.error('Form validation failed: No file selected');
+                alert('Silakan pilih file template terlebih dahulu');
+                e.preventDefault();
+                return false;
+            }
+
+            const file = fileInput.files[0];
+            console.log('Submitting with file:', file.name, 'Size:', file.size, 'bytes');
+
+            // Check file size (10MB max)
+            if (file.size > 10 * 1024 * 1024) {
+                alert('Ukuran file terlalu besar! Maksimal 10 MB');
+                e.preventDefault();
+                return false;
+            }
+
+            // Show loading
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> <span>Uploading...</span>';
+            
+            console.log('Form validation passed, submitting...');
+            // Let form submit
+        });
+    }
+
+    // File input change
+    if (fileInput) {
+        fileInput.addEventListener('change', function(e) {
+            console.log('File selected:', this.files[0]);
+        });
+    }
+});
+</script>
+@endpush
