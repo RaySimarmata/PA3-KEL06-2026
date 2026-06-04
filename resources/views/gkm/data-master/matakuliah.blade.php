@@ -1,3 +1,4 @@
+
 @extends('layouts.app')
 
 @section('page-title', 'Master Mata Kuliah')
@@ -7,10 +8,13 @@
 <div style="padding: 1.5rem;">
 
     <!-- Header -->
-    <div class="filter-card mb-4">
+    <div class="filter-card mb-4 d-flex justify-content-between align-items-center">
         <h5 class="mb-0 font-semibold" style="text-transform: uppercase; letter-spacing: 0.5px;">
             Master Mata Kuliah
         </h5>
+        <a href="{{ url()->previous() }}" class="btn btn-secondary btn-sm">
+            <i class="bi bi-arrow-left me-1"></i> Kembali
+        </a>
     </div>
 
     {{-- ALERT --}}
@@ -75,11 +79,12 @@
                 </div>
 
                 {{-- BUTTON --}}
-                <div class="col-md-2">
-                    <button type="submit" class="btn-action-primary w-100">
-                        <i class="bi bi-funnel"></i> Filter
-                    </button>
-                </div>
+        <div class="col-md-2">
+            <label class="filter-label" style="opacity: 0;">Action</label>
+            <button class="btn btn-primary w-100" type="button" id="btnSearch">
+                <i class="bi bi-search me-1"></i> Cari
+            </button>
+        </div>
             </div>
         </form>
 
@@ -98,7 +103,7 @@
     {{-- TABLE --}}
     <div class="monitoring-card">
         <div class="monitoring-header">
-            <i class="bi bi-book"></i>
+            {{-- <i class="bi bi-book"></i> --}}
             <h6>Daftar Mata Kuliah</h6>
         </div>
 

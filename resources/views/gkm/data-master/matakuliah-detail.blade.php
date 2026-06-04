@@ -6,11 +6,23 @@
     <div style="padding: 1.5rem;">
 
         <!-- Header -->
-        <div class="filter-card mb-4">
-            <h5 class="mb-0 font-semibold" style="text-transform: uppercase; letter-spacing: 0.5px;">
-                Detail Mata Kuliah
-            </h5>
-        </div>
+    <div class="filter-card mb-4 d-flex justify-content-between align-items-center">
+
+        <h5 class="mb-0 font-semibold" style="text-transform: uppercase; letter-spacing: 0.5px;">
+            DETAIL MATA KULIAH
+        </h5>
+
+        {{-- BUTTON BACK --}}
+        <a href="{{ route('gkm.data-master.matakuliah', [
+            'ta' => $ta,
+            'semester' => $semester,
+            'tingkat' => request('tingkat'),
+        ]) }}" class="btn btn-secondary btn-sm">
+            <i class="bi bi-arrow-left me-1"></i> Kembali
+        </a>
+
+    </div>
+
 
         {{-- ALERT --}}
         @if (session('success'))
@@ -28,75 +40,75 @@
         @endif
 
         {{-- DETAIL MATKUL --}}
-        <div class="monitoring-card mb-4">
-            <div class="monitoring-header">
-                <i class="bi bi-info-circle"></i>
-                <h6>Informasi Mata Kuliah</h6>
+<div class="monitoring-card mb-4">
+    <div class="monitoring-header">
+        <h6 class="mb-0">Informasi Mata Kuliah</h6>
+    </div>
+    <div style="padding: 1.5rem;">
+        <!-- Baris 1: Kode MK + Nama MK -->
+        <div class="row g-4 mb-4">
+            <div class="col-md-3">
+                <label class="filter-label text-muted small mb-1">Kode Mata Kuliah</label>
+                <div>
+                    <span class="code-mk" style="font-size: 1.2rem; font-weight: 600;">
+                        {{ $matkul['kode_mk'] ?? '-' }}
+                    </span>
+                </div>
             </div>
+            <div class="col-md-9">
+                <label class="filter-label text-muted small mb-1">Nama Mata Kuliah</label>
+                <h5 class="mb-0 fw-semibold" style="text-transform: uppercase; color: black;">
+                    {{ $matkul['nama_matkul'] ?? '-' }}
+                </h5>
+            </div>
+        </div>
 
-            <div style="padding: 1.5rem;">
-                <div class="row g-4">
-                    <div class="col-md-4">
-                        <label class="filter-label">Kode Mata Kuliah</label>
-                        <div class="mt-2">
-                            <span class="code-mk" style="font-size: 1.1rem;">
-                                {{ $matkul['kode_mk'] ?? '-' }}
-                            </span>
-                        </div>
-                    </div>
-
-                    <div class="col-md-8">
-                        <label class="filter-label">Nama Mata Kuliah</label>
-                        <h6 class="mb-0 mt-2 fw-semibold" style="text-transform: uppercase;">
-                            {{ $matkul['nama_matkul'] ?? '-' }}
-                        </h6>
-                    </div>
-
-                    <div class="col-md-3">
-                        <label class="filter-label">SKS</label>
-                        <div class="mt-2">
-                            <span class="badge-gkm success">
-                                {{ $matkul['sks'] ?? '-' }} SKS
-                            </span>
-                        </div>
-                    </div>
-
-                    <div class="col-md-3">
-                        <label class="filter-label">Semester</label>
-                        <div class="mt-2">
-                            @if($semester == 1)
-                                <span class="badge-gkm primary">Ganjil</span>
-                            @else
-                                <span class="badge-gkm warning">Genap</span>
-                            @endif
-                        </div>
-                    </div>
-
-                    <div class="col-md-3">
-                        <label class="filter-label">Tahun Ajaran</label>
-                        <h6 class="mb-0 mt-2 fw-semibold">{{ $ta }}</h6>
-                    </div>
-
-                    <div class="col-md-3">
-                        <label class="filter-label">Tingkat</label>
-                        <div class="mt-2">
-                            @php
-                                $kodeMk = (string) ($matkul['kode_mk'] ?? '');
-                                $tingkatMk = strlen($kodeMk) >= 5 ? substr($kodeMk, 3, 1) : '-';
-                            @endphp
-                            <span class="badge-gkm info">
-                                <i class="bi bi-mortarboard"></i> Tingkat {{ $tingkatMk }}
-                            </span>
-                        </div>
-                    </div>
+        <!-- Baris 2: SKS, Semester, Tahun Ajaran, Tingkat -->
+        <div class="row g-4">
+            <div class="col-md-3">
+                <label class="filter-label text-muted small mb-1">SKS</label>
+                <div>
+                    <span class="badge-gkm success fs-6">
+                        {{ $matkul['sks'] ?? '-' }} SKS
+                    </span>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <label class="filter-label text-muted small mb-1">Semester</label>
+                <div>
+                    @if($semester == 1)
+                        <span class="badge-gkm primary fs-6">Ganjil</span>
+                    @else
+                        <span class="badge-gkm warning fs-6">Genap</span>
+                    @endif
+                </div>
+            </div>
+            <div class="col-md-3">
+                <label class="filter-label text-muted small mb-1">Tahun Ajaran</label>
+                <div>
+                    <span class="fw-semibold fs-6">{{ $ta }}</span>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <label class="filter-label text-muted small mb-1">Tingkat</label>
+                <div>
+                    @php
+                        $kodeMk = (string) ($matkul['kode_mk'] ?? '');
+                        $tingkatMk = strlen($kodeMk) >= 5 ? substr($kodeMk, 3, 1) : '-';
+                    @endphp
+                    <span class="badge-gkm info fs-6">
+                        <i class="bi bi-mortarboard me-1"></i> Tingkat {{ $tingkatMk }}
+                    </span>
                 </div>
             </div>
         </div>
+    </div>
+</div>
 
         {{-- DOSEN PENGAJAR --}}
         <div class="monitoring-card">
             <div class="monitoring-header">
-                <i class="bi bi-people"></i>
+                {{-- <i class="bi bi-people"></i> --}}
                 <h6>Dosen Pengajar</h6>
                 <div style="margin-left: auto;">
                     <button class="btn-action-primary" data-bs-toggle="modal" data-bs-target="#modalTambahDosen">
@@ -154,7 +166,7 @@
             </div>
         </div>
 
-        {{-- BUTTON BACK --}}
+        {{-- BUTTON BACK
         <div class="mt-4">
             <a href="{{ route('gkm.data-master.matakuliah', [
                 'ta' => $ta,
@@ -165,7 +177,7 @@
             </a>
         </div>
 
-    </div>
+    </div> --}}
 
     {{-- MODAL TAMBAH DOSEN --}}
     <div class="modal fade" id="modalTambahDosen" tabindex="-1">
@@ -176,7 +188,8 @@
 
                     <div class="modal-header" style="background: linear-gradient(135deg, #5B9BD5 0%, #4a8bc2 100%);">
                         <h5 class="modal-title text-white">
-                            <i class="bi bi-person-plus"></i> Tambah Dosen Pengajar
+                            {{-- <i class="bi bi-person-plus"></i> Tambah Dosen Pengajar --}}
+                            Tambah Dosen Pengajar
                         </h5>
                         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                     </div>
@@ -215,10 +228,12 @@
 
                     <div class="modal-footer">
                         <button type="button" class="btn btn-light border" data-bs-dismiss="modal">
-                            <i class="bi bi-x-circle"></i> Batal
+                            {{-- <i class="bi bi-x-circle"></i> Batal --}}
+                            Batal
                         </button>
                         <button type="submit" class="btn-action-primary">
-                            <i class="bi bi-save"></i> Simpan
+                            {{-- <i class="bi bi-save"></i> Simpan --}}
+                            Simpan
                         </button>
                     </div>
                 </form>

@@ -1,3 +1,5 @@
+
+
 @extends('layouts.app')
 
 @section('page-title', 'Monitoring Perkuliahan')
@@ -6,79 +8,54 @@
     <div style="padding: 1.5rem;">
         <!-- Filter Section -->
         <div class="filter-card mb-4">
-            <form method="GET" id="filterForm">
-                <div class="row g-3 align-items-end">
-                    <div class="col-md-4">
-                        <label class="filter-label">SEMESTER</label>
-                        <select name="semester" class="form-select">
-                            <option value="">Semua Semester</option>
-                            <option value="1" {{ $selectedSemester == '1' ? 'selected' : '' }}>Ganjil</option>
-                            <option value="2" {{ $selectedSemester == '2' ? 'selected' : '' }}>Genap</option>
-                        </select>
-                    </div>
-                    <div class="col-md-4">
-                        <label class="filter-label">TAHUN AJARAN</label>
-                        <select name="tahun_ajaran" class="form-select">
-                            <option value="">Semua Tahun Ajaran</option>
-                            @if (isset($tahunAjaranList) && count($tahunAjaranList) > 0)
-                                @foreach ($tahunAjaranList as $ta)
-                                    <option value="{{ $ta['id_thn_ajaran'] }}"
-                                        {{ $selectedTahunAjaran == $ta['id_thn_ajaran'] ? 'selected' : '' }}>
-                                        {{ $ta['nm_thn_ajaran'] }}
-                                    </option>
-                                @endforeach
-                            @else
-                                {{-- Fallback jika $tahunAjaranList tidak ada --}}
-                                @php
-                                    $currentYear = (int) date('Y');
-                                    $baseYear = floor($currentYear / 5) * 5;
-                                @endphp
-                                @for ($i = 0; $i <= 5; $i++)
-                                    @php $year = $baseYear + $i; @endphp
-                                    <option value="{{ $year }}"
-                                        {{ $selectedTahunAjaran == $year ? 'selected' : '' }}>
-                                        {{ $year }}
-                                    </option>
-                                @endfor
-                            @endif
-                        </select>
-                    </div>
-                    <div class="col-md-4">
-                        <label class="filter-label">TINGKAT</label>
-                        <select name="tingkat" class="form-select">
-                            <option value="">Semua Tingkat</option>
+<form method="GET" id="filterForm">
+    <div class="row g-3 align-items-end flex-nowrap overflow-auto">
 
-                            <option value="1" {{ request('tingkat') == '1' ? 'selected' : '' }}>Tingkat 1</option>
-                            <option value="2" {{ request('tingkat') == '2' ? 'selected' : '' }}>Tingkat 2</option>
-                            <option value="3" {{ request('tingkat') == '3' ? 'selected' : '' }}>Tingkat 3</option>
+        <div class="col">
+            <label class="filter-label">SEMESTER</label>
+            <select name="semester" class="form-select">
+                <option value="">Semua Semester</option>
+                <option value="1" {{ $selectedSemester == '1' ? 'selected' : '' }}>Ganjil</option>
+                <option value="2" {{ $selectedSemester == '2' ? 'selected' : '' }}>Genap</option>
+            </select>
+        </div>
 
-                            @if (optional(auth()->user()->prodi)->kode_prodi !== 'NM' && optional(auth()->user()->prodi)->kode_prodi !== 'TI')
-                                <option value="4" {{ request('tingkat') == '4' ? 'selected' : '' }}>Tingkat 4</option>
-                            @endif
-                        </select>
-                    </div>
-                    <div class="col-md-4">
-                        <div class="d-flex gap-2">
-                            <button type="submit" class="btn btn-primary flex-fill" style="padding: 0.6rem;">
-                                <i class="bi bi-funnel"></i> Filter
-                            </button>
-                            <button type="button" class="btn btn-warning flex-fill" style="padding: 0.6rem;"
-                                onclick="document.getElementById('refreshForm').submit()">
-                                <i class="bi bi-arrow-clockwise"></i> Refresh Data
-                            </button>
-                            <button type="button" class="btn btn-danger flex-fill" style="padding: 0.6rem;"
-                                onclick="window.location.href='{{ route('gkm.monitoring-perkuliahan.export', [
-                                    'semester' => $selectedSemester,
-                                    'tahun_ajaran' => $selectedTahunAjaran,
-                                    'tingkat' => $selectedTingkat,
-                                ]) }}'">
+        <div class="col">
+            <label class="filter-label">TAHUN AJARAN</label>
+            <select name="tahun_ajaran" class="form-select">
+                <option value="">Semua Tahun Ajaran</option>
+                @foreach ($tahunAjaranList as $ta)
+                    <option value="{{ $ta['id_thn_ajaran'] }}"
+                        {{ $selectedTahunAjaran == $ta['id_thn_ajaran'] ? 'selected' : '' }}>
+                        {{ $ta['nm_thn_ajaran'] }}
+                    </option>
+                @endforeach
+            </select>
+        </div>
 
-                                <i class="bi bi-file-earmark-pdf"></i> Download PDF
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </form>
+        <div class="col">
+            <label class="filter-label">TINGKAT</label>
+            <select name="tingkat" class="form-select">
+                <option value="">Semua Tingkat</option>
+                <option value="1" {{ request('tingkat') == '1' ? 'selected' : '' }}>Tingkat 1</option>
+                <option value="2" {{ request('tingkat') == '2' ? 'selected' : '' }}>Tingkat 2</option>
+                <option value="3" {{ request('tingkat') == '3' ? 'selected' : '' }}>Tingkat 3</option>
+
+                @if (optional(auth()->user()->prodi)->kode_prodi !== 'NM' && optional(auth()->user()->prodi)->kode_prodi !== 'TI')
+                    <option value="4" {{ request('tingkat') == '4' ? 'selected' : '' }}>Tingkat 4</option>
+                @endif
+            </select>
+        </div>
+
+        <div class="col-auto">
+            <label class="filter-label d-block invisible">.</label>
+            <button type="submit" class="btn btn-primary w-100" style="padding: 0.6rem 1rem;">
+                <i class="bi bi-search me-1"></i> Cari
+            </button>
+        </div>
+
+    </div>
+</form>
 
             <!-- Hidden form for refresh -->
             <form id="refreshForm" method="POST" action="{{ route('gkm.monitoring-perkuliahan.clear-cache') }}"
@@ -91,33 +68,52 @@
         </div>
 
         <!-- Tabs and Monitoring Table -->
+        
         <div class="monitoring-card">
-            <!-- Tabs -->
-            <div style="padding: 1.5rem 1.5rem 0 1.5rem;">
-                <ul class="nav nav-tabs" id="materiTabs" role="tablist" style="border-bottom: 2px solid #e9ecef;">
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link active" id="teori-tab" data-bs-toggle="tab" data-bs-target="#teori"
-                            type="button" role="tab"
-                            style="font-weight: 500; color: #6c757d; border: none; padding: 0.75rem 1.5rem;">
-                            Materi Teori
-                        </button>
-                    </li>
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link" id="praktikum-tab" data-bs-toggle="tab" data-bs-target="#praktikum"
-                            type="button" role="tab"
-                            style="font-weight: 500; color: #6c757d; border: none; padding: 0.75rem 1.5rem;">
-                            Materi Praktikum
-                        </button>
-                    </li>
-                </ul>
-            </div>
+<div class="d-flex justify-content-between align-items-center" style="padding: 1rem 1.5rem 0 1.5rem;">
+    <!-- Tabs -->
+    <ul class="nav nav-tabs" id="materiTabs" role="tablist" style="border-bottom: 2px solid #e9ecef; margin-bottom: 0;">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="teori-tab" data-bs-toggle="tab" data-bs-target="#teori"
+                type="button" role="tab"
+                style="font-weight: 500; color: #6c757d; border: none; padding: 0.75rem 1.5rem;">
+                Materi Teori
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="praktikum-tab" data-bs-toggle="tab" data-bs-target="#praktikum"
+                type="button" role="tab"
+                style="font-weight: 500; color: #6c757d; border: none; padding: 0.75rem 1.5rem;">
+                Materi Praktikum
+            </button>
+        </li>
+    </ul>
+    <!-- Tombol -->
+    <div class="d-flex gap-2">
+        <button type="button" class="btn btn-danger btn-sm d-inline-flex align-items-center gap-1" 
+            style="padding: 0.4rem 0.8rem; font-size: 0.8rem;"
+            onclick="window.location.href='{{ route('gkm.monitoring-perkuliahan.export', [
+                'semester' => $selectedSemester,
+                'tahun_ajaran' => $selectedTahunAjaran,
+                'tingkat' => $selectedTingkat,
+            ]) }}'">
+            <i class="bi bi-file-earmark-pdf"></i> Download PDF
+        </button>
+        <a href="#" class="btn btn-sm d-inline-flex align-items-center gap-1"
+            id="reminderTeoriBtn"
+            style="padding: 0.4rem 0.8rem; font-size: 0.8rem;
+                background: linear-gradient(135deg, #5B9BD5 0%, #4a8bc2 100%);
+                border: none; color: #fff;">
+            <i class="bi bi-send-fill"></i> Kirim Reminder
+        </a>
+    </div>
+</div>
 
             <!-- Tab Content -->
             <div class="tab-content" id="materiTabContent">
                 <!-- Materi Teori Tab -->
                 <div class="tab-pane fade show active" id="teori" role="tabpanel">
                     <div class="monitoring-header" style="border-top: none;">
-                        <i class="bi bi-cloud-upload" style="color: #5B9BD5;"></i>
                         <h6>Monitoring Status</h6>
                     </div>
 

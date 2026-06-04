@@ -45,6 +45,44 @@
             background-color: #f5f7fa;
         }
 
+/* Avatar ikon besar untuk sidebar */
+.avatar-icon {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background-color: #1e3c72;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 12px auto;
+    border: 3px solid rgba(255, 255, 255, 0.2);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.avatar-icon i {
+    font-size: 2.5rem;
+    color: white;
+}
+
+/* Untuk topbar */
+.topbar-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background-color: #1e3c72;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 8px;
+}
+
+.topbar-avatar i {
+    font-size: 1.6rem;
+    color: white;
+}
+
+
+
         .wrapper {
             display: flex;
             width: 100%;
@@ -254,6 +292,9 @@
             align-items: center;
             gap: 1rem;
             box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+            position: sticky;
+            top: 0;
+            z-index: 999;
         }
 
         .topbar-left {
@@ -564,8 +605,9 @@
                 </div>
 
                 <div class="user-info">
-                    <img src="https://ui-avatars.com/api/?name={{ urlencode(auth()->user()->name) }}&background=1e3c72&color=fff"
-                        alt="User">
+                    {{-- <img src="https://ui-avatars.com/api/?name={{ urlencode(auth()->user()->name) }}&background=1e3c72&color=fff"
+                        alt="User"> --}}
+                        <div class="avatar-icon"><i class="bi bi-person-circle"></i></div>
                     <p style="margin: 10px 0 0 0;"><strong>{{ auth()->user()->name }}</strong></p>
                     <small>{{ auth()->user()->role }}</small>
                 </div>
@@ -648,7 +690,7 @@
                             <div class="dropdown-submenu">
                                 <a href="{{ route('gkm.laporan-artefak.index') }}"
                                     class="nav-item {{ request()->routeIs('gkm.laporan-artefak.*') ? 'active' : '' }}">
-                                    <i class="bi bi-file-earmark-check"></i> Laporan Artefak RPS dan Materi
+                                    <i class="bi bi-file-earmark-check"></i> Laporan Bulanan
                                 </a>
                                 <a href="{{ route('gkm.laporan-kuesioner.index') }}"
                                     class="nav-item {{ request()->routeIs('gkm.laporan-kuesioner.*') ? 'active' : '' }}">
@@ -737,8 +779,10 @@
                     </div>
                     <div class="topbar-right">
                         <div class="topbar-user" onclick="toggleTopbarDropdown(this)">
-                            <img src="https://ui-avatars.com/api/?name={{ urlencode(auth()->user()->name) }}&background=1e3c72&color=fff"
-                                alt="User">
+                            {{-- <img src="https://ui-avatars.com/api/?name={{ urlencode(auth()->user()->name) }}&background=1e3c72&color=fff"
+                                alt="User"> --}}    <div class="avatar-icon topbar-avatar">
+        <i class="bi bi-person-circle"></i>
+    </div>
                             <div class="user-name-wrapper">
                                 <div>
                                     <small class="text-muted">{{ auth()->user()->name }}</small>
@@ -772,12 +816,12 @@
                         </div>
                     @endif
 
-                    @if (session('success'))
+                    {{-- @if (session('success'))
                         <div class="alert alert-success alert-dismissible fade show m-3" role="alert">
                             {{ session('success') }}
                             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                         </div>
-                    @endif
+                    @endif --}}
 
                     @yield('content')
                 </div>

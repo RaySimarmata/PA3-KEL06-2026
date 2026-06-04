@@ -24,6 +24,138 @@
         .dashboard-shell .quick-icon {
             font-size: clamp(1.25rem, 1.8vw, 1.8rem);
         }
+
+        .dashboard-shell .action-card {
+            padding: 1.25rem;
+        }
+
+        .dashboard-shell .action-grid {
+            display: grid;
+            grid-template-columns: repeat(12, minmax(0, 1fr));
+            gap: 1rem;
+        }
+
+        .dashboard-shell .action-item {
+            grid-column: span 12;
+        }
+
+        .dashboard-shell .action-item.wide {
+            grid-column: span 12;
+        }
+
+        .dashboard-shell .action-btn {
+            width: 100%;
+            min-height: 82px;
+            padding: 1rem 1.15rem;
+            border-radius: 0.9rem;
+            border: 1px solid transparent;
+            display: flex;
+            align-items: center;
+            justify-content: flex-start;
+            gap: 0.9rem;
+            text-decoration: none;
+            transition: transform 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease;
+            box-shadow: 0 8px 20px rgba(30, 60, 114, 0.12);
+            color: #ffffff; /* enforce white text for all action buttons */
+        }
+
+        .dashboard-shell .action-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 24px rgba(30, 60, 114, 0.16);
+            filter: brightness(1.02);
+        }
+
+        .dashboard-shell .action-btn .action-icon {
+            width: 2.75rem;
+            height: 2.75rem;
+            border-radius: 0.85rem;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            flex: 0 0 auto;
+            background: rgba(255, 255, 255, 0.12);
+            color: #ffffff;
+        }
+
+        .dashboard-shell .action-btn .action-text {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 0.15rem;
+            min-width: 0;
+            color: #ffffff; /* ensure title/subtitle inherit white */
+        }
+
+        .dashboard-shell .action-btn .action-title {
+            font-size: 0.95rem;
+            font-weight: 700;
+            line-height: 1.2;
+        }
+
+        .dashboard-shell .action-btn .action-subtitle {
+            font-size: 0.75rem;
+            line-height: 1.2;
+            opacity: 0.9;
+            color: rgba(255,255,255,0.9);
+        }
+
+        .dashboard-shell .action-btn.primary-dark {
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            color: #fff;
+        }
+
+        .dashboard-shell .action-btn.primary-dark:hover {
+            color: #fff;
+        }
+
+        .dashboard-shell .action-btn.primary-soft {
+            background: linear-gradient(135deg, #5B9BD5 0%, #6fa8dc 100%);
+            color: #fff;
+        }
+
+        .dashboard-shell .action-btn.primary-soft:hover {
+            color: #fff;
+        }
+
+        .dashboard-shell .action-btn.info-bright {
+            background: linear-gradient(135deg, #10bfe8 0%, #22c5eb 100%);
+            color: #ffffff;
+        }
+
+        .dashboard-shell .action-btn.info-bright:hover {
+            color: #ffffff;
+        }
+
+        @media (min-width: 576px) {
+            .dashboard-shell .action-item {
+                grid-column: span 6;
+            }
+        }
+
+        @media (min-width: 1200px) {
+            .dashboard-shell .action-item {
+                grid-column: span 3;
+            }
+
+            .dashboard-shell .action-item.wide {
+                grid-column: span 3;
+            }
+
+            .dashboard-shell .action-item.analytics {
+                grid-column: span 3;
+            }
+        }
+
+        @media (max-width: 575.98px) {
+            .dashboard-shell .action-btn {
+                min-height: 74px;
+                padding: 0.95rem 1rem;
+            }
+
+            .dashboard-shell .action-btn .action-title {
+                font-size: 0.9rem;
+            }
+        }
     </style>
 @endsection
 
@@ -65,35 +197,56 @@
         </div>
 
         <!-- Action Buttons -->
-        <div class="content-card mb-4">
+        <div class="content-card mb-4 action-card">
             <h6 class="mb-3 font-semibold">Aksi Cepat</h6>
-            <div class="row">
-                <div class="col-12 col-sm-6 col-xl-3 mb-3">
-                    <a href="{{ route('gkm.laporan-kuesioner.index') }}" class="btn btn-primary w-100 py-3">
-                        <i class="bi bi-file-earmark-pdf"></i> Generate Laporan Bulanan
+            <div class="action-grid">
+                <div class="action-item">
+                    <a href="{{ route('gkm.laporan-kuesioner.index') }}" class="action-btn primary-dark">
+                        <span class="action-icon"><i class="bi bi-file-earmark-pdf"></i></span>
+                        <span class="action-text">
+                            <span class="action-title">Generate Laporan Bulanan</span>
+                            <span class="action-subtitle">Buat ringkasan laporan GKM bulanan</span>
+                        </span>
                     </a>
                 </div>
-                <div class="col-12 col-sm-6 col-xl-3 mb-3">
-                    <a href="{{ route('gkm.laporan-kuesioner.create') }}" class="btn btn-primary w-100 py-3">
-                        <i class="bi bi-file-earmark-text"></i> Generate Laporan Kuesioner
+
+                <div class="action-item">
+                    <a href="{{ route('gkm.laporan-kuesioner.create') }}" class="action-btn primary-dark">
+                        <span class="action-icon"><i class="bi bi-file-earmark-text"></i></span>
+                        <span class="action-text">
+                            <span class="action-title">Generate Laporan Kuesioner</span>
+                            <span class="action-subtitle">Susun laporan hasil kuesioner dengan cepat</span>
+                        </span>
                     </a>
                 </div>
-                <div class="col-12 col-sm-6 col-xl-3 mb-3">
-                    <a href="{{ route('gkm.monitoring-rps.ceklist') }}" class="btn-reminder w-100 py-3"
-                        style="display: flex;">
-                        <i class="bi bi-send"></i> Kirim Reminder RPS
+
+                <div class="action-item">
+                    <a href="{{ route('gkm.monitoring-rps.ceklist') }}" class="action-btn primary-soft">
+                        <span class="action-icon"><i class="bi bi-send"></i></span>
+                        <span class="action-text">
+                            <span class="action-title">Kirim Reminder RPS</span>
+                            <span class="action-subtitle">Pantau dan kirim pengingat RPS</span>
+                        </span>
                     </a>
                 </div>
-                <div class="col-12 col-sm-6 col-xl-3 mb-3">
-                    <a href="{{ route('gkm.monitoring-perkuliahan.kirim-pengingat') }}" class="btn-reminder w-100 py-3"
-                        style="display: flex;">
-                        <i class="bi bi-send"></i> Kirim Reminder Materi Perkuliahan
+
+                <div class="action-item">
+                    <a href="{{ route('gkm.monitoring-perkuliahan.kirim-pengingat') }}" class="action-btn primary-soft">
+                        <span class="action-icon"><i class="bi bi-send"></i></span>
+                        <span class="action-text">
+                            <span class="action-title">Kirim Reminder Materi</span>
+                            <span class="action-subtitle">Kirim pengingat materi perkuliahan</span>
+                        </span>
                     </a>
                 </div>
-                <div class="col-12 col-sm-6 col-xl-3 mb-3">
-                    <a href="{{ route('gkm.dashboard.analytics') }}" class="btn btn-info w-100 py-3"
-                        style="display: flex; justify-content: center; align-items: center; gap: .5rem;">
-                        <i class="bi bi-graph-up"></i> Analytics Monitoring
+
+                <div class="action-item analytics">
+                    <a href="{{ route('gkm.dashboard.analytics') }}" class="action-btn info-bright">
+                        <span class="action-icon"><i class="bi bi-graph-up"></i></span>
+                        <span class="action-text">
+                            <span class="action-title">Analytics Monitoring</span>
+                            <span class="action-subtitle">Lihat tren dan performa monitoring</span>
+                        </span>
                     </a>
                 </div>
             </div>

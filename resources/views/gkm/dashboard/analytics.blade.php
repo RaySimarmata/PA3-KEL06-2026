@@ -48,9 +48,9 @@
                         </select>
                     </div>
                     <div class="col-md-4">
-                        <button class="btn btn-success w-100">
-                            <i class="bi bi-funnel-fill me-1"></i> Filter
-                        </button>
+                    <button class="btn btn-primary w-100" type="button" id="btnSearch">
+                        <i class="bi bi-search me-1"></i> Cari
+                    </button>
                     </div>
                 </div>
             </form>

@@ -3,7 +3,18 @@
 @section('page-title', 'Monitoring RPS')
 
 @section('content')
-<div style="padding: 1.5rem;">
+
+
+{{-- <div style="padding: 1.5rem;">
+    <div class="filter-card mb-4 d-flex justify-content-between align-items-center">
+    <h5 class="mb-0 font-semibold" style="text-transform: uppercase; letter-spacing: 0.5px;">
+        Monitoring Rencana Pembelajaran Semester (RPS)
+    </h5>
+    <a href="{{ url()->previous() }}" class="btn btn-secondary btn-sm">
+        <i class="bi bi-arrow-left me-1"></i> Kembali
+    </a>
+</div> --}}
+
     <!-- Filter Section -->
     <div class="filter-card">
         <form method="GET" id="filterForm">
@@ -48,31 +59,20 @@
 
                 <div class="col-md-3">
                     <button type="submit" class="btn btn-primary w-100" style="padding: 0.6rem;">
-                        <i class="bi bi-funnel"></i> Filter
+                        <i class="bi bi-search me-1"></i>
+                         Cari
                     </button>
                 </div>
 
-                <div class="col-md-3">
+                {{-- <div class="col-md-3">
                     <form method="POST" action="{{ route('gkm.monitoring-rps.clear-cache') }}">
                         @csrf
                         <button type="submit" class="btn btn-warning w-100" style="padding: 0.6rem;">
                             <i class="bi bi-arrow-clockwise"></i> Refresh Data
                         </button>
                     </form>
-                </div>
+                </div> --}}
 
-                <div class="col-md-3">
-                    <button type="button" 
-                        class="btn btn-danger flex-fill" 
-                        style="padding: 0.6rem;"
-                        onclick="window.location.href='{{ route('gkm.monitoring-rps.export', [
-                            'semester' => request('semester'),
-                            'tahun_ajaran' => request('tahun_ajaran'),
-                            'tingkat' => request('tingkat')
-                        ]) }}'">
-                        <i class="bi bi-file-earmark-pdf"></i> Download PDF
-                    </button>
-                </div>
             </div>
         </form>
 
@@ -90,10 +90,57 @@
     </div>
 
     <!-- Monitoring Table -->
+    
     @if(isset($pagination))
+
+
+    {{-- Field Kedua  --}}
     <div class="monitoring-card">
         <div class="monitoring-header">
-            <i class="bi bi-eye"></i>
+            {{-- <i class="bi bi-eye"></i> --}}
+            <h6>Monitoring Status</h6>
+            <div style="margin-left: auto; display: flex; gap: 0.75rem;">
+                <button type="button" 
+                        class="btn btn-danger" 
+                        style="padding: 0.6rem 1rem;"
+                        onclick="window.location.href='{{ route('gkm.monitoring-rps.export', [
+                            'semester' => request('semester'),
+                            'tahun_ajaran' => request('tahun_ajaran'),
+                            'tingkat' => request('tingkat')
+                        ]) }}'">
+                    <i class="bi bi-file-earmark-pdf text-white"></i> Download PDF
+                </button>
+
+
+                <a href="{{ route('gkm.monitoring-rps.ceklist') }}" class="btn-reminder">
+                    <i class="bi bi-send-fill"></i>
+                    <span>Kirim Reminder</span>
+                </a>
+
+
+
+            </div>
+        </div>
+    {{-- PDF --}}
+    {{-- <div class="monitoring-card">
+        <div class="col-md-3">
+            <button type="button" 
+            class="btn btn-danger flex-fill" 
+            style="padding: 0.6rem;"
+            onclick="window.location.href='{{ route('gkm.monitoring-rps.export', [
+            'semester' => request('semester'),
+            'tahun_ajaran' => request('tahun_ajaran'),
+            'tingkat' => request('tingkat')
+            ]) }}'">
+            <i class="bi bi-file-earmark-pdf"></i> Download PDF
+            </button>
+        </div>
+
+
+
+
+
+        <div class="monitoring-header">
             <h6>Monitoring Status</h6>
             <div style="margin-left: auto;">
                 <a href="{{ route('gkm.monitoring-rps.ceklist') }}" class="btn-reminder">
@@ -101,7 +148,7 @@
                     <span>Kirim Reminder</span>
                 </a>
             </div>
-        </div>
+        </div> --}}
 
         <div class="table-responsive">
             <table class="table table-monitoring">
