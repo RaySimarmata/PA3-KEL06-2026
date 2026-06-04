@@ -48,9 +48,10 @@
                 </div>
 
                 <div class="col-md-4">
-                    <button class="btn btn-primary w-100">
-                        <i class="bi bi-funnel"></i> Filter
-                    </button>
+                <button class="btn btn-primary w-100" type="submit" onclick="performSearch()">
+                    <i class="bi bi-search me-1"></i> Cari
+                </button>
+
                 </div>
 
             </div>
@@ -65,7 +66,7 @@
 
             <div style="margin-left:auto; display:flex; gap:10px;">
                 <a href="{{ route('gkm.monitoring-kuesioner.create-api') }}" class="btn btn-success">
-                    <i class="bi bi-cloud-download" style="color: white;"></i> API
+                    <i class="bi bi-cloud-download" style="color: white;"></i>  Ambil Data dari API
                 </a>
             </div>
         </div>

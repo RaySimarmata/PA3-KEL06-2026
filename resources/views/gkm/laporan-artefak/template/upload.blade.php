@@ -10,7 +10,7 @@
                 <div>
                     <h5 class="mb-1 d-flex align-items-center gap-2" style="font-weight: 600; color: #333;">
                         <i class="bi bi-upload" style="color: #5B9BD5;"></i>
-                        Upload Template Laporan Artefak Baru
+                        
                     </h5>
                     <p class="text-muted mb-0" style="font-size: 0.875rem;">Upload file Word (.docx) sebagai template untuk AI
                         Agent</p>

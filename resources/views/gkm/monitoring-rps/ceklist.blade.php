@@ -31,9 +31,9 @@
                 <a href="{{ route('gkm.monitoring-rps.history') }}" class="btn btn-outline-primary btn-sm">
                     <i class="bi bi-clock-history"></i> History Reminder
                 </a>
-                <a href="{{ route('gkm.monitoring-rps.index') }}" class="btn btn-secondary btn-sm">
+                {{-- <a href="{{ route('gkm.monitoring-rps.index') }}" class="btn btn-secondary btn-sm">
                     <i class="bi bi-arrow-left"></i> Kembali
-                </a>
+                </a> --}}
             </div>
         </div>
     </div>
