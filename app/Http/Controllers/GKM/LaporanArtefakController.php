@@ -178,10 +178,6 @@ class LaporanArtefakController extends Controller
      */
     public function aiPrompt(Request $request)
     {
-        // Increase execution time for AI processing (default is 30-60 seconds)
-        // This operation involves database queries + AI API requests + document generation
-        set_time_limit(300); // 5 minutes
-        
         try {
             $request->validate([
                 'prompt' => 'required|string',
@@ -405,7 +401,7 @@ class LaporanArtefakController extends Controller
 
             // System context for Artefak reports
             $systemContext = "Anda adalah AI Assistant untuk Gugus Kendali Mutu (GKM) Institut Teknologi Del.\n\n";
-            $systemContext .= "Tugas Anda: Membantu membuat LAPORAN ARTEFAK/VMTS berdasarkan dokumen yang diupload dan instruksi user.\n\n";
+            $systemContext .= "Tugas Anda: Membantu membuat LAPORAN ARTEFAK BULANAN berdasarkan data monitoring RPS dan Materi yang diupload dan instruksi user.\n\n";
             $systemContext .= "PENTING - CONVERSATION CONTEXT:\n";
             $systemContext .= "- Ini mungkin percakapan lanjutan. Jika user meminta perubahan atau perbaikan, modifikasi konten yang sudah ada.\n";
             $systemContext .= "- Jika user mengatakan 'ubah bagian X', 'perbaiki Y', atau 'tambahkan Z', lakukan perubahan pada draft sebelumnya.\n";

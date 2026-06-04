@@ -91,14 +91,14 @@ class AIPromptAssistantSemester {
         // Tambahkan ke body
         document.body.insertAdjacentHTML('beforeend', assistantHTML);
 
-        // Tambahkan floating button
-        const floatingBtn = `
-            <button id="ai-floating-btn-semester" class="ai-floating-btn" onclick="aiAssistantsemester.toggleAssistant()" title="AI Assistant semester">
-                <i class="fas fa-robot"></i>
-                <span class="floating-btn-label">AI semester</span>
-            </button>
-        `;
-        document.body.insertAdjacentHTML('beforeend', floatingBtn);
+        // Floating button dihapus - tidak digunakan
+        // const floatingBtn = `
+        //     <button id="ai-floating-btn-semester" class="ai-floating-btn" onclick="aiAssistantsemester.toggleAssistant()" title="AI Assistant semester">
+        //         <i class="fas fa-robot"></i>
+        //         <span class="floating-btn-label">AI semester</span>
+        //     </button>
+        // `;
+        // document.body.insertAdjacentHTML('beforeend', floatingBtn);
 
         // Bind file upload events
         this.bindFileUploadEvents();
@@ -316,18 +316,19 @@ class AIPromptAssistantSemester {
 
     toggleAssistant() {
         const assistant = document.getElementById('ai-assistant-semester');
-        const floatingBtn = document.getElementById('ai-floating-btn-semester');
+        // Floating button dihapus
+        // const floatingBtn = document.getElementById('ai-floating-btn-semester');
 
         if (assistant.style.display === 'none' || assistant.style.display === '') {
             assistant.style.display = 'flex';
-            floatingBtn.style.display = 'none';
+            // floatingBtn.style.display = 'none';
             // Focus pada input
             setTimeout(() => {
                 document.getElementById('ai-input-semester')?.focus();
             }, 100);
         } else {
             assistant.style.display = 'none';
-            floatingBtn.style.display = 'flex';
+            // floatingBtn.style.display = 'flex';
         }
     }
 

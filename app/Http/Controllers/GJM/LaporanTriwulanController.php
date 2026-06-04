@@ -138,9 +138,6 @@ class LaporanTriwulanController extends Controller
      */
     public function aiPrompt(Request $request)
     {
-        // Increase execution time for AI processing (default is 30-60 seconds)
-        set_time_limit(300); // 5 minutes
-        
         try {
             $request->validate([
                 'prompt' => 'required|string',

@@ -46,10 +46,10 @@
                 <h6>Laporan Hasil Artefak Perkuliahan RPS dan Materi</h6>
                 <div style="margin-left: auto; display: flex; gap: 0.5rem;">
                 <a href="{{ route('gkm.laporan-artefak.template.index') }}" 
-                class="btn btn-sm btn-success" 
-                style="background-color: #28a745; border-color: #28a745; transition: none;"
-                onmouseover="this.style.backgroundColor='#28a745'; this.style.borderColor='#28a745';"
-                onmouseout="this.style.backgroundColor='#28a745'; this.style.borderColor='#28a745';">
+                   class="btn btn-sm btn-success" 
+                   style="background-color: #28a745; border-color: #28a745; transition: none;"
+                   onmouseover="this.style.backgroundColor='#28a745'; this.style.borderColor='#28a745';"
+                   onmouseout="this.style.backgroundColor='#28a745'; this.style.borderColor='#28a745';">
                     <i class="bi bi-file-earmark-text" style="color: white;"></i> Kelola Template
                 </a>
                     <a href="{{ route('gkm.laporan-artefak.create') }}" class="btn-reminder">

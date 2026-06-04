@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use App\Models\Dosen;
 use App\Models\Matakuliah;
 use App\Models\Ajaran;
-use App\Models\PeriodeAkademik;
 use App\Models\User;
 use App\Models\Prodi;
 use App\Models\Kelas;
@@ -938,18 +937,6 @@ class DataMasterController extends Controller
             }
         }
 
-        $periodeAktif = PeriodeAkademik::getActive();
-
-        if ($periodeAktif) {
-            $defaultSemTa = (int) $periodeAktif->semester;
-            $tahunParts = explode('/', $periodeAktif->tahun_ajaran);
-            $defaultTa = isset($tahunParts[0]) ? (int) $tahunParts[0] : date('Y');
-        } else {
-            $currentMonth = date('n');
-            $defaultSemTa = $currentMonth >= 8 ? 1 : 2; // 1 = Ganjil (Aug-Dec), 2 = Genap (Jan-Jul)
-            $defaultTa = date('Y');
-        }
-
         // Initialize empty collection
         $dosenList = new \Illuminate\Pagination\LengthAwarePaginator(
             [],
@@ -964,13 +951,7 @@ class DataMasterController extends Controller
 
         // Only fetch data if search is provided or form is submitted
         if (!$request->has('search') && !$request->has('submitted')) {
-            return view('gkm.data-master.penugasan-dosen', compact(
-                'user',
-                'dosenList',
-                'tahunAjaranList',
-                'defaultSemTa',
-                'defaultTa'
-            ));
+            return view('gkm.data-master.penugasan-dosen', compact('user', 'dosenList', 'tahunAjaranList'));
         }
 
         try {
@@ -998,8 +979,13 @@ class DataMasterController extends Controller
             // Get only current page items
             $currentPageDosen = $dosenCollection->forPage($currentPage, $perPage)->all();
 
+            // Get semester and year from request or use defaults
+            $currentMonth = date('n');
+            $currentYear = date('Y');
+            $defaultSemTa = $currentMonth >= 8 ? 1 : 2; // 1 = Ganjil (Aug-Dec), 2 = Genap (Jan-Jul)
+
             $semTa = $request->get('sem_ta', $defaultSemTa);
-            $ta = $request->get('ta', $defaultTa);
+            $ta = $request->get('ta', $currentYear); // Use current year as default
 
             // Fetch jadwal ONLY for current page dosen (not all dosen)
             foreach ($currentPageDosen as &$dosen) {
@@ -1044,35 +1030,17 @@ class DataMasterController extends Controller
                 ['path' => $request->url(), 'query' => $request->query()]
             );
 
-            return view('gkm.data-master.penugasan-dosen', compact(
-                'user',
-                'dosenList',
-                'tahunAjaranList',
-                'defaultSemTa',
-                'defaultTa'
-            ));
+            return view('gkm.data-master.penugasan-dosen', compact('user', 'dosenList', 'tahunAjaranList'));
 
         } catch (\Exception $e) {
             // Fallback to database on error
             \Log::error('API Dosen Error: ' . $e->getMessage());
-            return $this->penugasanDosenFromDatabase($request, $user, $defaultSemTa, $defaultTa);
+            return $this->penugasanDosenFromDatabase($request, $user);
         }
     }
 
-    private function penugasanDosenFromDatabase(Request $request, $user, $defaultSemTa = null, $defaultTa = null)
+    private function penugasanDosenFromDatabase(Request $request, $user)
     {
-        if ($defaultSemTa === null) {
-            $currentMonth = date('n');
-            $defaultSemTa = $currentMonth >= 8 ? 1 : 2;
-        }
-
-        if ($defaultTa === null) {
-            $defaultTa = date('Y');
-        }
-
-        $defaultSemTa = $request->get('sem_ta', $defaultSemTa);
-        $defaultTa = $request->get('ta', $defaultTa);
-
         $query = Dosen::with('matakuliah')
             ->where('status', 'aktif')
             ->orderBy('nama_lengkap');
@@ -1090,13 +1058,7 @@ class DataMasterController extends Controller
         // Generate tahun ajaran list for view
         $tahunAjaranList = $this->generateDynamicTahunAjaran();
 
-        return view('gkm.data-master.penugasan-dosen', compact(
-            'user',
-            'dosenList',
-            'tahunAjaranList',
-            'defaultSemTa',
-            'defaultTa'
-        ));
+        return view('gkm.data-master.penugasan-dosen', compact('user', 'dosenList', 'tahunAjaranList'));
     }
 
     /**

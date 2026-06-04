@@ -7,8 +7,8 @@
     <meta name="cache-version" content="1.2.0-{{ time() }}">
     <style>
         /* ===============================================================
-                                                                                                                                   AI PROMPT ASSISTANT — TRIWULAN
-                                                                                                                                   =============================================================== */
+                                                                                                                                           AI PROMPT ASSISTANT — TRIWULAN
+                                                                                                                                           =============================================================== */
 
         /* Button hover effect - icon turns white */
         .btn-template-link:hover i {
@@ -27,7 +27,7 @@
         }
 
         .ai-chat-header {
-            background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+            background: linear-gradient(135deg, #1e3c72 0%, #1e3c72 100%);
             color: #fff;
             padding: 1rem 1.25rem;
             display: flex;
@@ -88,7 +88,7 @@
         }
 
         .msg-user .bubble {
-            background: #2563eb;
+            background: #1e3c72;
             color: #fff;
             border-radius: 18px 18px 4px 18px;
             padding: 0.75rem 1rem;
@@ -169,7 +169,7 @@
             width: 30px;
             height: 30px;
             flex-shrink: 0;
-            background: linear-gradient(135deg, #2563eb, #7c3aed);
+            background: linear-gradient(135deg, #1e3c72, #7c3aed);
             color: #fff;
             border-radius: 50%;
             display: flex;
@@ -215,7 +215,7 @@
         }
 
         .msg-ai .bubble strong {
-            color: #1d4ed8;
+            color: #1e3c72;
         }
 
         .msg-ai .bubble hr {
@@ -308,8 +308,8 @@
         }
 
         .ai-textarea:focus {
-            border-color: #2563eb;
-            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+            border-color: #1e3c72;
+            box-shadow: 0 0 0 3px rgba(30, 60, 114, 0.12);
             outline: none;
         }
 
@@ -318,8 +318,8 @@
         }
 
         .ai-input-area>div:first-child:focus-within {
-            border-color: #2563eb;
-            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+            border-color: #1e3c72;
+            box-shadow: 0 0 0 3px rgba(30, 60, 114, 0.12);
         }
 
         .file-upload-zone {
@@ -336,9 +336,9 @@
         }
 
         .file-upload-zone:hover {
-            border-color: #2563eb;
-            background: #eff6ff;
-            color: #2563eb;
+            border-color: #1e3c72;
+            background: #f6f7fb;
+            color: #1e3c72;
         }
 
         .file-upload-zone.has-file {
@@ -351,12 +351,12 @@
             display: inline-flex;
             align-items: center;
             gap: 0.35rem;
-            background: #e0f2fe;
-            border: 1px solid #0891b2;
+            background: rgba(30, 60, 114, 0.08);
+            border: 1px solid #1e3c72;
             border-radius: 8px;
             padding: 0.4rem 0.6rem;
             font-size: 0.75rem;
-            color: #0e7490;
+            color: #1e3c72;
             max-width: 200px;
             position: relative;
         }
@@ -414,7 +414,7 @@
             position: absolute;
             bottom: 8px;
             right: 8px;
-            background: linear-gradient(135deg, #60a5fa 0%, #3b82f6 100%);
+            background: linear-gradient(135deg, #1e3c72 0%, #1e3c72 100%);
             color: #fff;
             border: none;
             border-radius: 50%;
@@ -425,21 +425,21 @@
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
+            box-shadow: 0 2px 8px rgba(30, 60, 114, 0.3);
             flex-shrink: 0;
         }
 
         .btn-ask-ai:hover {
             transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
-            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            box-shadow: 0 4px 12px rgba(30, 60, 114, 0.4);
+            background: linear-gradient(135deg, #1e3c72 0%, #1e3c72 100%);
         }
 
         .btn-ask-ai:disabled {
             opacity: 0.6;
             cursor: not-allowed;
             transform: none;
-            box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
+            box-shadow: 0 2px 8px rgba(30, 60, 114, 0.3);
         }
 
         .btn-ask-ai .arrow-icon {
@@ -449,7 +449,7 @@
         }
 
         .btn-ask-ai-inline {
-            background: linear-gradient(135deg, #60a5fa 0%, #3b82f6 100%);
+            background: linear-gradient(135deg, #1e3c72 0%, #1e3c72 100%);
             color: #fff;
             border: none;
             border-radius: 50%;
@@ -466,7 +466,7 @@
 
         .btn-ask-ai-inline:hover {
             transform: scale(1.05);
-            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            background: linear-gradient(135deg, #1e3c72 0%, #1e3c72 100%);
         }
 
         .btn-ask-ai-inline:disabled {
@@ -504,9 +504,9 @@
         }
 
         .btn-attachment.has-files {
-            background: #dbeafe;
-            border-color: #3b82f6;
-            color: #2563eb;
+            background: rgba(30, 60, 114, 0.06);
+            border-color: #1e3c72;
+            color: #1e3c72;
         }
 
         .btn-attachment i {
@@ -535,8 +535,8 @@
         }
 
         .btn-attachment-inline.has-files {
-            background: #dbeafe;
-            color: #2563eb;
+            background: rgba(30, 60, 114, 0.06);
+            color: #1e3c72;
         }
 
         .btn-attachment-inline i {
@@ -576,7 +576,7 @@
             padding: 0.6rem 1rem;
             font-size: 0.85rem;
             font-weight: 700;
-            color: #1e40af;
+            color: #1e3c72;
             cursor: pointer;
             display: flex;
             justify-content: space-between;
@@ -710,8 +710,8 @@
         }
 
         /* ===============================================================
-                                                                                                                                   SETTINGS MODAL STYLES
-                                                                                                                                   =============================================================== */
+                                                                                                                                           SETTINGS MODAL STYLES
+                                                                                                                                           =============================================================== */
 
         /* Modal overlay */
         .fixed {
@@ -833,7 +833,7 @@
         }
 
         .hover\:text-primary:hover {
-            color: #2563eb;
+            color: #1e3c72;
         }
 
         /* Modal body */
@@ -929,19 +929,19 @@
         }
 
         .border-primary {
-            border-color: #2563eb;
+            border-color: #1e3c72;
         }
 
         .text-primary {
-            color: #2563eb;
+            color: #1e3c72;
         }
 
         .hover\:bg-primary\/10:hover {
-            background-color: rgba(37, 99, 235, 0.1);
+            background-color: rgba(30, 60, 114, 0.08);
         }
 
         .bg-primary {
-            background-color: #2563eb;
+            background-color: #1e3c72;
         }
 
         .text-white {
@@ -949,7 +949,7 @@
         }
 
         .hover\:bg-primary\/90:hover {
-            background-color: rgba(37, 99, 235, 0.9);
+            background-color: rgba(30, 60, 114, 0.9);
         }
 
         .pb-4 {
@@ -963,16 +963,17 @@
 
 @section('content')
     <div style="padding: 1.5rem;">
-        <!-- Sub Header -->
-        <div class="monitoring-card mb-4" style="border-left: 4px solid #5B9BD5;">
+        <!-- Header Section -->
+        <div class="monitoring-card mb-4" style="border-left: 4px solid #1e3c72;">
             <div style="padding: 1.5rem;">
                 <div class="d-flex justify-content-between align-items-center">
                     <div class="d-flex align-items-start gap-3">
-                        <i class="bi bi-file-earmark-text" style="color: #5B9BD5; font-size: 2rem;"></i>
+                        <i class="bi bi-file-earmark-text" style="color: #1e3c72; font-size: 2rem;"></i>
                         <div>
                             <h6 class="mb-1" style="font-weight: 600; color: #333;">Generate Laporan Triwulan Baru</h6>
                             <p class="text-muted mb-0" style="font-size: 0.875rem;">
-                                AI Agent akan menganalisis data kegiatan dan monitoring mutu dalam periode triwulan yang dipilih
+                                AI Agent akan menganalisis data kegiatan dan monitoring mutu dalam periode triwulan yang
+                                dipilih
                             </p>
                         </div>
                     </div>
@@ -986,10 +987,10 @@
         <div class="row">
             <div class="col-xl-11 col-lg-12 mx-auto">
                 <!-- Info Card -->
-                <div class="monitoring-card mb-4" style="border-left: 4px solid #5B9BD5;">
+                <div class="monitoring-card mb-4" style="border-left: 4px solid #1e3c72;">
                     <div style="padding: 1.5rem;">
                         <div class="d-flex align-items-start">
-                            <i class="bi bi-lightbulb" style="color: #5B9BD5; font-size: 2rem; margin-right: 1rem;"></i>
+                            <i class="bi bi-lightbulb" style="color: #1e3c72; font-size: 2rem; margin-right: 1rem;"></i>
                             <div>
                                 <h6 class="mb-2" style="font-weight: 600; color: #333;">Panduan Pembuatan Laporan</h6>
                                 <ol class="mb-0" style="font-size: 0.875rem; color: #495057; line-height: 1.8;">
@@ -1019,7 +1020,6 @@
                     <div class="monitoring-card mb-4">
                         <div class="monitoring-header">
                             <div class="d-flex align-items-center gap-2">
-                                <i class="bi bi-info-circle" style="color: #5B9BD5;"></i>
                                 <h6 class="mb-0">Informasi Laporan</h6>
                             </div>
                         </div>
@@ -1056,15 +1056,11 @@
                                             </option>
                                         @endforeach
                                     </select>
-                                    <small class="text-muted" style="font-size: 0.8rem;">
-                                        <i class="bi bi-info-circle"></i> Jika dipilih, AI akan mempelajari format dari
-                                        template ini.
-                                    </small>
                                 </div>
 
                                 <div class="col-md-12 mb-0">
                                     <button type="button" id="btn-create-draft" class="btn btn-primary">
-                                        <i class="bi bi-plus-circle"></i> Buat Laporan Draft
+                                        Buat Draf Laporan
                                     </button>
                                     <small class="text-muted d-block mt-2" style="font-size: 0.8rem;">
                                         <i class="bi bi-info-circle"></i> Klik tombol ini terlebih dahulu untuk membuat
@@ -1078,8 +1074,7 @@
                     <div class="monitoring-card mb-4" id="ai-prompt-section" style="overflow: hidden;">
                         <div class="monitoring-header">
                             <div class="d-flex align-items-center gap-2">
-                                <i class="bi bi-pencil-square" style="color: #5B9BD5;"></i>
-                                <h6 class="mb-0">Instruksi & Referensi Laporan</h6>
+                                <h6 class="mb-0">Instruksi dan Referensi Laporan</h6>
                             </div>
                         </div>
                         <div style="padding: 1.5rem;">
@@ -1115,7 +1110,7 @@
                                 .ai-assistant-icon {
                                     width: 40px;
                                     height: 40px;
-                                    background: #2563eb;
+                                    background: #1e3c72;
                                     border-radius: 8px;
                                     display: flex;
                                     align-items: center;
@@ -1132,8 +1127,8 @@
                                 }
 
                                 .ai-assistant-badge {
-                                    background: #1e40af;
-                                    color: #60a5fa;
+                                    background: #1e3c72;
+                                    color: #ffffff;
                                     padding: 0.25rem 0.75rem;
                                     border-radius: 4px;
                                     font-size: 0.7rem;
@@ -1166,7 +1161,7 @@
                                 .ai-assistant-btn-icon:focus,
                                 .ai-assistant-btn-send:focus {
                                     outline: none;
-                                    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.3);
+                                    box-shadow: 0 0 0 2px rgba(30, 60, 114, 0.3);
                                 }
 
                                 .ai-assistant-btn-icon:active,
@@ -1192,12 +1187,12 @@
                                 }
 
                                 .ai-assistant-messages::-webkit-scrollbar-thumb {
-                                    background: rgba(37, 99, 235, 0.3);
+                                    background: rgba(30, 60, 114, 0.3);
                                     border-radius: 10px;
                                 }
 
                                 .ai-assistant-messages::-webkit-scrollbar-thumb:hover {
-                                    background: rgba(37, 99, 235, 0.5);
+                                    background: rgba(30, 60, 114, 0.5);
                                 }
 
                                 .ai-message-wrapper {
@@ -1210,7 +1205,7 @@
                                 .ai-message-avatar {
                                     width: 40px;
                                     height: 40px;
-                                    background: #2563eb;
+                                    background: #1e3c72;
                                     border-radius: 50%;
                                     display: flex;
                                     align-items: center;
@@ -1261,7 +1256,7 @@
                                 }
 
                                 .ai-assistant-btn-send {
-                                    background: #2563eb;
+                                    background: #1e3c72;
                                     border: none;
                                     color: white;
                                     width: 40px;
@@ -1275,7 +1270,7 @@
                                 }
 
                                 .ai-assistant-btn-send:hover {
-                                    background: #1d4ed8;
+                                    background: #1e3c72;
                                 }
 
                                 .ai-assistant-footer-text {
@@ -1350,7 +1345,7 @@
 
                                     <!-- OCR Processing Status -->
                                     <div id="ocr-processing-status"
-                                        style="display: none; margin-top: 0.75rem; padding: 0.75rem; background: #f0f9ff; border: 1px solid #0ea5e9; border-radius: 8px; font-size: 0.875rem; color: #0369a1;">
+                                        style="display: none; margin-top: 0.75rem; padding: 0.75rem; background: #f7fafc; border: 1px solid #1e3c72; border-radius: 8px; font-size: 0.875rem; color: #1e3c72;">
                                         <i class="bi bi-hourglass-split me-2"></i>
                                         <strong>Memproses OCR...</strong> Mengekstrak teks dari gambar yang Anda upload.
                                     </div>
@@ -1359,12 +1354,7 @@
                         </div>
                     </div>
 
-                    <!-- Bottom action -->
-                    <div class="d-flex justify-content-start gap-2 mb-4">
-                        <a href="{{ route('gjm.buat-laporan.index') }}" class="btn btn-outline-secondary">
-                            <i class="bi bi-x-circle"></i> Batal
-                        </a>
-                    </div>
+                    <!-- Bottom action removed -->
                 </form>
             </div>
         </div>
@@ -1738,7 +1728,7 @@
                         if (data.validation_error) {
                             // Show validation error with better formatting
                             const errorMessage = data.message.replace(/\n/g, '<br>');
-                            
+
                             appendAIMessage(`
                                 <div style="background:#fef2f2;border-left:4px solid #dc2626;padding:16px;border-radius:8px;margin:8px 0;">
                                     <p style="color:#dc2626;margin:0 0 12px 0;font-weight:600;font-size:16px;">
@@ -1758,15 +1748,16 @@
                                     </p>
                                 </div>
                             `);
-                            
+
                             // Clear the invalid images
                             selectedOCRImages = [];
                             updateAllAttachmentsDisplay();
-                            
+
                             // Also clear prompt input to prevent user from sending without valid images
                             promptInput.value = '';
-                            promptInput.placeholder = '⚠️ Upload gambar yang relevan terlebih dahulu sebelum chat dengan AI';
-                            
+                            promptInput.placeholder =
+                                '⚠️ Upload gambar yang relevan terlebih dahulu sebelum chat dengan AI';
+
                             return false;
                         } else {
                             appendAIMessage(`<strong>❌ OCR Error:</strong> ${data.message}`);
@@ -1988,7 +1979,8 @@
                 let requestedPart = modifyMatch[2].trim().toUpperCase();
                 // Remove trailing modifiers
                 requestedPart = requestedPart.replace(
-                    /\s+(AGAR|LEBIH|BAGUS|DETAIL|LENGKAP|FORMAL|PROFESIONAL|KOMPREHENSIF|JADI|MENJADI|DENGAN|SUPAYA|BIAR).*$/i, ''
+                    /\s+(AGAR|LEBIH|BAGUS|DETAIL|LENGKAP|FORMAL|PROFESIONAL|KOMPREHENSIF|JADI|MENJADI|DENGAN|SUPAYA|BIAR).*$/i,
+                    ''
                 ).trim();
 
                 // Find the best matching section name
@@ -2021,7 +2013,8 @@
                     const sectionCount = sectionMatches ? sectionMatches.length : 0;
 
                     if (sectionCount >= 5) {
-                        console.log('[SmartMerge] Found full draft at history index', i, 'with', sectionCount, 'sections');
+                        console.log('[SmartMerge] Found full draft at history index', i, 'with', sectionCount,
+                            'sections');
                         return msg.content;
                     }
                 }
@@ -2031,7 +2024,8 @@
                     const sectionMatches = currentPreviewText.match(/^# [A-Z][A-Z\s]+$/gm);
                     const sectionCount = sectionMatches ? sectionMatches.length : 0;
                     if (sectionCount >= 5) {
-                        console.log('[SmartMerge] Using currentPreviewText as full draft with', sectionCount, 'sections');
+                        console.log('[SmartMerge] Using currentPreviewText as full draft with', sectionCount,
+                            'sections');
                         return currentPreviewText;
                     }
                 }
@@ -2053,18 +2047,27 @@
                 const match = response.match(pattern);
 
                 if (match) {
-                    return { title: match[1].trim(), content: match[2].trim() };
+                    return {
+                        title: match[1].trim(),
+                        content: match[2].trim()
+                    };
                 }
 
                 // Fallback: if AI returned only one section or bare text
                 const allSections = parseMarkdownSections(response);
                 if (allSections.length === 1) {
-                    return { title: allSections[0].title.trim(), content: allSections[0].content.trim() };
+                    return {
+                        title: allSections[0].title.trim(),
+                        content: allSections[0].content.trim()
+                    };
                 }
 
                 // If no sections found at all, treat entire response as the section content
                 if (allSections.length === 0 && response.trim().length > 0) {
-                    return { title: sectionName, content: response.trim() };
+                    return {
+                        title: sectionName,
+                        content: response.trim()
+                    };
                 }
 
                 return null;
@@ -2075,7 +2078,10 @@
              * Replaces the matching section in fullDraft with the new content.
              */
             function mergeSectionIntoDraft(fullDraft, modifiedSection) {
-                const { title, content } = modifiedSection;
+                const {
+                    title,
+                    content
+                } = modifiedSection;
                 const escapedTitle = title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
                 // Try to find and replace the section
@@ -2113,7 +2119,8 @@
                 const responseSections = parseMarkdownSections(aiResponse);
                 if (responseSections.length >= 5) {
                     // AI already returned a full draft (all sections), no merge needed
-                    console.log('[SmartMerge] AI returned full draft (' + responseSections.length + ' sections), no merge needed');
+                    console.log('[SmartMerge] AI returned full draft (' + responseSections.length +
+                        ' sections), no merge needed');
                     return aiResponse;
                 }
 
@@ -2133,7 +2140,8 @@
 
                 console.log('[SmartMerge] Merging section "' + extracted.title + '" into full draft');
                 const merged = mergeSectionIntoDraft(lastFullDraft, extracted);
-                console.log('[SmartMerge] Merge complete. Sections in merged:', parseMarkdownSections(merged).length);
+                console.log('[SmartMerge] Merge complete. Sections in merged:', parseMarkdownSections(merged)
+                    .length);
                 return merged;
             }
 
@@ -2171,13 +2179,14 @@
                     const template = document.getElementById('template_id').value;
                     if (template) formData.append('template_id', template);
 
-                    const response = await fetch('{{ route('gjm.buat-laporan.triwulan.create-draft') }}', {
-                        method: 'POST',
-                        body: formData,
-                        headers: {
-                            'Accept': 'application/json',
-                        },
-                    });
+                    const response = await fetch(
+                        '{{ route('gjm.buat-laporan.triwulan.create-draft') }}', {
+                            method: 'POST',
+                            body: formData,
+                            headers: {
+                                'Accept': 'application/json',
+                            },
+                        });
 
                     const data = await response.json();
 
@@ -2235,7 +2244,7 @@
                 const hasFiles = selectedFiles.length > 0 || selectedOCRImages.length > 0;
                 const hasOCRText = ocrExtractedText && ocrExtractedText.length > 0;
                 const hasConversation = conversationHistory.length > 0;
-                
+
                 console.log('🔍 VALIDATION CHECK:', {
                     prompt: prompt,
                     promptLength: prompt.length,
@@ -2272,7 +2281,7 @@
                             </p>
                         </div>
                     `);
-                    
+
                     // Focus to attachment button or input
                     setTimeout(() => {
                         const attachBtn = document.getElementById('btn-attachment');
@@ -2295,7 +2304,7 @@
                                     <i class="bi bi-exclamation-triangle-fill"></i> INSTRUKSI WAJIB DIISI!
                                 </p>
                                 <p style="color:#dc2626;margin:10px 0 0 0;line-height:1.6;">
-                                    Anda telah mengupload <strong>${selectedFiles.length + selectedOCRImages.length} file</strong>, 
+                                    Anda telah mengupload <strong>${selectedFiles.length + selectedOCRImages.length} file</strong>,
                                     tetapi belum memberikan instruksi.
                                 </p>
                                 <p style="color:#dc2626;margin:10px 0 0 0;line-height:1.6;">
@@ -2311,7 +2320,7 @@
                                 </p>
                             </div>
                         `);
-                        
+
                         // Focus back to input
                         setTimeout(() => {
                             promptInput.focus();
@@ -2326,7 +2335,7 @@
                                 </p>
                             </div>
                         `);
-                        
+
                         // Focus back to input
                         setTimeout(() => {
                             promptInput.focus();
@@ -2337,7 +2346,8 @@
 
                 // VALIDATION 3: Instruction too short
                 if (prompt && prompt.length < 5) {
-                    console.warn('❌ VALIDATION FAILED: Instruction too short (' + prompt.length + ' chars)');
+                    console.warn('❌ VALIDATION FAILED: Instruction too short (' + prompt.length +
+                        ' chars)');
                     appendAIMessage(`
                         <div style="background:#fee2e2;border-left:4px solid #dc2626;padding:15px;border-radius:6px;">
                             <p style="color:#dc2626;margin:0;font-weight:700;">
@@ -2357,14 +2367,14 @@
                             </ul>
                         </div>
                     `);
-                    
+
                     // Focus back to input
                     setTimeout(() => {
                         promptInput.focus();
                     }, 100);
                     return;
                 }
-                
+
                 console.log('✅ VALIDATION PASSED: Proceeding with request');
 
                 // Tangkap file yang dipilih sebelum OCR memproses (karena OCR akan clear selectedOCRImages)
@@ -2383,7 +2393,8 @@
                 const template = document.getElementById('template_id').value;
 
                 // Tampilkan bubble pesan user (dengan file yang sudah dipilih sebelumnya)
-                appendUserMessage(prompt || '(File dikirim)', allFilesForBubble.length > 0 ? allFilesForBubble : null);
+                appendUserMessage(prompt || '(File dikirim)', allFilesForBubble.length > 0 ?
+                    allFilesForBubble : null);
                 promptInput.value = '';
                 promptInput.style.height = 'auto';
                 promptInput.placeholder = 'Ketik instruksi Anda...';
@@ -2392,17 +2403,17 @@
                 const currentFiles = [...selectedFiles]; // Simpan referensi file untuk request
                 const currentOCRImages = [...selectedOCRImages];
                 const currentOCRText = ocrExtractedText;
-                
+
                 selectedFiles = [];
                 selectedOCRImages = [];
                 ocrExtractedText = '';
-                
+
                 // Reset file inputs
                 const fileInput = document.getElementById('file_referensi_triwulan');
                 const ocrInput = document.getElementById('ocr_images_triwulan');
                 if (fileInput) fileInput.value = '';
                 if (ocrInput) ocrInput.value = '';
-                
+
                 // Update display to hide attachment chips
                 updateAllAttachmentsDisplay();
                 toggleSendButton();
@@ -2425,7 +2436,8 @@
                     if (conversationHistory.length > 0) {
                         conversationHistory.forEach((msg, index) => {
                             formData.append(`conversation_history[${index}][role]`, msg.role);
-                            formData.append(`conversation_history[${index}][content]`, msg.content);
+                            formData.append(`conversation_history[${index}][content]`, msg
+                                .content);
                         });
                     }
 
@@ -2456,7 +2468,9 @@
                             });
                     } catch (fetchErr) {
                         if (fetchErr.name === 'AbortError') {
-                            throw new Error('⏱️ Request timeout (>2 menit). Server AI sedang sibuk. Coba kurangi ukuran file atau coba lagi nanti.');
+                            throw new Error(
+                                '⏱️ Request timeout (>2 menit). Server AI sedang sibuk. Coba kurangi ukuran file atau coba lagi nanti.'
+                            );
                         }
                         throw fetchErr;
                     } finally {

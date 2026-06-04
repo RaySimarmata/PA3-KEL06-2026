@@ -16,9 +16,11 @@ use Illuminate\Support\Facades\Cache;
 
 class DashboardController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
         $user = Auth::user();
+        $semester = $request->input('semester');
+        $tahun = $request->input('tahun');
 
         // Statistik untuk dashboard GKM
         // Status Upload Materi
@@ -52,7 +54,95 @@ class DashboardController extends Controller
 
         $periode = date('F Y');
 
-        return view('gkm.dashboard.index', compact('user', 'stats', 'periode', 'totalQuestionnaires', 'totalMonthlyReports'));
+        // Analytics data
+        $cacheKey = 'gkm_dashboard_analytics_' . ($user->prodi_id ?? 'all') . '_' . ($semester ?? 'all') . '_' . ($tahun ?? 'all');
+
+        $dashboardData = Cache::remember($cacheKey, now()->addMinutes(30), function () use ($user, $semester, $tahun) {
+            $query = PerkuliahanMonitoringDetail::query();
+
+            $prodiKode = $user->prodi ? $user->prodi->kode_prodi : null;
+
+            if (!empty($prodiKode)) {
+                $query->where('prodi_kode', $prodiKode);
+            } elseif ($user->prodi_id) {
+                $query->where('prodi_id', $user->prodi_id);
+            }
+
+            if (!empty($semester)) {
+                $query->where('semester', $semester);
+            }
+
+            if (!empty($tahun)) {
+                $query->where('tahun_ajaran', $tahun);
+            }
+
+            $details = $query->get();
+
+            $analyticsStats = [
+                'total_records' => $details->count(),
+                'total_mata_kuliah' => $details->pluck('kode_mk')->unique()->count(),
+                'total_dosen' => $details->pluck('nama_dosen')->unique()->count(),
+                'avg_kepatuhan' => round($details->avg('persentase_kepatuhan') ?? 0, 2),
+                'jumlah_terlambat' => $details->sum('jumlah_terlambat'),
+                'jumlah_belum_upload' => $details->sum('jumlah_belum_upload'),
+                'total_upload' => $details->sum('jumlah_upload'),
+            ];
+
+            $groupByTingkat = $details->groupBy('tingkat')->map(function ($items) {
+                return round($items->avg('persentase_kepatuhan') ?? 0, 2);
+            });
+
+            // Group by semester only (Semester 1 and Semester 2)
+            $trendSemester = $details->groupBy('semester')->map(function ($items, $key) {
+                return round($items->avg('persentase_kepatuhan') ?? 0, 2);
+            })->sortKeys();
+
+            $totalDetails = $details->count();
+            $statusDistribution = $details->groupBy('status_kepatuhan')->map(function ($items) use ($totalDetails) {
+                return $totalDetails ? round(($items->count() / $totalDetails) * 100) : 0;
+            });
+
+            $courseGroups = $details->groupBy('kode_mk')->map(function ($items) {
+                return [
+                    'kode_mk' => $items->first()->kode_mk,
+                    'nama_matkul' => $items->first()->nama_matkul,
+                    'dosen' => $items->first()->nama_dosen,
+                    'avg_kepatuhan' => round($items->avg('persentase_kepatuhan') ?? 0, 2),
+                    'total_upload' => $items->sum('jumlah_upload'),
+                    'total_belum_upload' => $items->sum('jumlah_belum_upload'),
+                    'status_kepatuhan' => $items->first()->status_kepatuhan,
+                ];
+            });
+
+            $topCourses = $courseGroups->sortByDesc('avg_kepatuhan')->take(5)->values();
+            $bottomCourses = $courseGroups->sortBy('avg_kepatuhan')->take(5)->values();
+
+            $listTahun = PerkuliahanMonitoringDetail::select('tahun_ajaran')
+                ->distinct()
+                ->orderBy('tahun_ajaran')
+                ->pluck('tahun_ajaran');
+
+            $listSemester = PerkuliahanMonitoringDetail::select('semester')
+                ->distinct()
+                ->orderBy('semester')
+                ->pluck('semester');
+
+            return compact(
+                'analyticsStats',
+                'groupByTingkat',
+                'trendSemester',
+                'statusDistribution',
+                'topCourses',
+                'bottomCourses',
+                'listTahun',
+                'listSemester'
+            );
+        });
+
+        return view('gkm.dashboard.index', array_merge(
+            compact('user', 'stats', 'periode', 'totalQuestionnaires', 'totalMonthlyReports', 'semester', 'tahun'),
+            $dashboardData
+        ));
     }
 
     public function analytics(Request $request)
@@ -98,9 +188,8 @@ class DashboardController extends Controller
                 return round($items->avg('persentase_kepatuhan') ?? 0, 2);
             });
 
-            $trendSemester = $details->groupBy(function ($item) {
-                return trim($item->tahun_ajaran) . ' S' . trim($item->semester);
-            })->map(function ($items) {
+            // Group by semester only (Semester 1 and Semester 2)
+            $trendSemester = $details->groupBy('semester')->map(function ($items, $key) {
                 return round($items->avg('persentase_kepatuhan') ?? 0, 2);
             })->sortKeys();
 

@@ -7,25 +7,27 @@
 
     {{-- ALERT --}}
     @if(session('success'))
-        <div class="alert alert-success alert-dismissible fade show">
-            {{ session('success') }}
-            <button class="btn-close" data-bs-dismiss="alert"></button>
+        <div class="alert-gkm success mb-4">
+            <i class="bi bi-check-circle"></i> {{ session('success') }}
         </div>
     @endif
 
     @if(session('error'))
-        <div class="alert alert-danger alert-dismissible fade show">
-            {{ session('error') }}
-            <button class="btn-close" data-bs-dismiss="alert"></button>
+        <div class="alert-gkm danger mb-4">
+            <i class="bi bi-exclamation-triangle"></i> {{ session('error') }}
         </div>
     @endif
 
     @if($errors->any())
-        <div class="alert alert-danger alert-dismissible fade show">
-            @foreach($errors->all() as $error)
-                {{ $error }}<br>
-            @endforeach
-            <button class="btn-close" data-bs-dismiss="alert"></button>
+        <div class="alert-gkm danger mb-4">
+            <h6 style="font-weight: 600; margin-bottom: 0.5rem;">
+                <i class="bi bi-exclamation-triangle"></i> Terjadi Kesalahan
+            </h6>
+            <ul class="mb-0" style="font-size: 0.875rem;">
+                @foreach($errors->all() as $error)
+                    <li>{{ $error }}</li>
+                @endforeach
+            </ul>
         </div>
     @endif
 
@@ -37,12 +39,12 @@
 
                 {{-- TAHUN --}}
                 <div class="col-md-3">
-                    <label class="form-label">Tahun Ajaran</label>
+                    <label class="filter-label">Tahun Ajaran</label>
                     <select name="ta" class="form-select" required>
                         <option value="">Pilih Tahun</option>
                         @foreach($tahunList as $tahun)
                             <option value="{{ $tahun }}" {{ (int)$ta === (int)$tahun ? 'selected' : '' }}>
-                                {{ $tahun }}
+                                {{ $tahun }}/{{ $tahun + 1 }}
                             </option>
                         @endforeach
                     </select>
@@ -50,7 +52,7 @@
 
                 {{-- SEMESTER --}}
                 <div class="col-md-3">
-                    <label class="form-label">Semester</label>
+                    <label class="filter-label">Semester</label>
                     <select name="semester" class="form-select" required>
                         <option value="">Pilih Semester</option>
                         <option value="1" {{ ($semester ?? $semesterAktif) == 1 ? 'selected' : '' }}>
@@ -64,7 +66,7 @@
 
                 {{-- TINGKAT --}}
                 <div class="col-md-3">
-                    <label class="form-label">Tingkat</label>
+                    <label class="filter-label">Tingkat</label>
                     <select name="tingkat" class="form-select">
                         <option value="">Semua Tingkat</option>
                         <option value="1" {{ request('tingkat') == '1' ? 'selected' : '' }}>Tingkat 1</option>
@@ -76,8 +78,8 @@
 
                 {{-- BUTTON FILTER --}}
                 <div class="col-md-3">
-                    <button class="btn btn-primary w-100">
-                        <i class="bi bi-funnel"></i> Tampilkan Mata Kuliah
+                    <button type="submit" class="btn btn-primary w-100" style="padding: 0.6rem;">
+                        <i class="bi bi-search"></i> Tampilkan Data
                     </button>
                 </div>
 
@@ -85,25 +87,38 @@
         </form>
 
         {{-- BUTTON ANALISIS SEMUA --}}
-        <div class="mt-3">
-            <form action="{{ route('gkm.monitoring-kuesioner.sync-semester') }}" method="POST">
-                @csrf
-                <input type="hidden" name="ta" value="{{ $ta }}">
-                <input type="hidden" name="semester" value="{{ $semester }}">
-                <input type="hidden" name="tingkat" value="{{ request('tingkat') }}">
-                
-                <button type="submit" class="btn btn-success">
-                    <i class="bi bi-cpu"></i> Analisis Semua Kuesioner
-                </button>
-            </form>
-        </div>
+        @if(count($list) > 0)
+            <div class="mt-3 pt-3 border-top">
+                <form action="{{ route('gkm.monitoring-kuesioner.sync-semester') }}" method="POST" 
+                      onsubmit="return confirm('Yakin ingin menganalisis semua kuesioner? Proses ini membutuhkan waktu.')">
+                    @csrf
+                    <input type="hidden" name="ta" value="{{ $ta }}">
+                    <input type="hidden" name="semester" value="{{ $semester }}">
+                    <input type="hidden" name="tingkat" value="{{ request('tingkat') }}">
+                    
+                    <button type="submit" class="btn-analisis-semua">
+                        <i class="bi bi-cpu"></i> Analisis Semua Kuesioner
+                    </button>
+                    <a href="{{ route('gkm.monitoring-kuesioner.index') }}" class="btn-kembali-api ms-2">
+                        <i class="bi bi-arrow-left"></i> Kembali
+                    </a>
+                </form>
+            </div>
+        @endif
     </div>
 
     {{-- TABLE --}}
     <div class="monitoring-card">
         <div class="monitoring-header">
-            <i class="bi bi-book"></i>
+            <i class="bi bi-list-ul" style="color: #5B9BD5;"></i>
             <h6>Daftar Mata Kuliah</h6>
+            @if(count($list) > 0)
+                <div style="margin-left: auto;">
+                    <span class="badge-gkm info" style="font-size: 0.9rem;">
+                        {{ count($list) }} Mata Kuliah
+                    </span>
+                </div>
+            @endif
         </div>
 
         <div class="table-responsive">
@@ -113,18 +128,18 @@
                         <tr>
                             <th style="width: 8%;">No</th>
                             <th style="width: 15%;">Kode MK</th>
+                            <th style="width: 10%;">TA</th>
                             <th>Nama Mata Kuliah</th>
-                            <th style="width: 15%;">Aksi</th>
+                            <th style="width: 15%;" class="text-center">Aksi</th>
                         </tr>
                     </thead>
                     <tbody>
                         @foreach($list as $i => $item)
                             <tr>
                                 <td class="text-center">{{ $i + 1 }}</td>
+                                <td class="code-mk">{{ $item['kode_mk'] }}</td>
                                 <td>
-                                    <strong>{{ $item['kode_mk'] }}</strong>
-                                    <br>
-                                    <small class="text-muted">TA: {{ $item['ta'] }}</small>
+                                    <span class="badge-gkm primary">{{ $item['ta'] }}/{{ $item['ta'] + 1 }}</span>
                                 </td>
                                 <td>{{ $item['nama_mk'] }}</td>
                                 <td class="text-center">
@@ -132,7 +147,7 @@
                                         'kode_mk' => $item['kode_mk'],
                                         'ta' => $item['ta']
                                     ]) }}" 
-                                    class="btn btn-primary btn-sm">
+                                    class="btn btn-sm btn-lihat-kuesioner-api">
                                         <i class="bi bi-list-ul"></i> Lihat Kuesioner
                                     </a>
                                 </td>
@@ -141,9 +156,9 @@
                     </tbody>
                 </table>
             @else
-                <div class="text-center text-muted py-5">
-                    <i class="bi bi-inbox" style="font-size: 3rem;"></i>
-                    <p class="mt-3 mb-0">Belum ada data ditampilkan</p>
+                <div class="empty-state">
+                    <i class="bi bi-inbox"></i>
+                    <p>Belum ada data ditampilkan</p>
                     <small>Silakan pilih Tahun Ajaran dan Semester terlebih dahulu</small>
                 </div>
             @endif
@@ -151,4 +166,75 @@
     </div>
 
 </div>
+
+<style>
+    /* Tombol Lihat Kuesioner - Biru Tua, tidak berubah saat hover */
+    .btn-lihat-kuesioner-api {
+        background-color: #2c5282 !important;
+        border-color: #2c5282 !important;
+        color: white !important;
+        transition: none !important;
+    }
+
+    .btn-lihat-kuesioner-api:hover,
+    .btn-lihat-kuesioner-api:focus,
+    .btn-lihat-kuesioner-api:active,
+    .btn-lihat-kuesioner-api:active:focus {
+        background-color: #2c5282 !important;
+        border-color: #2c5282 !important;
+        color: white !important;
+        box-shadow: none !important;
+        transform: none !important;
+    }
+
+    /* Tombol Analisis Semua - Hijau, tidak berubah saat hover */
+    .btn-analisis-semua {
+        background-color: #198754 !important;
+        border: 1px solid #198754 !important;
+        color: white !important;
+        padding: 0.375rem 0.75rem;
+        border-radius: 0.25rem;
+        font-size: 1rem;
+        transition: none !important;
+        cursor: pointer;
+        display: inline-block;
+    }
+
+    .btn-analisis-semua:hover,
+    .btn-analisis-semua:focus,
+    .btn-analisis-semua:active,
+    .btn-analisis-semua:active:focus {
+        background-color: #198754 !important;
+        border-color: #198754 !important;
+        color: white !important;
+        box-shadow: none !important;
+        transform: none !important;
+    }
+
+    /* Tombol Kembali - Abu-abu, tidak berubah saat hover */
+    .btn-kembali-api {
+        background-color: #6c757d !important;
+        border: 1px solid #6c757d !important;
+        color: white !important;
+        padding: 0.375rem 0.75rem;
+        border-radius: 0.25rem;
+        font-size: 1rem;
+        transition: none !important;
+        text-decoration: none;
+        display: inline-block;
+    }
+
+    .btn-kembali-api:hover,
+    .btn-kembali-api:focus,
+    .btn-kembali-api:active,
+    .btn-kembali-api:active:focus,
+    .btn-kembali-api:visited {
+        background-color: #6c757d !important;
+        border-color: #6c757d !important;
+        color: white !important;
+        box-shadow: none !important;
+        transform: none !important;
+        text-decoration: none;
+    }
+</style>
 @endsection

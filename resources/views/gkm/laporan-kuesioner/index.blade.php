@@ -47,8 +47,12 @@
                 <i class="bi bi-file-earmark-text" style="color: #5B9BD5;"></i>
                 <h6>Laporan Kuesioner Bulanan</h6>
                 <div style="margin-left: auto; display: flex; gap: 0.5rem;">
-                    <a href="{{ route('gkm.laporan-kuesioner.template.index') }}" class="btn btn-sm btn-outline-primary">
-                        <i class="bi bi-file-earmark-text"></i> Kelola Template
+                    <a href="{{ route('gkm.laporan-kuesioner.template.index') }}" 
+                       class="btn btn-sm btn-success" 
+                       style="background-color: #28a745; border-color: #28a745; transition: none;"
+                       onmouseover="this.style.backgroundColor='#28a745'; this.style.borderColor='#28a745';"
+                       onmouseout="this.style.backgroundColor='#28a745'; this.style.borderColor='#28a745';">
+                        <i class="bi bi-file-earmark-text" style="color: white;"></i> Kelola Template
                     </a>
                     <a href="{{ route('gkm.laporan-kuesioner.create') }}" class="btn-reminder">
                         <i class="bi bi-plus-circle"></i>

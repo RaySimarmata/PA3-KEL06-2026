@@ -56,7 +56,7 @@
             text-decoration: none;
             transition: transform 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease;
             box-shadow: 0 8px 20px rgba(30, 60, 114, 0.12);
-            color: #ffffff; /* enforce white text for all action buttons */
+            color: #ffffff;
         }
 
         .dashboard-shell .action-btn:hover {
@@ -83,7 +83,7 @@
             align-items: flex-start;
             gap: 0.15rem;
             min-width: 0;
-            color: #ffffff; /* ensure title/subtitle inherit white */
+            color: #ffffff;
         }
 
         .dashboard-shell .action-btn .action-title {
@@ -117,13 +117,22 @@
             color: #fff;
         }
 
-        .dashboard-shell .action-btn.info-bright {
-            background: linear-gradient(135deg, #10bfe8 0%, #22c5eb 100%);
-            color: #ffffff;
+        .dashboard-shell .action-btn.success-gradient {
+            background: linear-gradient(135deg, #28a745 0%, #34ce57 100%);
+            color: #fff;
         }
 
-        .dashboard-shell .action-btn.info-bright:hover {
-            color: #ffffff;
+        .dashboard-shell .action-btn.success-gradient:hover {
+            color: #fff;
+        }
+
+        .dashboard-shell .action-btn.warning-gradient {
+            background: linear-gradient(135deg, #06b6d4 0%, #22d3ee 100%);
+            color: #fff;
+        }
+
+        .dashboard-shell .action-btn.warning-gradient:hover {
+            color: #fff;
         }
 
         @media (min-width: 576px) {
@@ -138,10 +147,6 @@
             }
 
             .dashboard-shell .action-item.wide {
-                grid-column: span 3;
-            }
-
-            .dashboard-shell .action-item.analytics {
                 grid-column: span 3;
             }
         }
@@ -211,7 +216,7 @@
                 </div>
 
                 <div class="action-item">
-                    <a href="{{ route('gkm.laporan-kuesioner.create') }}" class="action-btn primary-dark">
+                    <a href="{{ route('gkm.laporan-kuesioner.create') }}" class="action-btn primary-soft">
                         <span class="action-icon"><i class="bi bi-file-earmark-text"></i></span>
                         <span class="action-text">
                             <span class="action-title">Generate Laporan Kuesioner</span>
@@ -221,7 +226,7 @@
                 </div>
 
                 <div class="action-item">
-                    <a href="{{ route('gkm.monitoring-rps.ceklist') }}" class="action-btn primary-soft">
+                    <a href="{{ route('gkm.monitoring-rps.ceklist') }}" class="action-btn success-gradient">
                         <span class="action-icon"><i class="bi bi-send"></i></span>
                         <span class="action-text">
                             <span class="action-title">Kirim Reminder RPS</span>
@@ -231,7 +236,7 @@
                 </div>
 
                 <div class="action-item">
-                    <a href="{{ route('gkm.monitoring-perkuliahan.kirim-pengingat') }}" class="action-btn primary-soft">
+                    <a href="{{ route('gkm.monitoring-perkuliahan.kirim-pengingat') }}" class="action-btn warning-gradient">
                         <span class="action-icon"><i class="bi bi-send"></i></span>
                         <span class="action-text">
                             <span class="action-title">Kirim Reminder Materi</span>
@@ -239,15 +244,169 @@
                         </span>
                     </a>
                 </div>
+            </div>
+        </div>
 
-                <div class="action-item analytics">
-                    <a href="{{ route('gkm.dashboard.analytics') }}" class="action-btn info-bright">
-                        <span class="action-icon"><i class="bi bi-graph-up"></i></span>
-                        <span class="action-text">
-                            <span class="action-title">Analytics Monitoring</span>
-                            <span class="action-subtitle">Lihat tren dan performa monitoring</span>
-                        </span>
-                    </a>
+        <!-- Analytics Section -->
+        <div class="content-card mb-4">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h6 class="mb-0 font-semibold">Analytics Monitoring</h6>
+                <span class="badge bg-primary">Analitik</span>
+            </div>
+            
+            <!-- Filter -->
+            <form method="GET" class="mb-4">
+                <div class="row g-3 align-items-end">
+                    <div class="col-md-4">
+                        <label class="filter-label">Tahun Akademik</label>
+                        <select name="tahun" class="form-select">
+                            <option value="">Semua Tahun</option>
+                            @if(isset($listTahun))
+                                @foreach($listTahun as $item)
+                                    <option value="{{ $item }}" {{ $tahun == $item ? 'selected' : '' }}>{{ $item }}</option>
+                                @endforeach
+                            @endif
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="filter-label">Semester</label>
+                        <select name="semester" class="form-select">
+                            <option value="">Semua Semester</option>
+                            @if(isset($listSemester))
+                                @foreach($listSemester as $item)
+                                    <option value="{{ $item }}" {{ $semester == $item ? 'selected' : '' }}>{{ $item }}</option>
+                                @endforeach
+                            @endif
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <button class="btn btn-primary w-100" type="submit">
+                            <i class="bi bi-search me-1"></i> Cari
+                        </button>
+                    </div>
+                </div>
+            </form>
+
+            <!-- Stats Cards -->
+            <div class="row mb-4">
+                <div class="col-lg-3 col-md-6 mb-3">
+                    <div class="stats-card" style="border-left: 4px solid #0d6efd;">
+                        <small class="text-muted">Rata-rata Kepatuhan</small>
+                        <h2 class="fw-bold text-primary mt-2">{{ $analyticsStats['avg_kepatuhan'] ?? 0 }}%</h2>
+                    </div>
+                </div>
+                <div class="col-lg-3 col-md-6 mb-3">
+                    <div class="stats-card" style="border-left: 4px solid #28a745;">
+                        <small class="text-muted">Total Mata Kuliah</small>
+                        <h2 class="fw-bold text-success mt-2">{{ $analyticsStats['total_mata_kuliah'] ?? 0 }}</h2>
+                    </div>
+                </div>
+                <div class="col-lg-3 col-md-6 mb-3">
+                    <div class="stats-card" style="border-left: 4px solid #ffc107;">
+                        <small class="text-muted">Total Dosen</small>
+                        <h2 class="fw-bold text-warning mt-2">{{ $analyticsStats['total_dosen'] ?? 0 }}</h2>
+                    </div>
+                </div>
+                <div class="col-lg-3 col-md-6 mb-3">
+                    <div class="stats-card" style="border-left: 4px solid #dc3545;">
+                        <small class="text-muted">Belum Upload</small>
+                        <h2 class="fw-bold text-danger mt-2">{{ $analyticsStats['jumlah_belum_upload'] ?? 0 }}</h2>
+                    </div>
+                </div>
+            </div>
+
+            @if(($analyticsStats['total_records'] ?? 0) === 0)
+                <div class="alert alert-warning mb-4">Tidak ada data monitoring perkuliahan untuk filter yang dipilih.</div>
+            @endif
+
+            <!-- Charts Row -->
+            <div class="row mb-4">
+                <div class="col-lg-8 mb-3">
+                    <div class="stats-card">
+                        <h6 class="fw-semibold mb-3">Kepatuhan per Tingkat</h6>
+                        <canvas id="chartTingkat" height="120"></canvas>
+                    </div>
+                </div>
+                <div class="col-lg-4 mb-3">
+                    <div class="stats-card">
+                        <h6 class="fw-semibold mb-3">Distribusi Status</h6>
+                        <canvas id="chartStatus" height="220"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Trend Chart -->
+            <div class="stats-card mb-4">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h6 class="fw-semibold mb-0">Trend Kepatuhan</h6>
+                    <span class="badge bg-success">Trend</span>
+                </div>
+                <canvas id="trendChart" height="80"></canvas>
+            </div>
+
+            <!-- Top & Bottom Courses -->
+            <div class="row">
+                <div class="col-lg-6 mb-3">
+                    <div class="stats-card">
+                        <h6 class="fw-semibold mb-3 text-success">Top Mata Kuliah</h6>
+                        <div class="table-responsive">
+                            <table class="table table-borderless align-middle mb-0">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Kode MK</th>
+                                        <th>Nama Mata Kuliah</th>
+                                        <th>Kepatuhan</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @if(isset($topCourses) && count($topCourses) > 0)
+                                        @foreach($topCourses as $item)
+                                        <tr>
+                                            <td>{{ $item['kode_mk'] }}</td>
+                                            <td>{{ $item['nama_matkul'] }}</td>
+                                            <td>{{ $item['avg_kepatuhan'] }}%</td>
+                                        </tr>
+                                        @endforeach
+                                    @else
+                                        <tr>
+                                            <td colspan="3" class="text-center text-muted">Tidak ada data</td>
+                                        </tr>
+                                    @endif
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-lg-6 mb-3">
+                    <div class="stats-card">
+                        <h6 class="fw-semibold mb-3 text-danger">Mata Kuliah Perlu Perhatian</h6>
+                        <div class="table-responsive">
+                            <table class="table table-borderless align-middle mb-0">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Kode MK</th>
+                                        <th>Nama Mata Kuliah</th>
+                                        <th>Kepatuhan</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @if(isset($bottomCourses) && count($bottomCourses) > 0)
+                                        @foreach($bottomCourses as $item)
+                                        <tr>
+                                            <td>{{ $item['kode_mk'] }}</td>
+                                            <td>{{ $item['nama_matkul'] }}</td>
+                                            <td>{{ $item['avg_kepatuhan'] }}%</td>
+                                        </tr>
+                                        @endforeach
+                                    @else
+                                        <tr>
+                                            <td colspan="3" class="text-center text-muted">Tidak ada data</td>
+                                        </tr>
+                                    @endif
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -257,11 +416,11 @@
             <div class="col-md-4 mb-3">
                 <div class="content-card h-100">
                     <div class="d-flex align-items-center mb-3">
-                        <i class="bi bi-journal-richtext quick-icon" style="color: #5B9BD5;"></i>
+                        <i class="bi bi-journal-richtext quick-icon" style="color: #1e3c72;"></i>
                         <h6 class="ms-3 mb-0 font-semibold">Monitoring Materi</h6>
                     </div>
                     <p class="text-secondary mb-3">Monitor progres materi perkuliahan dan kirim pengingat</p>
-                    <a href="{{ route('gkm.monitoring-perkuliahan.index') }}" class="btn btn-outline-primary btn-sm">
+                    <a href="{{ route('gkm.monitoring-perkuliahan.index') }}" class="btn btn-sm" style="background-color: #1e3c72; color: white; border: none;">
                         Lihat Monitoring <i class="bi bi-arrow-right"></i>
                     </a>
                 </div>
@@ -270,11 +429,11 @@
             <div class="col-md-4 mb-3">
                 <div class="content-card h-100">
                     <div class="d-flex align-items-center mb-3">
-                        <i class="bi bi-clipboard-check quick-icon" style="color: #5B9BD5;"></i>
+                        <i class="bi bi-clipboard-check quick-icon" style="color: #1e3c72;"></i>
                         <h6 class="ms-3 mb-0 font-semibold">Monitoring RPS</h6>
                     </div>
                     <p class="text-secondary mb-3">Monitor status upload RPS dan materi dosen</p>
-                    <a href="{{ route('gkm.monitoring-rps.index') }}" class="btn btn-outline-primary btn-sm">
+                    <a href="{{ route('gkm.monitoring-rps.index') }}" class="btn btn-sm" style="background-color: #1e3c72; color: white; border: none;">
                         Lihat Monitoring <i class="bi bi-arrow-right"></i>
                     </a>
                 </div>
@@ -283,15 +442,203 @@
             <div class="col-md-4 mb-3">
                 <div class="content-card h-100">
                     <div class="d-flex align-items-center mb-3">
-                        <i class="bi bi-bell quick-icon" style="color: #5B9BD5;"></i>
+                        <i class="bi bi-bell quick-icon" style="color: #1e3c72;"></i>
                         <h6 class="ms-3 mb-0 font-semibold">Reminder Agent</h6>
                     </div>
                     <p class="text-secondary mb-3">Atur jadwal dan kirim reminder otomatis</p>
-                    <a href="{{ route('gkm.reminder-agent.index') }}" class="btn btn-outline-primary btn-sm">
+                    <a href="{{ route('gkm.reminder-agent.index') }}" class="btn btn-sm" style="background-color: #1e3c72; color: white; border: none;">
                         Atur Reminder <i class="bi bi-arrow-right"></i>
                     </a>
                 </div>
             </div>
         </div>
     </div>
+@endsection
+
+@section('scripts')
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    // Chart Kepatuhan per Tingkat
+    const tingkatData = @json($groupByTingkat ?? collect());
+    const tingkatLabels = Object.keys(tingkatData);
+    const tingkatValues = Object.values(tingkatData);
+
+    console.log('Tingkat Data:', tingkatData);
+    console.log('Tingkat Labels:', tingkatLabels);
+    console.log('Tingkat Values:', tingkatValues);
+
+    if (tingkatLabels.length > 0) {
+        new Chart(document.getElementById('chartTingkat'), {
+            type: 'bar',
+            data: {
+                labels: tingkatLabels,
+                datasets: [{
+                    label: 'Rata-rata Kepatuhan (%)',
+                    data: tingkatValues,
+                    backgroundColor: '#0d6efd',
+                    borderRadius: 10,
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        max: 100,
+                        ticks: {
+                            callback: function(value) {
+                                return value + '%';
+                            }
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        display: true
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                return 'Kepatuhan: ' + context.parsed.y + '%';
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    } else {
+        const canvas = document.getElementById('chartTingkat');
+        const ctx = canvas.getContext('2d');
+        ctx.font = '14px Arial';
+        ctx.fillStyle = '#6c757d';
+        ctx.textAlign = 'center';
+        ctx.fillText('Tidak ada data untuk ditampilkan', canvas.width / 2, canvas.height / 2);
+    }
+
+    // Chart Distribusi Status
+    const statusData = @json($statusDistribution ?? collect());
+    const statusLabels = Object.keys(statusData);
+    const statusValues = Object.values(statusData);
+
+    console.log('Status Data:', statusData);
+    console.log('Status Labels:', statusLabels);
+    console.log('Status Values:', statusValues);
+
+    if (statusLabels.length > 0) {
+        new Chart(document.getElementById('chartStatus'), {
+            type: 'doughnut',
+            data: {
+                labels: statusLabels,
+                datasets: [{
+                    data: statusValues,
+                    backgroundColor: ['#198754', '#ffc107', '#dc3545', '#0d6efd']
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                plugins: {
+                    legend: {
+                        position: 'bottom'
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                return context.label + ': ' + context.parsed + '%';
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    } else {
+        const canvas = document.getElementById('chartStatus');
+        const ctx = canvas.getContext('2d');
+        ctx.font = '14px Arial';
+        ctx.fillStyle = '#6c757d';
+        ctx.textAlign = 'center';
+        ctx.fillText('Tidak ada data untuk ditampilkan', canvas.width / 2, canvas.height / 2);
+    }
+
+    // Chart Trend Kepatuhan
+    const trendData = @json($trendSemester ?? collect());
+    const trendLabels = Object.keys(trendData).map(key => 'Semester ' + key);
+    const trendValues = Object.values(trendData);
+
+    console.log('Trend Data (raw):', trendData);
+    console.log('Trend Labels:', trendLabels);
+    console.log('Trend Values:', trendValues);
+    console.log('Trend Labels length:', trendLabels.length);
+    console.log('Trend Values length:', trendValues.length);
+
+    if (trendLabels.length > 0 && trendValues.length > 0) {
+        new Chart(document.getElementById('trendChart'), {
+            type: 'line',
+            data: {
+                labels: trendLabels,
+                datasets: [{
+                    label: 'Trend Kepatuhan (%)',
+                    data: trendValues,
+                    borderColor: '#198754',
+                    backgroundColor: 'rgba(25, 135, 84, 0.15)',
+                    tension: 0.4,
+                    fill: true,
+                    pointRadius: 5,
+                    pointHoverRadius: 7,
+                    pointBackgroundColor: '#198754',
+                    pointBorderColor: '#fff',
+                    pointBorderWidth: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        max: 100,
+                        ticks: {
+                            callback: function(value) {
+                                return value + '%';
+                            }
+                        }
+                    },
+                    x: {
+                        ticks: {
+                            font: {
+                                size: 12,
+                                weight: 'bold'
+                            }
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        display: true
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                return 'Kepatuhan: ' + context.parsed.y + '%';
+                            }
+                        }
+                    }
+                }
+            }
+        });
+        console.log('Trend chart created successfully');
+    } else {
+        // Jika tidak ada data, tampilkan pesan
+        const trendCanvas = document.getElementById('trendChart');
+        const ctx = trendCanvas.getContext('2d');
+        ctx.font = '16px Arial';
+        ctx.fillStyle = '#6c757d';
+        ctx.textAlign = 'center';
+        ctx.fillText('Tidak ada data trend untuk ditampilkan', trendCanvas.width / 2, trendCanvas.height / 2);
+        console.log('No trend data available');
+    }
+});
+</script>
 @endsection
