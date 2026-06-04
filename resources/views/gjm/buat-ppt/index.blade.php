@@ -8,132 +8,207 @@
     <div class="filter-card mb-4">
         <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
             <div class="d-flex align-items-start gap-3">
+                <i class="bi bi-file-ppt" style="color: #5B9BD5; font-size: 2rem;"></i>
                 <div>
                     <h5 class="mb-1" style="font-weight: 600; color: #333;">Buat PPT Baru</h5>
                     <p class="text-muted mb-0" style="font-size: 0.875rem;">Generate presentasi PowerPoint otomatis dari laporan Anda dengan AI</p>
                 </div>
+            </div>
+            <div>
+                <a href="{{ route('gjm.buat-ppt.archive') }}" class="btn btn-outline-primary btn-sm">
+                    <i class="bi bi-archive"></i> Arsip PPT
+                </a>
             </div>
         </div>
     </div>
 
     <form id="pptForm">
         @csrf
+        
+        <div class="row g-4">
+            <!-- Left Section - Pilih Laporan -->
+            <div class="col-lg-7">
+                <div class="modern-card">
+                    <div class="card-header-modern">
+                        <div class="d-flex align-items-center gap-2">
+                            <i class="bi bi-file-earmark-text-fill" style="color: #5B9BD5; font-size: 1.25rem;"></i>
+                            <h6 class="mb-0" style="font-weight: 600;">Pilih Laporan Sumber</h6>
+                        </div>
+                        <span class="badge bg-primary">{{ $laporan->total() }} Tersedia</span>
+                    </div>
+                    
+                    <div class="card-body-modern">
+                        <!-- Search Bar -->
+                        <div class="search-box mb-3">
+                            <i class="bi bi-search search-icon"></i>
+                            <input type="text" class="search-input" placeholder="Cari berdasarkan judul atau jenis laporan..." id="searchLaporan">
+                        </div>
 
-        <!-- Single Column Modern Card -->
-        <div class="modern-card">
-            <div class="card-header-modern">
-                <div class="d-flex align-items-center gap-2">
-                    <h6 class="mb-0" style="font-weight: 600;">Pilih Laporan Sumber</h6>
-                </div>
-                <span class="badge bg-primary">{{ $laporan->total() }} Tersedia</span>
-            </div>
-
-            <div class="card-body-modern">
-                <!-- Search Bar -->
-                <div class="search-box mb-3">
-                    <i class="bi bi-search search-icon"></i>
-                    <input type="text" class="search-input" placeholder="Cari berdasarkan judul atau jenis laporan..." id="searchLaporan">
-                </div>
-
-                <!-- Laporan List -->
-                <div class="laporan-scroll-container" id="laporanList">
-                    @forelse($laporan as $item)
-                    <div class="laporan-card" data-id="{{ $item->id }}" onclick="selectLaporan(this, '{{ $item->id }}', '{{ addslashes($item->ringkasan_mutu_institusi ?? 'Laporan ' . $item->getJenisLaporanLabel()) }}')">
-                        <input type="radio" name="laporan_id" value="{{ $item->id }}" id="laporan_{{ $item->id }}" class="laporan-radio">
-                        <div class="laporan-card-content">
-                            <div class="d-flex gap-3">
-                                <div class="laporan-icon">
-                                    <i class="bi bi-file-earmark-text"></i>
-                                </div>
-                                <div class="flex-grow-1">
-                                    <h6 class="laporan-title">
-                                        {{ $item->ringkasan_mutu_institusi ?? 'Laporan ' . $item->getJenisLaporanLabel() }}
-                                    </h6>
-                                    <div class="laporan-meta">
-                                        <span class="meta-item">
-                                            <i class="bi bi-calendar3"></i>
-                                            {{ $item->updated_at ? $item->updated_at->format('d M Y') : '-' }}
-                                        </span>
-                                        <span class="meta-divider">•</span>
-                                        <span class="meta-item">
-                                            <i class="bi bi-tag"></i>
-                                            {{ $item->getJenisLaporanLabel() }}
-                                        </span>
-                                        @if($item->ajaran)
-                                        <span class="meta-divider">•</span>
-                                        <span class="meta-item">
-                                            <i class="bi bi-mortarboard"></i>
-                                            {{ $item->ajaran->tahun_ajaran }}
-                                        </span>
-                                        @endif
+                        <!-- Laporan List -->
+                        <div class="laporan-scroll-container" id="laporanList">
+                            @forelse($laporan as $item)
+                            <div class="laporan-card" data-id="{{ $item->id }}" onclick="selectLaporan(this, '{{ $item->id }}', '{{ addslashes($item->ringkasan_mutu_institusi ?? 'Laporan ' . $item->getJenisLaporanLabel()) }}')">
+                                <input type="radio" name="laporan_id" value="{{ $item->id }}" id="laporan_{{ $item->id }}" class="laporan-radio">
+                                <div class="laporan-card-content">
+                                    <div class="d-flex gap-3">
+                                        <div class="laporan-icon">
+                                            <i class="bi bi-file-earmark-text"></i>
+                                        </div>
+                                        <div class="flex-grow-1">
+                                            <h6 class="laporan-title">
+                                                {{ $item->ringkasan_mutu_institusi ?? 'Laporan ' . $item->getJenisLaporanLabel() }}
+                                            </h6>
+                                            <div class="laporan-meta">
+                                                <span class="meta-item">
+                                                    <i class="bi bi-calendar3"></i>
+                                                    {{ $item->updated_at ? $item->updated_at->format('d M Y') : '-' }}
+                                                </span>
+                                                <span class="meta-divider">•</span>
+                                                <span class="meta-item">
+                                                    <i class="bi bi-tag"></i>
+                                                    {{ $item->getJenisLaporanLabel() }}
+                                                </span>
+                                                @if($item->ajaran)
+                                                <span class="meta-divider">•</span>
+                                                <span class="meta-item">
+                                                    <i class="bi bi-mortarboard"></i>
+                                                    {{ $item->ajaran->tahun_ajaran }}
+                                                </span>
+                                                @endif
+                                            </div>
+                                        </div>
+                                        <div class="check-indicator">
+                                            <i class="bi bi-check-circle-fill"></i>
+                                        </div>
                                     </div>
                                 </div>
-                                <div class="check-indicator">
-                                    <i class="bi bi-check-circle-fill"></i>
+                            </div>
+                            @empty
+                            <div class="empty-state-modern">
+                                <div class="empty-icon">
+                                    <i class="bi bi-inbox"></i>
+                                </div>
+                                <h6>Belum Ada Laporan</h6>
+                                <p>Buat laporan terlebih dahulu untuk membuat presentasi</p>
+                                <a href="{{ route('gjm.buat-laporan.index') }}" class="btn btn-primary btn-sm mt-2">
+                                    <i class="bi bi-plus-circle"></i> Buat Laporan
+                                </a>
+                            </div>
+                            @endforelse
+                        </div>
+
+                        @if($laporan->hasPages())
+                        <div class="pagination-footer">
+                            <small class="text-muted">
+                                Menampilkan {{ $laporan->count() }} dari {{ $laporan->total() }} laporan
+                            </small>
+                            <div>
+                                {{ $laporan->links() }}
+                            </div>
+                        </div>
+                        @endif
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Section - Judul & Generate -->
+            <div class="col-lg-5">
+                <div class="modern-card sticky-card">
+                    <div class="card-header-modern">
+                        <div class="d-flex align-items-center gap-2">
+                            <i class="bi bi-pencil-square" style="color: #5B9BD5; font-size: 1.25rem;"></i>
+                            <h6 class="mb-0" style="font-weight: 600;">Konfigurasi Presentasi</h6>
+                        </div>
+                    </div>
+                    
+                    <div class="card-body-modern">
+                        <!-- Selected Laporan Preview -->
+                        <div class="selected-preview" id="selectedPreview" style="display: none;">
+                            <div class="d-flex align-items-start gap-2 mb-3">
+                                <i class="bi bi-check-circle-fill text-success"></i>
+                                <div class="flex-grow-1">
+                                    <small class="text-muted d-block" style="font-size: 0.75rem;">Laporan Terpilih:</small>
+                                    <strong id="selectedTitle" style="font-size: 0.875rem; color: #333;"></strong>
                                 </div>
                             </div>
                         </div>
-                    </div>
-                    @empty
-                    <div class="empty-state-modern">
-                        <div class="empty-icon">
-                            <i class="bi bi-inbox"></i>
+
+                        <!-- Judul Input -->
+                        <div class="form-group-modern mb-4">
+                            <label class="form-label-modern">
+                                Judul Presentasi <span class="text-danger">*</span>
+                            </label>
+                            <small class="form-hint">Akan ditampilkan pada slide pembuka</small>
+                            <textarea class="form-control-modern" id="judulPresentasi" name="judul_presentasi" 
+                                   placeholder="Contoh: Laporan Evaluasi Kinerja Triwulan III - Fakultas Vokasi" 
+                                   required rows="3"></textarea>
+                            <div class="char-counter">
+                                <span id="charCount">0</span>/200 karakter
+                            </div>
                         </div>
-                        <h6>Belum Ada Laporan</h6>
-                        <p>Buat laporan terlebih dahulu untuk membuat presentasi</p>
-                        <a href="{{ route('gjm.buat-laporan.index') }}" class="btn btn-primary btn-sm mt-2">
-                            <i class="bi bi-plus-circle"></i> Buat Laporan
-                        </a>
-                    </div>
-                    @endforelse
-                </div>
-
-                @if($laporan->hasPages())
-                <div class="pagination-footer">
-                    <small class="text-muted">
-                        Menampilkan {{ $laporan->count() }} dari {{ $laporan->total() }} laporan
-                    </small>
-                    <div>
-                        {{ $laporan->links() }}
-                    </div>
-                </div>
-                @endif
-
-                <!-- Selected Laporan Preview (akan tampil setelah pilih) -->
-                <div class="selected-preview" id="selectedPreview" style="display: none;">
-                    <div class="d-flex align-items-start gap-2 mb-3">
-                        <i class="bi bi-check-circle-fill text-success"></i>
-                        <div class="flex-grow-1">
-                            <small class="text-muted d-block" style="font-size: 0.75rem;">Laporan Terpilih:</small>
-                            <strong id="selectedTitle" style="font-size: 0.875rem; color: #333;"></strong>
+                        
+                        <!-- PPT Info Cards -->
+                        <div class="info-cards-grid mb-4">
+                            <div class="info-card-small">
+                                <i class="bi bi-file-slides"></i>
+                                <div>
+                                    <div class="info-label">Format</div>
+                                    <div class="info-value">PowerPoint</div>
+                                </div>
+                            </div>
+                            <div class="info-card-small">
+                                <i class="bi bi-clock-history"></i>
+                                <div>
+                                    <div class="info-label">Waktu</div>
+                                    <div class="info-value">2-3 menit</div>
+                                </div>
+                            </div>
+                            <div class="info-card-small">
+                                <i class="bi bi-layout-text-window-reverse"></i>
+                                <div>
+                                    <div class="info-label">Slide</div>
+                                    <div class="info-value">10-15 slide</div>
+                                </div>
+                            </div>
+                            <div class="info-card-small">
+                                <i class="bi bi-palette"></i>
+                                <div>
+                                    <div class="info-label">Template</div>
+                                    <div class="info-value">Professional</div>
+                                </div>
+                            </div>
                         </div>
+
+                        <!-- Features List -->
+                        <div class="features-list mb-4">
+                            <h6 class="features-title">
+                                <i class="bi bi-stars"></i> Fitur AI Generation
+                            </h6>
+                            <ul class="features-items">
+                                <li><i class="bi bi-check2"></i> Struktur slide otomatis</li>
+                                <li><i class="bi bi-check2"></i> Desain profesional</li>
+                                <li><i class="bi bi-check2"></i> Konten terstruktur</li>
+                                <li><i class="bi bi-check2"></i> Siap presentasi</li>
+                            </ul>
+                        </div>
+                        
+                        <!-- Generate Button -->
+                        <button type="submit" class="btn-generate" id="generateBtn" disabled>
+                            <span class="btn-content">
+                                <i class="bi bi-stars"></i>
+                                <span>Generate Presentasi</span>
+                            </span>
+                            <span class="btn-loading" style="display: none;">
+                                <span class="spinner-border spinner-border-sm"></span>
+                                <span>Generating...</span>
+                            </span>
+                        </button>
+                        
+                        <p class="text-center text-muted mt-3" style="font-size: 0.75rem;">
+                            <i class="bi bi-shield-check"></i> Presentasi akan disimpan otomatis
+                        </p>
                     </div>
                 </div>
-
-                <!-- Judul Input -->
-                <div class="form-group-modern mb-4">
-                    <label class="form-label-modern">
-                        Judul Presentasi <span class="text-danger">*</span>
-                    </label>
-                    <small class="form-hint">Akan ditampilkan pada slide pembuka</small>
-                    <textarea class="form-control-modern" id="judulPresentasi" name="judul_presentasi" 
-                           placeholder="Contoh: Laporan Evaluasi Kinerja Triwulan III - Fakultas Vokasi" 
-                           required rows="3"></textarea>
-                    <div class="char-counter">
-                        <span id="charCount">0</span>/200 karakter
-                    </div>
-                </div>
-
-                <!-- Generate Button -->
-                <button type="submit" class="btn-generate" id="generateBtn" disabled>
-                    <span class="btn-content">
-                        <span>Generate Presentasi</span>
-                    </span>
-                    <span class="btn-loading" style="display: none;">
-                        <span class="spinner-border spinner-border-sm"></span>
-                        <span>Generating...</span>
-                    </span>
-                </button>
             </div>
         </div>
     </form>
@@ -378,6 +453,12 @@
     align-items: center;
 }
 
+/* Sticky Card */
+.sticky-card {
+    position: sticky;
+    top: 1.5rem;
+}
+
 /* Selected Preview */
 .selected-preview {
     padding: 1rem;
@@ -385,7 +466,6 @@
     border-radius: 12px;
     border-left: 4px solid #28a745;
     animation: slideIn 0.3s ease;
-    margin: 1rem 0;
 }
 
 @keyframes slideIn {
@@ -440,6 +520,76 @@
     font-size: 0.75rem;
     color: #6c757d;
     margin-top: 0.25rem;
+}
+
+/* Info Cards Grid */
+.info-cards-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.75rem;
+}
+
+.info-card-small {
+    padding: 0.75rem;
+    background: #f8f9fa;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    border: 1px solid #e9ecef;
+}
+
+.info-card-small i {
+    font-size: 1.5rem;
+    color: #5B9BD5;
+}
+
+.info-label {
+    font-size: 0.7rem;
+    color: #6c757d;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.info-value {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #333;
+}
+
+/* Features List */
+.features-list {
+    padding: 1rem;
+    background: linear-gradient(135deg, #fff9e6 0%, #fff3cd 100%);
+    border-radius: 12px;
+    border-left: 4px solid #ffc107;
+}
+
+.features-title {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 0.75rem;
+}
+
+.features-items {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.features-items li {
+    font-size: 0.8rem;
+    color: #495057;
+    margin-bottom: 0.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.features-items li i {
+    color: #28a745;
+    font-size: 1rem;
 }
 
 /* Generate Button */
@@ -632,8 +782,12 @@
 
 /* Responsive */
 @media (max-width: 991px) {
-    .card-body-modern {
-        padding: 1rem;
+    .sticky-card {
+        position: static;
+    }
+    
+    .info-cards-grid {
+        grid-template-columns: 1fr;
     }
 }
 </style>

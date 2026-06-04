@@ -9,6 +9,7 @@
             <div class="d-flex justify-content-between align-items-center">
                 <div>
                     <h5 class="mb-1 d-flex align-items-center gap-2" style="font-weight: 600; color: #333;">
+                        <i class="bi bi-file-earmark-word" style="color: #5B9BD5;"></i>
                         Kelola Template Laporan Artefak
                     </h5>
                     <p class="text-muted mb-0" style="font-size: 0.875rem;">Upload dan kelola template Word untuk AI Agent</p>
@@ -17,7 +18,10 @@
                     <a href="{{ route('gkm.laporan-artefak.index') }}" class="btn btn-outline-secondary">
                         <i class="bi bi-arrow-left"></i> Kembali
                     </a>
-
+                    <a href="{{ route('gkm.laporan-artefak.template.upload') }}" class="btn-reminder">
+                        <i class="bi bi-upload"></i>
+                        <span>Upload Template Baru</span>
+                    </a>
                 </div>
             </div>
         </div>
@@ -45,13 +49,10 @@
 
         <!-- Template List -->
         <div class="monitoring-card">
-     <div class="monitoring-header">
-        <h6>Daftar Template</h6>
-        <a href="{{ route('gkm.laporan-artefak.template.upload') }}" class="btn-reminder">
-            <i class="bi bi-upload"></i>
-            <span>Upload Template Baru</span>
-        </a>
-    </div>
+            <div class="monitoring-header">
+                <i class="bi bi-list-ul" style="color: #5B9BD5;"></i>
+                <h6>Daftar Template</h6>
+            </div>
 
             <div class="table-responsive">
                 <table class="table table-monitoring">

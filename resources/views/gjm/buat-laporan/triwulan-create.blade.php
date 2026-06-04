@@ -968,7 +968,7 @@
             <div style="padding: 1.5rem;">
                 <div class="d-flex justify-content-between align-items-center">
                     <div class="d-flex align-items-start gap-3">
-                        {{-- <i class="bi bi-file-earmark-text" style="color: #5B9BD5; font-size: 2rem;"></i> --}}
+                        <i class="bi bi-file-earmark-text" style="color: #5B9BD5; font-size: 2rem;"></i>
                         <div>
                             <h6 class="mb-1" style="font-weight: 600; color: #333;">Generate Laporan Triwulan Baru</h6>
                             <p class="text-muted mb-0" style="font-size: 0.875rem;">

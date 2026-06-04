@@ -759,11 +759,11 @@
                             class="nav-item {{ request()->routeIs('gjm.kirim-laporan.*') ? 'active' : '' }}">
                             <i class="bi bi-send"></i> Kirim Laporan
                         </a>
-{{-- 
+
                         <a href="{{ route('gjm.model-evaluation.index') }}" 
                             class="nav-item {{ request()->routeIs('gjm.model-evaluation.*') ? 'active' : '' }}">
                             <i class="bi bi-robot"></i> Evaluasi AI Assistant
-                        </a> --}}
+                        </a>
                     @endif
                 </div>
             </div>

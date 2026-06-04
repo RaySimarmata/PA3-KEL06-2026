@@ -27,9 +27,9 @@
                         </select>
                     </div>
                     <div class="col-md-4">
-                    <button type="submit" class="btn btn-primary w-100" style="padding: 0.6rem;">
-                        <i class="bi bi-search"></i> Cari
-                    </button>
+                        <button type="submit" class="btn btn-primary w-100" style="padding: 0.6rem;">
+                            <i class="bi bi-funnel"></i> Filter
+                        </button>
                     </div>
                 </div>
             </form>
@@ -38,6 +38,7 @@
         <!-- Monitoring Table -->
         <div class="monitoring-card">
             <div class="monitoring-header">
+                <i class="bi bi-file-earmark-text" style="color: #5B9BD5;"></i>
                 <h6>Laporan VMTS</h6>
                 <div style="margin-left: auto; display: flex; gap: 0.5rem;">
                     <a href="{{ route('gjm.buat-laporan.vmts.create') }}" class="btn-reminder">

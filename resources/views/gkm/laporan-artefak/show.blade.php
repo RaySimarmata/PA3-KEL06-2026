@@ -9,6 +9,7 @@
             <div class="d-flex justify-content-between align-items-center">
                 <div>
                     <h5 class="mb-1 d-flex align-items-center gap-2" style="font-weight: 600; color: #333;">
+                        <i class="bi bi-file-earmark-text" style="color: #5B9BD5;"></i>
                         Detail Laporan Artefak
                     </h5>
                     <p class="text-muted mb-0" style="font-size: 0.875rem;">
@@ -34,6 +35,7 @@
                 <!-- Status Card -->
                 <div class="monitoring-card mb-4">
                     <div class="monitoring-header">
+                        <i class="bi bi-info-circle" style="color: #5B9BD5;"></i>
                         <h6>Status Laporan</h6>
                     </div>
                     <div style="padding: 1.5rem;">
@@ -91,6 +93,7 @@
                 @if($laporan->status == 'completed' && $laporan->konten_laporan)
                     <div class="monitoring-card mb-4">
                         <div class="monitoring-header">
+                            <i class="bi bi-file-text" style="color: #5B9BD5;"></i>
                             <h6>Preview Konten Laporan</h6>
                         </div>
                         <div style="padding: 1.5rem;">
@@ -132,7 +135,7 @@
                 </div>
 
                 <!-- Actions Card -->
-                {{-- <div class="monitoring-card">
+                <div class="monitoring-card">
                     <div class="monitoring-header">
                         <i class="bi bi-gear" style="color: #5B9BD5;"></i>
                         <h6>Aksi</h6>
@@ -146,12 +149,12 @@
                                 </a>
                             @endif
                             
-                            {{-- <a href="{{ route('gkm.laporan-artefak.index') }}" 
+                            <a href="{{ route('gkm.laporan-artefak.index') }}" 
                                class="btn btn-outline-secondary">
                                 <i class="bi bi-arrow-left"></i> Kembali ke Daftar
                             </a>
-                             --}}
-                            {{-- <form action="{{ route('gkm.laporan-artefak.destroy', $laporan->id) }}" 
+                            
+                            <form action="{{ route('gkm.laporan-artefak.destroy', $laporan->id) }}" 
                                   method="POST"
                                   onsubmit="return confirm('Yakin ingin menghapus laporan ini?')">
                                 @csrf
@@ -162,7 +165,7 @@
                             </form>
                         </div>
                     </div>
-                </div> --}} 
+                </div>
             </div>
         </div>
     </div>

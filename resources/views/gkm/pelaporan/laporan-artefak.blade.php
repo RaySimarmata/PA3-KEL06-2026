@@ -24,10 +24,9 @@
                         </select>
                     </div>
                     <div class="col-md-4">
-                    <button class="btn btn-primary w-100" type="submit" onclick="performSearch()">
-                        <i class="bi bi-search me-1"></i> Cari
-                    </button>
-
+                        <button type="submit" class="btn btn-primary w-100" style="padding: 0.6rem;">
+                            <i class="bi bi-funnel"></i> Filter
+                        </button>
                     </div>
                 </div>
             </form>

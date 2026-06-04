@@ -21,6 +21,7 @@
     <!-- Header Card -->
     <div class="filter-card mb-4">
         <div class="d-flex align-items-start gap-3">
+            <i class="bi bi-send" style="color: #5B9BD5; font-size: 2rem;"></i>
             <div>
                 <h5 class="mb-1" style="font-weight: 600; color: #333;">Pengiriman Laporan</h5>
                 <p class="text-muted mb-0" style="font-size: 0.875rem;">Kelola dan kirim pesan pengingat kepada penerima terkait laporan.</p>
@@ -32,6 +33,7 @@
         @csrf
         <div class="monitoring-card mb-4">
             <div class="monitoring-header">
+                <i class="bi bi-envelope" style="color: #5B9BD5;"></i>
                 <h6>Informasi Penerima</h6>
             </div>
             <div style="padding: 1.5rem;">
@@ -63,13 +65,6 @@
                     <label class="filter-label">Isi Pesan <span class="text-danger">*</span></label>
                     <textarea class="form-control" name="message" id="message" rows="10" 
                               placeholder="Tuliskan pesan Anda di sini..." required></textarea>
-                </div>
-
-                <!-- Tombol Generate AI (kiri, di atas lampiran) -->
-                <div class="mb-3">
-                    <button type="button" class="btn btn-outline-primary" onclick="generateMessage()">
-                        <i class="bi bi-magic"></i> Generate Pesan AI
-                    </button>
                 </div>
 
                 <div class="mb-4">
@@ -162,10 +157,13 @@
                     </div>
                 </div>
 
-                <!-- GARIS PEMISAH + TOMBOL KIRIM & PREVIEW DI KANAN -->
-                <div class="mt-4 pt-3 border-top d-flex justify-content-end gap-2">
-                    <button type="button" class="btn btn-primary" onclick="sendLaporan()">
-                        <i class="bi bi-send"></i> Kirim Reminder
+                <div class="d-flex gap-2">
+                    <button type="button" class="btn btn-outline-primary" onclick="generateMessage()">
+                        <i class="bi bi-magic"></i> Generate Pesan AI
+                    </button>
+                    <button type="button" class="btn-reminder" onclick="sendLaporan()">
+                        <i class="bi bi-send"></i>
+                        <span>Kirim Reminder</span>
                     </button>
                     <button type="button" class="btn btn-outline-secondary" onclick="previewMessage()">
                         <i class="bi bi-eye"></i> Preview
@@ -176,7 +174,7 @@
     </form>
 </div>
 
-<!-- Modal Preview (tidak berubah) -->
+<!-- Modal Preview -->
 <div class="modal fade" id="previewModal" tabindex="-1">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
@@ -283,10 +281,12 @@ function validateExternalFile(index, isValid) {
     const file = fileInput.files[index];
     
     if (isValid) {
+        // Tambahkan ke validated files
         validatedFiles.external.push(file);
         updateValidatedFilesDisplay();
     }
     
+    // Hapus file dari pending list
     const dt = new DataTransfer();
     Array.from(fileInput.files).forEach((f, i) => {
         if (i !== index) dt.items.add(f);
@@ -341,12 +341,14 @@ function validateLaporan(id, title, isValid, button) {
     const checkbox = document.querySelector(`.laporan-checkbox[value="${id}"]`);
     
     if (isValid) {
+        // Tambahkan ke validated laporan
         if (!validatedFiles.laporan.find(l => l.id === id)) {
             validatedFiles.laporan.push({id, title});
             updateValidatedFilesDisplay();
         }
     }
     
+    // Uncheck checkbox dan update pending list
     checkbox.checked = false;
     showLaporanValidation();
 }
@@ -363,6 +365,7 @@ function updateValidatedFilesDisplay() {
     section.style.display = 'block';
     listDiv.innerHTML = '';
     
+    // Display external files
     if (validatedFiles.external.length > 0) {
         const externalDiv = document.createElement('div');
         externalDiv.className = 'mb-3';
@@ -393,6 +396,7 @@ function updateValidatedFilesDisplay() {
         listDiv.appendChild(externalDiv);
     }
     
+    // Display laporan files
     if (validatedFiles.laporan.length > 0) {
         const laporanDiv = document.createElement('div');
         laporanDiv.innerHTML = '<strong class="text-success"><i class="bi bi-file-earmark-text"></i> Laporan dari Pelaporan:</strong>';
@@ -469,8 +473,10 @@ function generateMessage() {
         })
     })
     .then(response => {
+        // Check if response is JSON
         const contentType = response.headers.get('content-type');
         if (!contentType || !contentType.includes('application/json')) {
+            // Log the actual response for debugging
             return response.text().then(text => {
                 console.error('Non-JSON response:', text.substring(0, 500));
                 throw new Error('Server mengembalikan response yang tidak valid. Periksa console browser untuk detail.');
@@ -593,10 +599,12 @@ function sendLaporan() {
     formData.append('subject', subject);
     formData.append('message', message);
     
+    // Add validated external files
     validatedFiles.external.forEach(file => {
         formData.append('attachments[]', file);
     });
     
+    // Add validated laporan IDs
     validatedFiles.laporan.forEach(laporan => {
         formData.append('laporan_ids[]', laporan.id);
     });
@@ -610,6 +618,7 @@ function sendLaporan() {
         body: formData
     })
     .then(response => {
+        // Check if response is JSON
         const contentType = response.headers.get('content-type');
         if (!contentType || !contentType.includes('application/json')) {
             throw new Error('Server mengembalikan response yang tidak valid. Periksa log Laravel untuk detail error.');
