@@ -18,14 +18,14 @@
         }
 
         .ai-chat-wrapper {
-            background: linear-gradient(135deg, #f8fbff 0%, #eef4fd 100%);
-            border: 1.5px solid #c9ddf5;
+            background: linear-gradient(135deg, rgba(30, 60, 114, 0.04) 0%, rgba(30, 60, 114, 0.08) 100%);
+            border: 1.5px solid rgba(30, 60, 114, 0.18);
             border-radius: 16px;
             overflow: hidden;
         }
 
         .ai-chat-header {
-            background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+            background: linear-gradient(135deg, #1e3c72 0%, #1e3c72 100%);
             color: #fff;
             padding: 1rem 1.25rem;
             display: flex;
@@ -70,7 +70,7 @@
         }
 
         .ai-messages:empty::after {
-            content: "Ketik instruksi Anda di bawah dan klik tombol panah untuk generate...";
+            content: "Ketik instruksi Anda di bawah, lalu tekan Enter untuk generate...";
             color: #9ca3af;
             font-size: 0.875rem;
             font-style: italic;
@@ -86,7 +86,7 @@
         }
 
         .msg-user .bubble {
-            background: #2563eb;
+            background: #1e3c72;
             color: #fff;
             border-radius: 18px 18px 4px 18px;
             padding: 0.75rem 1rem;
@@ -167,7 +167,7 @@
             width: 30px;
             height: 30px;
             flex-shrink: 0;
-            background: linear-gradient(135deg, #2563eb, #7c3aed);
+            background: linear-gradient(135deg, #1e3c72, #1e3c72);
             color: #fff;
             border-radius: 50%;
             display: flex;
@@ -213,7 +213,7 @@
         }
 
         .msg-ai .bubble strong {
-            color: #1d4ed8;
+            color: #1e3c72;
         }
 
         .msg-ai .bubble hr {
@@ -268,7 +268,7 @@
         }
 
         .ai-textarea {
-            border: 1.5px solid #d1dff5;
+            border: 1.5px solid rgba(30, 60, 114, 0.18);
             border-radius: 12px;
             padding: 0.75rem 3.5rem 0.75rem 1rem;
             font-size: 0.875rem;
@@ -306,8 +306,8 @@
         }
 
         .ai-textarea:focus {
-            border-color: #2563eb;
-            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+            border-color: #1e3c72;
+            box-shadow: 0 0 0 3px rgba(30, 60, 114, 0.12);
             outline: none;
         }
 
@@ -316,17 +316,17 @@
         }
 
         .ai-input-area>div:first-child:focus-within {
-            border-color: #2563eb;
-            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+            border-color: #1e3c72;
+            box-shadow: 0 0 0 3px rgba(30, 60, 114, 0.12);
         }
 
         .file-upload-zone {
-            border: 1.5px dashed #c9d9f5;
+            border: 1.5px dashed rgba(30, 60, 114, 0.22);
             border-radius: 10px;
             padding: 0.75rem 1.25rem;
             cursor: pointer;
             transition: all 0.2s;
-            background: #f8fbff;
+            background: rgba(30, 60, 114, 0.04);
             text-align: center;
             font-size: 0.875rem;
             color: #64748b;
@@ -334,9 +334,9 @@
         }
 
         .file-upload-zone:hover {
-            border-color: #2563eb;
-            background: #eff6ff;
-            color: #2563eb;
+            border-color: #1e3c72;
+            background: rgba(30, 60, 114, 0.08);
+            color: #1e3c72;
         }
 
         .file-upload-zone.has-file {
@@ -349,12 +349,12 @@
             display: inline-flex;
             align-items: center;
             gap: 0.35rem;
-            background: #e0f2fe;
-            border: 1px solid #0891b2;
+            background: rgba(30, 60, 114, 0.1);
+            border: 1px solid rgba(30, 60, 114, 0.35);
             border-radius: 8px;
             padding: 0.4rem 0.6rem;
             font-size: 0.75rem;
-            color: #0e7490;
+            color: #1e3c72;
             max-width: 200px;
             position: relative;
         }
@@ -408,77 +408,6 @@
             margin: 0;
         }
 
-        .btn-ask-ai {
-            position: absolute;
-            bottom: 8px;
-            right: 8px;
-            background: linear-gradient(135deg, #60a5fa 0%, #3b82f6 100%);
-            color: #fff;
-            border: none;
-            border-radius: 50%;
-            width: 40px;
-            height: 40px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
-            flex-shrink: 0;
-        }
-
-        .btn-ask-ai:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
-            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
-        }
-
-        .btn-ask-ai:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
-            transform: none;
-            box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
-        }
-
-        .btn-ask-ai .arrow-icon {
-            font-size: 1.3rem;
-            font-weight: bold;
-            color: #fff;
-        }
-
-        .btn-ask-ai-inline {
-            background: linear-gradient(135deg, #60a5fa 0%, #3b82f6 100%);
-            color: #fff;
-            border: none;
-            border-radius: 50%;
-            width: 36px;
-            height: 36px;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            flex-shrink: 0;
-            margin-left: 0.5rem;
-        }
-
-        .btn-ask-ai-inline:hover {
-            transform: scale(1.05);
-            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
-        }
-
-        .btn-ask-ai-inline:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
-            transform: none;
-        }
-
-        .btn-ask-ai-inline .arrow-icon {
-            font-size: 1.2rem;
-            font-weight: bold;
-            color: #fff;
-        }
-
         .btn-attachment {
             background: #f3f4f6;
             color: #6b7280;
@@ -502,9 +431,9 @@
         }
 
         .btn-attachment.has-files {
-            background: #dbeafe;
-            border-color: #3b82f6;
-            color: #2563eb;
+            background: rgba(30, 60, 114, 0.12);
+            border-color: #1e3c72;
+            color: #1e3c72;
         }
 
         .btn-attachment i {
@@ -533,8 +462,8 @@
         }
 
         .btn-attachment-inline.has-files {
-            background: #dbeafe;
-            color: #2563eb;
+            background: rgba(30, 60, 114, 0.12);
+            color: #1e3c72;
         }
 
         .btn-attachment-inline i {
@@ -574,7 +503,7 @@
             padding: 0.6rem 1rem;
             font-size: 0.85rem;
             font-weight: 700;
-            color: #1e40af;
+            color: #1e3c72;
             cursor: pointer;
             display: flex;
             justify-content: space-between;
@@ -592,7 +521,7 @@
         }
 
         .generate-bar {
-            background: linear-gradient(135deg, #0f172a 0%, #2d1b69 100%);
+            background: linear-gradient(135deg, #0f172a 0%, #1e3c72 100%);
             border-radius: 12px;
             padding: 1rem 1.25rem;
             display: flex;
@@ -831,7 +760,7 @@
         }
 
         .hover\:text-primary:hover {
-            color: #2563eb;
+            color: #1e3c72;
         }
 
         /* Modal body */
@@ -927,19 +856,19 @@
         }
 
         .border-primary {
-            border-color: #2563eb;
+            border-color: #1e3c72;
         }
 
         .text-primary {
-            color: #2563eb;
+            color: #1e3c72;
         }
 
         .hover\:bg-primary\/10:hover {
-            background-color: rgba(37, 99, 235, 0.1);
+            background-color: rgba(30, 60, 114, 0.1);
         }
 
         .bg-primary {
-            background-color: #2563eb;
+            background-color: #1e3c72;
         }
 
         .text-white {
@@ -947,7 +876,19 @@
         }
 
         .hover\:bg-primary\/90:hover {
-            background-color: rgba(37, 99, 235, 0.9);
+            background-color: rgba(30, 60, 114, 0.9);
+        }
+
+        .btn-primary {
+            background-color: #1e3c72;
+            border-color: #1e3c72;
+        }
+
+        .btn-primary:hover,
+        .btn-primary:focus,
+        .btn-primary:active {
+            background-color: #16315d;
+            border-color: #16315d;
         }
 
         .pb-4 {
@@ -962,24 +903,38 @@
 @section('content')
     <div style="padding: 1.5rem;">
         <!-- Sub Header -->
-        <div class="monitoring-card mb-4" style="border-left: 4px solid #5B9BD5;">
+        {{-- <div class="monitoring-card mb-4" style="border-left: 4px solid #5B9BD5;">
             <div style="padding: 1.5rem;">
                 <div class="d-flex justify-content-between align-items-center">
                     <div class="d-flex align-items-start gap-3">
                         <i class="bi bi-file-earmark-text" style="color: #5B9BD5; font-size: 2rem;"></i>
                         <div>
-                            <h6 class="mb-1" style="font-weight: 600; color: #333;">Generate Laporan Semester Baru</h6>
+                            <h6 class="mb-1" style="font-weight: 600; color: #333;"></h6>
                             <p class="text-muted mb-0" style="font-size: 0.875rem;">
                                 AI Agent akan menganalisis data kegiatan dan monitoring mutu dalam periode semester yang dipilih
                             </p>
                         </div>
                     </div>
-                    <a href="{{ route('gjm.buat-laporan.semester.index') }}" class="btn btn-outline-secondary">
+                    <a href="{}" class="btn btn-outline-secondary">
                         <i class="bi bi-arrow-left"></i> Kembali
                     </a>
                 </div>
             </div>
+        </div> --}}
+
+
+        <div class="filter-card mb-4 d-flex justify-content-between align-items-center">
+            <h5 class="mb-0 font-semibold" style="text-transform: uppercase; letter-spacing: 0.5px;">
+                Generate Laporan Semester Baru
+            </h5>
+            <a href="{{ route('gjm.buat-laporan.semester.index') }}" class="btn btn-secondary btn-sm">
+                <i class="bi bi-arrow-left me-1"></i> Kembali
+            </a>
         </div>
+
+
+
+
 
         <div class="row">
             <div class="col-xl-11 col-lg-12 mx-auto">
@@ -1017,7 +972,7 @@
                     <div class="monitoring-card mb-4">
                         <div class="monitoring-header">
                             <div class="d-flex align-items-center gap-2">
-                                <i class="bi bi-info-circle" style="color: #5B9BD5;"></i>
+                                {{-- <i class="bi bi-info-circle" style="color: #5B9BD5;"></i> --}}
                                 <h6 class="mb-0">Informasi Laporan</h6>
                             </div>
                         </div>
@@ -1052,15 +1007,15 @@
                                             </option>
                                         @endforeach
                                     </select>
-                                    <small class="text-muted" style="font-size: 0.8rem;">
+                                    {{-- <small class="text-muted" style="font-size: 0.8rem;">
                                         <i class="bi bi-info-circle"></i> Jika dipilih, AI akan mempelajari format dari
                                         template ini.
-                                    </small>
+                                    </small> --}}
                                 </div>
 
                                 <div class="col-md-12 mb-0">
                                     <button type="button" id="btn-create-draft" class="btn btn-primary">
-                                        <i class="bi bi-plus-circle"></i> Buat Laporan Draft
+                                        <i class="bi bi-plus-circle"></i> Buat Draf Laporan
                                     </button>
                                     <small class="text-muted d-block mt-2" style="font-size: 0.8rem;">
                                         <i class="bi bi-info-circle"></i> Klik tombol ini terlebih dahulu untuk membuat
@@ -1074,8 +1029,8 @@
                     <div class="monitoring-card mb-4" id="ai-prompt-section" style="overflow: hidden;">
                         <div class="monitoring-header">
                             <div class="d-flex align-items-center gap-2">
-                                <i class="bi bi-pencil-square" style="color: #5B9BD5;"></i>
-                                <h6 class="mb-0">Instruksi & Referensi Laporan</h6>
+                                {{-- <i class="bi bi-pencil-square" style="color: #5B9BD5;"></i> --}}
+                                <h6 class="mb-0">Instruksi dan Referensi Laporan</h6>
                             </div>
                         </div>
                         <div style="padding: 1.5rem;">
@@ -1111,7 +1066,7 @@
                                 .ai-assistant-icon {
                                     width: 40px;
                                     height: 40px;
-                                    background: #2563eb;
+                                    background: #1e3c72;
                                     border-radius: 8px;
                                     display: flex;
                                     align-items: center;
@@ -1128,8 +1083,8 @@
                                 }
 
                                 .ai-assistant-badge {
-                                    background: #1e40af;
-                                    color: #60a5fa;
+                                    background: #1e3c72;
+                                    color: rgba(255, 255, 255, 0.9);
                                     padding: 0.25rem 0.75rem;
                                     border-radius: 4px;
                                     font-size: 0.7rem;
@@ -1162,7 +1117,7 @@
                                 .ai-assistant-btn-icon:focus,
                                 .ai-assistant-btn-send:focus {
                                     outline: none;
-                                    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.3);
+                                    box-shadow: 0 0 0 2px rgba(30, 60, 114, 0.3);
                                 }
 
                                 .ai-assistant-btn-icon:active,
@@ -1188,12 +1143,12 @@
                                 }
 
                                 .ai-assistant-messages::-webkit-scrollbar-thumb {
-                                    background: rgba(37, 99, 235, 0.3);
+                                    background: rgba(30, 60, 114, 0.3);
                                     border-radius: 10px;
                                 }
 
                                 .ai-assistant-messages::-webkit-scrollbar-thumb:hover {
-                                    background: rgba(37, 99, 235, 0.5);
+                                    background: rgba(30, 60, 114, 0.5);
                                 }
 
                                 .ai-message-wrapper {
@@ -1206,7 +1161,7 @@
                                 .ai-message-avatar {
                                     width: 40px;
                                     height: 40px;
-                                    background: #2563eb;
+                                    background: #1e3c72;
                                     border-radius: 50%;
                                     display: flex;
                                     align-items: center;
@@ -1257,7 +1212,7 @@
                                 }
 
                                 .ai-assistant-btn-send {
-                                    background: #2563eb;
+                                    background: #1e3c72;
                                     border: none;
                                     color: white;
                                     width: 40px;
@@ -1271,7 +1226,7 @@
                                 }
 
                                 .ai-assistant-btn-send:hover {
-                                    background: #1d4ed8;
+                                    background: #16315d;
                                 }
 
                                 .ai-assistant-footer-text {
@@ -1322,7 +1277,7 @@
 
                                     <!-- Input Container with Attachment Icon Inside -->
                                     <div
-                                        style="position: relative; display: flex; align-items: center; border: 1.5px solid #d1dff5; border-radius: 12px; background: #fff; padding: 0.5rem;">
+                                        style="position: relative; display: flex; align-items: center; border: 1.5px solid rgba(30, 60, 114, 0.18); border-radius: 12px; background: #fff; padding: 0.5rem;">
                                         <!-- Attachment Button (Inside Left) -->
                                         <button type="button" class="btn-attachment-inline" id="btn-attachment"
                                             title="Lampirkan File & Gambar">
@@ -1332,10 +1287,6 @@
                                         <!-- Textarea -->
                                         <textarea class="ai-textarea-inline" id="ai-prompt-input" placeholder="Deskripsikan website yang ingin Anda buat..."></textarea>
 
-                                        <!-- Send Button (Inside Right) - Hidden by default -->
-                                        <button type="button" class="btn-ask-ai-inline" id="btn-ask-ai">
-                                            <span class="arrow-icon">↑</span>
-                                        </button>
                                     </div>
 
                                     <!-- Selected Files & Images Display (Combined) -->
@@ -1346,7 +1297,7 @@
 
                                     <!-- OCR Processing Status -->
                                     <div id="ocr-processing-status"
-                                        style="display: none; margin-top: 0.75rem; padding: 0.75rem; background: #f0f9ff; border: 1px solid #0ea5e9; border-radius: 8px; font-size: 0.875rem; color: #0369a1;">
+                                        style="display: none; margin-top: 0.75rem; padding: 0.75rem; background: rgba(30, 60, 114, 0.06); border: 1px solid #1e3c72; border-radius: 8px; font-size: 0.875rem; color: #1e3c72;">
                                         <i class="bi bi-hourglass-split me-2"></i>
                                         <strong>Memproses OCR...</strong> Mengekstrak teks dari gambar yang Anda upload.
                                     </div>
@@ -1496,7 +1447,7 @@
                 // Give hint to user
                 if (!promptInput.value.trim()) {
                     promptInput.placeholder =
-                        `${selectedFiles.length + selectedOCRImages.length} file terpilih! Ketik instruksi Anda (opsional), lalu klik ↑ untuk mengirim`;
+                        `${selectedFiles.length + selectedOCRImages.length} file terpilih! Ketik instruksi Anda (opsional), lalu tekan Enter untuk mengirim`;
                     promptInput.focus();
                 }
             });
@@ -1517,7 +1468,7 @@
                 // Give hint to user - NO AUTO PROCESS
                 if (!promptInput.value.trim()) {
                     promptInput.placeholder =
-                        `${selectedFiles.length + selectedOCRImages.length} file terpilih! Ketik instruksi Anda (opsional), lalu klik ↑ untuk mengirim`;
+                        `${selectedFiles.length + selectedOCRImages.length} file terpilih! Ketik instruksi Anda (opsional), lalu tekan Enter untuk mengirim`;
                     promptInput.focus();
                 }
             });
@@ -1527,6 +1478,7 @@
             // ================================================================
             function toggleSendButton() {
                 const btnSend = document.getElementById('btn-ask-ai');
+                if (!btnSend) return;
                 const totalFiles = selectedFiles.length + selectedOCRImages.length;
 
                 if (totalFiles > 0) {
@@ -1646,7 +1598,7 @@
 
                 if (!promptInput.value.trim() && (selectedFiles.length + selectedOCRImages.length) > 0) {
                     promptInput.placeholder =
-                        `${selectedFiles.length + selectedOCRImages.length} file terpilih! Ketik instruksi Anda (opsional), lalu klik ↑ untuk mengirim`;
+                        `${selectedFiles.length + selectedOCRImages.length} file terpilih! Ketik instruksi Anda (opsional), lalu tekan Enter untuk mengirim`;
                 } else if (selectedFiles.length === 0 && selectedOCRImages.length === 0) {
                     promptInput.placeholder = 'Deskripsikan website yang ingin Anda buat...';
                 }
@@ -1662,7 +1614,7 @@
 
                 if (!promptInput.value.trim() && (selectedFiles.length + selectedOCRImages.length) > 0) {
                     promptInput.placeholder =
-                        `${selectedFiles.length + selectedOCRImages.length} file terpilih! Ketik instruksi Anda (opsional), lalu klik ↑ untuk mengirim`;
+                        `${selectedFiles.length + selectedOCRImages.length} file terpilih! Ketik instruksi Anda (opsional), lalu tekan Enter untuk mengirim`;
                 } else if (selectedFiles.length === 0 && selectedOCRImages.length === 0) {
                     promptInput.placeholder = 'Deskripsikan website yang ingin Anda buat...';
                 }
@@ -1805,7 +1757,7 @@
             promptInput.addEventListener('keydown', function(e) {
                 if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault();
-                    btnAskAI.click();
+                    handleAskAI();
                 }
             });
 
@@ -2034,7 +1986,7 @@
             // ================================================================
             // ASK AI — main action (multi-turn supported)
             // ================================================================
-            btnAskAI.addEventListener('click', async function() {
+            async function handleAskAI() {
                 const prompt = promptInput.value.trim();
                 const laporanId = document.getElementById('laporan_id').value;
 
@@ -2125,9 +2077,6 @@
 
                 // Show typing
                 showTyping();
-                btnAskAI.disabled = true;
-                btnAskAI.innerHTML =
-                    '<span class="spinner-border spinner-border-sm"></span>';
 
                 try {
                     const formData = new FormData();
@@ -2216,10 +2165,12 @@
                     appendAIMessage('<strong>❌ Error:</strong> ' + err.message);
                 } finally {
                     hideTyping();
-                    btnAskAI.disabled = false;
-                    btnAskAI.innerHTML = '<span class="arrow-icon">↑</span>';
                 }
-            });
+            }
+
+            if (btnAskAI) {
+                btnAskAI.addEventListener('click', handleAskAI);
+            }
 
             // ================================================================
             // Save AI Preview to Database
