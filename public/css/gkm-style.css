@@ -322,8 +322,9 @@ textarea.form-control {
 }
 
 .btn-outline-primary {
+    background: var(--primary-color);
     border-color: var(--primary-color);
-    color: var(--primary-color);
+    color: white;
 }
 
 .btn-outline-primary:hover {

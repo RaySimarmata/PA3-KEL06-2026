@@ -81,7 +81,7 @@
                 {{-- BUTTON --}}
         <div class="col-md-2">
             <label class="filter-label" style="opacity: 0;">Action</label>
-            <button class="btn btn-primary w-100" type="button" id="btnSearch">
+            <button class="btn btn-primary w-100" type="submit" id="btnSearch">
                 <i class="bi bi-search me-1"></i> Cari
             </button>
         </div>

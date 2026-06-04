@@ -38,8 +38,8 @@
                     <div class="col-md-2">
                         <label class="filter-label">Semester:</label>
                         <select class="form-select" name="sem_ta">
-                            <option value="1" {{ request('sem_ta', 1) == 1 ? 'selected' : '' }}>Ganjil</option>
-                            <option value="2" {{ request('sem_ta', 1) == 2 ? 'selected' : '' }}>Genap</option>
+                            <option value="1" {{ request('sem_ta', $defaultSemTa ?? 1) == 1 ? 'selected' : '' }}>Ganjil</option>
+                            <option value="2" {{ request('sem_ta', $defaultSemTa ?? 1) == 2 ? 'selected' : '' }}>Genap</option>
                         </select>
                     </div>
                     <div class="col-md-2">
@@ -48,7 +48,7 @@
                             @if (isset($tahunAjaranList) && count($tahunAjaranList) > 0)
                                 @foreach ($tahunAjaranList as $tahun)
                                     <option value="{{ $tahun['id_thn_ajaran'] }}"
-                                        {{ request('ta', date('Y')) == $tahun['id_thn_ajaran'] ? 'selected' : '' }}>
+                                        {{ request('ta', $defaultTa ?? date('Y')) == $tahun['id_thn_ajaran'] ? 'selected' : '' }}>
                                         {{ $tahun['nm_thn_ajaran'] }}
                                     </option>
                                 @endforeach

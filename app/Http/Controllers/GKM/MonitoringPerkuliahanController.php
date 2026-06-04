@@ -10,10 +10,12 @@ use App\Models\PerkuliahanMonitoringSnapshot;
 use App\Models\PerkuliahanMonitoringDetail;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Str;
 use App\Models\PeriodeAkademik;
 use Barryvdh\DomPDF\Facade\Pdf;
 use App\Models\JadwalDosen;
@@ -606,9 +608,15 @@ public function exportPdf(Request $request)
         ]);
     }
 
-    public function reminderMateri()
+    public function reminderMateri(Request $request)
     {
         $user = Auth::user();
+
+        $search = trim($request->input('search', ''));
+        $mode = $request->input('mode', 'auto');
+        $perPage = 10;
+        $currentPage = (int) $request->input('page', 1);
+        if ($currentPage < 1) $currentPage = 1;
 
         // 🔥 AMBIL DATA DARI SNAPSHOT DATABASE (seperti RPS)
         $prodiKode = $user->prodi ? $user->prodi->kode_prodi : 'TRPL';
@@ -619,38 +627,43 @@ public function exportPdf(Request $request)
         ];
         $prodiId = $prodiIdMap[$prodiKode] ?? 4;
 
-        // Reminder only at UTS (week 8) and UAS (week 16).
-        // UTS: check weeks 1-7; UAS: check weeks 1-15.
-        $periode = PeriodeAkademik::where('is_active', true)->first();
-        $startDate = $periode ? Carbon::parse($periode->start_date) : null;
-        $now = Carbon::now();
-
-        $currentWeek = null;
-        if ($startDate) {
-            $days = $startDate->diffInDays($now);
-            $currentWeek = (int) floor($days / 7) + 1;
-            if ($currentWeek < 1) $currentWeek = 1;
-            if ($currentWeek > 16) $currentWeek = 16;
-        }
-
-        $checkRange = [];
-        if ($currentWeek === 8) {
+        // Build check range from mode
+        if ($mode === 'uts') {
             $checkRange = range(1, 7);
-        } elseif ($currentWeek === 16) {
+        } elseif ($mode === 'uas') {
             $checkRange = range(1, 15);
+        } elseif ($mode === 'force') {
+            $checkRange = range(1, 16);
+        } else {
+            $periode = PeriodeAkademik::where('is_active', true)->first();
+            $startDate = $periode ? Carbon::parse($periode->start_date) : null;
+            $now = Carbon::now();
+            $currentWeek = null;
+            if ($startDate) {
+                $days = $startDate->diffInDays($now);
+                $currentWeek = (int) floor($days / 7) + 1;
+                if ($currentWeek < 1) $currentWeek = 1;
+                if ($currentWeek > 16) $currentWeek = 16;
+            }
+
+            if ($currentWeek === 8) {
+                $checkRange = range(1, 7);
+            } elseif ($currentWeek === 16) {
+                $checkRange = range(1, 15);
+            } else {
+                $checkRange = [];
+            }
         }
 
         if (empty($checkRange)) {
-            // Not a reminder moment - return empty list
-            $dosenBelumUpload = [];
+            $allDosen = collect([]);
         } else {
             $snapshots = PerkuliahanMonitoringSnapshot::with('dosen')
                 ->where('prodi_id', $prodiId)
                 ->where('status_upload', 'BELUM UPLOAD')
                 ->where('reminder_sent', false)
                 ->whereHas('dosen', function($query) {
-                    $query->whereNotNull('email')
-                          ->where('email', '!=', '');
+                    $query->whereNotNull('email')->where('email', '!=', '');
                 })
                 ->get();
 
@@ -679,7 +692,7 @@ public function exportPdf(Request $request)
                 return false;
             });
 
-            $dosenBelumUpload = $filtered->map(function($snapshot) {
+            $allDosen = $filtered->map(function($snapshot) {
                 return [
                     'pegawai_id' => $snapshot->pegawai_id,
                     'nama_lengkap' => $snapshot->dosen->nama ?? '-',
@@ -691,12 +704,39 @@ public function exportPdf(Request $request)
                     'tingkat' => $snapshot->tingkat,
                     'jenis' => $snapshot->jenis_materi
                 ];
-            })->values()->toArray();
+            })->values();
         }
+
+        if ($search !== '') {
+            $searchLower = Str::lower($search);
+            $allDosen = $allDosen->filter(function ($item) use ($searchLower) {
+                return Str::contains(Str::lower($item['nama_lengkap'] ?? ''), $searchLower)
+                    || Str::contains(Str::lower($item['kontak_email'] ?? ''), $searchLower)
+                    || Str::contains(Str::lower($item['nama_matkul'] ?? ''), $searchLower)
+                    || Str::contains(Str::lower($item['kode_mk'] ?? ''), $searchLower)
+                    || Str::contains(Str::lower($item['jenis'] ?? ''), $searchLower);
+            })->values();
+        }
+
+        $total = $allDosen->count();
+        $dosenBelumUpload = $allDosen->slice(($currentPage - 1) * $perPage, $perPage)->values();
+
+        $dosenMateri = new LengthAwarePaginator(
+            $dosenBelumUpload,
+            $total,
+            $perPage,
+            $currentPage,
+            [
+                'path' => $request->url(),
+                'query' => $request->query(),
+            ]
+        );
 
         return view('gkm.monitoring-perkuliahan.materi', [
             'user' => $user,
-            'dosenMateri' => $dosenBelumUpload,
+            'dosenMateri' => $dosenMateri,
+            'search' => $search,
+            'mode' => $mode,
         ]);
     }
 
