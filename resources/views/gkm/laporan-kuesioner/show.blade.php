@@ -1,579 +1,256 @@
 @extends('layouts.app')
 
-@section('page-title', 'Detail Laporan')
+@section('page-title', 'Detail Laporan Kuesioner')
 
 @section('content')
-    <div class="container-fluid">
-        <div class="row mb-4">
-            <div class="col-12">
-                <div class="d-flex justify-content-between align-items-center">
-                    <div>
-                        <h4>Detail Laporan Bulanan</h4>
-                        <p class="text-muted">{{ $laporan->formatted_periode }}</p>
-                    </div>
-                    <div>
-                        <a href="{{ route('gkm.laporan-kuesioner.index') }}" class="btn btn-outline-secondary">
-                            <i class="bi bi-arrow-left"></i> Kembali
+    <div style="padding: 1.5rem;">
+        <!-- Header Card -->
+        <div class="filter-card mb-4">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h5 class="mb-1 d-flex align-items-center gap-2" style="font-weight: 600; color: #333;">
+                        <i class="bi bi-file-earmark-text" style="color: #5B9BD5;"></i>
+                        Detail Laporan Kuesioner
+                    </h5>
+                    <p class="text-muted mb-0" style="font-size: 0.875rem;">
+                        {{ $laporan->formatted_periode }} - {{ $laporan->user->prodi->nama_prodi ?? '-' }}
+                    </p>
+                </div>
+                <div class="d-flex gap-2">
+                    <a href="{{ route('gkm.laporan-kuesioner.index') }}" class="btn btn-outline-secondary">
+                        <i class="bi bi-arrow-left"></i> Kembali
+                    </a>
+                    @if($laporan->status == 'completed' && $laporan->file_word)
+                        <a href="{{ route('gkm.laporan-kuesioner.download', [$laporan->id, 'word']) }}" 
+                           class="btn btn-success">
+                            <i class="bi bi-download"></i> Download Word
                         </a>
-                        @if ($laporan->status == 'completed' && $laporan->file_word)
-                            <a href="{{ route('gkm.laporan-kuesioner.download', [$laporan->id, 'word']) }}"
-                                class="btn btn-success">
-                                <i class="bi bi-download"></i> Download Word
-                            </a>
-                        @endif
-                    </div>
+                    @endif
                 </div>
             </div>
         </div>
 
-        <!-- Status Card -->
-        <div class="row mb-4">
-            <div class="col-12">
-                <div class="card border-{{ $laporan->status_badge }}">
-                    <div class="card-body">
-                        <div class="d-flex align-items-center">
-                            <div class="flex-grow-1">
-                                <h5 class="mb-1">
-                                    Status: <span
-                                        class="badge bg-{{ $laporan->status_badge }}">{{ $laporan->status_label }}</span>
-                                </h5>
-                                @if ($laporan->status == 'pending')
-                                    <p class="mb-0 text-muted">Laporan sedang menunggu untuk diproses...</p>
-                                @elseif($laporan->status == 'processing')
-                                    <p class="mb-0 text-muted">
-                                        <i class="bi bi-hourglass-split"></i> AI Agent sedang menganalisis data dan
-                                        menghasilkan laporan...
-                                    </p>
-                                @elseif($laporan->status == 'completed')
-                                    <p class="mb-0 text-success">
-                                        <i class="bi bi-check-circle"></i> Laporan berhasil digenerate dan siap didownload
-                                    </p>
-                                @elseif($laporan->status == 'error')
-                                    <p class="mb-0 text-danger">
-                                        <i class="bi bi-exclamation-triangle"></i> <strong>Terjadi error:</strong>
-                                        {{ $laporan->error_message }}
-                                    </p>
-                                    @if (str_contains($laporan->error_message, 'Tidak ada kuesioner'))
-                                        <div class="alert alert-info mt-3 mb-0">
-                                            <strong>Langkah untuk mengatasi:</strong>
-                                            <ol class="mb-0 mt-2">
-                                                <li>Upload kuesioner mahasiswa terlebih dahulu di halaman <a
-                                                        href="{{ route('gkm.monitoring-kuesioner.index') }}"
-                                                        class="alert-link"><strong>Monitoring Kuesioner</strong></a></li>
-                                                <li>Pastikan kuesioner sudah dianalisis (status: Completed)</li>
-                                                <li>Pastikan periode kuesioner sesuai dengan periode laporan
-                                                    ({{ $laporan->formatted_periode }})</li>
-                                                <li>Setelah ada data kuesioner, hapus laporan ini dan generate ulang</li>
-                                            </ol>
-                                        </div>
-                                    @endif
-                                @endif
+        <div class="row">
+            <div class="col-lg-8">
+                <!-- Status Card -->
+                <div class="monitoring-card mb-4">
+                    <div class="monitoring-header">
+                        <i class="bi bi-info-circle" style="color: #5B9BD5;"></i>
+                        <h6>Status Laporan</h6>
+                    </div>
+                    <div style="padding: 1.5rem;">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="filter-label">Status</label>
+                                <div>
+                                    <span class="badge-gkm {{ $laporan->status_badge == 'success' ? 'success' : ($laporan->status_badge == 'warning' ? 'warning' : ($laporan->status_badge == 'danger' ? 'danger' : 'info')) }}" 
+                                          style="font-size: 1rem; padding: 0.5rem 1rem;">
+                                        {{ $laporan->status_label }}
+                                    </span>
+                                </div>
                             </div>
-                            @if (in_array($laporan->status, ['pending', 'processing']))
-                                <div class="spinner-border text-primary" role="status">
-                                    <span class="visually-hidden">Loading...</span>
+                            <div class="col-md-6">
+                                <label class="filter-label">Dibuat</label>
+                                <div class="text-secondary">
+                                    {{ $laporan->created_at->format('d F Y, H:i') }}
+                                </div>
+                            </div>
+                            @if($laporan->updated_at && $laporan->status == 'completed')
+                                <div class="col-md-6">
+                                    <label class="filter-label">Selesai Diproses</label>
+                                    <div class="text-secondary">
+                                        {{ $laporan->updated_at->format('d F Y, H:i') }}
+                                    </div>
+                                </div>
+                            @endif
+                            @if($laporan->template)
+                                <div class="col-md-6">
+                                    <label class="filter-label">Template</label>
+                                    <div class="text-secondary">
+                                        {{ $laporan->template->nama_template }}
+                                    </div>
                                 </div>
                             @endif
                         </div>
-                    </div>
-                </div>
-            </div>
-        </div>
 
-        @if ($laporan->status == 'completed')
-            <!-- Statistik Utama -->
-            <div class="row mb-4">
-                <div class="col-md-3">
-                    <div class="card text-center">
-                        <div class="card-body">
-                            <h6 class="text-muted mb-2">Total Kuesioner</h6>
-                            <h2 class="mb-0">{{ $laporan->total_kuesioner }}</h2>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-3">
-                    <div class="card text-center">
-                        <div class="card-body">
-                            <h6 class="text-muted mb-2">Total Responden</h6>
-                            <h2 class="mb-0">{{ $laporan->total_responden }}</h2>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-3">
-                    <div class="card text-center">
-                        <div class="card-body">
-                            <h6 class="text-muted mb-2">Index Kepuasan</h6>
-                            <h2 class="mb-0">{{ number_format($laporan->index_kepuasan_rata_rata, 2) }}</h2>
-                            <small class="text-muted">skala 0-4</small>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-3">
-                    <div class="card text-center">
-                        <div class="card-body">
-                            <h6 class="text-muted mb-2">Persen Kepuasan</h6>
-                            <h2 class="mb-0">{{ number_format($laporan->persen_kepuasan_rata_rata, 1) }}%</h2>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Hasil Laporan -->
-            @if ($laporan->hasil_laporan)
-                @php
-                    $hasil = $laporan->hasil_laporan;
-                @endphp
-
-                <!-- Ringkasan Eksekutif -->
-                @if (isset($hasil['ringkasan_eksekutif']))
-                    <div class="row mb-4">
-                        <div class="col-12">
-                            <div class="card">
-                                <div class="card-header bg-primary text-white">
-                                    <h5 class="mb-0"><i class="bi bi-file-text"></i> Ringkasan Eksekutif</h5>
-                                </div>
-                                <div class="card-body">
-                                    <p>{{ $hasil['ringkasan_eksekutif']['overview'] ?? '' }}</p>
-
-                                    @if (isset($hasil['ringkasan_eksekutif']['highlight_positif']))
-                                        <div class="mb-3">
-                                            <h6 class="text-success"><i class="bi bi-check-circle"></i> Highlight Positif:
-                                            </h6>
-                                            <ul>
-                                                @foreach ($hasil['ringkasan_eksekutif']['highlight_positif'] as $item)
-                                                    <li>{{ $item }}</li>
-                                                @endforeach
-                                            </ul>
-                                        </div>
-                                    @endif
-
-                                    @if (isset($hasil['ringkasan_eksekutif']['highlight_negatif']))
-                                        <div class="mb-3">
-                                            <h6 class="text-warning"><i class="bi bi-exclamation-triangle"></i> Highlight
-                                                Negatif:</h6>
-                                            <ul>
-                                                @foreach ($hasil['ringkasan_eksekutif']['highlight_negatif'] as $item)
-                                                    <li>{{ $item }}</li>
-                                                @endforeach
-                                            </ul>
-                                        </div>
-                                    @endif
-
-                                    @if (isset($hasil['ringkasan_eksekutif']['trend']))
-                                        <div>
-                                            <h6>Trend:</h6>
-                                            <span
-                                                class="badge bg-info">{{ ucfirst($hasil['ringkasan_eksekutif']['trend']) }}</span>
-                                        </div>
-                                    @endif
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                @endif
-
-                <!-- Insight Utama -->
-                @if (isset($hasil['insight_utama']) && is_array($hasil['insight_utama']))
-                    <div class="row mb-4">
-                        <div class="col-12">
-                            <div class="card">
-                                <div class="card-header bg-info text-white">
-                                    <h5 class="mb-0"><i class="bi bi-lightbulb"></i> Insight Utama</h5>
-                                </div>
-                                <div class="card-body">
-                                    <ol>
-                                        @foreach ($hasil['insight_utama'] as $insight)
-                                            <li class="mb-2">{{ $insight }}</li>
-                                        @endforeach
+                        @if($laporan->status == 'error' && $laporan->error_message)
+                            <div class="alert-gkm danger mt-3">
+                                <h6 style="font-weight: 600; margin-bottom: 0.5rem;">
+                                    <i class="bi bi-exclamation-triangle"></i> Error
+                                </h6>
+                                <p class="mb-0" style="font-size: 0.875rem;">{{ $laporan->error_message }}</p>
+                                @if (str_contains($laporan->error_message, 'Tidak ada kuesioner'))
+                                    <hr style="margin: 0.75rem 0;">
+                                    <strong style="font-size: 0.875rem;">Langkah untuk mengatasi:</strong>
+                                    <ol class="mb-0 mt-2" style="font-size: 0.875rem; padding-left: 1.25rem;">
+                                        <li>Upload kuesioner mahasiswa terlebih dahulu di halaman <a
+                                                href="{{ route('gkm.monitoring-kuesioner.index') }}"
+                                                style="color: #5B9BD5; font-weight: 600;">Monitoring Kuesioner</a></li>
+                                        <li>Pastikan kuesioner sudah dianalisis (status: Completed)</li>
+                                        <li>Pastikan periode kuesioner sesuai dengan periode laporan
+                                            ({{ $laporan->formatted_periode }})</li>
+                                        <li>Setelah ada data kuesioner, hapus laporan ini dan generate ulang</li>
                                     </ol>
-                                </div>
+                                @endif
+                            </div>
+                        @endif
+
+                        @if($laporan->status == 'processing')
+                            <div class="alert-gkm info mt-3">
+                                <i class="bi bi-hourglass-split"></i>
+                                <strong>Sedang Diproses:</strong> AI Agent sedang menganalisis data dan membuat laporan. 
+                                Halaman akan otomatis refresh setiap 10 detik.
+                            </div>
+                        @endif
+                    </div>
+                </div>
+
+                <!-- Content Preview -->
+                @if($laporan->status == 'completed' && $laporan->konten)
+                    <div class="monitoring-card mb-4">
+                        <div class="monitoring-header">
+                            <i class="bi bi-file-text" style="color: #5B9BD5;"></i>
+                            <h6>Preview Konten Laporan</h6>
+                        </div>
+                        <div style="padding: 1.5rem;">
+                            <div class="markdown-content" style="max-height: 600px; overflow-y: auto;">
+                                {!! \Illuminate\Support\Str::markdown($laporan->konten) !!}
                             </div>
                         </div>
                     </div>
                 @endif
 
-                <!-- Rekomendasi -->
-                @if (isset($hasil['rekomendasi']) && is_array($hasil['rekomendasi']))
-                    <div class="row mb-4">
-                        <div class="col-12">
-                            <div class="card">
-                                <div class="card-header bg-success text-white">
-                                    <h5 class="mb-0"><i class="bi bi-clipboard-check"></i> Rekomendasi Strategis</h5>
-                                </div>
-                                <div class="card-body">
-                                    <div class="table-responsive">
-                                        <table class="table table-hover">
-                                            <thead>
-                                                <tr>
-                                                    <th width="5%">#</th>
-                                                    <th width="60%">Rekomendasi</th>
-                                                    <th width="15%">Prioritas</th>
-                                                    <th width="20%">Timeline</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                @foreach ($hasil['rekomendasi'] as $idx => $rekom)
-                                                    <tr>
-                                                        <td>{{ $idx + 1 }}</td>
-                                                        <td>
-                                                            @if (is_array($rekom))
-                                                                {{ $rekom['rekomendasi'] ?? $rekom }}
-                                                            @else
-                                                                {{ $rekom }}
-                                                            @endif
-                                                        </td>
-                                                        <td>
-                                                            @if (is_array($rekom) && isset($rekom['prioritas']))
-                                                                @php
-                                                                    $badgeColor = match (
-                                                                        strtolower($rekom['prioritas'])
-                                                                    ) {
-                                                                        'high' => 'danger',
-                                                                        'medium' => 'warning',
-                                                                        'low' => 'secondary',
-                                                                        default => 'secondary',
-                                                                    };
-                                                                @endphp
-                                                                <span
-                                                                    class="badge bg-{{ $badgeColor }}">{{ $rekom['prioritas'] }}</span>
-                                                            @else
-                                                                -
-                                                            @endif
-                                                        </td>
-                                                        <td>
-                                                            @if (is_array($rekom) && isset($rekom['timeline']))
-                                                                {{ $rekom['timeline'] }}
-                                                            @else
-                                                                -
-                                                            @endif
-                                                        </td>
-                                                    </tr>
-                                                @endforeach
-                                            </tbody>
-                                        </table>
+                <!-- Hasil Laporan JSON (for debugging/technical view) -->
+                @if($laporan->status == 'completed' && $laporan->hasil_laporan)
+                    @php
+                        $hasil = $laporan->hasil_laporan;
+                    @endphp
+
+                    @if(isset($hasil['ringkasan_eksekutif']) || isset($hasil['insight_utama']) || isset($hasil['rekomendasi']))
+                        <div class="monitoring-card mb-4">
+                            <div class="monitoring-header">
+                                <i class="bi bi-lightbulb" style="color: #5B9BD5;"></i>
+                                <h6>Insight & Rekomendasi</h6>
+                            </div>
+                            <div style="padding: 1.5rem;">
+                                <!-- Ringkasan -->
+                                @if(isset($hasil['ringkasan_eksekutif']['overview']))
+                                    <div class="mb-3">
+                                        <label class="filter-label">Ringkasan Eksekutif</label>
+                                        <p style="line-height: 1.6; color: #495057;">{{ $hasil['ringkasan_eksekutif']['overview'] }}</p>
                                     </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                @endif
+                                @endif
 
-                <!-- Top 5 Tertinggi & Terendah -->
-                <div class="row mb-4">
-                    @if (isset($hasil['top_5_tertinggi']))
-                        <div class="col-md-6">
-                            <div class="card">
-                                <div class="card-header bg-success text-white">
-                                    <h6 class="mb-0"><i class="bi bi-trophy"></i> Top 5 Kuesioner Tertinggi</h6>
-                                </div>
-                                <div class="card-body">
-                                    <ol>
-                                        @foreach ($hasil['top_5_tertinggi'] as $item)
-                                            <li class="mb-2">
-                                                @if (is_array($item))
-                                                    {{ $item['nama'] ?? ($item['kuesioner'] ?? '') }}
-                                                    @if (isset($item['nama_matakuliah']))
-                                                        <br><small class="text-muted">{{ $item['nama_matakuliah'] }}
-                                                            ({{ $item['kode_matakuliah'] ?? '-' }})</small>
+                                <!-- Insight Utama -->
+                                @if(isset($hasil['insight_utama']) && is_array($hasil['insight_utama']) && count($hasil['insight_utama']) > 0)
+                                    <div class="mb-3">
+                                        <label class="filter-label">Insight Utama</label>
+                                        <ul style="padding-left: 1.25rem; margin-bottom: 0;">
+                                            @foreach(array_slice($hasil['insight_utama'], 0, 3) as $insight)
+                                                <li style="margin-bottom: 0.5rem; color: #495057;">{{ $insight }}</li>
+                                            @endforeach
+                                        </ul>
+                                    </div>
+                                @endif
+
+                                <!-- Rekomendasi -->
+                                @if(isset($hasil['rekomendasi']) && is_array($hasil['rekomendasi']) && count($hasil['rekomendasi']) > 0)
+                                    <div>
+                                        <label class="filter-label">Rekomendasi</label>
+                                        <ul style="padding-left: 1.25rem; margin-bottom: 0;">
+                                            @foreach(array_slice($hasil['rekomendasi'], 0, 3) as $rekom)
+                                                <li style="margin-bottom: 0.5rem; color: #495057;">
+                                                    @if(is_array($rekom))
+                                                        {{ $rekom['rekomendasi'] ?? json_encode($rekom) }}
+                                                    @else
+                                                        {{ $rekom }}
                                                     @endif
-                                                    <span
-                                                        class="badge bg-success">{{ $item['index_kepuasan'] ?? ($item['index'] ?? '') }}</span>
-                                                @else
-                                                    {{ $item }}
-                                                @endif
-                                            </li>
-                                        @endforeach
-                                    </ol>
-                                </div>
+                                                </li>
+                                            @endforeach
+                                        </ul>
+                                    </div>
+                                @endif
                             </div>
                         </div>
                     @endif
-
-                    @if (isset($hasil['top_5_terendah']))
-                        <div class="col-md-6">
-                            <div class="card">
-                                <div class="card-header bg-warning text-dark">
-                                    <h6 class="mb-0"><i class="bi bi-exclamation-triangle"></i> Top 5 Kuesioner Terendah
-                                    </h6>
-                                </div>
-                                <div class="card-body">
-                                    <ol>
-                                        @foreach ($hasil['top_5_terendah'] as $item)
-                                            <li class="mb-2">
-                                                @if (is_array($item))
-                                                    {{ $item['nama'] ?? ($item['kuesioner'] ?? '') }}
-                                                    @if (isset($item['nama_matakuliah']))
-                                                        <br><small class="text-muted">{{ $item['nama_matakuliah'] }}
-                                                            ({{ $item['kode_matakuliah'] ?? '-' }})</small>
-                                                    @endif
-                                                    <span
-                                                        class="badge bg-warning text-dark">{{ $item['index_kepuasan'] ?? ($item['index'] ?? '') }}</span>
-                                                @else
-                                                    {{ $item }}
-                                                @endif
-                                            </li>
-                                        @endforeach
-                                    </ol>
-                                </div>
-                            </div>
-                        </div>
-                    @endif
-                </div>
-
-                <!-- Detail Semua Kuesioner -->
-                @if (isset($hasil['top_5_tertinggi']) || isset($hasil['top_5_terendah']))
-                    <div class="row mb-4">
-                        <div class="col-12">
-                            <div class="card">
-                                <div class="card-header bg-secondary text-white">
-                                    <h6 class="mb-0"><i class="bi bi-list-ul"></i> Detail Semua Kuesioner</h6>
-                                </div>
-                                <div class="card-body">
-                                    <div class="table-responsive">
-                                        <table class="table table-hover table-sm">
-                                            <thead class="table-light">
-                                                <tr>
-                                                    <th width="5%">No</th>
-                                                    <th width="20%">Nama Kuesioner</th>
-                                                    <th width="15%">Matakuliah</th>
-                                                    <th width="8%">Kode MK</th>
-                                                    <th width="5%">Tingkat</th>
-                                                    <th width="15%">Dosen Pengampu</th>
-                                                    <th width="8%">Responden</th>
-                                                    <th width="10%">Index</th>
-                                                    <th width="10%">Persen</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                @php
-                                                    // Get kuesioner data from aggregated data in service
-                                                    $kuesioneData = [];
-
-                                                    // Try to get from top_5_tertinggi and top_5_terendah combined
-                                                    $allKuesioner = [];
-                                                    if (isset($hasil['top_5_tertinggi'])) {
-                                                        $allKuesioner = array_merge(
-                                                            $allKuesioner,
-                                                            $hasil['top_5_tertinggi'],
-                                                        );
-                                                    }
-                                                    if (isset($hasil['top_5_terendah'])) {
-                                                        $allKuesioner = array_merge(
-                                                            $allKuesioner,
-                                                            $hasil['top_5_terendah'],
-                                                        );
-                                                    }
-
-                                                    // Remove duplicates by id
-                                                    $uniqueKuesioner = [];
-                                                    $seenIds = [];
-                                                    foreach ($allKuesioner as $k) {
-                                                        if (
-                                                            is_array($k) &&
-                                                            isset($k['id']) &&
-                                                            !in_array($k['id'], $seenIds)
-                                                        ) {
-                                                            $uniqueKuesioner[] = $k;
-                                                            $seenIds[] = $k['id'];
-                                                        }
-                                                    }
-
-                                                    // Sort by index_kepuasan descending
-                                                    usort($uniqueKuesioner, function ($a, $b) {
-                                                        return ($b['index_kepuasan'] ?? 0) <=>
-                                                            ($a['index_kepuasan'] ?? 0);
-                                                    });
-                                                @endphp
-
-                                                @forelse($uniqueKuesioner as $idx => $kuesioner)
-                                                    <tr>
-                                                        <td>{{ $idx + 1 }}</td>
-                                                        <td>{{ $kuesioner['nama'] ?? '-' }}</td>
-                                                        <td>
-                                                            @if (isset($kuesioner['nama_matakuliah']) && $kuesioner['nama_matakuliah'])
-                                                                {{ $kuesioner['nama_matakuliah'] }}
-                                                            @else
-                                                                <span class="text-muted">-</span>
-                                                            @endif
-                                                        </td>
-                                                        <td>
-                                                            @if (isset($kuesioner['kode_matakuliah']) && $kuesioner['kode_matakuliah'])
-                                                                {{ $kuesioner['kode_matakuliah'] }}
-                                                            @else
-                                                                <span class="text-muted">-</span>
-                                                            @endif
-                                                        </td>
-                                                        <td class="text-center">
-                                                            @if (isset($kuesioner['tingkat']) && $kuesioner['tingkat'])
-                                                                {{ $kuesioner['tingkat'] }}
-                                                            @else
-                                                                <span class="text-muted">-</span>
-                                                            @endif
-                                                        </td>
-                                                        <td>
-                                                            @if (isset($kuesioner['dosen_pengampu']) && $kuesioner['dosen_pengampu'])
-                                                                {{ $kuesioner['dosen_pengampu'] }}
-                                                            @else
-                                                                <span class="text-muted">-</span>
-                                                            @endif
-                                                        </td>
-                                                        <td class="text-center">{{ $kuesioner['responden'] ?? 0 }}</td>
-                                                        <td>
-                                                            <span class="badge bg-primary">
-                                                                {{ number_format($kuesioner['index_kepuasan'] ?? 0, 2) }}
-                                                            </span>
-                                                        </td>
-                                                        <td>
-                                                            <span class="badge bg-info">
-                                                                {{ number_format($kuesioner['persen_kepuasan'] ?? 0, 1) }}%
-                                                            </span>
-                                                        </td>
-                                                    </tr>
-                                                @empty
-                                                    <tr>
-                                                        <td colspan="9" class="text-center text-muted py-3">
-                                                            <i class="bi bi-info-circle"></i> Data kuesioner tidak tersedia
-                                                        </td>
-                                                    </tr>
-                                                @endforelse
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                    @if (count($uniqueKuesioner) > 0 && !isset($uniqueKuesioner[0]['nama_matakuliah']))
-                                        <div class="alert alert-warning mb-0 mt-3">
-                                            <i class="bi bi-exclamation-triangle"></i>
-                                            <strong>Catatan:</strong> Data matakuliah, kode MK, tingkat, dan dosen pengampu
-                                            tidak tersedia untuk laporan ini.
-                                            Silakan generate laporan baru untuk melihat data lengkap.
-                                        </div>
-                                    @endif
-                                </div>
-                            </div>
-                        </div>
-                    </div>
                 @endif
-            @endif
-        @endif
+            </div>
 
-        <!-- RAG Metadata (if available) -->
-        @if ($laporan->status == 'completed' && isset($hasil['rag_metadata']))
-            <div class="row mb-4">
-                <div class="col-12">
-                    <div class="card border-info">
-                        <div class="card-header bg-info text-white">
-                            <h6 class="mb-0"><i class="bi bi-cpu"></i> RAG System Information</h6>
+            <div class="col-lg-4">
+                <!-- Statistics Card -->
+                <div class="monitoring-card mb-4">
+                    <div class="monitoring-header">
+                        <i class="bi bi-bar-chart" style="color: #5B9BD5;"></i>
+                        <h6>Statistik</h6>
+                    </div>
+                    <div style="padding: 1.5rem;">
+                        <div class="mb-3">
+                            <label class="filter-label">Total Kuesioner</label>
+                            <div class="d-flex align-items-center gap-2">
+                                <span class="badge-gkm info" style="font-size: 1.5rem; padding: 0.5rem 1rem;">
+                                    {{ $laporan->total_kuesioner ?? 0 }}
+                                </span>
+                                <span class="text-muted" style="font-size: 0.85rem;">matakuliah</span>
+                            </div>
                         </div>
-                        <div class="card-body">
-                            <div class="row">
-                                <div class="col-md-3 text-center">
-                                    <div class="mb-2">
-                                        <i class="bi bi-diagram-3 fs-2 text-info"></i>
-                                    </div>
-                                    <h6 class="text-muted mb-1">Method</h6>
-                                    <p class="mb-0">
-                                        <span
-                                            class="badge bg-info">{{ strtoupper($hasil['rag_metadata']['method'] ?? 'RAG') }}</span>
-                                    </p>
-                                </div>
-                                <div class="col-md-3 text-center">
-                                    <div class="mb-2">
-                                        <i class="bi bi-file-earmark-text fs-2 text-primary"></i>
-                                    </div>
-                                    <h6 class="text-muted mb-1">Chunks Used</h6>
-                                    <p class="mb-0 fs-5">{{ $hasil['rag_metadata']['chunks_used'] ?? 0 }}</p>
-                                </div>
-                                <div class="col-md-3 text-center">
-                                    <div class="mb-2">
-                                        <i class="bi bi-percent fs-2 text-success"></i>
-                                    </div>
-                                    <h6 class="text-muted mb-1">Avg Similarity</h6>
-                                    <p class="mb-0 fs-5">
-                                        {{ number_format(($hasil['rag_metadata']['avg_similarity'] ?? 0) * 100, 1) }}%</p>
-                                </div>
-                                <div class="col-md-3 text-center">
-                                    <div class="mb-2">
-                                        <i class="bi bi-database fs-2 text-warning"></i>
-                                    </div>
-                                    <h6 class="text-muted mb-1">Sources</h6>
-                                    <p class="mb-0 fs-5">{{ $hasil['rag_metadata']['sources'] ?? 0 }}</p>
+                        <div class="mb-3">
+                            <label class="filter-label">Total Responden</label>
+                            <div class="d-flex align-items-center gap-2">
+                                <span class="badge-gkm info" style="font-size: 1.5rem; padding: 0.5rem 1rem;">
+                                    {{ $laporan->total_responden ?? 0 }}
+                                </span>
+                                <span class="text-muted" style="font-size: 0.85rem;">mahasiswa</span>
+                            </div>
+                        </div>
+                        @if($laporan->index_kepuasan_rata_rata)
+                            <div class="mb-3">
+                                <label class="filter-label">Index Kepuasan</label>
+                                <div class="d-flex align-items-center gap-2">
+                                    <span class="badge-gkm success" style="font-size: 1.5rem; padding: 0.5rem 1rem;">
+                                        {{ number_format($laporan->index_kepuasan_rata_rata, 2) }}
+                                    </span>
+                                    <span class="text-muted" style="font-size: 0.85rem;">/ 4.00</span>
                                 </div>
                             </div>
-                            <hr>
-                            <p class="text-muted mb-0 small">
-                                <i class="bi bi-info-circle"></i>
-                                Laporan ini dihasilkan menggunakan teknologi <strong>RAG (Retrieval-Augmented
-                                    Generation)</strong>
-                                yang menganalisis {{ $hasil['rag_metadata']['chunks_used'] ?? 0 }} potongan teks dari
-                                {{ $hasil['rag_metadata']['sources'] ?? 0 }} sumber kuesioner dengan tingkat relevansi
-                                rata-rata
-                                {{ number_format(($hasil['rag_metadata']['avg_similarity'] ?? 0) * 100, 1) }}%.
-                            </p>
-                        </div>
+                        @endif
+                        @if($laporan->persen_kepuasan_rata_rata)
+                            <div>
+                                <label class="filter-label">Persentase Kepuasan</label>
+                                <div class="d-flex align-items-center gap-2">
+                                    <span class="badge-gkm success" style="font-size: 1.5rem; padding: 0.5rem 1rem;">
+                                        {{ number_format($laporan->persen_kepuasan_rata_rata, 1) }}%
+                                    </span>
+                                </div>
+                            </div>
+                        @endif
                     </div>
                 </div>
-            </div>
-        @endif
 
-        <!-- Metadata -->
-        <div class="row">
-            <div class="col-12">
-                <div class="card">
-                    <div class="card-header">
-                        <h6 class="mb-0">Informasi Laporan</h6>
+                <!-- Actions Card -->
+                <div class="monitoring-card">
+                    <div class="monitoring-header">
+                        <i class="bi bi-gear" style="color: #5B9BD5;"></i>
+                        <h6>Aksi</h6>
                     </div>
-                    <div class="card-body">
-                        <div class="row">
-                            <div class="col-md-6">
-                                <table class="table table-sm">
-                                    <tr>
-                                        <th width="40%">Periode</th>
-                                        <td>{{ $laporan->formatted_periode }}</td>
-                                    </tr>
-                                    <tr>
-                                        <th>Program Studi</th>
-                                        <td>{{ $laporan->prodi->nama_prodi ?? '-' }}</td>
-                                    </tr>
-                                    <tr>
-                                        <th>Template</th>
-                                        <td>{{ $laporan->template->nama_template ?? 'Format Default' }}</td>
-                                    </tr>
-                                    <tr>
-                                        <th>AI Model</th>
-                                        <td>
-                                            <span class="badge bg-secondary">
-                                                {{ env('LLM_PROVIDER', 'default') }} -
-                                                {{ env('OLLAMA_MODEL') ?: env('GROQ_MODEL') ?: env('LLM_MODEL', 'unknown') }}
-                                            </span>
-                                        </td>
-                                    </tr>
-                                </table>
-                            </div>
-                            <div class="col-md-6">
-                                <table class="table table-sm">
-                                    <tr>
-                                        <th width="40%">Dibuat Oleh</th>
-                                        <td>{{ $laporan->user->name ?? '-' }}</td>
-                                    </tr>
-                                    <tr>
-                                        <th>Dibuat Pada</th>
-                                        <td>{{ $laporan->created_at->format('d/m/Y H:i:s') }}</td>
-                                    </tr>
-                                    <tr>
-                                        <th>Diupdate Pada</th>
-                                        <td>{{ $laporan->updated_at->format('d/m/Y H:i:s') }}</td>
-                                    </tr>
-                                    <tr>
-                                        <th>RAG Mode</th>
-                                        <td>
-                                            @if (env('VECTOR_DB_ENABLED', false))
-                                                <span class="badge bg-success">Advanced RAG (Vector DB)</span>
-                                            @else
-                                                <span class="badge bg-info">Simple RAG</span>
-                                            @endif
-                                        </td>
-                                    </tr>
-                                </table>
-                            </div>
+                    <div style="padding: 1.5rem;">
+                        <div class="d-grid gap-2">
+                            @if($laporan->status == 'completed' && $laporan->file_word)
+                                <a href="{{ route('gkm.laporan-kuesioner.download', [$laporan->id, 'word']) }}" 
+                                   class="btn btn-success">
+                                    <i class="bi bi-download"></i> Download Word
+                                </a>
+                            @endif
+                            
+                            <a href="{{ route('gkm.laporan-kuesioner.index') }}" 
+                               class="btn btn-outline-secondary">
+                                <i class="bi bi-arrow-left"></i> Kembali ke Daftar
+                            </a>
+                            
+                            <button type="button" 
+                                    class="btn btn-outline-danger"
+                                    onclick="confirmDelete({{ $laporan->id }}, '{{ $laporan->formatted_periode }}')">
+                                <i class="bi bi-trash"></i> Hapus Laporan
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -581,12 +258,110 @@
         </div>
     </div>
 
-    @if (in_array($laporan->status, ['pending', 'processing']))
+    @if($laporan->status == 'processing')
         <script>
-            // Auto refresh every 5 seconds if status is pending or processing
+            // Auto refresh every 10 seconds if still processing
             setTimeout(function() {
                 location.reload();
-            }, 5000);
+            }, 10000);
         </script>
     @endif
 @endsection
+
+@push('scripts')
+<script>
+function confirmDelete(laporanId, periode) {
+    if (confirm(`Yakin ingin menghapus laporan periode ${periode}?`)) {
+        // Build URL using route helper
+        const url = '{{ route('gkm.laporan-kuesioner.destroy', ':id') }}'.replace(':id', laporanId);
+
+        // Send DELETE request
+        fetch(url, {
+            method: 'DELETE',
+            headers: {
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+                'Accept': 'application/json',
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert(data.message);
+                window.location.href = '{{ route('gkm.laporan-kuesioner.index') }}';
+            } else {
+                alert('Error: ' + data.message);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Terjadi kesalahan saat menghapus laporan');
+        });
+    }
+}
+</script>
+@endpush
+
+@push('styles')
+<style>
+.markdown-content {
+    font-size: 0.95rem;
+    line-height: 1.6;
+}
+
+.markdown-content h1,
+.markdown-content h2,
+.markdown-content h3 {
+    margin-top: 1.5rem;
+    margin-bottom: 0.75rem;
+    font-weight: 600;
+    color: #333;
+}
+
+.markdown-content h1 {
+    font-size: 1.5rem;
+    border-bottom: 2px solid #5B9BD5;
+    padding-bottom: 0.5rem;
+}
+
+.markdown-content h2 {
+    font-size: 1.25rem;
+}
+
+.markdown-content h3 {
+    font-size: 1.1rem;
+}
+
+.markdown-content ul,
+.markdown-content ol {
+    margin-left: 1.5rem;
+    margin-bottom: 1rem;
+}
+
+.markdown-content li {
+    margin-bottom: 0.5rem;
+}
+
+.markdown-content p {
+    margin-bottom: 1rem;
+}
+
+.markdown-content table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 1rem;
+}
+
+.markdown-content table th,
+.markdown-content table td {
+    border: 1px solid #dee2e6;
+    padding: 0.5rem;
+}
+
+.markdown-content table th {
+    background-color: #f8f9fa;
+    font-weight: 600;
+}
+</style>
+@endpush
+

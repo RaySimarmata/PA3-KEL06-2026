@@ -7,7 +7,8 @@
     <title>Login - Sistem GJM dan GKM</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Source+Sans+Pro:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Source+Sans+Pro:wght@300;400;600;700&display=swap"
+        rel="stylesheet">
     <style>
         * {
             margin: 0;
@@ -286,12 +287,12 @@
             .system-subtitle {
                 font-size: 12px;
             }
-            
+
             .password-toggle {
                 font-size: 16px;
                 right: 8px;
             }
-            
+
             .password-wrapper .form-control {
                 padding-right: 34px;
             }
@@ -304,8 +305,7 @@
         <div class="login-box">
             <div class="login-header">
                 <div class="logo-container">
-                    <img src="{{ asset('images/logo-itdel.jpg') }}" 
-                         alt="Institut Teknologi Del" class="logo">
+                    <img src="{{ asset('images/logo-itdel.jpg') }}" alt="Institut Teknologi Del" class="logo">
                     <div class="institute-name">Institut Teknologi Del</div>
                 </div>
                 <div class="system-title">Sistem GJM dan GKM</div>
@@ -325,17 +325,11 @@
 
             <form method="POST" action="{{ route('login.store') }}">
                 @csrf
-                
+
                 <div class="form-group @error('email') has-error @enderror">
                     <label for="email" class="form-label">Email</label>
-                    <input type="email" 
-                           class="form-control @error('email') is-invalid @enderror" 
-                           id="email"
-                           name="email" 
-                           value="{{ old('email') }}" 
-                           required 
-                           autofocus
-                           placeholder="">
+                    <input type="email" class="form-control @error('email') is-invalid @enderror" id="email"
+                        name="email" value="{{ old('email') }}" required autofocus placeholder="">
                     @error('email')
                         <span class="error-message">{{ $message }}</span>
                     @enderror
@@ -344,13 +338,10 @@
                 <div class="form-group @error('password') has-error @enderror" id="password-group">
                     <label for="password" class="form-label">Password</label>
                     <div class="password-wrapper">
-                        <input type="password" 
-                               class="form-control @error('password') is-invalid @enderror" 
-                               id="password"
-                               name="password" 
-                               required
-                               placeholder="">
-                        <button type="button" class="password-toggle" id="togglePassword" aria-label="Tampilkan password">
+                        <input type="password" class="form-control @error('password') is-invalid @enderror"
+                            id="password" name="password" required placeholder="">
+                        <button type="button" class="password-toggle" id="togglePassword"
+                            aria-label="Tampilkan password">
                             <i class="bi bi-eye"></i>
                         </button>
                     </div>
@@ -379,7 +370,7 @@
             const passwordGroup = document.getElementById('password-group');
             const toggleBtn = document.getElementById('togglePassword');
             const eyeIcon = toggleBtn.querySelector('i');
-            
+
             function updateFieldState(input, group) {
                 if (input.value.trim() !== '') {
                     group.classList.add('has-success');
@@ -388,20 +379,22 @@
                 }
             }
 
-            // Toggle password visibility dengan ikon formal
+            // Toggle password visibility - LOGIKA DIPERBAIKI
             if (toggleBtn) {
                 toggleBtn.addEventListener('click', function() {
-                    const type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
-                    passwordInput.setAttribute('type', type);
-                    
-                    // Ganti kelas ikon Bootstrap Icons
-                    if (type === 'text') {
-                        eyeIcon.classList.remove('bi-eye');
-                        eyeIcon.classList.add('bi-eye-slash');
-                        toggleBtn.setAttribute('aria-label', 'Sembunyikan password');
-                    } else {
+                    const isPassword = passwordInput.getAttribute('type') === 'password';
+
+                    if (isPassword) {
+                        // Password tersembunyi -> ingin dilihat
+                        passwordInput.setAttribute('type', 'text');
                         eyeIcon.classList.remove('bi-eye-slash');
                         eyeIcon.classList.add('bi-eye');
+                        toggleBtn.setAttribute('aria-label', 'Sembunyikan password');
+                    } else {
+                        // Password terlihat -> ingin disembunyikan
+                        passwordInput.setAttribute('type', 'password');
+                        eyeIcon.classList.remove('bi-eye');
+                        eyeIcon.classList.add('bi-eye-slash');
                         toggleBtn.setAttribute('aria-label', 'Tampilkan password');
                     }
                 });

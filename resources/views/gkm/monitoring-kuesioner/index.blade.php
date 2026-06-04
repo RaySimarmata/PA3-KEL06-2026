@@ -7,18 +7,21 @@
 
     {{-- ALERT --}}
     @if(session('success'))
-        <div class="alert alert-success alert-dismissible fade show">
-            {{ session('success') }}
-            <button class="btn-close" data-bs-dismiss="alert"></button>
+        <div class="alert-gkm success mb-4">
+            <i class="bi bi-check-circle"></i> {{ session('success') }}
         </div>
     @endif
 
     @if($errors->any())
-        <div class="alert alert-danger alert-dismissible fade show">
-            @foreach($errors->all() as $error)
-                {{ $error }}<br>
-            @endforeach
-            <button class="btn-close" data-bs-dismiss="alert"></button>
+        <div class="alert-gkm danger mb-4">
+            <h6 style="font-weight: 600; margin-bottom: 0.5rem;">
+                <i class="bi bi-exclamation-triangle"></i> Terjadi Kesalahan
+            </h6>
+            <ul class="mb-0" style="font-size: 0.875rem;">
+                @foreach($errors->all() as $error)
+                    <li>{{ $error }}</li>
+                @endforeach
+            </ul>
         </div>
     @endif
 
@@ -28,27 +31,27 @@
             <div class="row g-3 align-items-end">
 
                 <div class="col-md-4">
-                    <label>Periode</label>
-                    <select name="periode" class="form-select" onchange="filterForm.submit()">
-                        <option value="">Semua</option>
-                        <option value="genap_2025">Genap 2025/2026</option>
-                        <option value="ganjil_2025">Ganjil 2025/2026</option>
+                    <label class="filter-label">Periode</label>
+                    <select name="periode" class="form-select">
+                        <option value="">Semua Periode</option>
+                        <option value="genap_2025" {{ request('periode') == 'genap_2025' ? 'selected' : '' }}>Genap 2025/2026</option>
+                        <option value="ganjil_2025" {{ request('periode') == 'ganjil_2025' ? 'selected' : '' }}>Ganjil 2025/2026</option>
                     </select>
                 </div>
 
                 <div class="col-md-4">
-                    <label>Status</label>
-                    <select name="status" class="form-select" onchange="filterForm.submit()">
-                        <option value="">Semua</option>
-                        <option value="uploaded">Uploaded</option>
-                        <option value="processing">Processing</option>
-                        <option value="completed">Completed</option>
-                        <option value="error">Error</option>
+                    <label class="filter-label">Status</label>
+                    <select name="status" class="form-select">
+                        <option value="">Semua Status</option>
+                        <option value="uploaded" {{ request('status') == 'uploaded' ? 'selected' : '' }}>Uploaded</option>
+                        <option value="processing" {{ request('status') == 'processing' ? 'selected' : '' }}>Processing</option>
+                        <option value="completed" {{ request('status') == 'completed' ? 'selected' : '' }}>Completed</option>
+                        <option value="error" {{ request('error') == 'error' ? 'selected' : '' }}>Error</option>
                     </select>
                 </div>
 
                 <div class="col-md-4">
-                    <button class="btn btn-primary w-100">
+                    <button type="submit" class="btn btn-primary w-100" style="padding: 0.6rem;">
                         <i class="bi bi-funnel"></i> Filter
                     </button>
                 </div>
@@ -60,12 +63,11 @@
     {{-- TABLE --}}
     <div class="monitoring-card">
         <div class="monitoring-header">
-            <i class="bi bi-clipboard-data"></i>
-            <h6>Monitoring Kuesioner</h6>
+            <h6 style="text-transform: uppercase; letter-spacing: 0.5px;">Monitoring Kuesioner</h6>
 
-            <div style="margin-left:auto; display:flex; gap:10px;">
-                <a href="{{ route('gkm.monitoring-kuesioner.create-api') }}" class="btn btn-success">
-                    <i class="bi bi-cloud-download" style="color: white;"></i> API
+            <div style="margin-left: auto;">
+                <a href="{{ route('gkm.monitoring-kuesioner.create-api') }}" class="btn btn-sm btn-outline-success">
+                    <i class="bi bi-cloud-download"></i> Ambil dari API
                 </a>
             </div>
         </div>
@@ -76,20 +78,17 @@
                 <thead>
                     <tr>
                         <th style="width: 3%;">No</th>
-                        <th style="width: 13%;">Nama File</th>
-                        <th style="width: 8%;">Periode</th>
-                        <th style="width: 13%;">Matakuliah</th>
-                        <th style="width: 7%;">Kode</th>
-                        <th style="width: 4%;" class="text-center">Tkt</th>
-                        <th style="width: 5%;" class="text-center">Jenis</th>
-                        <th style="width: 13%;">Dosen</th>
-                        <th style="width: 5%;" class="text-center">Sumber</th>
-                        <th style="width: 4%;" class="text-center">Resp.</th>
-                        <th style="width: 4%;" class="text-center">Index</th>
-                        <th style="width: 4%;" class="text-center">%</th>
-                        <th style="width: 7%;" class="text-center">Status</th>
-                        <th style="width: 9%;">Tanggal</th>
-                        <th style="width: 7%;" class="text-center">Aksi</th>
+                        <th style="width: 18%;">Nama File</th>
+                        <th style="width: 10%;">Periode</th>
+                        <th style="width: 15%;">Matakuliah</th>
+                        <th style="width: 8%;">Kode</th>
+                        <th style="width: 5%;" class="text-center">Tkt</th>
+                        <th style="width: 6%;" class="text-center">Jenis</th>
+                        <th style="width: 5%;" class="text-center">Resp.</th>
+                        <th style="width: 6%;" class="text-center">Index</th>
+                        <th style="width: 8%;" class="text-center">Status</th>
+                        <th style="width: 10%;">Tanggal</th>
+                        <th style="width: 12%;" class="text-center">Aksi</th>
                     </tr>
                 </thead>
 
@@ -101,18 +100,31 @@
                     $index = $stat['index_kepuasan'] ?? null;
                     $persen = $index ? ($index / 4) * 100 : null;
 
-                    $color = 'secondary';
-                    if ($index >= 3.5) $color = 'success';
-                    elseif ($index >= 3.0) $color = 'primary';
-                    elseif ($index >= 2.5) $color = 'warning';
-                    elseif ($index) $color = 'danger';
+                    $badgeColor = 'secondary';
+                    if ($index >= 3.5) $badgeColor = 'success';
+                    elseif ($index >= 3.0) $badgeColor = 'info';
+                    elseif ($index >= 2.5) $badgeColor = 'warning';
+                    elseif ($index) $badgeColor = 'danger';
                 @endphp
 
                 <tr>
                     <td class="text-center">{{ $i + 1 }}</td>
 
-                    <td>{{ $k->nama_file }}</td>
-                    <td>{{ $k->periode }}</td>
+                    <td>
+                        <strong style="color: #333;">{{ Str::limit($k->nama_file, 50) }}</strong>
+                        @if($k->dosen_pengampu || $k->pegawai_id)
+                            <br>
+                            <small class="text-muted">
+                                @php
+                                    $dosen = \App\Models\Dosenn::where('pegawai_id', $k->pegawai_id)->first();
+                                @endphp
+                                <i class="bi bi-person"></i> {{ $dosen->nama ?? $k->dosen_pengampu ?? '-' }}
+                            </small>
+                        @endif
+                    </td>
+                    <td>
+                        <span class="badge-gkm info">{{ $k->periode }}</span>
+                    </td>
                     <td>
                         @if($k->nama_matakuliah)
                             {{ $k->nama_matakuliah }}
@@ -124,61 +136,38 @@
                         @endif
                     </td>
                     <td class="code-mk">{{ $k->kode_matakuliah ?? '-' }}</td>
-                    <td class="text-center">{{ $k->tingkat ?? '-' }}</td>
+                    <td class="text-center">
+                        <span class="badge-gkm primary">{{ $k->tingkat ?? '-' }}</span>
+                    </td>
                     
                     {{-- JENIS KUESIONER --}}
                     <td class="text-center">
                         @if($k->jenis_kuesioner)
                             @if($k->jenis_kuesioner === 'UTS')
-                                <span class="badge bg-warning">UTS</span>
+                                <span class="badge-gkm warning">UTS</span>
                             @elseif($k->jenis_kuesioner === 'UAS')
-                                <span class="badge bg-primary">UAS</span>
+                                <span class="badge-gkm success">UAS</span>
                             @else
-                                <span class="badge bg-secondary">{{ $k->jenis_kuesioner }}</span>
+                                <span class="badge-gkm secondary">{{ $k->jenis_kuesioner }}</span>
                             @endif
                         @else
                             -
                         @endif
                     </td>
-                    
-                    <td class="dosen-name">
-                        @php
-                            $dosen = \App\Models\Dosenn::where('pegawai_id', $k->pegawai_id)->first();
-                        @endphp
-                        {{ $dosen->nama ?? '-' }}
-                    </td>
-
-                    {{-- SUMBER --}}
-                    <td class="text-center">
-                        @if($k->source === 'api')
-                            <span class="badge bg-success">API</span>
-                        @else
-                            <span class="badge bg-secondary">Excel</span>
-                        @endif
-                    </td>
 
                     {{-- RESPONDEN --}}
                     <td class="text-center">
-                        <span class="badge bg-info">
-                            {{ $k->total_responden }}
-                        </span>
+                        <strong style="color: #5B9BD5;">{{ $k->total_responden }}</strong>
                     </td>
 
                     {{-- INDEX --}}
                     <td class="text-center">
                         @if($index)
-                            <span class="badge bg-{{ $color }}">
+                            <span class="badge-gkm {{ $badgeColor }}">
                                 {{ number_format($index, 2) }}
                             </span>
-                        @else
-                            -
-                        @endif
-                    </td>
-
-                    {{-- PERSEN --}}
-                    <td class="text-center">
-                        @if($persen)
-                            {{ number_format($persen, 1) }}%
+                            <br>
+                            <small class="text-muted">{{ number_format($persen, 1) }}%</small>
                         @else
                             -
                         @endif
@@ -188,25 +177,27 @@
                     <td class="text-center">
                         @switch($k->status)
                             @case('uploaded')
-                                <span class="badge bg-info">Uploaded</span>
+                                <span class="badge-gkm info">Uploaded</span>
                                 @break
                             @case('processing')
-                                <span class="badge bg-warning">Processing</span>
+                                <span class="badge-gkm warning">Processing</span>
                                 @break
                             @case('completed')
-                                <span class="badge bg-success">Completed</span>
+                                <span class="badge-gkm success">Completed</span>
                                 @break
                             @case('error')
-                                <span class="badge bg-danger">Error</span>
+                                <span class="badge-gkm danger">Error</span>
                                 @break
                         @endswitch
                     </td>
 
-                    <td>{{ $k->created_at->format('d/m/Y H:i') }}</td>
+                    <td class="text-secondary" style="font-size: 0.85rem;">
+                        {{ $k->created_at->format('d/m/Y H:i') }}
+                    </td>
 
                     {{-- AKSI --}}
                     <td class="text-center">
-                        <div class="btn-group">
+                        <div class="btn-group" role="group">
 
                             <a href="{{ route('gkm.monitoring-kuesioner.show', $k->id) }}"
                                class="btn btn-sm btn-outline-primary"
@@ -224,10 +215,11 @@
 
                             <form action="{{ route('gkm.monitoring-kuesioner.destroy', $k->id) }}"
                                   method="POST"
-                                  onsubmit="return confirm('Yakin hapus data kuesioner ini?')">
+                                  onsubmit="return confirm('Yakin hapus data kuesioner ini?')"
+                                  class="d-inline">
                                 @csrf
                                 @method('DELETE')
-                                <button class="btn btn-sm btn-outline-danger" title="Hapus">
+                                <button type="submit" class="btn btn-sm btn-outline-danger" title="Hapus">
                                     <i class="bi bi-trash"></i>
                                 </button>
                             </form>
@@ -239,11 +231,10 @@
 
                 @empty
                 <tr>
-                    <td colspan="14" class="text-center py-5">
-                        <div class="text-muted">
-                            <i class="bi bi-inbox" style="font-size: 3rem;"></i>
-                            <p class="mt-3 mb-0">Belum ada data kuesioner</p>
-                            <small>Silakan upload file Excel atau ambil data dari API</small>
+                    <td colspan="12" class="text-center py-5">
+                        <div class="empty-state">
+                            <i class="bi bi-inbox"></i>
+                            <p>Belum ada data kuesioner. <a href="{{ route('gkm.monitoring-kuesioner.create-api') }}" style="color: #5B9BD5; font-weight: 600;">Ambil data dari API</a></p>
                         </div>
                     </td>
                 </tr>
@@ -257,8 +248,9 @@
 </div>
 
 <script>
+// Auto refresh untuk status processing
 setInterval(() => {
-    if (document.querySelector('.bg-warning')) {
+    if (document.querySelector('.badge-gkm.warning')) {
         location.reload();
     }
 }, 30000);

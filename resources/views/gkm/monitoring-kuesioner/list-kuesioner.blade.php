@@ -1,47 +1,51 @@
 @extends('layouts.app')
 
-@section('page-title', 'Daftar Kuesioner')
+@section('page-title', 'Detail Kuesioner')
 
 @section('content')
 <div style="padding: 1.5rem;">
 
     {{-- ALERT --}}
     @if(session('success'))
-        <div class="alert alert-success alert-dismissible fade show">
-            {{ session('success') }}
-            <button class="btn-close" data-bs-dismiss="alert"></button>
+        <div class="alert-gkm success mb-4">
+            <i class="bi bi-check-circle"></i> {{ session('success') }}
         </div>
     @endif
 
     @if(session('error'))
-        <div class="alert alert-danger alert-dismissible fade show">
-            {{ session('error') }}
-            <button class="btn-close" data-bs-dismiss="alert"></button>
+        <div class="alert-gkm danger mb-4">
+            <i class="bi bi-exclamation-triangle"></i> {{ session('error') }}
         </div>
     @endif
 
     @if($errors->any())
-        <div class="alert alert-danger alert-dismissible fade show">
-            @foreach($errors->all() as $error)
-                {{ $error }}<br>
-            @endforeach
-            <button class="btn-close" data-bs-dismiss="alert"></button>
+        <div class="alert-gkm danger mb-4">
+            <h6 style="font-weight: 600; margin-bottom: 0.5rem;">
+                <i class="bi bi-exclamation-triangle"></i> Terjadi Kesalahan
+            </h6>
+            <ul class="mb-0" style="font-size: 0.875rem;">
+                @foreach($errors->all() as $error)
+                    <li>{{ $error }}</li>
+                @endforeach
+            </ul>
         </div>
     @endif
 
     {{-- INFO CARD --}}
     <div class="filter-card mb-4">
         <div class="row g-3 align-items-center">
-            <div class="col-md-3">
-                <label class="form-label text-muted">Kode Mata Kuliah</label>
-                <div class="fw-bold">{{ $kode_mk }}</div>
+            <div class="col-md-4">
+                <label class="filter-label">Kode Mata Kuliah</label>
+                <div style="font-weight: 600; color: #333; font-size: 1.1rem;">{{ $kode_mk }}</div>
             </div>
-            <div class="col-md-3">
-                <label class="form-label text-muted">Tahun Ajaran</label>
-                <div class="fw-bold">{{ $ta }}</div>
+            <div class="col-md-4">
+                <label class="filter-label">Tahun Ajaran</label>
+                <div>
+                    <span class="badge-gkm primary" style="font-size: 0.95rem;">{{ $ta }}/{{ $ta + 1 }}</span>
+                </div>
             </div>
-            <div class="col-md-6 text-end">
-                <a href="{{ route('gkm.monitoring-kuesioner.create-api') }}" class="btn btn-secondary">
+            <div class="col-md-4 text-end">
+                <a href="{{ route('gkm.monitoring-kuesioner.create-api') }}" class="btn btn-outline-secondary">
                     <i class="bi bi-arrow-left"></i> Kembali
                 </a>
             </div>
@@ -50,10 +54,6 @@
 
     {{-- TABLE --}}
     <div class="monitoring-card">
-        <div class="monitoring-header">
-            <i class="bi bi-list-check"></i>
-            <h6>Daftar Kuesioner</h6>
-        </div>
 
         <div class="table-responsive">
             @if(count($list) > 0)
@@ -62,7 +62,8 @@
                         <tr>
                             <th style="width: 8%;">No</th>
                             <th>Judul Kuesioner</th>
-                            <th style="width: 10%;" class="text-center">Semester</th>
+                            <th style="width: 12%;" class="text-center">Semester</th>
+                            <th style="width: 15%;" class="text-center">ID</th>
                             <th style="width: 20%;" class="text-center">Aksi</th>
                         </tr>
                     </thead>
@@ -71,27 +72,31 @@
                         <tr>
                             <td class="text-center">{{ $i + 1 }}</td>
                             <td>
-                                <strong>{{ $item['judul'] }}</strong>
+                                <strong style="color: #333;">{{ $item['judul'] }}</strong>
                                 <br>
                                 <small class="text-muted">
-                                    Kode MK: {{ $item['kode_mk'] }} | 
-                                    ID: {{ $item['kuesioner_id'] ?? '-' }}
+                                    <i class="bi bi-book"></i> {{ $item['kode_mk'] }}
                                 </small>
                             </td>
                             <td class="text-center">
                                 @if(isset($item['semester']))
-                                    <span class="badge bg-info">
-                                        {{ $item['semester'] == 1 ? 'Ganjil' : 'Genap' }}
-                                    </span>
+                                    @if($item['semester'] == 1)
+                                        <span class="badge-gkm primary">Ganjil</span>
+                                    @else
+                                        <span class="badge-gkm warning">Genap</span>
+                                    @endif
                                 @else
                                     -
                                 @endif
                             </td>
                             <td class="text-center">
-                                <div class="d-flex gap-2 justify-content-center">
+                                <span class="badge-gkm info">{{ $item['kuesioner_id'] ?? '-' }}</span>
+                            </td>
+                            <td class="text-center">
+                                <div class="btn-group" role="group">
                                     <a href="{{ route('gkm.monitoring-kuesioner.showa', $item['kuesioner_id']) }}"
-                                       class="btn btn-primary"
-                                       style="border-radius: 8px; padding: 8px 20px;">
+                                       class="btn btn-sm btn-lihat-kuesioner"
+                                       title="Lihat Detail">
                                         <i class="bi bi-eye"></i> Lihat
                                     </a>
 
@@ -106,8 +111,8 @@
                                         <input type="hidden" name="semester" value="{{ $item['semester'] ?? null }}">
                                         
                                         <button type="submit" 
-                                                class="btn btn-success"
-                                                style="border-radius: 8px; padding: 8px 20px;">
+                                                class="btn btn-sm btn-analisis-kuesioner"
+                                                title="Analisis dengan AI">
                                             <i class="bi bi-cpu"></i> Analisis
                                         </button>
                                     </form>
@@ -118,9 +123,9 @@
                     </tbody>
                 </table>
             @else
-                <div class="text-center text-muted py-5">
-                    <i class="bi bi-inbox" style="font-size: 3rem;"></i>
-                    <p class="mt-3 mb-0">Tidak ada kuesioner ditemukan</p>
+                <div class="empty-state">
+                    <i class="bi bi-inbox"></i>
+                    <p>Tidak ada kuesioner ditemukan</p>
                     <small>Silakan coba mata kuliah lain atau periode berbeda</small>
                 </div>
             @endif
@@ -128,4 +133,53 @@
     </div>
 
 </div>
+
+<style>
+    /* Tombol Lihat - Warna biru tua solid, tidak berubah saat hover */
+    .btn-lihat-kuesioner {
+        background-color: #2c5282 !important;
+        border-color: #2c5282 !important;
+        color: white !important;
+        transition: none !important;
+    }
+
+    .btn-lihat-kuesioner:hover,
+    .btn-lihat-kuesioner:focus,
+    .btn-lihat-kuesioner:active,
+    .btn-lihat-kuesioner:active:focus,
+    .btn-lihat-kuesioner.active {
+        background-color: #2c5282 !important;
+        border-color: #2c5282 !important;
+        color: white !important;
+        box-shadow: none !important;
+    }
+
+    /* Tombol Analisis - Warna hijau solid seperti btn-success, tidak berubah saat hover */
+    .btn-analisis-kuesioner {
+        background-color: #198754 !important;
+        border-color: #198754 !important;
+        color: white !important;
+        transition: none !important;
+    }
+
+    .btn-analisis-kuesioner:hover,
+    .btn-analisis-kuesioner:focus,
+    .btn-analisis-kuesioner:active,
+    .btn-analisis-kuesioner:active:focus,
+    .btn-analisis-kuesioner.active {
+        background-color: #198754 !important;
+        border-color: #198754 !important;
+        color: white !important;
+        box-shadow: none !important;
+    }
+
+    /* Hapus efek hover pada group button */
+    .btn-group .btn-lihat-kuesioner:hover,
+    .btn-group .btn-lihat-kuesioner:focus,
+    .btn-group .btn-analisis-kuesioner:hover,
+    .btn-group .btn-analisis-kuesioner:focus {
+        z-index: auto !important;
+    }
+</style>
+
 @endsection

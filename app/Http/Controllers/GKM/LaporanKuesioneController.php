@@ -511,6 +511,10 @@ class LaporanKuesioneController extends Controller
                             $result['hasil_laporan'],
                             ['_aggregated_data' => $result['aggregated_data']] // Store aggregated data with underscore prefix
                         ),
+                        'total_kuesioner' => $result['aggregated_data']['total_kuesioner'] ?? 0,
+                        'total_responden' => $result['aggregated_data']['total_responden'] ?? 0,
+                        'index_kepuasan_rata_rata' => $result['aggregated_data']['index_kepuasan_rata_rata'] ?? null,
+                        'persen_kepuasan_rata_rata' => $result['aggregated_data']['persen_kepuasan_rata_rata'] ?? null,
                         'status' => 'completed',
                     ]);
 
