@@ -178,6 +178,10 @@ class LaporanArtefakController extends Controller
      */
     public function aiPrompt(Request $request)
     {
+        // Increase execution time for AI processing (default is 30-60 seconds)
+        // This operation involves database queries + AI API requests + document generation
+        set_time_limit(300); // 5 minutes
+        
         try {
             $request->validate([
                 'prompt' => 'required|string',
