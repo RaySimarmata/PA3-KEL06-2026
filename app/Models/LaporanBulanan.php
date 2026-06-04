@@ -120,13 +120,6 @@ class LaporanBulanan extends Model
      */
     public function getFormattedPeriodeAttribute()
     {
-        $bulan = trim($this->bulan ?? '');
-
-        // If bulan already contains an academic year label, avoid duplicate year suffix
-        if (preg_match('/\d{4}\/\d{4}/', $bulan) || preg_match('/\d{4}/', $bulan) && str_contains($bulan, 'Semester')) {
-            return $bulan;
-        }
-
-        return trim($bulan . ' ' . $this->tahun);
+        return $this->bulan . ' ' . $this->tahun;
     }
 }

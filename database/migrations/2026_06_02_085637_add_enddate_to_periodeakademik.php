@@ -12,7 +12,9 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('periode_akademik', function (Blueprint $table) {
-            $table->dateTime('end_date')->nullable()->after('start_date');
+            if (!Schema::hasColumn('periode_akademik', 'end_date')) {
+                $table->dateTime('end_date')->nullable()->after('start_date');
+            }
         });
     }
 

@@ -98,7 +98,11 @@ class ModelEvaluationController extends Controller
             $query->where('created_at', '>=', $dateFilter);
         }
         if ($feature !== 'all') {
-            $query->where('context_metadata.feature', $feature);
+            // Support both old format (type) and new format (feature)
+            $query->where(function($q) use ($feature) {
+                $q->where('context_metadata.feature', $feature)
+                  ->orWhere('context_metadata.type', 'laporan_' . $feature);
+            });
         }
         $totalRequests = $query->count();
 
@@ -108,7 +112,11 @@ class ModelEvaluationController extends Controller
             $query2->where('created_at', '>=', $dateFilter);
         }
         if ($feature !== 'all') {
-            $query2->where('context_metadata.feature', $feature);
+            // Support both old format (type) and new format (feature)
+            $query2->where(function($q) use ($feature) {
+                $q->where('context_metadata.feature', $feature)
+                  ->orWhere('context_metadata.type', 'laporan_' . $feature);
+            });
         }
         $totalUsage = $query2->sum('usage_count');
 
@@ -124,7 +132,11 @@ class ModelEvaluationController extends Controller
             $query3->where('created_at', '>=', $dateFilter);
         }
         if ($feature !== 'all') {
-            $query3->where('context_metadata.feature', $feature);
+            // Support both old format (type) and new format (feature)
+            $query3->where(function($q) use ($feature) {
+                $q->where('context_metadata.feature', $feature)
+                  ->orWhere('context_metadata.type', 'laporan_' . $feature);
+            });
         }
         $avgResponseTime = $query3->avg('response_time') ?? 0;
 
@@ -134,7 +146,11 @@ class ModelEvaluationController extends Controller
             $query4->where('created_at', '>=', $dateFilter);
         }
         if ($feature !== 'all') {
-            $query4->where('context_metadata.feature', $feature);
+            // Support both old format (type) and new format (feature)
+            $query4->where(function($q) use ($feature) {
+                $q->where('context_metadata.feature', $feature)
+                  ->orWhere('context_metadata.type', 'laporan_' . $feature);
+            });
         }
         $successfulRequests = $query4->whereNotNull('ai_response')
             ->where('ai_response', '!=', '')
@@ -208,10 +224,17 @@ class ModelEvaluationController extends Controller
         $metrics = [];
 
         foreach ($features as $feat) {
-            $requests = DB::table('ai_response_cache')
-                ->when($dateFilter, fn($q) => $q->where('created_at', '>=', $dateFilter))
-                ->whereJsonContains('context_metadata->feature', $feat)
-                ->get();
+            // FIXED: Use MongoDB model with support for both old and new format
+            $query = AIResponseCacheMongo::query();
+            if ($dateFilter) {
+                $query->where('created_at', '>=', $dateFilter);
+            }
+            // Support both old format (type) and new format (feature)
+            $query->where(function($q) use ($feat) {
+                $q->where('context_metadata.feature', $feat)
+                  ->orWhere('context_metadata.type', 'laporan_' . $feat);
+            });
+            $requests = $query->get();
 
             // FALLBACK: If no cache data, get from laporan_gjm
             if ($requests->count() === 0) {
@@ -228,7 +251,7 @@ class ModelEvaluationController extends Controller
                     round((($requests->sum('usage_count') - $requests->count()) / $requests->count()) * 100, 2) : 0,
                 'most_used_provider' => $requests->groupBy('ai_provider')->sortByDesc(fn($g) => $g->count())->keys()->first() ?? 'N/A',
                 'most_used_model' => $requests->groupBy('ai_model')->sortByDesc(fn($g) => $g->count())->keys()->first() ?? 'N/A',
-                'data_source' => 'ai_response_cache',
+                'data_source' => 'ai_response_cache_mongodb',
             ];
         }
 
@@ -274,19 +297,39 @@ class ModelEvaluationController extends Controller
     {
         $dateFilter = $this->getDateFilter($period);
 
-        $usage = DB::table('ai_response_cache')
-            ->select(
-                DB::raw('DATE(created_at) as date'),
-                DB::raw('COUNT(*) as requests'),
-                DB::raw('SUM(usage_count) as total_usage')
-            )
-            ->when($dateFilter, fn($q) => $q->where('created_at', '>=', $dateFilter))
-            ->when($feature !== 'all', fn($q) => $q->whereJsonContains('context_metadata->feature', $feature))
-            ->groupBy('date')
-            ->orderBy('date', 'asc')
-            ->get();
-
-        return $usage;
+        // FIXED: Use MongoDB model and manually group data
+        $query = AIResponseCacheMongo::query();
+        if ($dateFilter) {
+            $query->where('created_at', '>=', $dateFilter);
+        }
+        if ($feature !== 'all') {
+            // Support both old format (type) and new format (feature)
+            $query->where(function($q) use ($feature) {
+                $q->where('context_metadata.feature', $feature)
+                  ->orWhere('context_metadata.type', 'laporan_' . $feature);
+            });
+        }
+        
+        $data = $query->orderBy('created_at', 'asc')->get();
+        
+        // Group by date manually
+        $usage = [];
+        foreach ($data as $entry) {
+            $date = $entry->created_at->format('Y-m-d');
+            
+            if (!isset($usage[$date])) {
+                $usage[$date] = [
+                    'date' => $date,
+                    'requests' => 0,
+                    'total_usage' => 0,
+                ];
+            }
+            
+            $usage[$date]['requests']++;
+            $usage[$date]['total_usage'] += $entry->usage_count ?? 1;
+        }
+        
+        return array_values($usage);
     }
 
     /**
@@ -296,10 +339,20 @@ class ModelEvaluationController extends Controller
     {
         $dateFilter = $this->getDateFilter($period);
 
-        $cacheData = DB::table('ai_response_cache')
-            ->when($dateFilter, fn($q) => $q->where('created_at', '>=', $dateFilter))
-            ->when($feature !== 'all', fn($q) => $q->whereJsonContains('context_metadata->feature', $feature))
-            ->get();
+        // FIXED: Use MongoDB model
+        $query = AIResponseCacheMongo::query();
+        if ($dateFilter) {
+            $query->where('created_at', '>=', $dateFilter);
+        }
+        if ($feature !== 'all') {
+            // Support both old format (type) and new format (feature)
+            $query->where(function($q) use ($feature) {
+                $q->where('context_metadata.feature', $feature)
+                  ->orWhere('context_metadata.type', 'laporan_' . $feature);
+            });
+        }
+        
+        $cacheData = $query->get();
 
         $totalEntries = $cacheData->count();
         $reusedEntries = $cacheData->where('usage_count', '>', 1)->count();
@@ -340,7 +393,11 @@ class ModelEvaluationController extends Controller
             $query->where('created_at', '>=', $dateFilter);
         }
         if ($feature !== 'all') {
-            $query->where('context_metadata.feature', $feature);
+            // Support both old format (type) and new format (feature)
+            $query->where(function($q) use ($feature) {
+                $q->where('context_metadata.feature', $feature)
+                  ->orWhere('context_metadata.type', 'laporan_' . $feature);
+            });
         }
         
         $data = $query->orderBy('created_at', 'asc')->get();
@@ -436,11 +493,16 @@ class ModelEvaluationController extends Controller
     {
         $dateFilter = $this->getDateFilter($period);
 
-        $allData = DB::table('ai_response_cache')
-            ->when($dateFilter, fn($q) => $q->where('created_at', '>=', $dateFilter))
-            ->when($feature !== 'all', fn($q) => $q->whereJsonContains('context_metadata->feature', $feature))
-            ->orderBy('created_at', 'asc')
-            ->get();
+        // FIXED: Use MongoDB model
+        $query = AIResponseCacheMongo::query();
+        if ($dateFilter) {
+            $query->where('created_at', '>=', $dateFilter);
+        }
+        if ($feature !== 'all') {
+            $query->where('context_metadata.feature', $feature);
+        }
+        
+        $allData = $query->orderBy('created_at', 'asc')->get();
 
         // If less than 2 entries, use laporan_gjm fallback
         if ($allData->count() < 2) {
@@ -736,11 +798,16 @@ class ModelEvaluationController extends Controller
     {
         $dateFilter = $this->getDateFilter($period);
 
-        $allData = DB::table('ai_response_cache')
-            ->when($dateFilter, fn($q) => $q->where('created_at', '>=', $dateFilter))
-            ->when($feature !== 'all', fn($q) => $q->whereJsonContains('context_metadata->feature', $feature))
-            ->orderBy('created_at', 'asc')
-            ->get();
+        // FIXED: Use MongoDB model
+        $query = AIResponseCacheMongo::query();
+        if ($dateFilter) {
+            $query->where('created_at', '>=', $dateFilter);
+        }
+        if ($feature !== 'all') {
+            $query->where('context_metadata.feature', $feature);
+        }
+        
+        $allData = $query->orderBy('created_at', 'asc')->get();
 
         // If insufficient data, return default comparison
         if ($allData->count() < 10) {

@@ -151,7 +151,7 @@ class OCRService
         foreach ($imagePaths as $index => $imagePath) {
             $result = $this->extractText($imagePath);
             $results[] = $result;
-            
+
             if ($result['success']) {
                 // Ensure text is string before concatenating
                 $text = $result['text'] ?? '';
@@ -206,7 +206,7 @@ class OCRService
             }
 
             $extension = strtolower(pathinfo($imagePath, PATHINFO_EXTENSION));
-            
+
             // Skip preprocessing for PDFs
             if ($extension === 'pdf') {
                 return $imagePath;
@@ -245,20 +245,20 @@ class OCRService
     private function preprocessWithImageMagick(string $inputPath, string $outputPath): void
     {
         $image = new \Imagick($inputPath);
-        
+
         // Convert to grayscale
         $image->transformImageColorspace(\Imagick::COLORSPACE_GRAY);
-        
+
         // Increase contrast
         $image->normalizeImage();
         $image->contrastImage(1);
-        
+
         // Denoise
         $image->despeckleImage();
-        
+
         // Sharpen
         $image->sharpenImage(0, 1);
-        
+
         // Save
         $image->writeImage($outputPath);
         $image->clear();
@@ -270,7 +270,7 @@ class OCRService
     private function preprocessWithGD(string $inputPath, string $outputPath): void
     {
         $extension = strtolower(pathinfo($inputPath, PATHINFO_EXTENSION));
-        
+
         // Load image
         $image = match($extension) {
             'png' => imagecreatefrompng($inputPath),
@@ -284,13 +284,13 @@ class OCRService
 
         // Convert to grayscale
         imagefilter($image, IMG_FILTER_GRAYSCALE);
-        
+
         // Increase contrast
         imagefilter($image, IMG_FILTER_CONTRAST, -20);
-        
+
         // Sharpen
         imagefilter($image, IMG_FILTER_MEAN_REMOVAL);
-        
+
         // Save
         imagepng($image, $outputPath);
         imagedestroy($image);
@@ -378,7 +378,7 @@ class OCRService
     {
         $outputFile = sys_get_temp_dir() . '/ocr_output_' . time();
         $languages = implode('+', $this->languages);
-        
+
         // Build command
         $command = sprintf(
             'tesseract %s %s -l %s --psm 3',
@@ -419,7 +419,7 @@ class OCRService
             '/\b0(?=[a-zA-Z])/' => 'O',  // 0 -> O before letters
             '/\bl(?=\d)/' => '1',         // l -> 1 before numbers
             '/\bS(?=\d)/' => '5',         // S -> 5 before numbers
-            
+
             // Remove excessive whitespace
             '/\s+/' => ' ',
             '/\n{3,}/' => "\n\n",
@@ -443,7 +443,7 @@ class OCRService
 
         foreach ($lines as $line) {
             $line = trim($line);
-            
+
             if (empty($line)) {
                 if (!empty($currentParagraph)) {
                     $paragraphs[] = trim($currentParagraph);

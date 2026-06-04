@@ -16,18 +16,26 @@ class SyncJadwalDosenSync extends Command
     {
         /*
         |--------------------------------------------------------------------------
-        | AMBIL PERIODE AKADEMIK AKTIF
+        | AMBIL PERIODE AKADEMIK AKTIF ATAU GUNAKAN PARAMETER
         |--------------------------------------------------------------------------
         */
-        $periodeAktif = \App\Models\PeriodeAkademik::where('is_active', true)->first();
+        $semester = $this->option('semester');
+        $tahun = $this->option('tahun');
 
-        if (!$periodeAktif) {
-            $this->error('❌ Periode akademik aktif tidak ditemukan');
-            return 1;
+        // Jika tidak ada opsi yang diberikan, cari periode aktif
+        if (!$semester || !$tahun) {
+            $periodeAktif = \App\Models\PeriodeAkademik::where('is_active', true)->first();
+
+            if (!$periodeAktif) {
+                $this->error('❌ Periode akademik aktif tidak ditemukan');
+                $this->line('💡 Gunakan opsi --semester dan --tahun untuk sync manual');
+                $this->line('   Contoh: php artisan sync:jadwal-dosen-now --semester=1 --tahun=2025');
+                return 1;
+            }
+
+            $semester = $semester ?? $periodeAktif->semester;
+            $tahun = $tahun ?? $periodeAktif->tahun_ajaran;
         }
-
-        $semester = $this->option('semester') ?? $periodeAktif->semester;
-        $tahun = $this->option('tahun') ?? $periodeAktif->tahun_ajaran;
 
         $this->info("🔄 Mulai sync jadwal dosen");
         $this->info("📅 Periode: {$tahun} - Semester: {$semester}");

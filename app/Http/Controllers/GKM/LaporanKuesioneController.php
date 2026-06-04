@@ -632,7 +632,7 @@ class LaporanKuesioneController extends Controller
             $systemContext .= "Data kuesioner dari database sudah disiapkan dalam format placeholder seperti {{HASIL_KUESIONER_TINGKAT_I}}, {{MASUKAN_SARAN_TINGKAT_I}}, dll.\n";
             $systemContext .= "Anda HARUS menggunakan data ini dalam laporan dengan menyisipkan tabel yang sudah disiapkan.\n";
             $systemContext .= "Placeholder akan otomatis diganti dengan tabel data kuesioner yang sebenarnya.\n\n";
-            
+
             $systemContext .= "Fokus pada analisis kuesioner kepuasan mahasiswa terhadap proses pembelajaran.\n";
             $systemContext .= "Gunakan Bahasa Indonesia formal dan profesional. Setiap bagian harus berisi konten yang substantif dan relevan.\n\n";
 
@@ -1294,22 +1294,22 @@ class LaporanKuesioneController extends Controller
             if ($uploads->isNotEmpty()) {
                 // Group data by tingkat
                 $dataByTingkat = $uploads->groupBy('tingkat');
-                
+
                 $context .= "## I. HASIL KUESIONER\n\n";
                 $context .= "FORMAT DATA: Data ini akan digunakan untuk mengisi placeholder di template laporan\n\n";
 
                 // Process each tingkat (I, II, III, IV)
                 for ($tingkat = 1; $tingkat <= 4; $tingkat++) {
                     $context .= "### TINGKAT " . $this->numberToRoman($tingkat) . "\n\n";
-                    
+
                     $kuesioneData = $dataByTingkat->get($tingkat, collect());
-                    
+
                     if ($kuesioneData->isNotEmpty()) {
                         // Tabel Hasil Kuesioner
                         $context .= "**{{HASIL_KUESIONER_TINGKAT_" . $this->numberToRoman($tingkat) . "}}**\n\n";
                         $context .= "| No | Kode Matakuliah | Nama Matakuliah | Dosen Pengampu | Indeks Kepuasan | % Kepuasan | Total Responden |\n";
                         $context .= "|----|----------------|-----------------|----------------|-----------------|-----------|------------------|\n";
-                        
+
                         foreach ($kuesioneData as $i => $row) {
                             $no = $i + 1;
                             $kodeMK = $row->kode_matakuliah ?? '-';
@@ -1318,30 +1318,30 @@ class LaporanKuesioneController extends Controller
                             $indexKepuasan = number_format($row->index_kepuasan ?? 0, 2);
                             $persenKepuasan = number_format($row->persen_kepuasan ?? 0, 1);
                             $totalResponden = $row->total_responden ?? 0;
-                            
+
                             $context .= "| {$no} | {$kodeMK} | {$namaMK} | {$dosen} | {$indexKepuasan} | {$persenKepuasan}% | {$totalResponden} |\n";
                         }
-                        
+
                         $context .= "\n";
-                        
+
                         // Tabel Masukan/Saran
                         $context .= "**{{MASUKAN_SARAN_TINGKAT_" . $this->numberToRoman($tingkat) . "}}**\n\n";
                         $context .= "| No | Kode Matakuliah | Nama Matakuliah | Dosen Pengampu | Masukan/Saran |\n";
                         $context .= "|----|----------------|-----------------|----------------|---------------|\n";
-                        
+
                         foreach ($kuesioneData as $i => $row) {
                             $no = $i + 1;
                             $kodeMK = $row->kode_matakuliah ?? '-';
                             $namaMK = $row->nama_matakuliah ?? '-';
                             $dosen = $row->dosen_pengampu ?? '-';
-                            
+
                             // Extract masukan/saran from hasil_analisis
                             $masukanSaran = '-';
                             if (!empty($row->hasil_analisis)) {
-                                $analisis = is_string($row->hasil_analisis) 
-                                    ? json_decode($row->hasil_analisis, true) 
+                                $analisis = is_string($row->hasil_analisis)
+                                    ? json_decode($row->hasil_analisis, true)
                                     : $row->hasil_analisis;
-                                    
+
                                 if (isset($analisis['rekomendasi']) && is_array($analisis['rekomendasi'])) {
                                     $masukanSaran = implode('; ', array_slice($analisis['rekomendasi'], 0, 3));
                                 } elseif (isset($analisis['area_perbaikan']) && is_array($analisis['area_perbaikan'])) {
@@ -1350,7 +1350,7 @@ class LaporanKuesioneController extends Controller
                                     $masukanSaran = substr($analisis['ringkasan'], 0, 200) . '...';
                                 }
                             }
-                            
+
                             // Jika masih kosong, gunakan keterangan default
                             if ($masukanSaran === '-' || empty(trim($masukanSaran))) {
                                 if ($row->index_kepuasan >= 3.5) {
@@ -1361,18 +1361,18 @@ class LaporanKuesioneController extends Controller
                                     $masukanSaran = 'Perlu perbaikan signifikan dalam metode pembelajaran dan penyampaian materi';
                                 }
                             }
-                            
+
                             $context .= "| {$no} | {$kodeMK} | {$namaMK} | {$dosen} | {$masukanSaran} |\n";
                         }
-                        
+
                         $context .= "\n";
-                        
+
                         // Statistik tingkat
                         $avgIndex = $kuesioneData->avg('index_kepuasan');
                         $avgPersen = $kuesioneData->avg('persen_kepuasan');
                         $totalMK = $kuesioneData->count();
                         $totalResponden = $kuesioneData->sum('total_responden');
-                        
+
                         $context .= "**Statistik Tingkat " . $this->numberToRoman($tingkat) . ":**\n";
                         $context .= "- Total Matakuliah: {$totalMK}\n";
                         $context .= "- Rata-rata Indeks Kepuasan: " . number_format($avgIndex, 2) . "\n";
@@ -1381,7 +1381,7 @@ class LaporanKuesioneController extends Controller
                     } else {
                         $context .= "**{{HASIL_KUESIONER_TINGKAT_" . $this->numberToRoman($tingkat) . "}}**\n\n";
                         $context .= "Tidak ada data kuesioner untuk Tingkat " . $this->numberToRoman($tingkat) . ".\n\n";
-                        
+
                         $context .= "**{{MASUKAN_SARAN_TINGKAT_" . $this->numberToRoman($tingkat) . "}}**\n\n";
                         $context .= "Tidak ada masukan atau saran untuk Tingkat " . $this->numberToRoman($tingkat) . ".\n\n";
                     }
@@ -1431,7 +1431,7 @@ class LaporanKuesioneController extends Controller
             4 => 'IV',
             5 => 'V'
         ];
-        
+
         return $romanMap[$num] ?? (string)$num;
     }
 

@@ -15,7 +15,7 @@ class DataMasterApiController extends Controller
     /**
      * Get token with auto-refresh capability
      * Cache token for ~58 minutes (3500 seconds)
-     * 
+     *
      * @param bool $forceRefresh Force refresh token
      * @return string|null
      */
@@ -27,7 +27,7 @@ class DataMasterApiController extends Controller
 
         return Cache::remember('library_api_token', 3500, function () {
             $baseUrl = config('services.library.url');
-            
+
             try {
                 $response = Http::asForm()->post($baseUrl . '/jwt-api/do-auth', [
                     'username' => config('services.library.username'),
@@ -58,7 +58,7 @@ class DataMasterApiController extends Controller
 
     /**
      * Call API with automatic token refresh on 401
-     * 
+     *
      * @param string $url
      * @param array $params
      * @return array|null
@@ -66,7 +66,7 @@ class DataMasterApiController extends Controller
     private function callApi($url, $params = [])
     {
         $token = $this->getToken();
-        
+
         if (!$token) {
             return null;
         }
@@ -77,7 +77,7 @@ class DataMasterApiController extends Controller
         if ($response->status() === 401) {
             Log::info('Token expired (401), refreshing...');
             $token = $this->getToken(true);
-            
+
             if (!$token) {
                 return null;
             }
@@ -138,7 +138,7 @@ class DataMasterApiController extends Controller
 
                     // 3. MAP MATKUL → DOSEN (BERDASARKAN TINGKAT)
                     $mapMatkulDosen = [];
-                    
+
                     foreach ($dosenList as $dosen) {
                         $pegawai_id = $dosen['pegawai_id'] ?? null;
                         if (!$pegawai_id) continue;
@@ -195,7 +195,7 @@ class DataMasterApiController extends Controller
 
                     // 4. GABUNG KE RPS
                     $data = [];
-                    
+
                     foreach ($matkul as $mk) {
                         try {
                             $m = $this->callApi($baseUrl . '/library-api/get-monitoring-materi', [
@@ -299,8 +299,8 @@ class DataMasterApiController extends Controller
                 'prodi_id' => 4
             ]);
 
-            $dosenList = isset($dosenJson['data']['dosen']) && is_array($dosenJson['data']['dosen']) 
-                ? $dosenJson['data']['dosen'] 
+            $dosenList = isset($dosenJson['data']['dosen']) && is_array($dosenJson['data']['dosen'])
+                ? $dosenJson['data']['dosen']
                 : [];
 
             // BATASI
@@ -308,7 +308,7 @@ class DataMasterApiController extends Controller
 
             // 3. MAP DOSEN → MATKUL
             $mapMatkulDosen = [];
-            
+
             foreach ($dosenList as $dosen) {
                 $pegawai_id = $dosen['pegawai_id'] ?? null;
                 if (!$pegawai_id) continue;
@@ -319,8 +319,8 @@ class DataMasterApiController extends Controller
                     'ta' => $ta
                 ]);
 
-                $jadwal = isset($jadwalJson['data']) && is_array($jadwalJson['data']) 
-                    ? $jadwalJson['data'] 
+                $jadwal = isset($jadwalJson['data']) && is_array($jadwalJson['data'])
+                    ? $jadwalJson['data']
                     : [];
 
                 foreach ($jadwal as $j) {
@@ -340,7 +340,7 @@ class DataMasterApiController extends Controller
 
             // 4. BUILD DATA (FIX LOGIC BARU)
             $data = [];
-            
+
             foreach ($matkul as $mk) {
                 $kode = trim((string)($mk['kode_mk'] ?? ''));
                 $kuliah_id = $mk['kuliah_id'] ?? null;
@@ -888,6 +888,10 @@ $classCode = $prodiClassMap[$prodiKode] ?? 'TRPL';
     })
 
     ->whereNotNull('d.jabatan_akademik')
+
+    ->whereRaw("
+        TRIM(UPPER(d.jabatan_akademik)) <> 'A'
+    ")
 
     /*
     |--------------------------------------------------------------------------

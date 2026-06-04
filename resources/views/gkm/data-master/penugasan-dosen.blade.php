@@ -27,8 +27,8 @@
                                     placeholder="Cari Nama Dosen..." id="searchDosen" autocomplete="off">
                             </div>
                             <!-- Dropdown suggestions -->
-                            <div id="searchSuggestions" class="position-absolute bg-white border rounded shadow-sm" 
-                                 style="top: 100%; left: 0; right: 0; z-index: 9999; max-height: 300px; overflow-y: auto; display: none; margin-top: 2px;">
+                            <div id="searchSuggestions" class="position-absolute bg-white border rounded shadow-sm"
+                                style="top: 100%; left: 0; right: 0; z-index: 9999; max-height: 300px; overflow-y: auto; display: none; margin-top: 2px;">
                             </div>
                         </div>
                     </div>
@@ -42,9 +42,9 @@
                     <div class="col-md-2">
                         <label class="filter-label">Tahun Ajaran:</label>
                         <select class="form-select" name="ta">
-                            @if(isset($tahunAjaranList) && count($tahunAjaranList) > 0)
-                                @foreach($tahunAjaranList as $tahun)
-                                    <option value="{{ $tahun['id_thn_ajaran'] }}" 
+                            @if (isset($tahunAjaranList) && count($tahunAjaranList) > 0)
+                                @foreach ($tahunAjaranList as $tahun)
+                                    <option value="{{ $tahun['id_thn_ajaran'] }}"
                                         {{ request('ta', date('Y')) == $tahun['id_thn_ajaran'] ? 'selected' : '' }}>
                                         {{ $tahun['nm_thn_ajaran'] }}
                                     </option>
@@ -65,7 +65,7 @@
         </div>
 
         <!-- Dosen Cards -->
-        @if(!request('submitted') && !request('search'))
+        @if (!request('submitted') && !request('search'))
             <div class="monitoring-card">
                 <div class="text-center py-5">
                     <i class="bi bi-info-circle" style="font-size: 4rem; color: #5B9BD5;"></i>
@@ -75,111 +75,114 @@
             </div>
         @else
             @forelse($dosenList as $dosen)
-            <div class="monitoring-card mb-4">
-                <div class="monitoring-header" style="background: white; border-bottom: 2px solid #e9ecef;">
-                    <div class="d-flex align-items-center gap-2">
-                        <div
-                            style="width: 40px; height: 40px; background: #5B9BD5; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: 600;">
-                            @php
-                                $nama = is_array($dosen)
-                                    ? $dosen['nama'] ?? ''
-                                    : $dosen->nama_lengkap ?? ($dosen->nama ?? '');
-                            @endphp
-                            {{ strtoupper(substr($nama, 0, 1)) }}
-                        </div>
-                        <div>
-                            <h6 class="mb-0 font-semibold">{{ $nama }}</h6>
-                            <div class="d-flex align-items-center gap-2 mt-1">
+                <div class="monitoring-card mb-4">
+                    <div class="monitoring-header" style="background: white; border-bottom: 2px solid #e9ecef;">
+                        <div class="d-flex align-items-center gap-2">
+                            <div
+                                style="width: 40px; height: 40px; background: #5B9BD5; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: 600;">
                                 @php
-                                    $jabatan = is_array($dosen)
-                                        ? $dosen['jabatan_akademik_desc'] ?? 'Dosen'
-                                        : $dosen->jabatan_akademik_desc ?? 'Dosen';
-                                    $nidn = is_array($dosen) ? $dosen['nidn'] ?? '-' : $dosen->nidn ?? '-';
-                                    $email = is_array($dosen) ? $dosen['email'] ?? '' : $dosen->email ?? '';
+                                    $nama = is_array($dosen)
+                                        ? $dosen['nama'] ?? ''
+                                        : $dosen->nama_lengkap ?? ($dosen->nama ?? '');
                                 @endphp
-                                <span class="badge-gkm info" style="font-size: 0.75rem;">
-                                    <i class="bi bi-person-badge"></i> {{ $jabatan }}
-                                </span>
-                                <span class="text-secondary" style="font-size: 0.85rem;">
-                                    <i class="bi bi-hash"></i> NIDN: {{ $nidn }}
-                                </span>
-                                @if ($email)
-    <span class="text-secondary">
-        <i class="bi bi-envelope"></i> {{ $email }}
-    </span>
-@else
-    <form method="POST" action="{{ route('gkm.data-master.dosen.update.email') }}" style="display:inline;">
-        @csrf
-        <input type="hidden" name="nidn" value="{{ $nidn }}">
+                                {{ strtoupper(substr($nama, 0, 1)) }}
+                            </div>
+                            <div>
+                                <h6 class="mb-0 font-semibold">{{ $nama }}</h6>
+                                <div class="d-flex align-items-center gap-2 mt-1">
+                                    @php
+                                        $jabatan = is_array($dosen)
+                                            ? $dosen['jabatan_akademik_desc'] ?? 'Dosen'
+                                            : $dosen->jabatan_akademik_desc ?? 'Dosen';
+                                        $nidn = is_array($dosen) ? $dosen['nidn'] ?? '-' : $dosen->nidn ?? '-';
+                                        $email = is_array($dosen) ? $dosen['email'] ?? '' : $dosen->email ?? '';
+                                    @endphp
+                                    <span class="badge-gkm info" style="font-size: 0.75rem;">
+                                        <i class="bi bi-person-badge"></i> {{ $jabatan }}
+                                    </span>
+                                    <span class="text-secondary" style="font-size: 0.85rem;">
+                                        <i class="bi bi-hash"></i> NIDN: {{ $nidn }}
+                                    </span>
+                                    @if ($email)
+                                        <span class="text-secondary">
+                                            <i class="bi bi-envelope"></i> {{ $email }}
+                                        </span>
+                                    @else
+                                        <form method="POST" action="{{ route('gkm.data-master.dosen.update.email') }}"
+                                            style="display:inline;">
+                                            @csrf
+                                            <input type="hidden" name="nidn" value="{{ $nidn }}">
 
-        <input type="email" name="email" placeholder="Isi email..."
-               style="font-size: 0.75rem; padding: 2px 6px; width: 150px;" required>
+                                            <input type="email" name="email" placeholder="Isi email..."
+                                                style="font-size: 0.75rem; padding: 2px 6px; width: 150px;" required>
 
-        <button type="submit" class="btn btn-sm btn-primary">
-            Save
-        </button>
-    </form>
-@endif
+                                            <button type="submit" class="btn btn-sm btn-primary">
+                                                Save
+                                            </button>
+                                        </form>
+                                    @endif
+                                </div>
                             </div>
                         </div>
                     </div>
-                </div>
 
-                <div class="table-responsive">
-                    <table class="table table-monitoring">
-                        <thead>
-                            <tr>
-                                <th style="width: 15%;">Kode MK</th>
-                                <th style="width: 35%;">Nama Mata Kuliah</th>
-                                <th style="width: 10%;">SKS</th>
-                                <th style="width: 15%;">Semester</th>
-                                <th style="width: 15%;">Tahun Ajaran</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @php
-                                $matakuliah = is_array($dosen) ? $dosen['matakuliah'] ?? [] : $dosen->matakuliah ?? [];
-                            @endphp
-                            @forelse($matakuliah as $mk)
+                    <div class="table-responsive">
+                        <table class="table table-monitoring">
+                            <thead>
                                 <tr>
-                                    @php
-                                        $kodeMk = is_array($mk) ? $mk['kode_mk'] ?? '-' : $mk->kode_mk ?? '-';
-                                        $namaMk = is_array($mk) ? $mk['nama_mk'] ?? '-' : $mk->nama_mk ?? '-';
-                                        $sks = is_array($mk) ? $mk['sks'] ?? '-' : $mk->sks ?? '-';
-                                        $semester = is_array($mk) ? $mk['semester'] ?? '-' : $mk->semester ?? '-';
-                                        $tahunAjaran = is_array($mk)
-                                            ? $mk['tahun_ajaran'] ?? '-'
-                                            : $mk->tahun_ajaran ?? '-';
-                                    @endphp
-                                    <td class="code-mk">{{ $kodeMk }}</td>
-                                    <td class="nama-mk" style="text-transform: uppercase;">{{ $namaMk }}</td>
-                                    <td class="text-secondary">{{ $sks }} SKS</td>
-                                    <td class="text-secondary">Semester {{ $semester }}</td>
-                                    <td class="text-secondary">{{ $tahunAjaran }}</td>
+                                    <th style="width: 15%;">Kode MK</th>
+                                    <th style="width: 35%;">Nama Mata Kuliah</th>
+                                    <th style="width: 10%;">SKS</th>
+                                    <th style="width: 15%;">Semester</th>
+                                    <th style="width: 15%;">Tahun Ajaran</th>
                                 </tr>
-                            @empty
-                                <tr>
-                                    <td colspan="5" class="text-center py-4">
-                                        <div class="text-muted">
-                                            <i class="bi bi-inbox" style="font-size: 2rem;"></i>
-                                            <p class="mt-2 mb-0">Belum ada mata kuliah yang ditugaskan</p>
-                                        </div>
-                                    </td>
-                                </tr>
-                            @endforelse
-                        </tbody>
-                    </table>
+                            </thead>
+                            <tbody>
+                                @php
+                                    $matakuliah = is_array($dosen)
+                                        ? $dosen['matakuliah'] ?? []
+                                        : $dosen->matakuliah ?? [];
+                                @endphp
+                                @forelse($matakuliah as $mk)
+                                    <tr>
+                                        @php
+                                            $kodeMk = is_array($mk) ? $mk['kode_mk'] ?? '-' : $mk->kode_mk ?? '-';
+                                            $namaMk = is_array($mk) ? $mk['nama_mk'] ?? '-' : $mk->nama_mk ?? '-';
+                                            $sks = is_array($mk) ? $mk['sks'] ?? '-' : $mk->sks ?? '-';
+                                            $semester = is_array($mk) ? $mk['semester'] ?? '-' : $mk->semester ?? '-';
+                                            $tahunAjaran = is_array($mk)
+                                                ? $mk['tahun_ajaran'] ?? '-'
+                                                : $mk->tahun_ajaran ?? '-';
+                                        @endphp
+                                        <td class="code-mk">{{ $kodeMk }}</td>
+                                        <td class="nama-mk" style="text-transform: uppercase;">{{ $namaMk }}</td>
+                                        <td class="text-secondary">{{ $sks }} SKS</td>
+                                        <td class="text-secondary">Semester {{ $semester }}</td>
+                                        <td class="text-secondary">{{ $tahunAjaran }}</td>
+                                    </tr>
+                                @empty
+                                    <tr>
+                                        <td colspan="5" class="text-center py-4">
+                                            <div class="text-muted">
+                                                <i class="bi bi-inbox" style="font-size: 2rem;"></i>
+                                                <p class="mt-2 mb-0">Belum ada mata kuliah yang ditugaskan</p>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                @endforelse
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
-            </div>
-        @empty
-            <div class="monitoring-card">
-                <div class="text-center py-5">
-                    <i class="bi bi-search" style="font-size: 4rem; color: #dee2e6;"></i>
-                    <h6 class="mt-3 text-secondary">Tidak ada data dosen ditemukan</h6>
-                    <p class="text-muted">Coba ubah filter pencarian Anda</p>
+            @empty
+                <div class="monitoring-card">
+                    <div class="text-center py-5">
+                        <i class="bi bi-search" style="font-size: 4rem; color: #dee2e6;"></i>
+                        <h6 class="mt-3 text-secondary">Tidak ada data dosen ditemukan</h6>
+                        <p class="text-muted">Coba ubah filter pencarian Anda</p>
+                    </div>
                 </div>
-            </div>
-        @endforelse
+            @endforelse
         @endif
 
         <!-- Pagination -->
@@ -195,19 +198,19 @@
         #searchSuggestions {
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
         }
-        
+
         #searchSuggestions .suggestion-item {
             transition: background-color 0.2s ease;
         }
-        
+
         #searchSuggestions .suggestion-item:hover {
             background-color: #f8f9fa !important;
         }
-        
+
         #searchSuggestions .suggestion-item:last-child {
             border-bottom: none !important;
         }
-        
+
         /* Ensure parent doesn't clip dropdown */
         .filter-card {
             overflow: visible !important;
@@ -224,7 +227,7 @@
         // Fetch dosen list for autocomplete
         async function fetchDosenList() {
             try {
-                const response = await fetch('{{ route("gkm.data-master.penugasan-dosen") }}?get_dosen_list=1', {
+                const response = await fetch('{{ route('gkm.data-master.penugasan-dosen') }}?get_dosen_list=1', {
                     headers: {
                         'X-Requested-With': 'XMLHttpRequest'
                     }
@@ -243,7 +246,7 @@
                 return;
             }
 
-            const filtered = dosenList.filter(dosen => 
+            const filtered = dosenList.filter(dosen =>
                 dosen.nama.toLowerCase().includes(query.toLowerCase())
             ).slice(0, 10); // Limit to 10 suggestions
 
@@ -261,8 +264,8 @@
             const html = filtered.map(dosen => {
                 const highlightedName = highlightMatch(dosen.nama, query);
                 return `
-                <div class="suggestion-item p-2 border-bottom" style="cursor: pointer;" 
-                     onmouseover="this.style.backgroundColor='#f8f9fa'" 
+                <div class="suggestion-item p-2 border-bottom" style="cursor: pointer;"
+                     onmouseover="this.style.backgroundColor='#f8f9fa'"
                      onmouseout="this.style.backgroundColor='white'"
                      onclick="selectDosen('${dosen.nama.replace(/'/g, "\\'")}')">
                     <div class="d-flex align-items-center gap-2">
@@ -292,17 +295,17 @@
         // Handle input changes
         searchInput.addEventListener('input', function() {
             const query = this.value.trim();
-            
+
             clearTimeout(searchTimeout);
-            
+
             // If empty, redirect to initial state
             if (query === '') {
                 searchSuggestions.style.display = 'none';
                 // Redirect to page without search parameter
-                window.location.href = '{{ route("gkm.data-master.penugasan-dosen") }}';
+                window.location.href = '{{ route('gkm.data-master.penugasan-dosen') }}';
                 return;
             }
-            
+
             searchTimeout = setTimeout(() => {
                 showSuggestions(query);
             }, 300);

@@ -64,10 +64,6 @@
             <h6>Monitoring Kuesioner</h6>
 
             <div style="margin-left:auto; display:flex; gap:10px;">
-                <a href="{{ route('gkm.monitoring-kuesioner.create') }}" class="btn btn-primary">
-                    <i class="bi bi-upload" style="color: white;"></i> Excel
-                </a>
-
                 <a href="{{ route('gkm.monitoring-kuesioner.create-api') }}" class="btn btn-success">
                     <i class="bi bi-cloud-download" style="color: white;"></i> API
                 </a>

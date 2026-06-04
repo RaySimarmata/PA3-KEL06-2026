@@ -259,6 +259,7 @@ Route::middleware('auth')->group(function () {
 
             // Laporan Detail & Actions (MUST BE AFTER /template routes)
             Route::get('/{id}', [LaporanKuesioneController::class, 'show'])->name('show');
+            Route::get('/{id}/status', [LaporanKuesioneController::class, 'status'])->name('status');
             Route::delete('/{id}', [LaporanKuesioneController::class, 'destroy'])->name('destroy');
             Route::get('/{id}/download/{format}', [LaporanKuesioneController::class, 'download'])->name('download');
         });

@@ -159,30 +159,34 @@ small,
 .status-icon {
     width: 24px;
     height: 24px;
-    border-radius: 50%;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    font-size: 0.875rem;
+    font-size: 1rem;
+}
+
+.status-icon i {
+    font-size: 1rem;
+    line-height: 1;
 }
 
 .status-icon.success {
-    background-color: #d4edda;
     color: #28a745;
 }
 
 .status-icon.warning {
-    background-color: #fff3cd;
     color: #ffc107;
 }
 
 .status-icon.danger {
-    background-color: #f8d7da;
     color: #dc3545;
 }
 
+.status-icon.danger i {
+    font-size: 0.85rem;
+}
+
 .status-icon.info {
-    background-color: #d1ecf1;
     color: #17a2b8;
 }
 

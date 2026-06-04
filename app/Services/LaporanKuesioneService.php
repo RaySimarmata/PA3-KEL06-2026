@@ -48,7 +48,7 @@ class LaporanKuesioneService
 
         // Build base query - more flexible filter
         $query = KuesioneUpload::query();
-        
+
         // TEMPORARY: Remove prodi filter to get any available data
         // Filter by prodi if specified - Check via user relationship only
         // if ($prodiId) {
@@ -56,14 +56,14 @@ class LaporanKuesioneService
         //         $uq->where('prodi_id', $prodiId);
         //     });
         // }
-        
+
         // Get ALL records for now (will be filtered manually later if needed)
         Log::info("Getting all kuesioner records without prodi filter (temporary)");
 
         // Parse periode to determine semester and tahun_ajaran
         $year = (int) substr($periode, 0, 4);
         $month = (int) substr($periode, 5, 2);
-        
+
         if ($month <= 6) {
             $semester = 2; // Genap
             $tahunAjaran = ($year - 1) . '/' . $year;
@@ -82,7 +82,7 @@ class LaporanKuesioneService
             ->whereNotNull('semester')
             ->where('semester', '!=', '')
             ->exists();
-            
+
         if (\Schema::hasColumn('kuesioner_uploads', 'semester') && $hasSemesterData) {
             Log::info("Filtering by semester", ['semester' => $semester]);
             $query->where('semester', $semester);
@@ -142,7 +142,7 @@ class LaporanKuesioneService
         foreach ($kuesioneList as $kuesioner) {
             // Try to get data from hasil_analisis first, fallback to model fields
             $hasilAnalisis = $kuesioner->hasil_analisis;
-            
+
             if (!empty($hasilAnalisis) && isset($hasilAnalisis['statistik'])) {
                 $indexKepuasan = $hasilAnalisis['statistik']['index_kepuasan'] ?? 0;
                 $responden = $hasilAnalisis['statistik']['total_responden'] ?? 0;
@@ -217,17 +217,17 @@ class LaporanKuesioneService
     private function extractTingkatFromKode($kodeMk)
     {
         if (empty($kodeMk)) return null;
-        
+
         // Try to extract first digit after letters
         if (preg_match('/^[A-Z]+(\d)/', $kodeMk, $matches)) {
             return (int)$matches[1];
         }
-        
+
         // Fallback: look for any digit
         if (preg_match('/(\d)/', $kodeMk, $matches)) {
             return (int)$matches[1];
         }
-        
+
         return null;
     }
 
@@ -479,7 +479,7 @@ class LaporanKuesioneService
 
             // Use UnifiedAIService instead of direct API call
             $aiService = app(\App\Services\UnifiedAIService::class);
-            
+
             $messages = [
                 [
                     'role' => 'system',

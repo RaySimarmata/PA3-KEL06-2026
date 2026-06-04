@@ -16,7 +16,7 @@ class UnifiedAIService
     private $apiKey;
     private $baseUrl;
     private $model;
-    
+
     // Cache settings
     private $cacheEnabled = true;
     private $cacheTTL = 86400; // 24 hours
@@ -98,7 +98,7 @@ class UnifiedAIService
             } catch (\Exception $primaryError) {
                 // Check if it's a rate limit or quota error
                 $errorMsg = $primaryError->getMessage();
-                $isRateLimit = str_contains($errorMsg, 'Rate limit') || 
+                $isRateLimit = str_contains($errorMsg, 'Rate limit') ||
                                str_contains($errorMsg, 'rate_limit') ||
                                str_contains($errorMsg, '429') ||
                                str_contains($errorMsg, 'quota');
@@ -120,7 +120,7 @@ class UnifiedAIService
 
         } catch (\Exception $e) {
             $processingTime = round((microtime(true) - $startTime) * 1000, 2);
-            
+
             Log::error("AI generation failed", [
                 'provider' => $this->provider,
                 'error' => $e->getMessage(),
@@ -140,7 +140,7 @@ class UnifiedAIService
     /**
      * Generate chat response with conversation history support
      * This method uses the Chat Completions API format with messages array
-     * 
+     *
      * @param array $messages Array of messages with 'role' and 'content'
      *                        Example: [
      *                          ['role' => 'system', 'content' => 'You are a helpful assistant'],
@@ -180,7 +180,7 @@ class UnifiedAIService
             // Skip cache for conversation (to avoid conflicts in multi-turn chat)
             // Only cache if it's a single message (no conversation history)
             $hasConversationHistory = count(array_filter($messages, fn($m) => ($m['role'] ?? '') !== 'system')) > 1;
-            
+
             $cacheKey = null;
             if (!$hasConversationHistory && $this->cacheEnabled) {
                 $cacheKey = $this->getChatCacheKey($messages, $options);
@@ -231,7 +231,7 @@ class UnifiedAIService
             } catch (\Exception $primaryError) {
                 // Check if it's a rate limit or quota error
                 $errorMsg = $primaryError->getMessage();
-                $isRateLimit = str_contains($errorMsg, 'Rate limit') || 
+                $isRateLimit = str_contains($errorMsg, 'Rate limit') ||
                                str_contains($errorMsg, 'rate_limit') ||
                                str_contains($errorMsg, '429') ||
                                str_contains($errorMsg, 'quota');
@@ -252,7 +252,7 @@ class UnifiedAIService
 
         } catch (\Exception $e) {
             $processingTime = round((microtime(true) - $startTime) * 1000, 2);
-            
+
             Log::error("AI chat generation failed", [
                 'provider' => $this->provider,
                 'error' => $e->getMessage(),
@@ -273,7 +273,7 @@ class UnifiedAIService
     /**
      * Estimate tokens in messages and trim if necessary
      * Rough estimation: 1 token ≈ 4 characters
-     * 
+     *
      * @param array $messages Messages array
      * @param array $options Options with max_tokens
      * @return array Trimmed messages if needed
@@ -283,39 +283,39 @@ class UnifiedAIService
         // Get model's context window (default to conservative estimate)
         $contextWindow = $this->getModelContextWindow();
         $maxOutputTokens = $options['max_tokens'] ?? 8192;
-        
+
         // Reserve tokens for output and safety margin
         $maxInputTokens = $contextWindow - $maxOutputTokens - 500; // 500 token safety margin
-        
+
         // Estimate current tokens
         $estimatedTokens = 0;
         foreach ($messages as $msg) {
             $content = $msg['content'] ?? '';
             $estimatedTokens += (int) (strlen($content) / 4);
         }
-        
+
         Log::info("Token estimation", [
             'estimated_input_tokens' => $estimatedTokens,
             'max_input_tokens' => $maxInputTokens,
             'context_window' => $contextWindow,
             'messages_count' => count($messages)
         ]);
-        
+
         // If within limits, return as is
         if ($estimatedTokens <= $maxInputTokens) {
             return $messages;
         }
-        
+
         // Need to trim - keep system message and most recent messages
         Log::warning("Messages exceed token limit, trimming...", [
             'estimated_tokens' => $estimatedTokens,
             'max_tokens' => $maxInputTokens,
             'messages_count' => count($messages)
         ]);
-        
+
         $trimmedMessages = [];
         $currentTokens = 0;
-        
+
         // Always keep system message (first message)
         if (!empty($messages) && ($messages[0]['role'] ?? '') === 'system') {
             $systemMsg = array_shift($messages);
@@ -323,39 +323,39 @@ class UnifiedAIService
             $trimmedMessages[] = $systemMsg;
             $currentTokens += $systemTokens;
         }
-        
+
         // Process remaining messages in reverse (keep most recent)
         $reversedMessages = array_reverse($messages);
         $keptMessages = [];
-        
+
         foreach ($reversedMessages as $msg) {
             $content = $msg['content'] ?? '';
             $messageTokens = (int) (strlen($content) / 4);
-            
+
             if ($currentTokens + $messageTokens > $maxInputTokens) {
                 break;
             }
-            
+
             $keptMessages[] = $msg;
             $currentTokens += $messageTokens;
         }
-        
+
         // Reverse back to chronological order and add to trimmed messages
         $keptMessages = array_reverse($keptMessages);
         $trimmedMessages = array_merge($trimmedMessages, $keptMessages);
-        
+
         Log::info("Messages trimmed", [
             'original_count' => count($messages) + 1, // +1 for system message
             'trimmed_count' => count($trimmedMessages),
             'estimated_tokens' => $currentTokens
         ]);
-        
+
         return $trimmedMessages;
     }
-    
+
     /**
      * Get model's context window size
-     * 
+     *
      * @return int Context window in tokens
      */
     private function getModelContextWindow(): int
@@ -368,29 +368,29 @@ class UnifiedAIService
             'gpt-4-turbo' => 128000,
             'gpt-4' => 8192,
             'gpt-3.5-turbo' => 16385,
-            
+
             // Groq models
             'llama-3.3-70b-versatile' => 8192,
             'llama-3.1-70b-versatile' => 131072,
             'llama-3.1-8b-instant' => 131072,
             'mixtral-8x7b-32768' => 32768,
-            
+
             // OpenRouter models
             'meta-llama/llama-3.1-70b-instruct' => 131072,
             'meta-llama/llama-3.1-8b-instruct' => 131072,
-            
+
             // Together models
             'meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo' => 131072,
-            
+
             // Claude models
             'claude-3-5-haiku-20241022' => 200000,
             'claude-3-5-sonnet-20241022' => 200000,
-            
+
             // Gemini models
             'gemini-1.5-flash' => 1000000,
             'gemini-1.5-pro' => 2000000,
         ];
-        
+
         return $contextWindows[$this->model] ?? 8192; // Conservative default
     }
 
@@ -401,14 +401,14 @@ class UnifiedAIService
     {
         try {
             $geminiService = app(\App\Services\GeminiAIService::class);
-            
+
             Log::info("Attempting Gemini fallback");
-            
+
             $geminiResult = $geminiService->generateText($prompt, $options);
-            
+
             if ($geminiResult['success']) {
                 $processingTime = round((microtime(true) - $startTime) * 1000, 2);
-                
+
                 $result = [
                     'success' => true,
                     'text' => $geminiResult['text'],
@@ -501,7 +501,7 @@ class UnifiedAIService
 
                 if ($response->successful()) {
                     $data = $response->json();
-                    
+
                     if (!isset($data['choices'][0]['message']['content'])) {
                         throw new \Exception("Invalid API response structure");
                     }
@@ -535,12 +535,12 @@ class UnifiedAIService
                 if ($attempt === $maxRetries) {
                     throw $e;
                 }
-                
+
                 Log::warning("API call failed, retrying...", [
                     'attempt' => $attempt,
                     'error' => $e->getMessage()
                 ]);
-                
+
                 usleep($retryDelay * 1000);
                 $retryDelay *= 2;
             }
@@ -590,7 +590,7 @@ class UnifiedAIService
 
                 if ($response->successful()) {
                     $data = $response->json();
-                    
+
                     if (!isset($data['choices'][0]['message']['content'])) {
                         throw new \Exception("Invalid API response structure");
                     }
@@ -629,12 +629,12 @@ class UnifiedAIService
                 if ($attempt === $maxRetries) {
                     throw $e;
                 }
-                
+
                 Log::warning("Chat API call failed, retrying...", [
                     'attempt' => $attempt,
                     'error' => $e->getMessage()
                 ]);
-                
+
                 usleep($retryDelay * 1000);
                 $retryDelay *= 2;
             }
@@ -673,7 +673,7 @@ class UnifiedAIService
 
                 if ($response->successful()) {
                     $data = $response->json();
-                    
+
                     if (!isset($data['content'][0]['text'])) {
                         throw new \Exception("Invalid Claude API response");
                     }
@@ -723,7 +723,7 @@ class UnifiedAIService
                 // Extract system message if present
                 $systemMessage = '';
                 $chatMessages = [];
-                
+
                 foreach ($messages as $msg) {
                     if ($msg['role'] === 'system') {
                         $systemMessage = $msg['content'];
@@ -750,7 +750,7 @@ class UnifiedAIService
 
                 if ($response->successful()) {
                     $data = $response->json();
-                    
+
                     if (!isset($data['content'][0]['text'])) {
                         throw new \Exception("Invalid Claude API response");
                     }
@@ -794,17 +794,17 @@ class UnifiedAIService
     {
         try {
             $geminiService = app(\App\Services\GeminiAIService::class);
-            
+
             Log::info("Attempting Gemini fallback for chat");
-            
+
             // Convert messages to single prompt for Gemini
             $prompt = $this->convertMessagesToPrompt($messages);
-            
+
             $geminiResult = $geminiService->generateText($prompt, $options);
-            
+
             if ($geminiResult['success']) {
                 $processingTime = round((microtime(true) - $startTime) * 1000, 2);
-                
+
                 $result = [
                     'success' => true,
                     'text' => $geminiResult['text'],
@@ -848,11 +848,11 @@ class UnifiedAIService
     private function convertMessagesToPrompt(array $messages): string
     {
         $prompt = '';
-        
+
         foreach ($messages as $msg) {
             $role = strtoupper($msg['role']);
             $content = $msg['content'];
-            
+
             if ($role === 'SYSTEM') {
                 $prompt .= "SYSTEM INSTRUCTIONS:\n{$content}\n\n";
             } elseif ($role === 'USER') {
@@ -861,7 +861,7 @@ class UnifiedAIService
                 $prompt .= "ASSISTANT: {$content}\n\n";
             }
         }
-        
+
         return $prompt;
     }
 
@@ -882,7 +882,7 @@ class UnifiedAIService
     public function generateReportSections(string $context, array $sections, array $metadata = []): array
     {
         $results = [];
-        
+
         Log::info("=== Generating Report Sections ===", [
             'provider' => $this->provider,
             'context_length' => safe_strlen($context),
@@ -891,9 +891,9 @@ class UnifiedAIService
 
         foreach ($sections as $sectionName => $sectionPrompt) {
             $fullPrompt = $this->buildSectionPrompt($context, $sectionName, $sectionPrompt, $metadata);
-            
+
             $result = $this->generateText($fullPrompt);
-            
+
             if ($result['success']) {
                 $results[$sectionName] = $result['text'];
             } else {
@@ -921,15 +921,15 @@ class UnifiedAIService
     private function buildSectionPrompt(string $context, string $sectionName, string $sectionPrompt, array $metadata): string
     {
         $prompt = "Anda adalah AI assistant yang membantu membuat laporan akademik.\n\n";
-        
+
         if (!empty($metadata['periode'])) {
             $prompt .= "PERIODE: {$metadata['periode']}\n";
         }
-        
+
         if (!empty($metadata['tahun'])) {
             $prompt .= "TAHUN: {$metadata['tahun']}\n";
         }
-        
+
         $prompt .= "\nKONTEKS DATA:\n{$context}\n\n";
         $prompt .= "TUGAS: Buat bagian '{$sectionName}' untuk laporan.\n";
         $prompt .= "INSTRUKSI: {$sectionPrompt}\n\n";

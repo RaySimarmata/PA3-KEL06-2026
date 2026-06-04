@@ -40,9 +40,9 @@
                     id="uploadForm">
                     @csrf
 
-                    <!-- Hidden fields -->
-                    <!-- No longer needed with direct search -->
-                    <!-- <input type="hidden" name="tingkat" id="tingkat_hidden" value="{{ $selectedTingkat }}"> -->
+                    {{-- Hidden fields --}}
+                    {{-- No longer needed with direct search --}}
+                    {{-- <input type="hidden" name="tingkat" id="tingkat_hidden" value=""> --}}
 
                     <!-- Section 1: Informasi Kuesioner (PERTAMA) -->
                     <div class="monitoring-card mb-4">

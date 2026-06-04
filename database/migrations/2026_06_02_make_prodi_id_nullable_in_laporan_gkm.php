@@ -13,7 +13,9 @@ return new class extends Migration
     {
         Schema::table('laporan_gkm', function (Blueprint $table) {
             // Make prodi_id nullable for laporan artefak (institution-wide reports)
-            $table->foreignId('prodi_id')->nullable()->change();
+            if (Schema::hasColumn('laporan_gkm', 'prodi_id')) {
+                $table->foreignId('prodi_id')->nullable()->change();
+            }
         });
     }
 

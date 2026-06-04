@@ -12,8 +12,9 @@
                         <label class="filter-label">Periode</label>
                         <select name="periode" class="form-select">
                             <option value="">Semua Periode</option>
-                            @foreach($periodes as $p)
-                                <option value="{{ $p->periode }}" {{ request('periode') == $p->periode ? 'selected' : '' }}>
+                            @foreach ($periodes as $p)
+                                <option value="{{ $p->periode }}"
+                                    {{ request('periode') == $p->periode ? 'selected' : '' }}>
                                     {{ $p->bulan }} {{ $p->tahun }}
                                 </option>
                             @endforeach
@@ -24,8 +25,10 @@
                         <select name="status" class="form-select">
                             <option value="">Semua Status</option>
                             <option value="pending" {{ request('status') == 'pending' ? 'selected' : '' }}>Menunggu</option>
-                            <option value="processing" {{ request('status') == 'processing' ? 'selected' : '' }}>Sedang Diproses</option>
-                            <option value="completed" {{ request('status') == 'completed' ? 'selected' : '' }}>Selesai</option>
+                            <option value="processing" {{ request('status') == 'processing' ? 'selected' : '' }}>Sedang
+                                Diproses</option>
+                            <option value="completed" {{ request('status') == 'completed' ? 'selected' : '' }}>Selesai
+                            </option>
                             <option value="error" {{ request('status') == 'error' ? 'selected' : '' }}>Error</option>
                         </select>
                     </div>
@@ -74,7 +77,7 @@
                                     <span class="badge-gkm info">{{ $laporan->total_kuesioner }}</span>
                                 </td>
                                 <td class="text-center">
-                                    @if($laporan->index_kepuasan_rata_rata)
+                                    @if ($laporan->index_kepuasan_rata_rata)
                                         <div>
                                             <span class="badge-gkm success" style="font-size: 0.9rem;">
                                                 {{ number_format($laporan->index_kepuasan_rata_rata, 2) }}
@@ -88,7 +91,8 @@
                                     @endif
                                 </td>
                                 <td class="text-center">
-                                    <span class="badge-gkm {{ $laporan->status_badge == 'success' ? 'success' : ($laporan->status_badge == 'warning' ? 'warning' : ($laporan->status_badge == 'danger' ? 'danger' : 'info')) }}">
+                                    <span
+                                        class="badge-gkm {{ $laporan->status_badge == 'success' ? 'success' : ($laporan->status_badge == 'warning' ? 'warning' : ($laporan->status_badge == 'danger' ? 'danger' : 'info')) }}">
                                         {{ $laporan->status_label }}
                                     </span>
                                 </td>
@@ -97,25 +101,21 @@
                                 </td>
                                 <td class="text-center">
                                     <div class="btn-group" role="group">
-                                        <a href="{{ route('gkm.laporan-kuesioner.show', $laporan->id) }}" 
-                                           class="btn btn-sm btn-outline-primary"
-                                           title="Lihat Detail">
+                                        <a href="{{ route('gkm.laporan-kuesioner.show', $laporan->id) }}"
+                                            class="btn btn-sm btn-outline-primary" title="Lihat Detail">
                                             <i class="bi bi-eye"></i>
                                         </a>
-                                        
-                                        @if($laporan->status == 'completed' && $laporan->file_word)
-                                            <a href="{{ route('gkm.laporan-kuesioner.download', [$laporan->id, 'word']) }}" 
-                                               class="btn btn-sm btn-outline-success"
-                                               title="Download Word">
+
+                                        @if ($laporan->status == 'completed' && $laporan->file_word)
+                                            <a href="{{ route('gkm.laporan-kuesioner.download', [$laporan->id, 'word']) }}"
+                                                class="btn btn-sm btn-outline-success" title="Download Word">
                                                 <i class="bi bi-download"></i>
                                             </a>
                                         @endif
-                                        
-                                        <button type="button" 
-                                                class="btn btn-sm btn-outline-danger btn-delete-laporan" 
-                                                title="Hapus"
-                                                data-laporan-id="{{ $laporan->id }}"
-                                                data-laporan-periode="{{ $laporan->formatted_periode }}">
+
+                                        <button type="button" class="btn btn-sm btn-outline-danger btn-delete-laporan"
+                                            title="Hapus" data-laporan-id="{{ $laporan->id }}"
+                                            data-laporan-periode="{{ $laporan->formatted_periode }}">
                                             <i class="bi bi-trash"></i>
                                         </button>
                                     </div>
@@ -126,7 +126,8 @@
                                 <td colspan="6" class="text-center py-5">
                                     <div class="empty-state">
                                         <i class="bi bi-inbox"></i>
-                                        <p>Belum ada laporan. <a href="{{ route('gkm.laporan-kuesioner.create') }}" style="color: #5B9BD5; font-weight: 600;">Generate laporan baru</a></p>
+                                        <p>Belum ada laporan. <a href="{{ route('gkm.laporan-kuesioner.create') }}"
+                                                style="color: #5B9BD5; font-weight: 600;">Generate laporan baru</a></p>
                                     </div>
                                 </td>
                             </tr>
@@ -137,7 +138,7 @@
         </div>
 
         <!-- Pagination -->
-        @if($laporanList->hasPages())
+        @if ($laporanList->hasPages())
             <div class="mt-4 d-flex justify-content-center">
                 {{ $laporanList->links() }}
             </div>
@@ -146,56 +147,58 @@
 @endsection
 
 @push('scripts')
-<script>
-    // Handle delete laporan with AJAX
-    document.addEventListener('DOMContentLoaded', function() {
-        const deleteButtons = document.querySelectorAll('.btn-delete-laporan');
-        
-        deleteButtons.forEach(button => {
-            button.addEventListener('click', function() {
-                const laporanId = this.getAttribute('data-laporan-id');
-                const laporanPeriode = this.getAttribute('data-laporan-periode');
-                
-                if (confirm(`Yakin ingin menghapus laporan periode ${laporanPeriode}?`)) {
-                    // Disable button
-                    this.disabled = true;
-                    const originalHTML = this.innerHTML;
-                    this.innerHTML = '<i class="bi bi-hourglass-split"></i>';
-                    
-                    // Build URL using route helper
-                    const url = '{{ route("gkm.laporan-kuesioner.destroy", ":id") }}'.replace(':id', laporanId);
-                    
-                    // Send DELETE request
-                    fetch(url, {
-                        method: 'DELETE',
-                        headers: {
-                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
-                            'Accept': 'application/json',
-                            'Content-Type': 'application/json'
-                        }
-                    })
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.success) {
-                            // Show success message
-                            alert(data.message);
-                            // Reload page to update list
-                            window.location.reload();
-                        } else {
-                            alert('Error: ' + data.message);
-                            this.disabled = false;
-                            this.innerHTML = originalHTML;
-                        }
-                    })
-                    .catch(error => {
-                        console.error('Error:', error);
-                        alert('Terjadi kesalahan saat menghapus laporan');
-                        this.disabled = false;
-                        this.innerHTML = originalHTML;
-                    });
-                }
+    <script>
+        // Handle delete laporan with AJAX
+        document.addEventListener('DOMContentLoaded', function() {
+            const deleteButtons = document.querySelectorAll('.btn-delete-laporan');
+
+            deleteButtons.forEach(button => {
+                button.addEventListener('click', function() {
+                    const laporanId = this.getAttribute('data-laporan-id');
+                    const laporanPeriode = this.getAttribute('data-laporan-periode');
+
+                    if (confirm(`Yakin ingin menghapus laporan periode ${laporanPeriode}?`)) {
+                        // Disable button
+                        this.disabled = true;
+                        const originalHTML = this.innerHTML;
+                        this.innerHTML = '<i class="bi bi-hourglass-split"></i>';
+
+                        // Build URL using route helper
+                        const url = '{{ route('gkm.laporan-kuesioner.destroy', ':id') }}'.replace(
+                            ':id', laporanId);
+
+                        // Send DELETE request
+                        fetch(url, {
+                                method: 'DELETE',
+                                headers: {
+                                    'X-CSRF-TOKEN': document.querySelector(
+                                        'meta[name="csrf-token"]').getAttribute('content'),
+                                    'Accept': 'application/json',
+                                    'Content-Type': 'application/json'
+                                }
+                            })
+                            .then(response => response.json())
+                            .then(data => {
+                                if (data.success) {
+                                    // Show success message
+                                    alert(data.message);
+                                    // Reload page to update list
+                                    window.location.reload();
+                                } else {
+                                    alert('Error: ' + data.message);
+                                    this.disabled = false;
+                                    this.innerHTML = originalHTML;
+                                }
+                            })
+                            .catch(error => {
+                                console.error('Error:', error);
+                                alert('Terjadi kesalahan saat menghapus laporan');
+                                this.disabled = false;
+                                this.innerHTML = originalHTML;
+                            });
+                    }
+                });
             });
         });
-    });
-</script>
+    </script>
 @endpush

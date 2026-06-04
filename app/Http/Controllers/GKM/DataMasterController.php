@@ -916,12 +916,12 @@ class DataMasterController extends Controller
     {
         $user = Auth::user();
 
-        // AJAX autocomplete dosen
+        // Handle AJAX request for dosen list (autocomplete)
         if ($request->ajax() || $request->has('get_dosen_list')) {
             try {
                 $apiService = app(\App\Services\ExternalAPIService::class);
                 $dosenData = $apiService->getFilteredDosen();
-                
+
                 // Return only nama and email for autocomplete
                 $dosenList = array_map(function($dosen) {
                     return [
@@ -929,14 +929,14 @@ class DataMasterController extends Controller
                         'email' => $dosen['email'] ?? ''
                     ];
                 }, $dosenData);
-                
+
                 return response()->json(['dosen' => $dosenList]);
             } catch (\Exception $e) {
                 \Log::error('AJAX Dosen List Error: ' . $e->getMessage());
                 return response()->json(['dosen' => []]);
             }
         }
-        
+
         // Initialize empty collection
         $dosenList = new \Illuminate\Pagination\LengthAwarePaginator(
             [],
@@ -945,48 +945,52 @@ class DataMasterController extends Controller
             1,
             ['path' => $request->url(), 'query' => $request->query()]
         );
-        
+
+        // Generate dynamic tahun ajaran list
+        $tahunAjaranList = $this->generateDynamicTahunAjaran();
+
         // Only fetch data if search is provided or form is submitted
         if (!$request->has('search') && !$request->has('submitted')) {
-            return view('gkm.data-master.penugasan-dosen', compact('user', 'dosenList'));
+            return view('gkm.data-master.penugasan-dosen', compact('user', 'dosenList', 'tahunAjaranList'));
         }
-        
+
         try {
             $apiService = app(\App\Services\ExternalAPIService::class);
-            
+
             // Fetch data from API using service
             $dosenData = $apiService->getFilteredDosen();
-            
+
             // Search by name
             if ($request->search) {
                 $searchTerm = strtolower($request->search);
                 $dosenData = array_filter($dosenData, function($dosen) use ($searchTerm) {
-                    return isset($dosen['nama']) && 
+                    return isset($dosen['nama']) &&
                            str_contains(strtolower($dosen['nama']), $searchTerm);
                 });
             }
-            
+
             // Convert to collection for pagination
             $dosenCollection = collect(array_values($dosenData));
-            
+
             // PAGINATION FIRST - before fetching jadwal
             $perPage = 10;
             $currentPage = $request->get('page', 1);
-            
+
             // Get only current page items
             $currentPageDosen = $dosenCollection->forPage($currentPage, $perPage)->all();
-            
+
             // Get semester and year from request or use defaults
             $currentMonth = date('n');
+            $currentYear = date('Y');
             $defaultSemTa = $currentMonth >= 8 ? 1 : 2; // 1 = Ganjil (Aug-Dec), 2 = Genap (Jan-Jul)
-            
+
             $semTa = $request->get('sem_ta', $defaultSemTa);
-            $ta = $request->get('ta', 2020); // Default to 2020 as API only has 2020 data
-            
+            $ta = $request->get('ta', $currentYear); // Use current year as default
+
             // Fetch jadwal ONLY for current page dosen (not all dosen)
             foreach ($currentPageDosen as &$dosen) {
                 $pegawaiId = $dosen['pegawai_id'] ?? null;
-                
+
                 if ($pegawaiId) {
                     // Get jadwal from API with cache
                     $jadwal = \Cache::remember(
@@ -996,27 +1000,27 @@ class DataMasterController extends Controller
                             return $apiService->getJadwalByDosen($pegawaiId, $semTa, $ta);
                         }
                     );
-                    
+
                     // Remove duplicates based on kode_mk
                     $uniqueJadwal = [];
                     $seenKodeMk = [];
-            
+
                     foreach ($jadwal as $mk) {
                         $kodeMk = $mk['kode_mk'] ?? null;
-                        
+
                         if ($kodeMk && !in_array($kodeMk, $seenKodeMk)) {
                             $uniqueJadwal[] = $mk;
                             $seenKodeMk[] = $kodeMk;
                         }
                     }
-                    
+
                     $dosen['matakuliah'] = $uniqueJadwal;
                 } else {
                     $dosen['matakuliah'] = [];
                 }
             }
             unset($dosen); // Break reference
-            
+
             // Create paginator with fetched data
             $dosenList = new \Illuminate\Pagination\LengthAwarePaginator(
                 $currentPageDosen,
@@ -1025,9 +1029,9 @@ class DataMasterController extends Controller
                 $currentPage,
                 ['path' => $request->url(), 'query' => $request->query()]
             );
-            
-            return view('gkm.data-master.penugasan-dosen', compact('user', 'dosenList'));
-            
+
+            return view('gkm.data-master.penugasan-dosen', compact('user', 'dosenList', 'tahunAjaranList'));
+
         } catch (\Exception $e) {
             // Fallback to database on error
             \Log::error('API Dosen Error: ' . $e->getMessage());
@@ -1037,7 +1041,7 @@ class DataMasterController extends Controller
 
     private function penugasanDosenFromDatabase(Request $request, $user)
     {
-        $query = Dosenn::with('matakuliah')
+        $query = Dosen::with('matakuliah')
             ->where('status', 'aktif')
             ->orderBy('nama_lengkap');
 

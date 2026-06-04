@@ -19,7 +19,7 @@ class TextExtractionService
 
         // Normalize path - handle both storage path and public path
         $fullPath = $this->getFullPath($filePath);
-        
+
         if (!file_exists($fullPath)) {
             Log::error("File not found", [
                 'original_path' => $filePath,
@@ -36,7 +36,7 @@ class TextExtractionService
         }
 
         $extension = strtolower(pathinfo($fullPath, PATHINFO_EXTENSION));
-        
+
         $result = [
             'text' => '',
             'metadata' => [
@@ -54,24 +54,24 @@ class TextExtractionService
                 case 'md':
                     $result = $this->extractFromText($fullPath);
                     break;
-                
+
                 case 'docx':
                     $result = $this->extractFromDocx($fullPath);
                     break;
-                
+
                 case 'pdf':
                     $result = $this->extractFromPdf($fullPath);
                     break;
-                
+
                 case 'doc':
                     $result = $this->extractFromDoc($fullPath);
                     break;
-                
+
                 case 'xlsx':
                 case 'xls':
                     $result = $this->extractFromExcel($fullPath);
                     break;
-                
+
                 // Image files - use OCR
                 case 'jpg':
                 case 'jpeg':
@@ -83,7 +83,7 @@ class TextExtractionService
                 case 'tif':
                     $result = $this->extractFromImage($fullPath);
                     break;
-                
+
                 default:
                     Log::warning("Unsupported file type", ['extension' => $extension]);
                     $result['metadata']['error'] = "Unsupported file type: {$extension}";
@@ -145,7 +145,7 @@ class TextExtractionService
     private function extractFromText(string $fullPath): array
     {
         $content = file_get_contents($fullPath);
-        
+
         return [
             'text' => $content,
             'metadata' => [
@@ -203,7 +203,7 @@ class TextExtractionService
             // Handle different element types
             if ($element instanceof \PhpOffice\PhpWord\Element\Text) {
                 $text .= $element->getText() . ' ';
-            } 
+            }
             elseif ($element instanceof \PhpOffice\PhpWord\Element\TextRun) {
                 // TextRun contains multiple text elements
                 foreach ($element->getElements() as $textElement) {
@@ -259,22 +259,22 @@ class TextExtractionService
 
         if ($zip->open($fullPath) === true) {
             $xml = $zip->getFromName('word/document.xml');
-            
+
             if ($xml) {
                 // Parse XML dan extract text
                 $xml = simplexml_load_string($xml);
                 $xml->registerXPathNamespace('w', 'http://schemas.openxmlformats.org/wordprocessingml/2006/main');
-                
+
                 $textNodes = $xml->xpath('//w:t');
                 foreach ($textNodes as $textNode) {
                     $text .= (string)$textNode . ' ';
                 }
-                
+
                 // Clean up
                 $text = preg_replace('/\s+/', ' ', $text);
                 $text = str_replace(' . ', ".\n", $text);
             }
-            
+
             $zip->close();
         }
 
@@ -301,7 +301,7 @@ class TextExtractionService
                 $parser = new \Smalot\PdfParser\Parser();
                 $pdf = $parser->parseFile($fullPath);
                 $text = $pdf->getText();
-                
+
                 if (!empty($text)) {
                     return [
                         'text' => $text,
@@ -324,11 +324,11 @@ class TextExtractionService
                 $outputPath = $fullPath . '.txt';
                 $command = "pdftotext -layout \"{$fullPath}\" \"{$outputPath}\"";
                 exec($command, $output, $returnCode);
-                
+
                 if ($returnCode === 0 && file_exists($outputPath)) {
                     $text = file_get_contents($outputPath);
                     @unlink($outputPath);
-                    
+
                     if (!empty($text)) {
                         return [
                             'text' => $text,
@@ -352,11 +352,11 @@ class TextExtractionService
                 $outputPath = $fullPath . '.txt';
                 $command = "pdfbox ExtractText \"{$fullPath}\" \"{$outputPath}\"";
                 exec($command, $output, $returnCode);
-                
+
                 if ($returnCode === 0 && file_exists($outputPath)) {
                     $text = file_get_contents($outputPath);
                     @unlink($outputPath);
-                    
+
                     if (!empty($text)) {
                         return [
                             'text' => $text,
@@ -377,12 +377,12 @@ class TextExtractionService
         // Fallback: Return error with helpful message
         $fileSize = filesize($fullPath);
         $errorMsg = 'PDF extraction tidak tersedia di sistem ini. ';
-        
+
         $errorMsg .= 'Solusi: ';
         $errorMsg .= '(1) Install smalot/pdfparser: composer require smalot/pdfparser (RECOMMENDED untuk Windows), ';
         $errorMsg .= '(2) Install pdftotext (poppler-utils), ';
         $errorMsg .= '(3) Konversi PDF ke DOCX/TXT menggunakan online converter.';
-        
+
         Log::warning('PDF extraction failed - no method available', [
             'file' => $fullPath,
             'file_size' => $fileSize,
@@ -413,10 +413,10 @@ class TextExtractionService
         // Try using antiword command if available
         if ($this->commandExists('antiword')) {
             exec("antiword '{$fullPath}'", $output, $returnCode);
-            
+
             if ($returnCode === 0) {
                 $text = implode("\n", $output);
-                
+
                 return [
                     'text' => $text,
                     'metadata' => [
@@ -460,45 +460,45 @@ class TextExtractionService
         try {
             $spreadsheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($fullPath);
             $text = '';
-            
+
             // Iterate through all sheets
             foreach ($spreadsheet->getSheetNames() as $sheetName) {
                 $sheet = $spreadsheet->getSheetByName($sheetName);
                 $text .= "=== SHEET: {$sheetName} ===\n";
-                
+
                 // Get the highest row and column
                 $highestRow = $sheet->getHighestRow();
                 $highestColumn = $sheet->getHighestColumn();
-                
+
                 // Iterate through rows
                 for ($row = 1; $row <= $highestRow; $row++) {
                     $rowData = [];
-                    
+
                     // Iterate through columns
                     for ($col = 'A'; $col <= $highestColumn; $col++) {
                         $cell = $sheet->getCell($col . $row);
                         $value = $cell->getValue();
-                        
+
                         // Handle different value types
                         if ($value instanceof \DateTime) {
                             $value = $value->format('Y-m-d H:i:s');
                         } elseif (is_object($value)) {
                             $value = (string)$value;
                         }
-                        
+
                         $rowData[] = trim((string)$value);
                     }
-                    
+
                     // Join row data with pipe separator
                     $rowText = implode(' | ', array_filter($rowData));
                     if (!empty($rowText)) {
                         $text .= $rowText . "\n";
                     }
                 }
-                
+
                 $text .= "\n";
             }
-            
+
             return [
                 'text' => $text,
                 'metadata' => [
@@ -508,13 +508,13 @@ class TextExtractionService
                 ],
                 'success' => !empty($text)
             ];
-            
+
         } catch (\Exception $e) {
             Log::error('Excel extraction failed', [
                 'error' => $e->getMessage(),
                 'file' => $fullPath
             ]);
-            
+
             return [
                 'text' => '',
                 'metadata' => [
@@ -533,13 +533,13 @@ class TextExtractionService
     private function commandExists(string $command): bool
     {
         $os = strtoupper(substr(PHP_OS, 0, 3));
-        
+
         if ($os === 'WIN') {
             exec("where {$command}", $output, $returnCode);
         } else {
             exec("which {$command}", $output, $returnCode);
         }
-        
+
         return $returnCode === 0;
     }
 
@@ -550,20 +550,20 @@ class TextExtractionService
     {
         // Remove excessive whitespace
         $text = preg_replace('/[ \t]+/', ' ', $text);
-        
+
         // Normalize line breaks
         $text = preg_replace('/\r\n|\r/', "\n", $text);
-        
+
         // Remove more than 2 consecutive line breaks
         $text = preg_replace('/\n{3,}/', "\n\n", $text);
-        
+
         // IMPORTANT: Escape curly braces to prevent template string errors
         // This prevents "Unclosed '{' on line X" errors when PDF content contains { or }
         $text = str_replace(['{', '}'], ['{{', '}}'], $text);
-        
+
         // Trim
         $text = trim($text);
-        
+
         return $text;
     }
 
@@ -584,7 +584,7 @@ class TextExtractionService
         try {
             $ocrService = app(\App\Services\OCRService::class);
             $ocrResult = $ocrService->extractTextFromImage($fullPath);
-            
+
             if ($ocrResult['success']) {
                 return [
                     'text' => $ocrResult['text'],
@@ -608,13 +608,13 @@ class TextExtractionService
                     'success' => false
                 ];
             }
-            
+
         } catch (\Exception $e) {
             Log::error('Image OCR extraction failed', [
                 'file' => $fullPath,
                 'error' => $e->getMessage()
             ]);
-            
+
             return [
                 'text' => '',
                 'metadata' => [
