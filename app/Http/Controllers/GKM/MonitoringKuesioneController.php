@@ -15,7 +15,6 @@ use App\Services\ExternalApiService;
 use App\Models\PeriodeAkademik;
 use Illuminate\Support\Facades\DB;
 use App\Models\KuesionerMongo;
-use Barryvdh\DomPDF\Facade\Pdf;
 
 
 class MonitoringKuesioneController extends Controller
@@ -1368,43 +1367,5 @@ $jenisKuesioner = $this->detectJenisKuesioner($apiData['metadata']['judul_kuesio
                 'data' => [['Sample', 'S', 'SS', 'S', 'CS', 'S']]
             ];
         }
-    }
-
-    /**
-     * Generate PDF dari halaman laporan analisis
-     */
-    public function printPdf($id)
-    {
-        $kuesioner = KuesioneUpload::with(['user', 'user.prodi'])->findOrFail($id);
-
-        if ($kuesioner->status !== 'completed') {
-            return back()->withErrors(['error' => 'Analisis belum selesai. Silakan tunggu beberapa saat.']);
-        }
-
-        // Pastikan nama_matakuliah terisi
-        if (empty($kuesioner->nama_matakuliah) && !empty($kuesioner->kode_matakuliah)) {
-            $matkul = \App\Models\Matakuliah::where('kode_mk', $kuesioner->kode_matakuliah)->first();
-            $kuesioner->nama_matakuliah = $matkul ? $matkul->nama_mk : null;
-        }
-
-        // Load view untuk PDF
-        $pdf = Pdf::loadView('gkm.monitoring-kuesioner.report-pdf', compact('kuesioner'))
-            ->setPaper('a4', 'portrait')
-            ->setOptions([
-                'isHtml5ParserEnabled' => true,
-                'isRemoteEnabled' => true,
-                'defaultFont' => 'sans-serif',
-                'margin_top' => 10,
-                'margin_right' => 10,
-                'margin_bottom' => 10,
-                'margin_left' => 10,
-            ]);
-
-        // Generate nama file yang descriptive dengan sanitasi karakter
-        $safeFileName = preg_replace('/[^A-Za-z0-9_\-]/', '_', $kuesioner->nama_file);
-        $safeFileName = preg_replace('/_+/', '_', $safeFileName); // Remove multiple underscores
-        $fileName = 'Laporan_Kuesioner_' . $safeFileName . '_' . date('Y-m-d') . '.pdf';
-
-        return $pdf->download($fileName);
     }
 }

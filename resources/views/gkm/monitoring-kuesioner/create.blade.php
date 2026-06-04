@@ -10,7 +10,8 @@
                 <div class="filter-card mb-4">
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
-                            <h5 class="mb-1 font-semibold" style="text-transform: uppercase; letter-spacing: 0.5px; color: #333;">
+                            <h5 class="mb-1 d-flex align-items-center gap-2" style="font-weight: 600; color: #333;">
+                                <i class="bi bi-cloud-upload" style="color: #5B9BD5;"></i>
                                 Upload File Kuesioner
                             </h5>
                             <p class="text-muted mb-0" style="font-size: 0.875rem;">Upload dan analisis kuesioner mahasiswa
@@ -46,7 +47,8 @@
                     <!-- Section 1: Informasi Kuesioner (PERTAMA) -->
                     <div class="monitoring-card mb-4">
                         <div class="monitoring-header">
-                            <h6 style="text-transform: uppercase; letter-spacing: 0.5px;">Informasi Kuesioner</h6>
+                            <i class="bi bi-file-text" style="color: #5B9BD5;"></i>
+                            <h6>Informasi Kuesioner</h6>
                         </div>
                         <div style="padding: 1.5rem;">
                             <div class="row g-3">
@@ -83,7 +85,8 @@
                     <!-- Section 2: Cari Matakuliah (KEDUA) -->
                     <div class="monitoring-card mb-4">
                         <div class="monitoring-header">
-                            <h6 style="text-transform: uppercase; letter-spacing: 0.5px;">Cari Matakuliah</h6>
+                            <i class="bi bi-search" style="color: #5B9BD5;"></i>
+                            <h6>Cari Matakuliah</h6>
                         </div>
                         <div style="padding: 1.5rem;">
                             <div class="row g-3">
@@ -124,7 +127,8 @@
                     <!-- Section 3: Matakuliah Terpilih (KETIGA) -->
                     <div class="monitoring-card mb-4" id="selected_matkul_card" style="display: none;">
                         <div class="monitoring-header">
-                            <h6 style="text-transform: uppercase; letter-spacing: 0.5px;">Matakuliah Terpilih</h6>
+                            <i class="bi bi-check-circle" style="color: #5B9BD5;"></i>
+                            <h6>Matakuliah Terpilih</h6>
                         </div>
                         <div style="padding: 1.5rem;">
                             <div class="table-responsive">
@@ -153,7 +157,8 @@
                     <!-- Section 4: Upload File -->
                     <div class="monitoring-card mb-4" id="upload_file_card" style="display: none;">
                         <div class="monitoring-header">
-                            <h6 style="text-transform: uppercase; letter-spacing: 0.5px;">Upload File</h6>
+                            <i class="bi bi-paperclip" style="color: #5B9BD5;"></i>
+                            <h6>Upload File</h6>
                         </div>
                         <div style="padding: 1.5rem;">
                             <div class="row g-3">

@@ -233,7 +233,6 @@ Route::middleware('auth')->group(function () {
             Route::get('/{id}',[MonitoringKuesioneController::class, 'showKuesioner'])->name('showa');
             Route::delete('/{id}', [MonitoringKuesioneController::class, 'destroy'])->name('destroy');
             Route::get('/{id}/report', [MonitoringKuesioneController::class, 'generateReport'])->name('report');
-            Route::get('/{id}/print-pdf', [MonitoringKuesioneController::class, 'printPdf'])->name('print-pdf');
         });
 
         // Laporan Kuesioner (NEW - AI Generated Reports)
