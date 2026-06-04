@@ -39,12 +39,13 @@
         <!-- Monitoring Table -->
         <div class="monitoring-card">
             <div class="monitoring-header">
-                <i class="bi bi-file-earmark-text" style="color: #5B9BD5;"></i>
                 <h6>Laporan Triwulan</h6>
                 <div style="margin-left: auto; display: flex; gap: 0.5rem;">
-                    <a href="{{ route('gjm.template-laporan.triwulan.index') }}" class="btn btn-sm btn-outline-primary">
-                        <i class="bi bi-file-earmark-text"></i> Kelola Template
-                    </a>
+<a href="{{ route('gjm.template-laporan.triwulan.index') }}" 
+   class="btn btn-sm" 
+   style="background-color: #28a745; border-color: #28a745; color: white;">
+    <i class="bi bi-file-earmark-text" style="color: white;"></i> Kelola Template
+</a>
                     <a href="{{ route('gjm.buat-laporan.triwulan.create') }}" class="btn-reminder">
                         <i class="bi bi-plus-circle"></i>
                         <span>Generate Laporan Baru</span>
