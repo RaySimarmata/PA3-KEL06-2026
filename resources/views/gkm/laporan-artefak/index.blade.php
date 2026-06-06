@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('page-title', 'Laporan Hasil Artefak Perkuliahan RPS dan Materi')
+@section('page-title', 'Laporan Bulanan')
 
 @section('content')
     <div style="padding: 1.5rem;">
@@ -42,8 +42,7 @@
         <!-- Monitoring Table -->
         <div class="monitoring-card">
             <div class="monitoring-header">
-                <i class="bi bi-file-earmark-text" style="color: #5B9BD5;"></i>
-                <h6>Laporan Hasil Artefak Perkuliahan RPS dan Materi</h6>
+                <h6>Laporan Bulanan</h6>
                 <div style="margin-left: auto; display: flex; gap: 0.5rem;">
                 <a href="{{ route('gkm.laporan-artefak.template.index') }}" 
                    class="btn btn-sm btn-success" 

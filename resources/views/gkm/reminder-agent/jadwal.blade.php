@@ -14,12 +14,16 @@
 
         <div class="monitoring-card">
             <div class="monitoring-header">
-                <i class="bi bi-calendar-plus"></i>
+                {{-- <i class="bi bi-calendar-plus"></i> --}}
                 <h6>Tambah Jadwal Reminder Baru</h6>
                 <div style="margin-left: auto;">
-                    <a href="{{ route('gkm.reminder-agent.index') }}" class="btn btn-sm btn-outline-secondary">
+                    {{-- <a href="{{ route('gkm.reminder-agent.index') }}" class="btn btn-sm btn-outline-secondary">
                         <i class="bi bi-arrow-left"></i> Kembali
-                    </a>
+                    </a> --}}
+                               <a href="{{ route('gkm.reminder-agent.index') }}" class="btn btn-secondary btn-sm">
+               <i class="bi bi-arrow-left me-1" style="color: white;"></i>
+                Kembali
+            </a>
                 </div>
             </div>
             <div style="padding: 1.5rem;">
@@ -105,19 +109,19 @@
                                     @enderror
                                 </div>
                             </div>
-
+{{-- 
                             <div class="alert-gkm info" role="alert">
                                 <i class="bi bi-calendar-check"></i>
                                 <strong>Pengiriman Otomatis:</strong> Email akan terkirim otomatis pada tanggal <strong
                                     id="preview-tanggal">-</strong> pukul <strong id="preview-jam">-</strong>.
-                            </div>
-
+                            </div> --}}
+{{-- 
                             <div class="alert-gkm success" role="alert">
                                 <i class="bi bi-robot"></i>
                                 <strong>AI Agent Aktif:</strong> Sistem akan menggunakan AI untuk menghasilkan pesan
                                 reminder yang personal,
                                 menyebutkan nama dosen, mata kuliah, dan kelas wali secara otomatis.
-                            </div>
+                            </div> --}}
 
                             <script>
                                 // Preview tanggal dan jam
@@ -148,8 +152,7 @@
                                 <a href="{{ route('gkm.reminder-agent.index') }}" class="btn btn-secondary">
                                     Batal
                                 </a>
-                                <button type="submit" class="btn btn-primary">
-                                    <i class="bi bi-save"></i> Simpan Jadwal
+                                <button type="submit" class="btn btn-primary">                      Simpan Jadwal
                                 </button>
                             </div>
                         </form>

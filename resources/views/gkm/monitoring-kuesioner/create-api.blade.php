@@ -78,9 +78,9 @@
 
                 {{-- BUTTON FILTER --}}
                 <div class="col-md-3">
-                    <button type="submit" class="btn btn-primary w-100" style="padding: 0.6rem;">
-                        <i class="bi bi-search"></i> Tampilkan Data
-                    </button>
+                <button type="submit" class="btn btn-primary w-100" style="padding: 0.6rem;">
+                    <i class="bi bi-search"></i> Cari
+                </button>
                 </div>
 
             </div>
@@ -97,7 +97,7 @@
                     <input type="hidden" name="tingkat" value="{{ request('tingkat') }}">
                     
                     <button type="submit" class="btn-analisis-semua">
-                        <i class="bi bi-cpu"></i> Analisis Semua Kuesioner
+                        Analisis Semua Kuesioner
                     </button>
                     <a href="{{ route('gkm.monitoring-kuesioner.index') }}" class="btn-kembali-api ms-2">
                         <i class="bi bi-arrow-left"></i> Kembali
@@ -148,7 +148,9 @@
                                         'ta' => $item['ta']
                                     ]) }}" 
                                     class="btn btn-sm btn-lihat-kuesioner-api">
-                                        <i class="bi bi-list-ul"></i> Lihat Kuesioner
+                                        {{-- <i class="bi bi-list-ul"></i> --}}
+
+                                        Lihat Kuesioner
                                     </a>
                                 </td>
                             </tr>

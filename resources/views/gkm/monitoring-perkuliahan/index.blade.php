@@ -1,5 +1,3 @@
-
-
 @extends('layouts.app')
 
 @section('page-title', 'Monitoring Perkuliahan')
@@ -204,7 +202,7 @@
                 <!-- Materi Praktikum Tab -->
                 <div class="tab-pane fade" id="praktikum" role="tabpanel">
                     <div class="monitoring-header" style="border-top: none;">
-                        <i class="bi bi-cloud-upload" style="color: #5B9BD5;"></i>
+                        
                         <h6>Monitoring Status</h6>
                     </div>
 

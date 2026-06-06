@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('page-title', 'Master Periode Akademik')
+@section('page-title', 'Data Master - Data Periode Akademik')
 
 @section('content')
 
@@ -9,9 +9,9 @@
     <!-- Header -->
     <div class="filter-card mb-4 d-flex justify-content-between align-items-center">
         <h5 class="mb-0 font-semibold" style="text-transform: uppercase; letter-spacing: 0.5px;">
-            Master Periode Akademik
+            Data Periode Akademik
         </h5>
-        <a href="{{ url()->previous() }}" class="btn btn-secondary btn-sm">
+        <a href="{{ route('gkm.data-master.index') }}" class="btn btn-secondary btn-sm">
             <i class="bi bi-arrow-left me-1"></i> Kembali
         </a>
     </div>

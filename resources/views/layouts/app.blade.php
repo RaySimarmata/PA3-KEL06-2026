@@ -611,7 +611,8 @@
                         alt="User"> --}}
                     <div class="avatar-icon"><i class="bi bi-person-circle"></i></div>
                     <p style="margin: 10px 0 0 0;"><strong>{{ auth()->user()->name }}</strong></p>
-                    <small>{{ auth()->user()->role }}</small>
+
+                    {{-- <small>{{ auth()->user()->role }}</small> --}}
                 </div>
 
                 <div class="nav-menu">
@@ -716,6 +717,7 @@
                             <i class="bi bi-speedometer2"></i> Dashboard
                         </a>
 
+                        
                         <div class="nav-dropdown {{ request()->routeIs('gjm.buat-laporan.*') ? 'open' : '' }}">
                             <a href="javascript:void(0)"
                                 class="nav-item {{ request()->routeIs('gjm.buat-laporan.*') ? 'active' : '' }}"

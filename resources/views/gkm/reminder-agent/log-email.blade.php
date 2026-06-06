@@ -28,7 +28,6 @@
 
     <div class="monitoring-card">
         <div class="monitoring-header">
-            <i class="bi bi-envelope-check"></i>
             <h6>Log Pengiriman Email Reminder</h6>
             <div style="margin-left: auto;">
                 <a href="{{ route('gkm.reminder-agent.index') }}" class="btn btn-sm btn-outline-secondary">

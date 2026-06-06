@@ -51,9 +51,10 @@
                 </div>
 
                 <div class="col-md-4">
-                    <button type="submit" class="btn btn-primary w-100" style="padding: 0.6rem;">
-                        <i class="bi bi-funnel"></i> Filter
-                    </button>
+                <button type="submit" class="btn btn-primary w-100" style="padding: 0.6rem;">
+                    <i class="bi bi-search"></i> Cari
+                </button>
+
                 </div>
 
             </div>
@@ -63,7 +64,6 @@
     {{-- TABLE --}}
     <div class="monitoring-card">
         <div class="monitoring-header">
-            <i class="bi bi-clipboard-data" style="color: #5B9BD5;"></i>
             <h6>Monitoring Kuesioner</h6>
             <div style="margin-left: auto;">
                 <a href="{{ route('gkm.monitoring-kuesioner.create-api') }}" 

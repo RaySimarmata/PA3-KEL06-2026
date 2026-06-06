@@ -65,21 +65,74 @@
                         <p class="mt-2 text-muted">Memuat data dosen yang belum upload materi...</p>
                     </div>
                 </div>
+
+                
             </div>
 
-            <!-- Tab Soal (jika dibutuhkan nanti) -->
-            {{-- <div class="tab-pane fade" id="soal" role="tabpanel">
-                <div id="soalContent" class="p-3">
-                    <div class="text-center py-4">
-                        <div class="spinner-border text-primary" role="status">
-                            <span class="visually-hidden">Loading...</span>
-                        </div>
-                        <p class="mt-2 text-muted">Memuat data kaprodi...</p>
-                    </div>
-                </div>
-            </div> --}}
         </div>
     </div>
+    <div class="reminder-template-section mt-4">
+                    <div class="monitoring-card">
+                        <div class="monitoring-header">
+                            <h6 class="mb-0">Template Pesan Reminder</h6>
+                        </div>
+                        <div class="p-4">
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold">Subjek Email <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" name="subject" id="subjectMateri"
+                                    value="Reminder: Upload Materi Perkuliahan di CIS" required>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold">Isi Pesan <span class="text-danger">*</span></label>
+                                <textarea class="form-control" name="message" id="messageMateri" rows="12" required></textarea>
+                                <div class="form-text text-muted mt-1">
+                                    <i class="bi bi-info-circle"></i>
+                                    Klik "Generate Pesan AI" untuk membuat pesan otomatis yang sopan dan profesional
+                                </div>
+                            </div>
+
+                            <div class="d-flex flex-wrap gap-2">
+                                <button type="button" id="generateBtnMateri" class="btn btn-primary"
+                                    onclick="generateMessageMateri(event)">
+                                    <i class="bi bi-magic"></i> Generate Pesan AI
+                                </button>
+                                <button type="button" class="btn btn-success" onclick="sendReminderMateri()">
+                                    <i class="bi bi-send"></i> Kirim Reminder
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary" onclick="previewMessageMateri()">
+                                    <i class="bi bi-eye"></i> Preview
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Modal Preview -->
+                    <div class="modal fade" id="previewModalMateri" tabindex="-1">
+                        <div class="modal-dialog modal-lg">
+                            <div class="modal-content">
+                                <div class="modal-header">
+                                    <h5 class="modal-title">Preview Pesan</h5>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                </div>
+                                <div class="modal-body">
+                                    <div class="mb-3">
+                                        <strong>Subjek:</strong>
+                                        <p id="previewSubjectMateri" class="mb-0"></p>
+                                    </div>
+                                    <hr>
+                                    <div>
+                                        <strong>Isi Pesan:</strong>
+                                        <pre id="previewMessageMateri" class="mt-2" style="white-space: pre-wrap; font-family: inherit;"></pre>
+                                    </div>
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Tutup</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
 </div>
 
 <style>

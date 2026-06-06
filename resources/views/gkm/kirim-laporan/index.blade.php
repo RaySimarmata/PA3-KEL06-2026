@@ -3,6 +3,44 @@
 @section('page-title', 'Kirim Laporan')
 
 @section('content')
+<style>
+/* Tombol Generate AI - Hijau solid fixed */
+.btn-fixed-green {
+    background-color: #28a745 !important;
+    border-color: #28a745 !important;
+    color: white !important;
+    transition: none !important;
+}
+.btn-fixed-green:hover,
+.btn-fixed-green:active,
+.btn-fixed-green:focus,
+.btn-fixed-green:active:focus {
+    background-color: #28a745 !important;
+    border-color: #28a745 !important;
+    color: white !important;
+    box-shadow: none !important;
+    opacity: 1 !important;
+}
+
+/* Tombol gradien biru fixed untuk Upload & Pilih Laporan */
+.btn-fixed-gradient {
+    background: linear-gradient(135deg, #5B9BD5 0%, #4a8bc2 100%) !important;
+    border-color: #4a8bc2 !important;
+    color: white !important;
+    transition: none !important;
+}
+.btn-fixed-gradient:hover,
+.btn-fixed-gradient:active,
+.btn-fixed-gradient:focus,
+.btn-fixed-gradient:active:focus {
+    background: linear-gradient(135deg, #5B9BD5 0%, #4a8bc2 100%) !important;
+    border-color: #4a8bc2 !important;
+    color: white !important;
+    box-shadow: none !important;
+    opacity: 1 !important;
+}
+</style>
+
 <div style="padding: 1.5rem;">
     @if(session('success'))
     <div class="alert-gkm success alert-dismissible fade show" role="alert">
@@ -65,9 +103,9 @@
                               placeholder="Tuliskan pesan Anda di sini..." required></textarea>
                 </div>
 
-                <!-- Tombol Generate AI (kiri, di atas lampiran) -->
+                <!-- Tombol Generate AI (Hijau solid) -->
                 <div class="mb-3">
-                    <button type="button" class="btn btn-outline-primary" onclick="generateMessage()">
+                    <button type="button" class="btn btn-fixed-green" onclick="generateMessage()">
                         <i class="bi bi-magic"></i> Generate Pesan AI
                     </button>
                 </div>
@@ -75,10 +113,12 @@
                 <div class="mb-4">
                     <label class="filter-label">Lampiran Berkas</label>
                     <div class="d-flex gap-2 mb-3">
-                        <button type="button" class="btn btn-outline-primary" onclick="showUploadExternal()">
+                        <!-- Tombol Upload File Eksternal (Gradien biru) -->
+                        <button type="button" class="btn btn-fixed-gradient" onclick="showUploadExternal()">
                             <i class="bi bi-upload"></i> Upload File Eksternal
                         </button>
-                        <button type="button" class="btn btn-outline-primary" onclick="showPilihLaporan()">
+                        <!-- Tombol Pilih dari Pelaporan (Gradien biru) -->
+                        <button type="button" class="btn btn-fixed-gradient" onclick="showPilihLaporan()">
                             <i class="bi bi-file-earmark-text"></i> Pilih dari Pelaporan
                         </button>
                     </div>

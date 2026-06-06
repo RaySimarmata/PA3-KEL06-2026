@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('page-title', 'Kelola Template Laporan Artefak')
+@section('page-title', 'Kelola Template Laporan Bulanan')
 
 @section('content')
     <div style="padding: 1.5rem;">
@@ -9,18 +9,13 @@
             <div class="d-flex justify-content-between align-items-center">
                 <div>
                     <h5 class="mb-1 d-flex align-items-center gap-2" style="font-weight: 600; color: #333;">
-                        <i class="bi bi-file-earmark-word" style="color: #5B9BD5;"></i>
-                        Kelola Template Laporan Artefak
+                        Kelola Template Laporan Bulanan
                     </h5>
                     <p class="text-muted mb-0" style="font-size: 0.875rem;">Upload dan kelola template Word untuk AI Agent</p>
                 </div>
                 <div class="d-flex gap-2">
-                    <a href="{{ route('gkm.laporan-artefak.index') }}" class="btn btn-outline-secondary">
+                    <a href="{{ route('gkm.laporan-artefak.index') }}" class="btn btn-secondary btn-sm">
                         <i class="bi bi-arrow-left"></i> Kembali
-                    </a>
-                    <a href="{{ route('gkm.laporan-artefak.template.upload') }}" class="btn-reminder">
-                        <i class="bi bi-upload"></i>
-                        <span>Upload Template Baru</span>
                     </a>
                 </div>
             </div>
@@ -50,8 +45,11 @@
         <!-- Template List -->
         <div class="monitoring-card">
             <div class="monitoring-header">
-                <i class="bi bi-list-ul" style="color: #5B9BD5;"></i>
                 <h6>Daftar Template</h6>
+                                    <a href="{{ route('gkm.laporan-artefak.template.upload') }}" class="btn-reminder">
+                        <i class="bi bi-upload"></i>
+                        <span>Upload Template Baru</span>
+                    </a>
             </div>
 
             <div class="table-responsive">
