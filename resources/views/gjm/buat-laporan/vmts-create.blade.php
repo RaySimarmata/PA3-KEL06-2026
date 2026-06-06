@@ -1,6 +1,6 @@
 ﻿@extends('layouts.app')
 
-@section('page-title', 'Generate Laporan Baru')
+@section('page-title', 'Generate Laporan VMTS Baru')
 
 @section('styles')
     <!-- Cache Busting: Force reload CSS and JS - Version 1.2.0 -->
@@ -20,8 +20,8 @@
         }
 
         .ai-chat-wrapper {
-            background: linear-gradient(135deg, #f8fbff 0%, #eef4fd 100%);
-            border: 1.5px solid #c9ddf5;
+            background: linear-gradient(135deg, #f0f4fa 0%, #e8eff8 100%);
+            border: 1.5px solid #c5d9f0;
             border-radius: 16px;
             overflow: hidden;
         }
@@ -88,6 +88,7 @@
         }
 
         .msg-user .bubble {
+            background: #1e3c72;
             background: #1e3c72;
             color: #fff;
             border-radius: 18px 18px 4px 18px;
@@ -170,6 +171,7 @@
             height: 30px;
             flex-shrink: 0;
             background: linear-gradient(135deg, #1e3c72, #7c3aed);
+            background: linear-gradient(135deg, #1e3c72, #7c3aed);
             color: #fff;
             border-radius: 50%;
             display: flex;
@@ -215,6 +217,7 @@
         }
 
         .msg-ai .bubble strong {
+            color: #1e3c72;
             color: #1e3c72;
         }
 
@@ -270,7 +273,7 @@
         }
 
         .ai-textarea {
-            border: 1.5px solid #d1dff5;
+            border: 1.5px solid #c5d9f0;
             border-radius: 12px;
             padding: 0.75rem 3.5rem 0.75rem 1rem;
             font-size: 0.875rem;
@@ -310,6 +313,8 @@
         .ai-textarea:focus {
             border-color: #1e3c72;
             box-shadow: 0 0 0 3px rgba(30, 60, 114, 0.12);
+            border-color: #1e3c72;
+            box-shadow: 0 0 0 3px rgba(30, 60, 114, 0.12);
             outline: none;
         }
 
@@ -320,15 +325,17 @@
         .ai-input-area>div:first-child:focus-within {
             border-color: #1e3c72;
             box-shadow: 0 0 0 3px rgba(30, 60, 114, 0.12);
+            border-color: #1e3c72;
+            box-shadow: 0 0 0 3px rgba(30, 60, 114, 0.12);
         }
 
         .file-upload-zone {
-            border: 1.5px dashed #c9d9f5;
+            border: 1.5px dashed #c5d9f0;
             border-radius: 10px;
             padding: 0.75rem 1.25rem;
             cursor: pointer;
             transition: all 0.2s;
-            background: #f8fbff;
+            background: #f0f4fa;
             text-align: center;
             font-size: 0.875rem;
             color: #64748b;
@@ -356,6 +363,7 @@
             border-radius: 8px;
             padding: 0.4rem 0.6rem;
             font-size: 0.75rem;
+            color: #1e3c72;
             color: #1e3c72;
             max-width: 200px;
             position: relative;
@@ -439,6 +447,7 @@
             opacity: 0.6;
             cursor: not-allowed;
             transform: none;
+            box-shadow: 0 2px 8px rgba(30, 60, 114, 0.3);
             box-shadow: 0 2px 8px rgba(30, 60, 114, 0.3);
         }
 
@@ -572,10 +581,11 @@
         }
 
         .preview-section-header {
-            background: #f1f5f9;
+            background: #f0f4fa;
             padding: 0.6rem 1rem;
             font-size: 0.85rem;
             font-weight: 700;
+            color: #1e3c72;
             color: #1e3c72;
             cursor: pointer;
             display: flex;
@@ -834,6 +844,7 @@
 
         .hover\:text-primary:hover {
             color: #1e3c72;
+            color: #1e3c72;
         }
 
         /* Modal body */
@@ -930,9 +941,11 @@
 
         .border-primary {
             border-color: #1e3c72;
+            border-color: #1e3c72;
         }
 
         .text-primary {
+            color: #1e3c72;
             color: #1e3c72;
         }
 
@@ -942,6 +955,7 @@
 
         .bg-primary {
             background-color: #1e3c72;
+            background-color: #1e3c72;
         }
 
         .text-white {
@@ -949,6 +963,7 @@
         }
 
         .hover\:bg-primary\/90:hover {
+            background-color: rgba(30, 60, 114, 0.9);
             background-color: rgba(30, 60, 114, 0.9);
         }
 
@@ -1044,10 +1059,6 @@
                                     <button type="button" id="btn-create-draft" class="btn btn-primary">
                                         <i class="bi bi-plus-circle"></i> Buat Draf Laporan
                                     </button>
-                                    <small class="text-muted d-block mt-2" style="font-size: 0.8rem;">
-                                        <i class="bi bi-info-circle"></i> Klik tombol ini terlebih dahulu untuk membuat
-                                        laporan draft, kemudian Anda bisa mulai chat dengan AI.
-                                    </small>
                                 </div>
                             </div>
                         </div>
@@ -1092,7 +1103,7 @@
                                 .ai-assistant-icon {
                                     width: 40px;
                                     height: 40px;
-                                    background: #2563eb;
+                                    background: #1e3c72;
                                     border-radius: 8px;
                                     display: flex;
                                     align-items: center;
@@ -1109,8 +1120,8 @@
                                 }
 
                                 .ai-assistant-badge {
-                                    background: #1e40af;
-                                    color: #60a5fa;
+                                    background: #182d56;
+                                    color: #5a8cc2;
                                     padding: 0.25rem 0.75rem;
                                     border-radius: 4px;
                                     font-size: 0.7rem;
@@ -1143,7 +1154,7 @@
                                 .ai-assistant-btn-icon:focus,
                                 .ai-assistant-btn-send:focus {
                                     outline: none;
-                                    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.3);
+                                    box-shadow: 0 0 0 2px rgba(30, 60, 114, 0.3);
                                 }
 
                                 .ai-assistant-btn-icon:active,
@@ -1169,12 +1180,12 @@
                                 }
 
                                 .ai-assistant-messages::-webkit-scrollbar-thumb {
-                                    background: rgba(37, 99, 235, 0.3);
+                                    background: rgba(30, 60, 114, 0.3);
                                     border-radius: 10px;
                                 }
 
                                 .ai-assistant-messages::-webkit-scrollbar-thumb:hover {
-                                    background: rgba(37, 99, 235, 0.5);
+                                    background: rgba(30, 60, 114, 0.5);
                                 }
 
                                 .ai-message-wrapper {
@@ -1187,7 +1198,7 @@
                                 .ai-message-avatar {
                                     width: 40px;
                                     height: 40px;
-                                    background: #2563eb;
+                                    background: #1e3c72;
                                     border-radius: 50%;
                                     display: flex;
                                     align-items: center;
@@ -1238,7 +1249,7 @@
                                 }
 
                                 .ai-assistant-btn-send {
-                                    background: #2563eb;
+                                    background: #1e3c72;
                                     border: none;
                                     color: white;
                                     width: 40px;
@@ -1252,7 +1263,7 @@
                                 }
 
                                 .ai-assistant-btn-send:hover {
-                                    background: #1d4ed8;
+                                    background: #182d56;
                                 }
 
                                 .ai-assistant-footer-text {
@@ -1303,7 +1314,7 @@
 
                                     <!-- Input Container with Attachment Icon Inside -->
                                     <div
-                                        style="position: relative; display: flex; align-items: center; border: 1.5px solid #d1dff5; border-radius: 12px; background: #fff; padding: 0.5rem;">
+                                        style="position: relative; display: flex; align-items: center; border: 1.5px solid #c5d9f0; border-radius: 12px; background: #fff; padding: 0.5rem;">
                                         <!-- Attachment Button (Inside Left) -->
                                         <button type="button" class="btn-attachment-inline" id="btn-attachment"
                                             title="Lampirkan File & Gambar">
