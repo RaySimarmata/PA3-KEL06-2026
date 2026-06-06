@@ -52,15 +52,17 @@ class AIPromptAssistantTriwulan {
                         <div class="ai-message ai-message-system">
                             <i class="fas fa-robot"></i>
                             <div class="message-content">
-                                <p>Halo! Saya AI Assistant untuk membantu Anda membuat laporan triwulan. Saya dapat membantu dengan:</p>
+                                <p><strong>🤖 AI Assistant - Laporan Triwulan GJM</strong></p>
+                                <p>Halo! Saya akan membantu Anda membuat <strong>Laporan Triwulan</strong> untuk Gugus Jaminan Mutu (GJM). Saya dapat membantu dengan:</p>
                                 <ul>
-                                    <li>Memberikan saran konten laporan triwulan</li>
-                                    <li>Membantu struktur laporan yang sesuai standar</li>
-                                    <li>Menganalisis data dan dokumen pendukung</li>
-                                    <li>Memberikan template dan format yang tepat</li>
-                                    <li>Melakukan iterasi dan perbaikan draft</li>
+                                    <li>Membuat draft laporan kegiatan GJM dalam 1 triwulan (3 bulan)</li>
+                                    <li>Menyusun laporan monitoring perkuliahan, RPS, dan kuesioner</li>
+                                    <li>Menganalisis data dan dokumen pendukung kegiatan GJM</li>
+                                    <li>Memberikan struktur laporan yang sesuai standar</li>
+                                    <li>Melakukan iterasi dan perbaikan draft laporan</li>
                                 </ul>
-                                <p><strong>Tips:</strong> Anda bisa mengatakan "ubah bagian X" atau "perbaiki Y" untuk melakukan revisi!</p>
+                                <p><strong>⚠️ Catatan:</strong> Ini adalah Laporan Triwulan GJM, bukan Laporan VMTS atau Laporan Semester.</p>
+                                <p><strong>💡 Tips:</strong> Anda bisa mengatakan "Buat laporan triwulan lengkap" atau "Perbaiki bagian X"</p>
                             </div>
                         </div>
                     </div>

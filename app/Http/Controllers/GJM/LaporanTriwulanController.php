@@ -240,7 +240,13 @@ class LaporanTriwulanController extends Controller
             $gkmData = $this->getGKMTriwulanReports($request->input('periode_triwulan'));
             
             // System context for triwulan reports
-            $systemContext = "Anda adalah AI Assistant untuk membuat laporan triwulan GJM Institut Teknologi Del.\n\n";
+            $systemContext = "Anda adalah AI Assistant untuk membuat LAPORAN TRIWULAN GJM Institut Teknologi Del.\n\n";
+            
+            $systemContext .= "❗ PENTING - JENIS LAPORAN:\n";
+            $systemContext .= "- Anda sedang membuat LAPORAN TRIWULAN, BUKAN laporan VMTS!\n";
+            $systemContext .= "- Laporan Triwulan = Laporan 3 bulanan untuk GJM (Gugus Jaminan Mutu)\n";
+            $systemContext .= "- Fokus pada kegiatan monitoring mutu akademik dalam 1 triwulan\n";
+            $systemContext .= "- JANGAN membuat laporan tentang VMTS (Visi, Misi, Tujuan, Sasaran)\n\n";
             
             $systemContext .= "CRITICAL - CONVERSATION AWARENESS:\n";
             $systemContext .= "- Anda HARUS melihat SEMUA pesan sebelumnya dalam conversation history\n";
@@ -328,6 +334,13 @@ class LaporanTriwulanController extends Controller
             $systemContext .= "- Gunakan markdown heading level 1 (#) untuk judul bagian\n";
             $systemContext .= "- Gunakan Bahasa Indonesia formal\n";
             $systemContext .= "- WAJIB output SEMUA 10 bagian dengan KONTEN LENGKAP (bukan placeholder)\n\n";
+            
+            $systemContext .= "KONTEN LAPORAN TRIWULAN:\n";
+            $systemContext .= "- Fokus pada kegiatan GJM (Gugus Jaminan Mutu) dalam periode triwulan\n";
+            $systemContext .= "- Bahas monitoring perkuliahan, RPS, kuesioner mahasiswa\n";
+            $systemContext .= "- Jelaskan program kerja GJM yang dilaksanakan\n";
+            $systemContext .= "- Sertakan data dan capaian dalam periode triwulan\n";
+            $systemContext .= "- JANGAN bahas tentang VMTS, visi misi, atau strategi jangka panjang\n\n";
 
             // Extract file content if uploaded
             $filesContext = [];

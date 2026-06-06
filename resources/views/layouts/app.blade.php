@@ -5,21 +5,22 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>@yield('title', 'Sistem GJK & GKM')</title>
+    <title>@yield('title', 'Sistem GJM & GKM')</title>
+    <link rel="icon" href="{{ asset('images/logo-itdel.jpg') }}" type="image/jpeg">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    
+
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
-    
+
     <!-- GKM Global Styles -->
-    @if(auth()->check() && auth()->user()->isGKM())
+    @if (auth()->check() && auth()->user()->isGKM())
         <link rel="stylesheet" href="{{ asset('css/gkm-style.css') }}">
     @endif
-    
+
     <!-- GJM Global Styles -->
-    @if(auth()->check() && auth()->user()->isGJM())
+    @if (auth()->check() && auth()->user()->isGJM())
         <link rel="stylesheet" href="{{ asset('css/gjm-style.css') }}">
     @endif
-    
+
     <style>
         * {
             margin: 0;
@@ -45,41 +46,41 @@
             background-color: #f5f7fa;
         }
 
-/* Avatar ikon besar untuk sidebar */
-.avatar-icon {
-    width: 60px;
-    height: 60px;
-    border-radius: 50%;
-    background-color: #1e3c72;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    margin: 0 auto 12px auto;
-    border: 3px solid rgba(255, 255, 255, 0.2);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-}
+        /* Avatar ikon besar untuk sidebar */
+        .avatar-icon {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background-color: #1e3c72;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 12px auto;
+            border: 3px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+        }
 
-.avatar-icon i {
-    font-size: 2.5rem;
-    color: white;
-}
+        .avatar-icon i {
+            font-size: 2.5rem;
+            color: white;
+        }
 
-/* Untuk topbar */
-.topbar-avatar {
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    background-color: #1e3c72;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    margin-right: 8px;
-}
+        /* Untuk topbar */
+        .topbar-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background-color: #1e3c72;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 8px;
+        }
 
-.topbar-avatar i {
-    font-size: 1.6rem;
-    color: white;
-}
+        .topbar-avatar i {
+            font-size: 1.6rem;
+            color: white;
+        }
 
 
 
@@ -582,13 +583,14 @@
                 font-size: 1rem;
             }
         }
-        .modal {
-    z-index: 99999 !important;
-}
 
-.modal-backdrop {
-    z-index: 99998 !important;
-}
+        .modal {
+            z-index: 99999 !important;
+        }
+
+        .modal-backdrop {
+            z-index: 99998 !important;
+        }
     </style>
     @yield('styles')
 </head>
@@ -607,7 +609,7 @@
                 <div class="user-info">
                     {{-- <img src="https://ui-avatars.com/api/?name={{ urlencode(auth()->user()->name) }}&background=1e3c72&color=fff"
                         alt="User"> --}}
-                        <div class="avatar-icon"><i class="bi bi-person-circle"></i></div>
+                    <div class="avatar-icon"><i class="bi bi-person-circle"></i></div>
                     <p style="margin: 10px 0 0 0;"><strong>{{ auth()->user()->name }}</strong></p>
                     <small>{{ auth()->user()->role }}</small>
                 </div>
@@ -680,7 +682,8 @@
                         </div>
 
                         <!-- Pelaporan -->
-                        <div class="nav-dropdown {{ request()->routeIs('gkm.pelaporan.*') || request()->routeIs('gkm.laporan-kuesioner.*') || request()->routeIs('gkm.laporan-artefak.*') ? 'open' : '' }}">
+                        <div
+                            class="nav-dropdown {{ request()->routeIs('gkm.pelaporan.*') || request()->routeIs('gkm.laporan-kuesioner.*') || request()->routeIs('gkm.laporan-artefak.*') ? 'open' : '' }}">
                             <a href="javascript:void(0)"
                                 class="nav-item {{ request()->routeIs('gkm.pelaporan.*') || request()->routeIs('gkm.laporan-kuesioner.*') || request()->routeIs('gkm.laporan-artefak.*') ? 'active' : '' }}"
                                 onclick="toggleDropdown(this)">
@@ -736,7 +739,8 @@
                             </div>
                         </div>
 
-                        <div class="nav-dropdown {{ request()->routeIs('gjm.buat-ppt.*') || request()->routeIs('gjm.presentasi.*') ? 'open' : '' }}">
+                        <div
+                            class="nav-dropdown {{ request()->routeIs('gjm.buat-ppt.*') || request()->routeIs('gjm.presentasi.*') ? 'open' : '' }}">
                             <a href="javascript:void(0)"
                                 class="nav-item {{ request()->routeIs('gjm.buat-ppt.*') || request()->routeIs('gjm.presentasi.*') ? 'active' : '' }}"
                                 onclick="toggleDropdown(this)">
@@ -755,12 +759,12 @@
                             </div>
                         </div>
 
-                        <a href="{{ route('gjm.kirim-laporan.index') }}" 
+                        <a href="{{ route('gjm.kirim-laporan.index') }}"
                             class="nav-item {{ request()->routeIs('gjm.kirim-laporan.*') ? 'active' : '' }}">
                             <i class="bi bi-send"></i> Kirim Laporan
                         </a>
-{{-- 
-                        <a href="{{ route('gjm.model-evaluation.index') }}" 
+                        {{--
+                        <a href="{{ route('gjm.model-evaluation.index') }}"
                             class="nav-item {{ request()->routeIs('gjm.model-evaluation.*') ? 'active' : '' }}">
                             <i class="bi bi-robot"></i> Evaluasi AI Assistant
                         </a> --}}
@@ -772,7 +776,8 @@
             <div class="main-content">
                 <div class="topbar">
                     <div class="topbar-left">
-                        <button type="button" class="sidebar-toggle" onclick="toggleSidebar()" aria-label="Toggle sidebar">
+                        <button type="button" class="sidebar-toggle" onclick="toggleSidebar()"
+                            aria-label="Toggle sidebar">
                             <i class="bi bi-list"></i>
                         </button>
                         <div class="topbar-title">@yield('page-title', 'Dashboard')</div>
@@ -780,16 +785,16 @@
                     <div class="topbar-right">
                         <div class="topbar-user" onclick="toggleTopbarDropdown(this)">
                             {{-- <img src="https://ui-avatars.com/api/?name={{ urlencode(auth()->user()->name) }}&background=1e3c72&color=fff"
-                                alt="User"> --}}    <div class="avatar-icon topbar-avatar">
-        <i class="bi bi-person-circle"></i>
-    </div>
+                                alt="User"> --}} <div class="avatar-icon topbar-avatar">
+                                <i class="bi bi-person-circle"></i>
+                            </div>
                             <div class="user-name-wrapper">
                                 <div>
                                     <small class="text-muted">{{ auth()->user()->name }}</small>
                                 </div>
                                 <i class="bi bi-chevron-down dropdown-chevron-top"></i>
                             </div>
-                            
+
                             <div class="topbar-dropdown-menu">
                                 <form action="{{ route('logout') }}" method="POST" style="margin: 0;">
                                     @csrf
@@ -846,12 +851,12 @@
         function toggleUserDropdown(element) {
             // Close if clicking outside
             const wasOpen = element.classList.contains('open');
-            
+
             // Close all user dropdowns
             document.querySelectorAll('.user-info.open').forEach(el => {
                 el.classList.remove('open');
             });
-            
+
             // Toggle current
             if (!wasOpen) {
                 element.classList.add('open');
@@ -861,12 +866,12 @@
         function toggleTopbarDropdown(element) {
             // Close if clicking outside
             const wasOpen = element.classList.contains('open');
-            
+
             // Close all topbar dropdowns
             document.querySelectorAll('.topbar-user.open').forEach(el => {
                 el.classList.remove('open');
             });
-            
+
             // Toggle current
             if (!wasOpen) {
                 element.classList.add('open');
@@ -891,7 +896,7 @@
             if (userInfo && !userInfo.contains(event.target)) {
                 userInfo.classList.remove('open');
             }
-            
+
             const topbarUser = document.querySelector('.topbar-user');
             if (topbarUser && !topbarUser.contains(event.target)) {
                 topbarUser.classList.remove('open');

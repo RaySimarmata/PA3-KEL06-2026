@@ -2,111 +2,269 @@
 
 namespace App\Console\Commands;
 
+use App\Services\ClaudeAIService;
 use Illuminate\Console\Command;
-use App\Services\UnifiedAIService;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 class TestAIConnection extends Command
 {
-    protected $signature = 'test:ai-connection {--provider=groq}';
-    protected $description = 'Test AI service connection and functionality';
+    protected $signature = 'ai:test-connection {--provider=all}';
+    protected $description = 'Test AI API connections and diagnose issues';
 
     public function handle()
     {
-        $provider = $this->option('provider');
-        
-        $this->info("Testing AI Connection...");
-        $this->info("Provider: {$provider}");
+        $this->info('🔍 Testing AI API Connections...');
         $this->newLine();
 
-        try {
-            // Test 1: Simple text generation
-            $this->info("Test 1: Simple Text Generation");
-            $aiService = app(UnifiedAIService::class);
-            
-            $startTime = microtime(true);
-            $result = $aiService->generateText("Halo, ini adalah test koneksi. Balas dengan 'OK' jika kamu menerima pesan ini.", [
-                'max_tokens' => 100,
-                'temperature' => 0.7
-            ]);
-            $duration = round((microtime(true) - $startTime) * 1000, 2);
+        $provider = $this->option('provider');
 
-            if ($result['success']) {
-                $this->info("✓ Success!");
-                $this->line("Response: " . substr($result['text'], 0, 200));
-                $this->line("Provider: {$result['provider']}");
-                $this->line("Model: {$result['model']}");
-                $this->line("Duration: {$duration}ms");
-                $this->newLine();
-            } else {
-                $this->error("✗ Failed!");
-                $this->error("Error: " . ($result['error'] ?? 'Unknown error'));
-                return 1;
+        $results = [];
+
+        // Test OpenAI
+        if ($provider === 'all' || $provider === 'openai') {
+            $results['OpenAI'] = $this->testOpenAI();
+        }
+
+        // Test OpenRouter
+        if ($provider === 'all' || $provider === 'openrouter') {
+            $results['OpenRouter'] = $this->testOpenRouter();
+        }
+
+        // Test Groq
+        if ($provider === 'all' || $provider === 'groq') {
+            $results['Groq'] = $this->testGroq();
+        }
+
+        // Test ClaudeAI Service
+        if ($provider === 'all' || $provider === 'service') {
+            $results['ClaudeAI Service'] = $this->testClaudeService();
+        }
+
+        // Summary
+        $this->newLine();
+        $this->info('📊 Summary:');
+        $this->newLine();
+
+        foreach ($results as $service => $result) {
+            $status = $result['success'] ? '✅' : '❌';
+            $this->line("{$status} {$service}: {$result['message']}");
+            if (isset($result['time'])) {
+                $this->line("   Response time: {$result['time']}ms");
+            }
+        }
+
+        $this->newLine();
+
+        // Recommendations
+        $successCount = count(array_filter($results, fn($r) => $r['success']));
+        if ($successCount === 0) {
+            $this->error('❌ All AI services failed!');
+            $this->newLine();
+            $this->warn('Recommendations:');
+            $this->line('1. Check internet connection');
+            $this->line('2. Check proxy/firewall settings');
+            $this->line('3. Verify API keys in .env file');
+            $this->line('4. Read TROUBLESHOOTING_AI_CONNECTION.md');
+        } else {
+            $this->info("✅ {$successCount} service(s) working!");
+        }
+
+        return 0;
+    }
+
+    private function testOpenAI(): array
+    {
+        $this->line('Testing OpenAI API...');
+
+        $apiKey = env('OPENAI_API_KEY');
+        if (empty($apiKey)) {
+            return [
+                'success' => false,
+                'message' => 'No API key configured',
+            ];
+        }
+
+        try {
+            $start = microtime(true);
+
+            $response = Http::withOptions([
+                'verify' => false,
+                'connect_timeout' => 10,
+                'timeout' => 30,
+            ])->withHeaders([
+                'Authorization' => 'Bearer ' . $apiKey,
+                'Content-Type' => 'application/json',
+            ])->post('https://api.openai.com/v1/chat/completions', [
+                'model' => 'gpt-4o-mini',
+                'messages' => [
+                    ['role' => 'user', 'content' => 'Say "OK" if you can hear me.']
+                ],
+                'max_tokens' => 10,
+            ]);
+
+            $time = round((microtime(true) - $start) * 1000, 2);
+
+            if ($response->successful()) {
+                $content = $response->json()['choices'][0]['message']['content'] ?? '';
+                return [
+                    'success' => true,
+                    'message' => 'Connected successfully',
+                    'time' => $time,
+                    'response' => $content,
+                ];
             }
 
-            // Test 2: Chat with conversation history
-            $this->info("Test 2: Chat with Conversation History");
-            $messages = [
-                ['role' => 'system', 'content' => 'Kamu adalah AI assistant yang membantu testing.'],
-                ['role' => 'user', 'content' => 'Halo, siapa namamu?'],
-                ['role' => 'assistant', 'content' => 'Halo! Saya adalah AI assistant.'],
-                ['role' => 'user', 'content' => 'Apa yang bisa kamu lakukan?']
+            $status = $response->status();
+            $body = $response->json();
+            $error = $body['error']['message'] ?? $response->body();
+
+            return [
+                'success' => false,
+                'message' => "HTTP {$status}: {$error}",
             ];
 
-            $startTime = microtime(true);
-            $result = $aiService->generateChat($messages, [
-                'max_tokens' => 200,
-                'temperature' => 0.7
-            ]);
-            $duration = round((microtime(true) - $startTime) * 1000, 2);
+        } catch (\Exception $e) {
+            return [
+                'success' => false,
+                'message' => $e->getMessage(),
+            ];
+        }
+    }
 
-            if ($result['success']) {
-                $this->info("✓ Success!");
-                $this->line("Response: " . substr($result['text'], 0, 200));
-                $this->line("Provider: {$result['provider']}");
-                $this->line("Model: {$result['model']}");
-                $this->line("Duration: {$duration}ms");
-                $this->newLine();
-            } else {
-                $this->error("✗ Failed!");
-                $this->error("Error: " . ($result['error'] ?? 'Unknown error'));
-                return 1;
+    private function testOpenRouter(): array
+    {
+        $this->line('Testing OpenRouter API...');
+
+        $apiKey = env('OPENROUTER_API_KEY', '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');
+
+        try {
+            $start = microtime(true);
+
+            $response = Http::withHeaders([
+                'Authorization' => 'Bearer ' . $apiKey,
+                'Content-Type' => 'application/json',
+                'HTTP-Referer' => env('APP_URL', 'http://localhost'),
+                'X-Title' => 'GKM GJM Test',
+            ])->timeout(30)->post('https://openrouter.ai/api/v1/chat/completions', [
+                'model' => 'meta-llama/llama-3.2-3b-instruct:free',
+                'messages' => [
+                    ['role' => 'user', 'content' => 'Say OK']
+                ],
+                'max_tokens' => 10,
+            ]);
+
+            $time = round((microtime(true) - $start) * 1000, 2);
+
+            if ($response->successful()) {
+                $content = $response->json()['choices'][0]['message']['content'] ?? '';
+                return [
+                    'success' => true,
+                    'message' => 'Connected successfully',
+                    'time' => $time,
+                    'response' => $content,
+                ];
             }
 
-            // Test 3: Indonesian language
-            $this->info("Test 3: Indonesian Language Support");
-            $startTime = microtime(true);
-            $result = $aiService->generateText("Jelaskan dalam bahasa Indonesia apa itu Gugus Jaminan Mutu dalam 2 kalimat.", [
-                'max_tokens' => 150,
-                'temperature' => 0.7
-            ]);
-            $duration = round((microtime(true) - $startTime) * 1000, 2);
-
-            if ($result['success']) {
-                $this->info("✓ Success!");
-                $this->line("Response: " . $result['text']);
-                $this->line("Duration: {$duration}ms");
-                $this->newLine();
-            } else {
-                $this->error("✗ Failed!");
-                $this->error("Error: " . ($result['error'] ?? 'Unknown error'));
-                return 1;
-            }
-
-            // Summary
-            $this->info("=== All Tests Passed! ===");
-            $this->info("AI service is working correctly.");
-            
-            return 0;
+            $status = $response->status();
+            return [
+                'success' => false,
+                'message' => "HTTP {$status}",
+            ];
 
         } catch (\Exception $e) {
-            $this->error("✗ Test Failed!");
-            $this->error("Exception: " . $e->getMessage());
-            $this->newLine();
-            $this->error("Stack trace:");
-            $this->line($e->getTraceAsString());
-            
-            return 1;
+            return [
+                'success' => false,
+                'message' => $e->getMessage(),
+            ];
+        }
+    }
+
+    private function testGroq(): array
+    {
+        $this->line('Testing Groq API...');
+
+        $apiKey = env('LLM_API_KEY');
+        if (empty($apiKey) || strpos($apiKey, 'your_') !== false) {
+            return [
+                'success' => false,
+                'message' => 'No API key configured',
+            ];
+        }
+
+        try {
+            $start = microtime(true);
+
+            $response = Http::withHeaders([
+                'Authorization' => 'Bearer ' . $apiKey,
+                'Content-Type' => 'application/json',
+            ])->timeout(30)->post('https://api.groq.com/openai/v1/chat/completions', [
+                'model' => 'llama-3.3-70b-versatile',
+                'messages' => [
+                    ['role' => 'user', 'content' => 'Say OK']
+                ],
+                'max_tokens' => 10,
+            ]);
+
+            $time = round((microtime(true) - $start) * 1000, 2);
+
+            if ($response->successful()) {
+                $content = $response->json()['choices'][0]['message']['content'] ?? '';
+                return [
+                    'success' => true,
+                    'message' => 'Connected successfully',
+                    'time' => $time,
+                    'response' => $content,
+                ];
+            }
+
+            return [
+                'success' => false,
+                'message' => "HTTP {$response->status()}",
+            ];
+
+        } catch (\Exception $e) {
+            return [
+                'success' => false,
+                'message' => $e->getMessage(),
+            ];
+        }
+    }
+
+    private function testClaudeService(): array
+    {
+        $this->line('Testing ClaudeAI Service...');
+
+        try {
+            $service = app(ClaudeAIService::class);
+
+            $start = microtime(true);
+            $response = $service->ask(
+                'You are a helpful assistant',
+                'Say OK if you can hear me',
+                50
+            );
+            $time = round((microtime(true) - $start) * 1000, 2);
+
+            if ($response) {
+                return [
+                    'success' => true,
+                    'message' => 'Service working correctly',
+                    'time' => $time,
+                    'response' => substr($response, 0, 100),
+                ];
+            }
+
+            return [
+                'success' => false,
+                'message' => 'Service returned null',
+            ];
+
+        } catch (\Exception $e) {
+            return [
+                'success' => false,
+                'message' => $e->getMessage(),
+            ];
         }
     }
 }
