@@ -543,12 +543,12 @@
 
                         <!-- Pengelolaan RPS -->
                         <div class="nav-dropdown {{ request()->routeIs('gkm.monitoring-rps.*') ? 'open' : '' }}">
-                            <a href="javascript:void(0)"
+                            {{-- <a href="javascript:void(0)"
                                 class="nav-item {{ request()->routeIs('gkm.monitoring-rps.*') ? 'active' : '' }}"
                                 onclick="toggleDropdown(this)">
                                 <span><i class="bi bi-check-circle"></i> Pengelolaan RPS</span>
                                 <i class="bi bi-chevron-down dropdown-icon"></i>
-                            </a>
+                            </a> --}}
 
                             <a href="javascript:void(0)"
                                 class="nav-item {{ request()->routeIs('gkm.monitoring-rps.*') ? 'active' : '' }}"
