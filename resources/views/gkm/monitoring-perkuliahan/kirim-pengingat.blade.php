@@ -63,7 +63,6 @@
                 
             </div>
 
-<<<<<<< Updated upstream
             <div class="table-responsive">
                 <table class="table table-monitoring mb-0">
                     <thead>
@@ -163,8 +162,6 @@
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Tutup</button>
             </div>
-=======
->>>>>>> Stashed changes
         </div>
     </div>
     <div class="reminder-template-section mt-4">
