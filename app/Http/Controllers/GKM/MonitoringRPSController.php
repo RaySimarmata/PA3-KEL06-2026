@@ -871,15 +871,16 @@ private function saveSnapshotToDB(
         $dosenList = Dosenn::get();
 
         // Ambil log email
-        $logEmailList = LogEmail::when($dosenId, function ($query) use ($dosenId) {
-                // Cari dosen berdasarkan ID
-                $dosen = Dosen::find($dosenId);
-                if ($dosen) {
-                    $query->where('penerima_email', $dosen->kontak_email);
-                }
-            })
-            ->orderBy('created_at', 'desc')
-            ->paginate(10);
+        $logEmailList = LogEmail::where('subjek', 'like', '%RPS%')
+    ->when($dosenId, function ($query) use ($dosenId) {
+        $dosen = Dosenn::find($dosenId);
+
+        if ($dosen) {
+            $query->where('penerima_email', $dosen->email);
+        }
+    })
+    ->latest()
+    ->paginate(10);
 
         return view('gkm.monitoring-rps.history', compact('user', 'logEmailList', 'dosenList', 'dosenId'));
     }

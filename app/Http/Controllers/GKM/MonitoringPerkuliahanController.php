@@ -1346,127 +1346,149 @@ private function savePerkuliahanComplianceSnapshot(
     }
 }
     
-    public function kirimReminderUploadMateri(Request $request)
-    {
-        try {
-            $request->validate([
-                'dosen_ids' => 'required|array',
-                'dosen_ids.*' => 'string', // pegawai_id adalah string
-                'subjek' => 'required|string',
-                'pesan' => 'required|string',
-            ]);
+        public function kirimReminderUploadMateri(Request $request)
+        {
+            try {
+                $request->validate([
+                    'dosen_ids' => 'required|array',
+                    'dosen_ids.*' => 'string', // pegawai_id adalah string
+                    'subjek' => 'required|string',
+                    'pesan' => 'required|string',
+                ]);
 
-            // Ambil dosen berdasarkan pegawai_id dari model Dosenn
-            $dosenList = \App\Models\Dosenn::whereIn('pegawai_id', $request->dosen_ids)->get();
-            $successCount = 0;
-            $errors = [];
+                // Ambil dosen berdasarkan pegawai_id dari model Dosenn
+                $dosenList = \App\Models\Dosenn::whereIn('pegawai_id', $request->dosen_ids)->get();
+                $successCount = 0;
+                $errors = [];
 
-            $user = Auth::user();
-            $prodiName = $user->prodi->nama ?? 'TRPL';
-            $prodiKode = $user->prodi->kode_prodi ?? 'TRPL';
+                $user = Auth::user();
+                $prodiName = $user->prodi->nama ?? 'TRPL';
+                $prodiKode = $user->prodi->kode_prodi ?? 'TRPL';
 
-            foreach ($dosenList as $dosen) {
-                try {
-                    $email = $dosen->email ?? $dosen->kontak_email ?? null;
-                    $nomorTelepon = $dosen->nomor_telepon ?? $dosen->nomor ?? $dosen->kontak_telepon ?? null;
+                foreach ($dosenList as $dosen) {
+                    try {
+                        $email = $dosen->email ?? $dosen->kontak_email ?? null;
+                        $nomorTelepon = $dosen->nomor_telepon ?? $dosen->nomor ?? $dosen->kontak_telepon ?? null;
 
-                    // Send email if available
-                    if (!empty($email)) {
-                        Mail::to($email)->send(new ReminderUploadMateriMail(
-                            $request->subjek,
-                            $request->pesan,
-                            $dosen->nama,
-                            $prodiName,
-                            $prodiKode
-                        ));
+                        // Send email if available
+                        if (!empty($email)) {
+                            Mail::to($email)->send(new ReminderUploadMateriMail(
+                                $request->subjek,
+                                $request->pesan,
+                                $dosen->nama,
+                                $prodiName,
+                                $prodiKode
+                            ));
 
-                        // Log email
-                        LogEmail::create([
-                            'reminder_id' => null,
-                            'penerima_email' => $email,
-                            'subjek' => $request->subjek,
-                            'isi_email' => $request->pesan,
-                            'status_pengiriman' => 'success',
-                            'tanggal_pengiriman' => now(),
-                            'percobaan_kirim' => 1,
-                        ]);
-                    }
-
-                    // Send WhatsApp if phone available
-                    if (!empty($nomorTelepon)) {
-                        $pesanWa = "*{$request->subjek}*\n\n" . $request->pesan;
-
-                        try {
-                            $this->whatsappService->sendMessage($nomorTelepon, $pesanWa);
-
-                            // Log WA as email-log entry for traceability
+                            // Log email
                             LogEmail::create([
                                 'reminder_id' => null,
-                                'penerima_email' => $email ?? $nomorTelepon,
+                                'penerima_email' => $email,
                                 'subjek' => $request->subjek,
                                 'isi_email' => $request->pesan,
                                 'status_pengiriman' => 'success',
                                 'tanggal_pengiriman' => now(),
                                 'percobaan_kirim' => 1,
                             ]);
-                        } catch (\Exception $e) {
-                            Log::warning('Failed to send WA reminder', [
-                                'pegawai_id' => $dosen->pegawai_id,
-                                'nomor' => $nomorTelepon,
-                                'error' => $e->getMessage(),
-                            ]);
                         }
-                    }
 
-                    // Update snapshot reminder status for this dosen
-                    \App\Models\PerkuliahanMonitoringSnapshot::where('pegawai_id', $dosen->pegawai_id)
-                        ->where('status_upload', 'BELUM UPLOAD')
-                        ->update([
-                            'reminder_sent' => true,
-                            'updated_at' => now()
+                        // Send WhatsApp if phone available
+                        if (!empty($nomorTelepon)) {
+                            $pesanWa = "*{$request->subjek}*\n\n" . $request->pesan;
+
+                            try {
+                                $this->whatsappService->sendMessage($nomorTelepon, $pesanWa);
+
+                                // Log WA as email-log entry for traceability
+                                LogEmail::create([
+                                    'reminder_id' => null,
+                                    'penerima_email' => $email ?? $nomorTelepon,
+                                    'subjek' => $request->subjek,
+                                    'isi_email' => $request->pesan,
+                                    'status_pengiriman' => 'success',
+                                    'tanggal_pengiriman' => now(),
+                                    'percobaan_kirim' => 1,
+                                ]);
+                            } catch (\Exception $e) {
+                                Log::warning('Failed to send WA reminder', [
+                                    'pegawai_id' => $dosen->pegawai_id,
+                                    'nomor' => $nomorTelepon,
+                                    'error' => $e->getMessage(),
+                                ]);
+                            }
+                        }
+
+                        // Update snapshot reminder status for this dosen
+                        \App\Models\PerkuliahanMonitoringSnapshot::where('pegawai_id', $dosen->pegawai_id)
+                            ->where('status_upload', 'BELUM UPLOAD')
+                            ->update([
+                                'reminder_sent' => true,
+                                'updated_at' => now()
+                            ]);
+
+                        $successCount++;
+                    } catch (\Exception $e) {
+                        $errors[] = "Gagal kirim ke {$dosen->nama}: " . $e->getMessage();
+                        Log::error('Failed to send materi reminder', [
+                            'pegawai_id' => $dosen->pegawai_id,
+                            'email' => $email ?? 'N/A',
+                            'nomor' => $nomorTelepon ?? 'N/A',
+                            'error' => $e->getMessage(),
                         ]);
 
-                    $successCount++;
-                } catch (\Exception $e) {
-                    $errors[] = "Gagal kirim ke {$dosen->nama}: " . $e->getMessage();
-                    Log::error('Failed to send materi reminder', [
-                        'pegawai_id' => $dosen->pegawai_id,
-                        'email' => $email ?? 'N/A',
-                        'nomor' => $nomorTelepon ?? 'N/A',
-                        'error' => $e->getMessage(),
-                    ]);
-
-                    // Log failed attempt
-                    LogEmail::create([
-                        'reminder_id' => null,
-                        'penerima_email' => $email ?? $nomorTelepon ?? null,
-                        'subjek' => $request->subjek,
-                        'isi_email' => $request->pesan,
-                        'status_pengiriman' => 'failed',
-                        'pesan_error' => $e->getMessage(),
-                        'tanggal_pengiriman' => now(),
-                        'percobaan_kirim' => 1,
-                    ]);
+                        // Log failed attempt
+                        LogEmail::create([
+                            'reminder_id' => null,
+                            'penerima_email' => $email ?? $nomorTelepon ?? null,
+                            'subjek' => $request->subjek,
+                            'isi_email' => $request->pesan,
+                            'status_pengiriman' => 'failed',
+                            'pesan_error' => $e->getMessage(),
+                            'tanggal_pengiriman' => now(),
+                            'percobaan_kirim' => 1,
+                        ]);
+                    }
                 }
-            }
 
-            if ($successCount > 0) {
-                $message = "Berhasil mengirim reminder ke {$successCount} dosen";
-                if (!empty($errors)) {
-                    $message .= ". Beberapa gagal: " . implode(', ', $errors);
+                if ($successCount > 0) {
+                    $message = "Berhasil mengirim reminder ke {$successCount} dosen";
+                    if (!empty($errors)) {
+                        $message .= ". Beberapa gagal: " . implode(', ', $errors);
+                    }
+                    return redirect()->back()->with('success', $message);
+                } else {
+                    return redirect()->back()->with('error', 'Gagal mengirim semua reminder: ' . implode(', ', $errors));
                 }
-                return redirect()->back()->with('success', $message);
-            } else {
-                return redirect()->back()->with('error', 'Gagal mengirim semua reminder: ' . implode(', ', $errors));
-            }
-        } catch (\Exception $e) {
-            Log::error('Failed to send materi reminder', [
-                'error' => $e->getMessage(),
-            ]);
+            } catch (\Exception $e) {
+                Log::error('Failed to send materi reminder', [
+                    'error' => $e->getMessage(),
+                ]);
 
-            return redirect()->back()->with('error', 'Gagal mengirim reminder: ' . $e->getMessage());
+                return redirect()->back()->with('error', 'Gagal mengirim reminder: ' . $e->getMessage());
+            }
         }
+
+        public function historyReminder($dosenId = null)
+    {
+        $user = Auth::user();
+
+        // Ambil dosen untuk filter
+        $dosenList = Dosenn::get();
+
+        // Ambil log email
+        $logEmailList = LogEmail::when($dosenId, function ($query) use ($dosenId) {
+                // Cari dosen berdasarkan ID
+                $dosen = Dosen::find($dosenId);
+                if ($dosen) {
+                    $query->where('penerima_email', $dosen->kontak_email);
+                }
+            })
+            ->orderBy('created_at', 'desc')
+            ->paginate(10);
+
+        return view('gkm.monitoring-rps.history', compact('user', 'logEmailList', 'dosenList', 'dosenId'));
     }
+
 
     public function generateMessageMateri(Request $request)
     {

@@ -16,9 +16,11 @@ use Illuminate\Support\Facades\Cache;
 
 class DashboardController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
         $user = Auth::user();
+        $semester = $request->input('semester');
+        $tahun = $request->input('tahun');
 
         // Statistik untuk dashboard GKM
         // Status Upload Materi
@@ -52,7 +54,12 @@ class DashboardController extends Controller
 
         $periode = date('F Y');
 
-        return view('gkm.dashboard.index', compact('user', 'stats', 'periode', 'totalQuestionnaires', 'totalMonthlyReports'));
+        $analyticsData = $this->loadAnalyticsData($user, $semester, $tahun);
+
+        return view('gkm.dashboard.index', array_merge(
+            compact('user', 'stats', 'periode', 'totalQuestionnaires', 'totalMonthlyReports', 'semester', 'tahun'),
+            $analyticsData
+        ));
     }
 
     public function analytics(Request $request)
@@ -60,10 +67,21 @@ class DashboardController extends Controller
         $user = Auth::user();
         $semester = $request->input('semester');
         $tahun = $request->input('tahun');
+        $dashboardData = $this->loadAnalyticsData($user, $semester, $tahun);
 
+        $periode = date('F Y');
+
+        return view('gkm.dashboard.analytics', array_merge(
+            ['user' => $user, 'periode' => $periode, 'semester' => $semester, 'tahun' => $tahun],
+            $dashboardData
+        ));
+    }
+
+    private function loadAnalyticsData($user, $semester = null, $tahun = null)
+    {
         $cacheKey = 'gkm_dashboard_analytics_' . ($user->prodi_id ?? 'all') . '_' . ($semester ?? 'all') . '_' . ($tahun ?? 'all');
 
-        $dashboardData = Cache::remember($cacheKey, now()->addMinutes(30), function () use ($user, $semester, $tahun) {
+        return Cache::remember($cacheKey, now()->addMinutes(30), function () use ($user, $semester, $tahun) {
             $query = PerkuliahanMonitoringDetail::query();
 
             $prodiKode = $user->prodi ? $user->prodi->kode_prodi : null;
@@ -146,12 +164,5 @@ class DashboardController extends Controller
                 'listSemester'
             );
         });
-
-        $periode = date('F Y');
-
-        return view('gkm.dashboard.analytics', array_merge(
-            ['user' => $user, 'periode' => $periode, 'semester' => $semester, 'tahun' => $tahun],
-            $dashboardData
-        ));
     }
 }

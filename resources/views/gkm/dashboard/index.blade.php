@@ -240,7 +240,7 @@
                     </a>
                 </div>
 
-                <div class="action-item analytics">
+                {{-- <div class="action-item analytics">
                     <a href="{{ route('gkm.dashboard.analytics') }}" class="action-btn info-bright">
                         <span class="action-icon"><i class="bi bi-graph-up"></i></span>
                         <span class="action-text">
@@ -248,7 +248,7 @@
                             <span class="action-subtitle">Lihat tren dan performa monitoring</span>
                         </span>
                     </a>
-                </div>
+                </div> --}}
             </div>
         </div>
 
@@ -294,4 +294,6 @@
             </div>
         </div>
     </div>
+
+    @include('gkm.dashboard._analytics-section')
 @endsection
