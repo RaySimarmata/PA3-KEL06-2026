@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('page-title', 'History Reminder RPS')
+@section('page-title', 'History Reminder Upload Materi')
 
 @section('content')
 <div style="padding: 1.5rem;">
@@ -8,7 +8,7 @@
         <div class="card-body">
             <div class="d-flex justify-content-between align-items-center">
                 <div>
-                    <h5 class="mb-1">History Reminder Upload RPS</h5>
+                    <h5 class="mb-1">History Reminder Upload Materi</h5>
                     <p class="text-muted mb-0">Riwayat pengiriman email reminder kepada dosen</p>
                 </div>
                 <a href="{{ route('gkm.monitoring-rps.index') }}" class="btn btn-outline-secondary">

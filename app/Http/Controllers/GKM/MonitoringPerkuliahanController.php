@@ -1487,26 +1487,33 @@ private function savePerkuliahanComplianceSnapshot(
             }
         }
 
-        public function historyReminder($dosenId = null)
-    {
-        $user = Auth::user();
+        public function historyReminder(Request $request, $dosenId = null)
+{
+    $user = Auth::user();
 
-        // Ambil dosen untuk filter
-        $dosenList = Dosenn::get();
+    $dosenList = Dosenn::get();
 
-        // Ambil log email
-        $logEmailList = LogEmail::when($dosenId, function ($query) use ($dosenId) {
-                // Cari dosen berdasarkan ID
-                $dosen = Dosen::find($dosenId);
-                if ($dosen) {
-                    $query->where('penerima_email', $dosen->kontak_email);
-                }
-            })
-            ->orderBy('created_at', 'desc')
-            ->paginate(10);
+    $sort = $request->get('sort', 'desc'); // default desc
 
-        return view('gkm.monitoring-rps.history', compact('user', 'logEmailList', 'dosenList', 'dosenId'));
-    }
+    $logEmailList = LogEmail::where('subjek', 'like', '%materi%')
+        ->when($dosenId, function ($query) use ($dosenId) {
+            $dosen = Dosenn::find($dosenId);
+
+            if ($dosen) {
+                $query->where('penerima_email', $dosen->email);
+            }
+        })
+        ->orderBy('created_at', $sort)
+        ->paginate(10)
+        ->appends([
+            'sort' => $sort
+        ]);
+
+    return view(
+        'gkm.monitoring-perkuliahan.history',
+        compact('user', 'logEmailList', 'dosenList', 'dosenId', 'sort')
+    );
+}
 
 
     public function generateMessageMateri(Request $request)

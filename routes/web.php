@@ -201,6 +201,7 @@ Route::middleware('auth')->group(function () {
             Route::post('/reminder-materi/filter', [MonitoringPerkuliahanController::class, 'filterRemindersByMode'])->name('materi.filter');
             Route::post('/reminder-materi/generate', [MonitoringPerkuliahanController::class, 'generateMessageMateri'])->name('materi.generate');
             Route::get('/reminder-review-soal', [MonitoringPerkuliahanController::class, 'reminderReviewSoal'])->name('soal');
+            Route::get('/history-reminder', [MonitoringPerkuliahanController::class, 'historyReminder'])->name('history');
             Route::post('/reminder-review-soal/send', [MonitoringPerkuliahanController::class, 'kirimReminderReviewSoal'])->name('soal.send');
             Route::post('/reminder-review-soal/generate', [MonitoringPerkuliahanController::class, 'generateMessageSoal'])->name('soal.generate');
                 Route::get('/export', [MonitoringPerkuliahanController::class, 'exportPdf'])->name('export');

@@ -557,7 +557,7 @@
          alt="Rps"
          width="23"
          height="23"
-         style="margin-right:2px;"
+         style="margin-right:15px;"
          filter: brightness(0) invert(1);></i> Pengelolaan RPS</span>
                                 <i class="bi bi-chevron-down dropdown-icon"></i>
                             </a>
@@ -579,10 +579,10 @@
                                 class="nav-item {{ request()->routeIs('gkm.monitoring-perkuliahan.*') ? 'active' : '' }}"
                                 onclick="toggleDropdown(this)">
                                 <span><img src="{{ asset('images/pengelolaan1.png') }}"
-         alt="Kuesioner"
+         alt="Perkuliahan"
          width="23"
          height="23"
-         style="margin-right:2px;"
+         style="margin-right:15px;"
          filter: brightness(0) invert(1);></i> Pengelolaan Perkuliahan</span>
                                 <i class="bi bi-chevron-down dropdown-icon"></i>
                             </a>
@@ -591,9 +591,9 @@
                                     class="nav-item {{ request()->routeIs('gkm.monitoring-perkuliahan.index') ? 'active' : '' }}">
                                     <i class="bi bi-eye"></i> Monitoring Perkuliahan
                                 </a>
-                                <a href="{{ route('gkm.monitoring-perkuliahan.kirim-pengingat') }}"
-                                    class="nav-item {{ request()->routeIs('gkm.monitoring-perkuliahan.kirim-pengingat') ? 'active' : '' }}">
-                                    <span><i class="bi bi-send"></i> Kirim Pesan Pengingat</span>
+                                <a href="{{ route('gkm.monitoring-perkuliahan.history') }}"
+                                    class="nav-item {{ request()->routeIs('gkm.monitoring-perkuliahan.history') ? 'active' : '' }}">
+                                    <span><i class="bi bi-send"></i> History Reminder Upload Materi</span>
                                 </a>
                             </div>
                         </div>
@@ -615,7 +615,12 @@
                         </div> --}}
                         <a href="{{ route('gkm.monitoring-kuesioner.index') }}"
                             class="nav-item {{ request()->routeIs('gkm.monitoring-kuesioner.*') ? 'active' : '' }}">
-                            <i class="bi bi-eye"></i> Pengelolaan Kuesioner
+                            <span><img src="{{ asset('images/pengelolaan1.png') }}"
+         alt="Kuesioner"
+         width="23"
+         height="23"
+         style="margin-right:15px;"
+         filter: brightness(0) invert(1);></i> Pengelolaan Kuesioner
                         </a>
 
                         <!-- Pelaporan -->

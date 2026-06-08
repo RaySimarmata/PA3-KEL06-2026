@@ -863,27 +863,34 @@ private function saveSnapshotToDB(
     }
 }
 
-    public function historyReminder($dosenId = null)
-    {
-        $user = Auth::user();
+    public function historyReminder(Request $request, $dosenId = null)
+{
+    $user = Auth::user();
 
-        // Ambil dosen untuk filter
-        $dosenList = Dosenn::get();
+    $dosenList = Dosenn::get();
 
-        // Ambil log email
-        $logEmailList = LogEmail::where('subjek', 'like', '%RPS%')
-    ->when($dosenId, function ($query) use ($dosenId) {
-        $dosen = Dosenn::find($dosenId);
+    $sort = $request->get('sort', 'desc'); // default desc
 
-        if ($dosen) {
-            $query->where('penerima_email', $dosen->email);
-        }
-    })
-    ->latest()
-    ->paginate(10);
+    $logEmailList = LogEmail::where('subjek', 'like', '%RPS%')
+        ->when($dosenId, function ($query) use ($dosenId) {
+            $dosen = Dosenn::find($dosenId);
 
-        return view('gkm.monitoring-rps.history', compact('user', 'logEmailList', 'dosenList', 'dosenId'));
-    }
+            if ($dosen) {
+                $query->where('penerima_email', $dosen->email);
+            }
+        })
+        ->orderBy('created_at', $sort)
+        ->paginate(10)
+        ->appends([
+            'sort' => $sort
+        ]);
+
+    return view(
+        'gkm.monitoring-rps.history',
+        compact('user', 'logEmailList', 'dosenList', 'dosenId', 'sort')
+    );
+}
+    
 
     /**
      * Generate dynamic tahun ajaran list based on current year
