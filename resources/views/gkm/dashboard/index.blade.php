@@ -405,7 +405,6 @@
         </div>
     </div>
 
-    @include('gkm.dashboard._analytics-section')
 @endsection
 
 @section('scripts')
