@@ -549,10 +549,22 @@
                                 <span><i class="bi bi-check-circle"></i> Pengelolaan RPS</span>
                                 <i class="bi bi-chevron-down dropdown-icon"></i>
                             </a>
+
+                            <a href="javascript:void(0)"
+                                class="nav-item {{ request()->routeIs('gkm.monitoring-rps.*') ? 'active' : '' }}"
+                                onclick="toggleDropdown(this)">
+                                <span><img src="{{ asset('images/pengelolaan1.png') }}"
+         alt="Rps"
+         width="23"
+         height="23"
+         style="margin-right:2px;"
+         filter: brightness(0) invert(1);></i> Pengelolaan RPS</span>
+                                <i class="bi bi-chevron-down dropdown-icon"></i>
+                            </a>
                             <div class="dropdown-submenu">
                                 <a href="{{ route('gkm.monitoring-rps.index') }}"
                                     class="nav-item {{ request()->routeIs('gkm.monitoring-rps.index') ? 'active' : '' }}">
-                                    <i class="bi bi-eye"></i> Monitoring RPS
+                                    <i class="bi bi-eye"></i>Monitoring RPS
                                 </a>
                                 <a href="{{ route('gkm.monitoring-rps.history') }}"
                                     class="nav-item {{ request()->routeIs('gkm.monitoring-rps.ceklist') || request()->routeIs('gkm.monitoring-rps.history') ? 'active' : '' }}">
