@@ -8,7 +8,6 @@
     <title>@yield('title', 'Sistem GJM & GKM')</title>
     <link rel="icon" href="{{ asset('images/logo-itdel.jpg') }}" type="image/jpeg">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
 
     <!-- GKM Global Styles -->
@@ -30,8 +29,12 @@
 
         :root {
             --primary-color: #1e3c72;
-            --secondary-color: #2a5298;
+            --primary-light: #2a5298;
+            --primary-dark: #0f2b4f;
+            --accent-color: #4a90e2;
             --sidebar-width: clamp(12.5rem, 16vw, 14.5rem);
+            --sidebar-bg-start: #0f2b4f;
+            --sidebar-bg-end: #1e3c72;
         }
 
         html,
@@ -42,48 +45,11 @@
         }
 
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: #f5f7fa;
+            font-family: 'Segoe UI', 'Inter', system-ui, -apple-system, sans-serif;
+            background: linear-gradient(135deg, #f5f7fa 0%, #e9ecef 100%);
         }
 
-        /* Avatar ikon besar untuk sidebar */
-        .avatar-icon {
-            width: 60px;
-            height: 60px;
-            border-radius: 50%;
-            background-color: #1e3c72;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin: 0 auto 12px auto;
-            border: 3px solid rgba(255, 255, 255, 0.2);
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-        }
-
-        .avatar-icon i {
-            font-size: 2.5rem;
-            color: white;
-        }
-
-        /* Untuk topbar */
-        .topbar-avatar {
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
-            background-color: #1e3c72;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            margin-right: 8px;
-        }
-
-        .topbar-avatar i {
-            font-size: 1.6rem;
-            color: white;
-        }
-
-
-
+        /* ==================== SIDEBAR STYLES ==================== */
         .wrapper {
             display: flex;
             width: 100%;
@@ -93,159 +59,183 @@
 
         .sidebar {
             width: var(--sidebar-width);
-            background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+            background: linear-gradient(180deg, var(--sidebar-bg-start) 0%, var(--sidebar-bg-end) 100%);
             position: fixed;
             height: 100vh;
             z-index: 1000;
             color: white;
             display: flex;
             flex-direction: column;
-            transition: transform 0.25s ease;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 4px 0 20px rgba(0, 0, 0, 0.15);
+            overflow: hidden;
         }
 
+        /* Logo Section */
         .sidebar .logo {
-            padding: 1.125rem 1rem;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+            padding: 1.5rem 1rem;
             text-align: center;
-            flex-shrink: 0;
-            background: rgba(0, 0, 0, 0.1);
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.02) 100%);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            position: relative;
+        }
+
+        .sidebar .logo::after {
+            content: '';
+            position: absolute;
+            bottom: -1px;
+            left: 10%;
+            width: 80%;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
         }
 
         .sidebar .logo h5 {
             margin: 0;
-            font-weight: 700;
-            font-size: 1.65rem;
-            color: white !important;
-            letter-spacing: 0.5px;
+            font-weight: 800;
+            font-size: 1.4rem;
+            background: linear-gradient(135deg, #fff 0%, #e0e8f5 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            letter-spacing: 1px;
         }
 
         .sidebar .logo small {
-            color: rgba(255, 255, 255, 0.85) !important;
-            font-size: 0.75rem;
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 0.7rem;
             display: block;
-            margin-top: 4px;
+            margin-top: 6px;
+            font-weight: 400;
         }
 
+        /* User Info Section */
         .sidebar .user-info {
-            padding: 1rem;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+            padding: 1.25rem 1rem;
             text-align: center;
-            flex-shrink: 0;
-            background: rgba(0, 0, 0, 0.05);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0) 100%);
         }
 
-        .sidebar .user-info img {
-            width: 3.75rem;
-            height: 3.75rem;
+        .avatar-icon {
+            width: 70px;
+            height: 70px;
             border-radius: 50%;
-            margin-bottom: 12px;
-            border: 3px solid rgba(255, 255, 255, 0.2);
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+            background: linear-gradient(135deg, #fff 0%, #e0e8f5 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 12px auto;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+            transition: transform 0.3s ease;
+        }
+
+        .avatar-icon:hover {
+            transform: scale(1.05);
+        }
+
+        .avatar-icon i {
+            font-size: 2.8rem;
+            color: var(--primary-color);
+            filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1));
         }
 
         .sidebar .user-info p {
             margin: 8px 0 0 0;
-            font-size: 0.875rem;
-            color: white !important;
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: white;
         }
 
         .sidebar .user-info small {
-            color: rgba(255, 255, 255, 0.85) !important;
-            font-size: 0.75rem;
-            display: block;
-            margin-top: 4px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 0.7rem;
+            display: inline-block;
+            margin-top: 5px;
+            padding: 3px 10px;
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 20px;
             font-weight: 500;
         }
 
-        .sidebar .user-info strong {
-            color: white !important;
-            font-weight: 600;
-        }
-
+        /* Navigation Menu */
         .sidebar .nav-menu {
-            padding: 0.75rem 0;
+            padding: 1rem 0.75rem;
             flex: 1;
             overflow-y: auto;
             overflow-x: hidden;
         }
 
         .sidebar .nav-menu::-webkit-scrollbar {
-            width: 6px;
+            width: 4px;
         }
 
         .sidebar .nav-menu::-webkit-scrollbar-track {
             background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
         }
 
         .sidebar .nav-menu::-webkit-scrollbar-thumb {
             background: rgba(255, 255, 255, 0.3);
-            border-radius: 3px;
-        }
-
-        .sidebar .nav-menu::-webkit-scrollbar-thumb:hover {
-            background: rgba(255, 255, 255, 0.5);
+            border-radius: 10px;
         }
 
         .sidebar .nav-item {
-            padding: 0.625rem 0.875rem;
-            border-left: 4px solid transparent;
-            color: rgba(255, 255, 255, 0.8);
+            padding: 0.7rem 0.9rem;
+            margin-bottom: 0.25rem;
+            border-radius: 12px;
+            color: rgba(255, 255, 255, 0.85);
             cursor: pointer;
-            transition: all 0.3s ease;
+            transition: all 0.25s ease;
             text-decoration: none;
-            display: block;
-            font-size: 0.875rem;
-            font-weight: 400;
-        }
-
-        .sidebar .nav-item:hover {
-            background: rgba(255, 255, 255, 0.08);
-            color: rgba(255, 255, 255, 0.95);
-        }
-
-        .sidebar .nav-item.active {
-            background: rgba(255, 255, 255, 0.15);
-            border-left-color: white;
-            color: white !important;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 0.85rem;
             font-weight: 500;
         }
 
-        .sidebar .nav-item i {
-            margin-right: 0.625rem;
-            width: 1.125rem;
-            text-align: center;
-            font-size: 0.95rem;
-            color: white !important;
-        }
-
-        /* Dropdown Menu Styles */
-        .nav-dropdown {
-            position: relative;
-        }
-
-        .nav-dropdown>.nav-item {
+        .sidebar .nav-item>span {
             display: flex;
-            justify-content: space-between;
             align-items: center;
+            gap: 0.7rem;
         }
 
-        .nav-dropdown .dropdown-icon {
-            font-size: 12px;
-            transition: transform 0.3s ease;
-            color: white !important;
+        .sidebar .nav-item:hover {
+            background: rgba(255, 255, 255, 0.12);
+            color: white;
+            transform: translateX(4px);
+        }
+
+        .sidebar .nav-item.active {
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.2) 0%, rgba(255, 255, 255, 0.1) 100%);
+            color: white;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .sidebar .nav-item i {
+            font-size: 1.1rem;
+            width: 1.5rem;
+            color: rgba(255, 255, 255, 0.9);
+        }
+
+        .dropdown-icon {
+            font-size: 0.7rem;
+            transition: transform 0.25s ease;
+            opacity: 0.7;
         }
 
         .nav-dropdown.open .dropdown-icon {
             transform: rotate(180deg);
+            opacity: 1;
         }
 
         .dropdown-submenu {
             max-height: 0;
             overflow: hidden;
-            transition: max-height 0.3s ease;
-            background-color: rgba(0, 0, 0, 0.15);
+            transition: max-height 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+            margin-left: 1.8rem;
+            border-left: 2px solid rgba(255, 255, 255, 0.15);
         }
 
         .nav-dropdown.open .dropdown-submenu {
@@ -253,46 +243,41 @@
         }
 
         .dropdown-submenu .nav-item {
-            padding-left: 2.25rem;
+            padding: 0.6rem 0.8rem;
             font-size: 0.8rem;
-            border-left: none;
-        }
-
-        .dropdown-submenu .nav-item:hover {
-            background: rgba(255, 255, 255, 0.1);
-        }
-
-        .dropdown-submenu .nav-item.active {
-            background: rgba(255, 255, 255, 0.12);
-            border-left: none;
+            margin-bottom: 0.15rem;
         }
 
         .dropdown-submenu .nav-item i {
-            font-size: 14px;
-            color: white !important;
+            font-size: 0.9rem;
+            width: 1.3rem;
         }
 
+        .dropdown-submenu .nav-item:hover {
+            transform: translateX(6px);
+        }
 
-
+        /* ==================== MAIN CONTENT ==================== */
         .main-content {
             margin-left: var(--sidebar-width);
             width: calc(100% - var(--sidebar-width));
-            max-width: calc(100% - var(--sidebar-width));
             min-height: 100vh;
             display: flex;
             flex-direction: column;
-            min-width: 0;
+            background: linear-gradient(135deg, #f8f9fa 0%, #f1f3f5 100%);
         }
 
+        /* Topbar */
         .topbar {
-            background: white;
-            border-bottom: 1px solid #e0e0e0;
-            padding: 0.875rem 1.125rem;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+            padding: 0.75rem 1.5rem;
             display: flex;
             justify-content: space-between;
             align-items: center;
             gap: 1rem;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+            box-shadow: 0 2px 15px rgba(0, 0, 0, 0.05);
             position: sticky;
             top: 0;
             z-index: 999;
@@ -301,27 +286,37 @@
         .topbar-left {
             display: flex;
             align-items: center;
-            gap: 0.75rem;
+            gap: 1rem;
             min-width: 0;
         }
 
         .sidebar-toggle {
-            border: 1px solid #d9dfe7;
-            border-radius: 0.5rem;
-            background: #fff;
-            color: var(--primary-color);
-            width: 2.25rem;
-            height: 2.25rem;
+            border: none;
+            border-radius: 12px;
+            background: linear-gradient(135deg, var(--primary-color), var(--primary-light));
+            color: white;
+            width: 38px;
+            height: 38px;
             display: none;
             align-items: center;
             justify-content: center;
             flex-shrink: 0;
+            transition: all 0.2s ease;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .sidebar-toggle:hover {
+            transform: scale(1.05);
+            box-shadow: 0 4px 12px rgba(30, 60, 114, 0.3);
         }
 
         .topbar-title {
-            font-size: 1.75rem;
-            font-weight: bold;
-            color: var(--primary-color);
+            font-size: 1.3rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--primary-color), var(--primary-light));
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
@@ -333,25 +328,39 @@
             gap: 15px;
         }
 
+        /* Topbar User Dropdown */
         .topbar-user {
             display: flex;
             align-items: center;
-            gap: 10px;
-            position: relative;
+            gap: 12px;
             cursor: pointer;
-            padding: 8px 12px;
-            border-radius: 8px;
-            transition: background 0.2s ease;
+            padding: 8px 16px;
+            border-radius: 40px;
+            transition: all 0.2s ease;
+            background: white;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
         }
 
         .topbar-user:hover {
-            background: #f5f7fa;
+            background: #f8f9fa;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
         }
 
-        .topbar-user img {
-            width: 35px;
-            height: 35px;
+        .topbar-avatar {
+            width: 38px;
+            height: 38px;
             border-radius: 50%;
+            background: linear-gradient(135deg, var(--primary-color), var(--primary-light));
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0;
+            box-shadow: none;
+        }
+
+        .topbar-avatar i {
+            font-size: 1.4rem;
+            color: white;
         }
 
         .topbar-user .user-name-wrapper {
@@ -360,10 +369,15 @@
             gap: 8px;
         }
 
-        .topbar-user .dropdown-chevron-top {
-            font-size: 12px;
-            color: #666;
-            transition: transform 0.3s ease;
+        .topbar-user small {
+            font-weight: 600;
+            color: var(--primary-color);
+        }
+
+        .dropdown-chevron-top {
+            font-size: 10px;
+            color: #888;
+            transition: transform 0.2s ease;
         }
 
         .topbar-user.open .dropdown-chevron-top {
@@ -375,15 +389,15 @@
             top: calc(100% + 8px);
             right: 0;
             background: white;
-            border: 1px solid #e0e0e0;
-            border-radius: 8px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            border-radius: 16px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
             z-index: 1001;
             min-width: 200px;
             opacity: 0;
             visibility: hidden;
             transform: translateY(-10px);
-            transition: all 0.3s ease;
+            transition: all 0.25s ease;
+            overflow: hidden;
         }
 
         .topbar-user.open .topbar-dropdown-menu {
@@ -397,57 +411,50 @@
             display: flex;
             align-items: center;
             gap: 12px;
-            padding: 12px 16px;
+            padding: 12px 18px;
             color: #333;
             text-decoration: none;
             border: none;
             background: none;
             width: 100%;
             text-align: left;
-            font-size: 14px;
-            transition: background 0.2s ease;
+            font-size: 0.85rem;
+            transition: all 0.2s ease;
             cursor: pointer;
-            border-radius: 8px;
         }
 
         .topbar-dropdown-menu a:hover,
         .topbar-dropdown-menu button:hover {
-            background: #f5f7fa;
+            background: linear-gradient(135deg, #f0f4fa, #e8edf5);
+            color: var(--primary-color);
         }
 
         .topbar-dropdown-menu i {
-            font-size: 16px;
-            color: #666;
+            font-size: 1.1rem;
+            color: var(--primary-light);
         }
 
         .topbar-dropdown-divider {
             height: 1px;
-            background: #e0e0e0;
+            background: #e9ecef;
             margin: 0;
         }
 
         .content {
             flex: 1;
-            background-color: #f5f7fa;
-            width: 100%;
-            padding: 1rem;
+            padding: 1.25rem;
             margin: 0;
             overflow-x: hidden;
-        }
-
-        /* Force full width for all content */
-        .content>* {
-            width: 100% !important;
-            max-width: 100% !important;
         }
 
         .layout-overlay {
             position: fixed;
             inset: 0;
-            background: rgba(0, 0, 0, 0.4);
+            background: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(4px);
             opacity: 0;
             visibility: hidden;
-            transition: opacity 0.2s ease, visibility 0.2s ease;
+            transition: all 0.3s ease;
             z-index: 900;
         }
 
@@ -456,95 +463,21 @@
             visibility: visible;
         }
 
-        .card {
-            border: 1px solid #e0e0e0;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-            transition: all 0.3s ease;
-        }
-
-        .card:hover {
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
-        }
-
-        .btn-primary {
-            background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
-            border: none;
-            color: white;
-        }
-
-        .btn-primary:hover {
-            color: white;
-            text-decoration: none;
-            box-shadow: 0 4px 12px rgba(30, 60, 114, 0.4);
-        }
-
-        .table thead {
-            background-color: #f5f7fa;
-            border-bottom: 2px solid #e0e0e0;
-        }
-
-        .table th {
-            color: var(--primary-color);
-            font-weight: 600;
-            border: none;
-        }
-
-        /* Override Bootstrap container constraints */
-        .container-fluid {
-            max-width: 100% !important;
-            padding-left: 0.75rem !important;
-            padding-right: 0.75rem !important;
-        }
-
-        .row {
-            margin-left: calc(-0.5 * var(--bs-gutter-x, 1.5rem)) !important;
-            margin-right: calc(-0.5 * var(--bs-gutter-x, 1.5rem)) !important;
-        }
-
-        @media (max-width: 1366px) {
-            html {
-                font-size: 15px;
-            }
-
-            :root {
-                --sidebar-width: 13rem;
-            }
-
-            .content {
-                padding: 0.75rem;
-            }
-        }
-
-        @media (max-width: 1024px) {
-            :root {
-                --sidebar-width: 12.5rem;
-            }
-
-            .topbar {
-                padding: 0.75rem 0.875rem;
-            }
-
-            .content {
-                padding: 0.625rem;
-            }
-        }
-
+        /* Responsive */
         @media (max-width: 768px) {
             .sidebar {
-                width: min(82vw, 18rem);
                 transform: translateX(-100%);
-                box-shadow: 0 0 0 rgba(0, 0, 0, 0);
+                box-shadow: none;
             }
 
             .wrapper.sidebar-open .sidebar {
                 transform: translateX(0);
-                box-shadow: 4px 0 20px rgba(0, 0, 0, 0.25);
+                box-shadow: 4px 0 25px rgba(0, 0, 0, 0.25);
             }
 
             .main-content {
                 margin-left: 0;
                 width: 100%;
-                max-width: 100%;
             }
 
             .sidebar-toggle {
@@ -552,44 +485,26 @@
             }
 
             .topbar {
-                padding: 0.75rem 0.875rem;
+                padding: 0.75rem 1rem;
             }
 
-            .topbar-right {
-                gap: 0.5rem;
+            .topbar-user .user-name-wrapper {
+                display: none;
             }
 
             .topbar-user {
-                padding: 0.375rem 0.5rem;
-            }
-
-            .topbar-user .text-muted,
-            .topbar-user .dropdown-chevron-top {
-                display: none;
+                padding: 6px;
             }
         }
 
         @media (max-width: 480px) {
             .content {
-                padding: 0.625rem;
-            }
-
-            .container-fluid {
-                padding-left: 0.5rem !important;
-                padding-right: 0.5rem !important;
+                padding: 0.75rem;
             }
 
             .topbar-title {
                 font-size: 1rem;
             }
-        }
-
-        .modal {
-            z-index: 99999 !important;
-        }
-
-        .modal-backdrop {
-            z-index: 99998 !important;
         }
     </style>
     @yield('styles')
@@ -602,28 +517,27 @@
             <!-- Sidebar -->
             <div class="sidebar">
                 <div class="logo">
-                    <h5>GJM dan GKM</h5>
-                    <small>Admin System</small>
+                    <h5>GJM & GKM</h5>
+                    <small>Quality Assurance System</small>
                 </div>
 
                 <div class="user-info">
-                    {{-- <img src="https://ui-avatars.com/api/?name={{ urlencode(auth()->user()->name) }}&background=1e3c72&color=fff"
-                        alt="User"> --}}
-                    <div class="avatar-icon"><i class="bi bi-person-circle"></i></div>
-                    <p style="margin: 10px 0 0 0;"><strong>{{ auth()->user()->name }}</strong></p>
-
-                    {{-- <small>{{ auth()->user()->role }}</small> --}}
+                    <div class="avatar-icon">
+                        <i class="bi bi-person-circle"></i>
+                    </div>
+                    <p><strong>{{ auth()->user()->name }}</strong></p>
+                    <small>{{ auth()->user()->isGKM() ? 'GKM Administrator' : 'GJM Administrator' }}</small>
                 </div>
 
                 <div class="nav-menu">
                     @if (auth()->user()->isGKM())
                         <a href="{{ route('gkm.dashboard') }}"
                             class="nav-item {{ request()->routeIs('gkm.dashboard') ? 'active' : '' }}">
-                            <i class="bi bi-speedometer2"></i> Dashboard
+                            <span><i class="bi bi-speedometer2"></i> Dashboard</span>
                         </a>
                         <a href="{{ route('gkm.data-master.index') }}"
                             class="nav-item {{ request()->routeIs('gkm.data-master.*') ? 'active' : '' }}">
-                            <i class="bi bi-database"></i> Data Master
+                            <span><i class="bi bi-database"></i> Data Master</span>
                         </a>
 
                         <!-- Pengelolaan RPS -->
@@ -637,11 +551,11 @@
                             <div class="dropdown-submenu">
                                 <a href="{{ route('gkm.monitoring-rps.index') }}"
                                     class="nav-item {{ request()->routeIs('gkm.monitoring-rps.index') ? 'active' : '' }}">
-                                    <i class="bi bi-clipboard-check"></i> Monitoring RPS
+                                    <span><i class="bi bi-clipboard-check"></i> Monitoring RPS</span>
                                 </a>
                                 <a href="{{ route('gkm.monitoring-rps.ceklist') }}"
                                     class="nav-item {{ request()->routeIs('gkm.monitoring-rps.ceklist') || request()->routeIs('gkm.monitoring-rps.history') ? 'active' : '' }}">
-                                    <i class="bi bi-send"></i> Kirim Pesan Pengingat
+                                    <span><i class="bi bi-send"></i> Kirim Pesan Pengingat</span>
                                 </a>
                             </div>
                         </div>
@@ -657,11 +571,11 @@
                             <div class="dropdown-submenu">
                                 <a href="{{ route('gkm.monitoring-perkuliahan.index') }}"
                                     class="nav-item {{ request()->routeIs('gkm.monitoring-perkuliahan.index') ? 'active' : '' }}">
-                                    <i class="bi bi-clipboard-data"></i> Monitoring Perkuliahan
+                                    <span><i class="bi bi-clipboard-data"></i> Monitoring Perkuliahan</span>
                                 </a>
                                 <a href="{{ route('gkm.monitoring-perkuliahan.kirim-pengingat') }}"
-                                    class="nav-item {{ request()->routeIs('gkm.monitoring-perkuliahan.kirim-pengingat') || request()->routeIs('gkm.monitoring-perkuliahan.perwalian') || request()->routeIs('gkm.monitoring-perkuliahan.materi') || request()->routeIs('gkm.monitoring-perkuliahan.soal') ? 'active' : '' }}">
-                                    <i class="bi bi-send"></i> Kirim Pesan Pengingat
+                                    class="nav-item {{ request()->routeIs('gkm.monitoring-perkuliahan.kirim-pengingat') ? 'active' : '' }}">
+                                    <span><i class="bi bi-send"></i> Kirim Pesan Pengingat</span>
                                 </a>
                             </div>
                         </div>
@@ -677,7 +591,7 @@
                             <div class="dropdown-submenu">
                                 <a href="{{ route('gkm.monitoring-kuesioner.index') }}"
                                     class="nav-item {{ request()->routeIs('gkm.monitoring-kuesioner.*') ? 'active' : '' }}">
-                                    <i class="bi bi-clipboard-data"></i> Monitoring Kuesioner
+                                    <span><i class="bi bi-clipboard-data"></i> Monitoring Kuesioner</span>
                                 </a>
                             </div>
                         </div>
@@ -694,30 +608,29 @@
                             <div class="dropdown-submenu">
                                 <a href="{{ route('gkm.laporan-artefak.index') }}"
                                     class="nav-item {{ request()->routeIs('gkm.laporan-artefak.*') ? 'active' : '' }}">
-                                    <i class="bi bi-file-earmark-check"></i> Laporan Bulanan
+                                    <span><i class="bi bi-file-earmark-check"></i> Laporan Bulanan</span>
                                 </a>
                                 <a href="{{ route('gkm.laporan-kuesioner.index') }}"
                                     class="nav-item {{ request()->routeIs('gkm.laporan-kuesioner.*') ? 'active' : '' }}">
-                                    <i class="bi bi-robot"></i> Laporan Kuesioner Bulanan
+                                    <span><i class="bi bi-robot"></i> Laporan Kuesioner Bulanan</span>
                                 </a>
                             </div>
                         </div>
 
                         <a href="{{ route('gkm.reminder-agent.index') }}"
                             class="nav-item {{ request()->routeIs('gkm.reminder-agent.*') ? 'active' : '' }}">
-                            <i class="bi bi-bell"></i> Reminder Agent
+                            <span><i class="bi bi-bell"></i> Reminder Agent</span>
                         </a>
                         <a href="{{ route('gkm.kirim-laporan.index') }}"
                             class="nav-item {{ request()->routeIs('gkm.kirim-laporan.*') ? 'active' : '' }}">
-                            <i class="bi bi-send"></i> Kirim Laporan
+                            <span><i class="bi bi-send"></i> Kirim Laporan</span>
                         </a>
                     @elseif (auth()->user()->isGJM())
                         <a href="{{ route('gjm.dashboard') }}"
                             class="nav-item {{ request()->routeIs('gjm.dashboard') ? 'active' : '' }}">
-                            <i class="bi bi-speedometer2"></i> Dashboard
+                            <span><i class="bi bi-speedometer2"></i> Dashboard</span>
                         </a>
 
-                        
                         <div class="nav-dropdown {{ request()->routeIs('gjm.buat-laporan.*') ? 'open' : '' }}">
                             <a href="javascript:void(0)"
                                 class="nav-item {{ request()->routeIs('gjm.buat-laporan.*') ? 'active' : '' }}"
@@ -728,15 +641,15 @@
                             <div class="dropdown-submenu">
                                 <a href="{{ route('gjm.buat-laporan.triwulan.index') }}"
                                     class="nav-item {{ request()->routeIs('gjm.buat-laporan.triwulan.*') ? 'active' : '' }}">
-                                    <i class="bi bi-calendar3"></i> Buat Laporan Triwulan
+                                    <span><i class="bi bi-calendar3"></i> Buat Laporan Triwulan</span>
                                 </a>
                                 <a href="{{ route('gjm.buat-laporan.semester.index') }}"
                                     class="nav-item {{ request()->routeIs('gjm.buat-laporan.semester.*') ? 'active' : '' }}">
-                                    <i class="bi bi-file-earmark-plus"></i> Buat Laporan Semester
+                                    <span><i class="bi bi-file-earmark-plus"></i> Buat Laporan Semester</span>
                                 </a>
                                 <a href="{{ route('gjm.buat-laporan.vmts.index') }}"
                                     class="nav-item {{ request()->routeIs('gjm.buat-laporan.vmts.*') ? 'active' : '' }}">
-                                    <i class="bi bi-file-earmark-text"></i> Buat Laporan VMTS
+                                    <span><i class="bi bi-file-earmark-text"></i> Buat Laporan VMTS</span>
                                 </a>
                             </div>
                         </div>
@@ -752,24 +665,19 @@
                             <div class="dropdown-submenu">
                                 <a href="{{ route('gjm.buat-ppt.index') }}"
                                     class="nav-item {{ request()->routeIs('gjm.buat-ppt.*') ? 'active' : '' }}">
-                                    <i class="bi bi-file-earmark-plus"></i> Buat PPT
+                                    <span><i class="bi bi-file-earmark-plus"></i> Buat PPT</span>
                                 </a>
                                 <a href="{{ route('gjm.buat-ppt.archive') }}"
                                     class="nav-item {{ request()->routeIs('gjm.buat-ppt.archive') ? 'active' : '' }}">
-                                    <i class="bi bi-archive"></i> Arsip PPT
+                                    <span><i class="bi bi-archive"></i> Arsip PPT</span>
                                 </a>
                             </div>
                         </div>
 
                         <a href="{{ route('gjm.kirim-laporan.index') }}"
                             class="nav-item {{ request()->routeIs('gjm.kirim-laporan.*') ? 'active' : '' }}">
-                            <i class="bi bi-send"></i> Kirim Laporan
+                            <span><i class="bi bi-send"></i> Kirim Laporan</span>
                         </a>
-                        {{--
-                        <a href="{{ route('gjm.model-evaluation.index') }}"
-                            class="nav-item {{ request()->routeIs('gjm.model-evaluation.*') ? 'active' : '' }}">
-                            <i class="bi bi-robot"></i> Evaluasi AI Assistant
-                        </a> --}}
                     @endif
                 </div>
             </div>
@@ -786,17 +694,13 @@
                     </div>
                     <div class="topbar-right">
                         <div class="topbar-user" onclick="toggleTopbarDropdown(this)">
-                            {{-- <img src="https://ui-avatars.com/api/?name={{ urlencode(auth()->user()->name) }}&background=1e3c72&color=fff"
-                                alt="User"> --}} <div class="avatar-icon topbar-avatar">
+                            <div class="topbar-avatar">
                                 <i class="bi bi-person-circle"></i>
                             </div>
                             <div class="user-name-wrapper">
-                                <div>
-                                    <small class="text-muted">{{ auth()->user()->name }}</small>
-                                </div>
+                                <small>{{ auth()->user()->name }}</small>
                                 <i class="bi bi-chevron-down dropdown-chevron-top"></i>
                             </div>
-
                             <div class="topbar-dropdown-menu">
                                 <form action="{{ route('logout') }}" method="POST" style="margin: 0;">
                                     @csrf
@@ -812,9 +716,9 @@
 
                 <div class="content">
                     @if ($errors->any())
-                        <div class="alert alert-danger alert-dismissible fade show m-3" role="alert">
+                        <div class="alert alert-danger alert-dismissible fade show" role="alert">
                             <strong>Error!</strong>
-                            <ul class="mb-0">
+                            <ul class="mb-0 mt-1">
                                 @foreach ($errors->all() as $error)
                                     <li>{{ $error }}</li>
                                 @endforeach
@@ -822,13 +726,6 @@
                             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                         </div>
                     @endif
-
-                    {{-- @if (session('success'))
-                        <div class="alert alert-success alert-dismissible fade show m-3" role="alert">
-                            {{ session('success') }}
-                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                        </div>
-                    @endif --}}
 
                     @yield('content')
                 </div>
@@ -850,31 +747,11 @@
             dropdown.classList.toggle('open');
         }
 
-        function toggleUserDropdown(element) {
-            // Close if clicking outside
-            const wasOpen = element.classList.contains('open');
-
-            // Close all user dropdowns
-            document.querySelectorAll('.user-info.open').forEach(el => {
-                el.classList.remove('open');
-            });
-
-            // Toggle current
-            if (!wasOpen) {
-                element.classList.add('open');
-            }
-        }
-
         function toggleTopbarDropdown(element) {
-            // Close if clicking outside
             const wasOpen = element.classList.contains('open');
-
-            // Close all topbar dropdowns
             document.querySelectorAll('.topbar-user.open').forEach(el => {
                 el.classList.remove('open');
             });
-
-            // Toggle current
             if (!wasOpen) {
                 element.classList.add('open');
             }
@@ -892,13 +769,7 @@
             wrapper.classList.remove('sidebar-open');
         }
 
-        // Close dropdown when clicking outside
         document.addEventListener('click', function(event) {
-            const userInfo = document.querySelector('.user-info');
-            if (userInfo && !userInfo.contains(event.target)) {
-                userInfo.classList.remove('open');
-            }
-
             const topbarUser = document.querySelector('.topbar-user');
             if (topbarUser && !topbarUser.contains(event.target)) {
                 topbarUser.classList.remove('open');
@@ -913,26 +784,18 @@
             }
         });
 
-        // Auto-open dropdown if submenu is active on page load
-        document.addEventListener('DOMContentLoaded', function() {
-            const activeDropdown = document.querySelector('.nav-dropdown.open');
-            if (activeDropdown) {
-                // Already opened by server-side check
-            }
-
-            document.querySelectorAll('.sidebar .nav-item').forEach(item => {
-                item.addEventListener('click', function() {
-                    if (window.innerWidth <= 768) {
-                        closeSidebar();
-                    }
-                });
-            });
-
-            window.addEventListener('resize', function() {
-                if (window.innerWidth > 768) {
+        document.querySelectorAll('.sidebar .nav-item').forEach(item => {
+            item.addEventListener('click', function() {
+                if (window.innerWidth <= 768) {
                     closeSidebar();
                 }
             });
+        });
+
+        window.addEventListener('resize', function() {
+            if (window.innerWidth > 768) {
+                closeSidebar();
+            }
         });
     </script>
     @yield('scripts')

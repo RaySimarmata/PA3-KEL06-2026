@@ -694,9 +694,13 @@ public function exportPdf(Request $request)
 
             $allDosen = $filtered->map(function($snapshot) {
                 return [
+                    'id' => $snapshot->pegawai_id,
                     'pegawai_id' => $snapshot->pegawai_id,
+                    'nama' => $snapshot->dosen->nama ?? '-',
                     'nama_lengkap' => $snapshot->dosen->nama ?? '-',
+                    'email' => $snapshot->dosen->email ?? '-',
                     'kontak_email' => $snapshot->dosen->email ?? '-',
+                    'matkul' => $snapshot->nama_matkul,
                     'nama_matkul' => $snapshot->nama_matkul,
                     'kode_mk' => $snapshot->kode_mk,
                     'semester' => $snapshot->semester,
@@ -731,6 +735,21 @@ public function exportPdf(Request $request)
                 'query' => $request->query(),
             ]
         );
+
+        // 🔥 Jika AJAX request, return JSON
+        if ($request->ajax() || $request->wantsJson()) {
+            return response()->json([
+                'dosenList' => [
+                    'data' => $dosenMateri->items(),
+                    'current_page' => $dosenMateri->currentPage(),
+                    'per_page' => $dosenMateri->perPage(),
+                    'total' => $dosenMateri->total(),
+                    'last_page' => $dosenMateri->lastPage(),
+                    'from' => $dosenMateri->firstItem(),
+                    'to' => $dosenMateri->lastItem(),
+                ]
+            ]);
+        }
 
         return view('gkm.monitoring-perkuliahan.materi', [
             'user' => $user,

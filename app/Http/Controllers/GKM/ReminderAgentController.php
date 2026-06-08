@@ -10,6 +10,7 @@ use App\Helpers\EmailHelper;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Http\Request;
+use Carbon\Carbon;
 
 class ReminderAgentController extends Controller
 {
@@ -68,8 +69,24 @@ class ReminderAgentController extends Controller
             'nama_jadwal' => 'required|string|max:255',
             'tipe_reminder' => 'required|in:Upload Materi,Review Soal,RPS',
             'jam_pengiriman' => 'required|date_format:H:i',
-            'tanggal_kirim' => 'required|date',
+            'tanggal_kirim' => 'required|date|after_or_equal:today',
+        ], [
+            'tanggal_kirim.after_or_equal' => 'Tanggal kirim tidak boleh sebelum hari ini.',
         ]);
+
+        // Validasi tambahan: jika tanggal hari ini, jam tidak boleh sebelum jam sekarang
+        $tanggalKirim = Carbon::parse($validated['tanggal_kirim']);
+        $jamPengiriman = $validated['jam_pengiriman'];
+        $now = Carbon::now();
+        
+        if ($tanggalKirim->isToday()) {
+            $waktuKirim = Carbon::createFromFormat('H:i', $jamPengiriman);
+            $jamSekarang = Carbon::createFromFormat('H:i', $now->format('H:i'));
+            
+            if ($waktuKirim->lessThanOrEqualTo($jamSekarang)) {
+                return back()->withErrors(['jam_pengiriman' => 'Untuk hari ini, jam pengiriman harus setelah jam sekarang (' . $now->format('H:i') . ').'])->withInput();
+            }
+        }
 
         $user = Auth::user();
 
@@ -111,9 +128,25 @@ class ReminderAgentController extends Controller
             'nama_jadwal' => 'required|string|max:255',
             'tipe_reminder' => 'required|in:Upload Materi,Review Soal,RPS',
             'jam_pengiriman' => 'required|date_format:H:i',
-            'tanggal_kirim' => 'required|date',
+            'tanggal_kirim' => 'required|date|after_or_equal:today',
             'is_active' => 'boolean',
+        ], [
+            'tanggal_kirim.after_or_equal' => 'Tanggal kirim tidak boleh sebelum hari ini.',
         ]);
+
+        // Validasi tambahan: jika tanggal hari ini, jam tidak boleh sebelum jam sekarang
+        $tanggalKirim = Carbon::parse($validated['tanggal_kirim']);
+        $jamPengiriman = $validated['jam_pengiriman'];
+        $now = Carbon::now();
+        
+        if ($tanggalKirim->isToday()) {
+            $waktuKirim = Carbon::createFromFormat('H:i', $jamPengiriman);
+            $jamSekarang = Carbon::createFromFormat('H:i', $now->format('H:i'));
+            
+            if ($waktuKirim->lessThanOrEqualTo($jamSekarang)) {
+                return back()->withErrors(['jam_pengiriman' => 'Untuk hari ini, jam pengiriman harus setelah jam sekarang (' . $now->format('H:i') . ').'])->withInput();
+            }
+        }
 
         $user = Auth::user();
         

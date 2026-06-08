@@ -1,5 +1,11 @@
 /* GKM Global Styles */
 
+/* CSS Variables */
+:root {
+    --primary-color: #1e3c72;
+    --secondary-color: #2a5298;
+}
+
 /* Body & Background */
 body {
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;

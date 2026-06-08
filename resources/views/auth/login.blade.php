@@ -18,7 +18,7 @@
         }
 
         body {
-            background-color: #f5f5f5;
+            background: linear-gradient(135deg, #e8f0f8 0%, #d4e4f0 100%);
             min-height: 100vh;
             display: flex;
             align-items: center;
@@ -34,15 +34,19 @@
 
         .login-box {
             background: white;
-            border: 1px solid #e0e0e0;
-            border-radius: 4px;
-            padding: 35px 40px;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+            border-radius: 20px;
+            padding: 40px 45px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            transition: transform 0.3s ease;
+        }
+
+        .login-box:hover {
+            transform: translateY(-2px);
         }
 
         .login-header {
             text-align: center;
-            margin-bottom: 25px;
+            margin-bottom: 30px;
         }
 
         .logo-container {
@@ -50,7 +54,7 @@
         }
 
         .logo {
-            max-width: 90px;
+            max-width: 100px;
             height: auto;
             display: inline-block;
         }
@@ -59,15 +63,15 @@
             color: #2E7BA8;
             font-size: 14px;
             font-weight: 600;
-            margin-top: 6px;
-            letter-spacing: 0.3px;
+            margin-top: 8px;
+            letter-spacing: 0.5px;
         }
 
         .system-title {
             color: #5A5A5A;
             font-size: 18px;
             font-weight: 600;
-            margin-top: 10px;
+            margin-top: 15px;
             margin-bottom: 4px;
         }
 
@@ -79,7 +83,7 @@
         }
 
         .form-group {
-            margin-bottom: 15px;
+            margin-bottom: 20px;
         }
 
         .form-label {
@@ -157,7 +161,6 @@
             display: block;
         }
 
-        /* Toggle icon formal dengan Bootstrap Icons */
         .password-toggle {
             position: absolute;
             right: 10px;
@@ -193,8 +196,8 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 20px;
-            font-size: 13px;
+            margin-bottom: 0;
+            margin-top: 25px;
         }
 
         .remember-me {
@@ -257,23 +260,6 @@
 
         .alert li {
             margin: 3px 0;
-        }
-
-        .register-link {
-            text-align: center;
-            margin-top: 15px;
-            font-size: 13px;
-            color: #666;
-        }
-
-        .register-link a {
-            color: #0066cc;
-            text-decoration: none;
-            font-weight: 500;
-        }
-
-        .register-link a:hover {
-            text-decoration: underline;
         }
 
         @media (max-width: 480px) {
@@ -343,7 +329,7 @@
                             id="password" name="password" required placeholder="">
                         <button type="button" class="password-toggle" id="togglePassword"
                             aria-label="Tampilkan password">
-                            <i class="bi bi-eye"></i>
+                            <i class="bi bi-eye-slash"></i>
                         </button>
                     </div>
                     @error('password')
@@ -380,7 +366,7 @@
                 }
             }
 
-            // Toggle password visibility - LOGIKA DIPERBAIKI
+            // Toggle password visibility - MULAI DENGAN ICON TERTUTUP (bi-eye-slash)
             if (toggleBtn) {
                 toggleBtn.addEventListener('click', function() {
                     const isPassword = passwordInput.getAttribute('type') === 'password';

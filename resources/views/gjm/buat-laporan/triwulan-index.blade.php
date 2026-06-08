@@ -12,25 +12,31 @@
                         <label class="filter-label">Periode</label>
                         <select name="periode" class="form-select">
                             <option value="">Semua Periode</option>
-                            <option value="1" {{ request('periode') == '1' ? 'selected' : '' }}>Triwulan I (Januari - Maret)</option>
-                            <option value="2" {{ request('periode') == '2' ? 'selected' : '' }}>Triwulan II (April - Juni)</option>
-                            <option value="3" {{ request('periode') == '3' ? 'selected' : '' }}>Triwulan III (Juli - September)</option>
-                            <option value="4" {{ request('periode') == '4' ? 'selected' : '' }}>Triwulan IV (Oktober - Desember)</option>
+                            <option value="1" {{ request('periode') == '1' ? 'selected' : '' }}>Triwulan I (Januari -
+                                Maret)</option>
+                            <option value="2" {{ request('periode') == '2' ? 'selected' : '' }}>Triwulan II (April -
+                                Juni)</option>
+                            <option value="3" {{ request('periode') == '3' ? 'selected' : '' }}>Triwulan III (Juli -
+                                September)</option>
+                            <option value="4" {{ request('periode') == '4' ? 'selected' : '' }}>Triwulan IV (Oktober -
+                                Desember)</option>
                         </select>
                     </div>
                     <div class="col-md-4">
                         <label class="filter-label">Status</label>
                         <select name="status" class="form-select">
                             <option value="">Semua Status</option>
-                            <option value="processing" {{ request('status') == 'processing' ? 'selected' : '' }}>Sedang Diproses</option>
-                            <option value="completed" {{ request('status') == 'completed' ? 'selected' : '' }}>Selesai</option>
+                            <option value="processing" {{ request('status') == 'processing' ? 'selected' : '' }}>Sedang
+                                Diproses</option>
+                            <option value="completed" {{ request('status') == 'completed' ? 'selected' : '' }}>Selesai
+                            </option>
                             <option value="error" {{ request('status') == 'error' ? 'selected' : '' }}>Error</option>
                         </select>
                     </div>
                     <div class="col-md-4">
-                    <button type="submit" class="btn btn-primary w-100" style="padding: 0.6rem;">
-                        <i class="bi bi-search"></i> Cari
-                    </button>
+                        <button type="submit" class="btn btn-primary w-100" style="padding: 0.6rem;">
+                            <i class="bi bi-search"></i> Cari
+                        </button>
                     </div>
                 </div>
             </form>
@@ -39,11 +45,11 @@
         <!-- Monitoring Table -->
         <div class="monitoring-card">
             <div class="monitoring-header">
-                <i class="bi bi-file-earmark-text" style="color: #5B9BD5;"></i>
                 <h6>Laporan Triwulan</h6>
                 <div style="margin-left: auto; display: flex; gap: 0.5rem;">
-                    <a href="{{ route('gjm.template-laporan.triwulan.index') }}" class="btn btn-sm btn-outline-primary">
-                        <i class="bi bi-file-earmark-text"></i> Kelola Template
+                    <a href="{{ route('gjm.template-laporan.triwulan.index') }}" class="btn btn-sm"
+                        style="background-color: #28a745; border-color: #28a745; color: white;">
+                        <i class="bi bi-file-earmark-text" style="color: white;"></i> Kelola Template
                     </a>
                     <a href="{{ route('gjm.buat-laporan.triwulan.create') }}" class="btn-reminder">
                         <i class="bi bi-plus-circle"></i>
@@ -75,7 +81,8 @@
                                     {{ $laporan->template->nama_template ?? 'Default' }}
                                 </td>
                                 <td class="text-center">
-                                    <span class="badge-gkm {{ $laporan->status_badge == 'success' ? 'success' : ($laporan->status_badge == 'warning' ? 'warning' : ($laporan->status_badge == 'danger' ? 'danger' : 'info')) }}">
+                                    <span
+                                        class="badge-gkm {{ $laporan->status_badge == 'success' ? 'success' : ($laporan->status_badge == 'warning' ? 'warning' : ($laporan->status_badge == 'danger' ? 'danger' : 'info')) }}">
                                         {{ $laporan->status_label }}
                                     </span>
                                 </td>
@@ -84,23 +91,21 @@
                                 </td>
                                 <td class="text-center">
                                     <div class="btn-group" role="group">
-                                        <a href="{{ route('gjm.buat-laporan.triwulan.show', $laporan->id) }}" 
-                                           class="btn btn-sm btn-outline-primary"
-                                           title="Lihat Detail">
+                                        <a href="{{ route('gjm.buat-laporan.triwulan.show', $laporan->id) }}"
+                                            class="btn btn-sm btn-outline-primary" title="Lihat Detail">
                                             <i class="bi bi-eye"></i>
                                         </a>
-                                        
-                                        @if($laporan->status == 'completed' && $laporan->file_word)
-                                            <a href="{{ route('gjm.buat-laporan.triwulan.download', [$laporan->id, 'word']) }}" 
-                                               class="btn btn-sm btn-outline-success"
-                                               title="Download Word">
+
+                                        @if ($laporan->status == 'completed' && $laporan->file_word)
+                                            <a href="{{ route('gjm.buat-laporan.triwulan.download', [$laporan->id, 'word']) }}"
+                                                class="btn btn-sm btn-outline-success" title="Download Word">
                                                 <i class="bi bi-download"></i>
                                             </a>
                                         @endif
-                                        
-                                        <form action="{{ route('gjm.buat-laporan.triwulan.destroy', $laporan->id) }}" 
-                                              method="POST" class="d-inline"
-                                              onsubmit="return confirm('Yakin ingin menghapus laporan ini?')">
+
+                                        <form action="{{ route('gjm.buat-laporan.triwulan.destroy', $laporan->id) }}"
+                                            method="POST" class="d-inline"
+                                            onsubmit="return confirm('Yakin ingin menghapus laporan ini?')">
                                             @csrf
                                             @method('DELETE')
                                             <button type="submit" class="btn btn-sm btn-outline-danger" title="Hapus">
@@ -115,7 +120,8 @@
                                 <td colspan="6" class="text-center py-5">
                                     <div class="empty-state">
                                         <i class="bi bi-inbox"></i>
-                                        <p>Belum ada laporan. <a href="{{ route('gjm.buat-laporan.triwulan.create') }}" style="color: #5B9BD5; font-weight: 600;">Generate laporan baru</a></p>
+                                        <p>Belum ada laporan. <a href="{{ route('gjm.buat-laporan.triwulan.create') }}"
+                                                style="color: #5B9BD5; font-weight: 600;">Generate laporan baru</a></p>
                                     </div>
                                 </td>
                             </tr>
@@ -126,7 +132,7 @@
         </div>
 
         <!-- Pagination -->
-        @if($laporanList->hasPages())
+        @if ($laporanList->hasPages())
             <div class="mt-4 d-flex justify-content-center">
                 {{ $laporanList->links() }}
             </div>

@@ -12,8 +12,9 @@
                         <label class="filter-label">Tahun Akademik</label>
                         <select name="tahun_akademik" class="form-select">
                             <option value="">Semua Tahun</option>
-                            @foreach($tahunAkademikList as $tahun)
-                                <option value="{{ $tahun }}" {{ request('tahun_akademik') == $tahun ? 'selected' : '' }}>{{ $tahun }}</option>
+                            @foreach ($tahunAkademikList as $tahun)
+                                <option value="{{ $tahun }}"
+                                    {{ request('tahun_akademik') == $tahun ? 'selected' : '' }}>{{ $tahun }}</option>
                             @endforeach
                         </select>
                     </div>
@@ -21,8 +22,10 @@
                         <label class="filter-label">Status</label>
                         <select name="status" class="form-select">
                             <option value="">Semua Status</option>
-                            <option value="processing" {{ request('status') == 'processing' ? 'selected' : '' }}>Sedang Diproses</option>
-                            <option value="completed" {{ request('status') == 'completed' ? 'selected' : '' }}>Selesai</option>
+                            <option value="processing" {{ request('status') == 'processing' ? 'selected' : '' }}>Sedang
+                                Diproses</option>
+                            <option value="completed" {{ request('status') == 'completed' ? 'selected' : '' }}>Selesai
+                            </option>
                             <option value="error" {{ request('status') == 'error' ? 'selected' : '' }}>Error</option>
                         </select>
                     </div>
@@ -38,7 +41,6 @@
         <!-- Monitoring Table -->
         <div class="monitoring-card">
             <div class="monitoring-header">
-                <i class="bi bi-file-earmark-text" style="color: #5B9BD5;"></i>
                 <h6>Laporan VMTS</h6>
                 <div style="margin-left: auto; display: flex; gap: 0.5rem;">
                     <a href="{{ route('gjm.buat-laporan.vmts.create') }}" class="btn-reminder">
@@ -65,7 +67,8 @@
                                 <td class="code-mk">{{ $laporan->periode_VMTS }}</td>
                                 <td class="text-secondary">{{ $laporan->judul_laporan }}</td>
                                 <td class="text-center">
-                                    <span class="badge-gkm {{ $laporan->status_badge == 'success' ? 'success' : ($laporan->status_badge == 'warning' ? 'warning' : ($laporan->status_badge == 'danger' ? 'danger' : 'info')) }}">
+                                    <span
+                                        class="badge-gkm {{ $laporan->status_badge == 'success' ? 'success' : ($laporan->status_badge == 'warning' ? 'warning' : ($laporan->status_badge == 'danger' ? 'danger' : 'info')) }}">
                                         {{ $laporan->status_label }}
                                     </span>
                                 </td>
@@ -74,23 +77,21 @@
                                 </td>
                                 <td class="text-center">
                                     <div class="btn-group" role="group">
-                                        <a href="{{ route('gjm.buat-laporan.vmts.show', $laporan->id) }}" 
-                                           class="btn btn-sm btn-outline-primary"
-                                           title="Lihat Detail">
+                                        <a href="{{ route('gjm.buat-laporan.vmts.show', $laporan->id) }}"
+                                            class="btn btn-sm btn-outline-primary" title="Lihat Detail">
                                             <i class="bi bi-eye"></i>
                                         </a>
-                                        
-                                        @if($laporan->status == 'completed' && $laporan->file_word)
-                                            <a href="{{ route('gjm.buat-laporan.vmts.download', [$laporan->id, 'word']) }}" 
-                                               class="btn btn-sm btn-outline-success"
-                                               title="Download Word">
+
+                                        @if ($laporan->status == 'completed' && $laporan->file_word)
+                                            <a href="{{ route('gjm.buat-laporan.vmts.download', [$laporan->id, 'word']) }}"
+                                                class="btn btn-sm btn-outline-success" title="Download Word">
                                                 <i class="bi bi-download"></i>
                                             </a>
                                         @endif
-                                        
-                                        <form action="{{ route('gjm.buat-laporan.vmts.destroy', $laporan->id) }}" 
-                                              method="POST" class="d-inline"
-                                              onsubmit="return confirm('Yakin ingin menghapus laporan ini?')">
+
+                                        <form action="{{ route('gjm.buat-laporan.vmts.destroy', $laporan->id) }}"
+                                            method="POST" class="d-inline"
+                                            onsubmit="return confirm('Yakin ingin menghapus laporan ini?')">
                                             @csrf
                                             @method('DELETE')
                                             <button type="submit" class="btn btn-sm btn-outline-danger" title="Hapus">
@@ -105,7 +106,8 @@
                                 <td colspan="5" class="text-center py-5">
                                     <div class="empty-state">
                                         <i class="bi bi-inbox"></i>
-                                        <p>Belum ada laporan. <a href="{{ route('gjm.buat-laporan.vmts.create') }}" style="color: #5B9BD5; font-weight: 600;">Generate laporan baru</a></p>
+                                        <p>Belum ada laporan. <a href="{{ route('gjm.buat-laporan.vmts.create') }}"
+                                                style="color: #5B9BD5; font-weight: 600;">Generate laporan baru</a></p>
                                     </div>
                                 </td>
                             </tr>
@@ -116,7 +118,7 @@
         </div>
 
         <!-- Pagination -->
-        @if($laporanList->hasPages())
+        @if ($laporanList->hasPages())
             <div class="mt-4 d-flex justify-content-center">
                 {{ $laporanList->links() }}
             </div>
