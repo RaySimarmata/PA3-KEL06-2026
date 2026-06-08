@@ -1,5 +1,3 @@
-
-
 @extends('layouts.app')
 
 @section('page-title', 'Monitoring Perkuliahan')
@@ -99,7 +97,7 @@
             ]) }}'">
             <i class="bi bi-file-earmark-pdf"></i> Download PDF
         </button>
-        <a href="#" class="btn btn-sm d-inline-flex align-items-center gap-1"
+        <a href="{{ route('gkm.monitoring-perkuliahan.kirim-pengingat') }}" class="btn btn-sm d-inline-flex align-items-center gap-1"
             id="reminderTeoriBtn"
             style="padding: 0.4rem 0.8rem; font-size: 0.8rem;
                 background: linear-gradient(135deg, #5B9BD5 0%, #4a8bc2 100%);

@@ -5,9 +5,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login - Sistem GJM dan GKM</title>
+    <link rel="icon" href="{{ asset('images/logo-itdel.jpg') }}" type="image/jpeg">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Source+Sans+Pro:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Source+Sans+Pro:wght@300;400;600;700&display=swap"
+        rel="stylesheet">
     <style>
         * {
             margin: 0;
@@ -16,7 +18,7 @@
         }
 
         body {
-            background-color: #f5f5f5;
+            background: linear-gradient(135deg, #e8f0f8 0%, #d4e4f0 100%);
             min-height: 100vh;
             display: flex;
             align-items: center;
@@ -32,15 +34,19 @@
 
         .login-box {
             background: white;
-            border: 1px solid #e0e0e0;
-            border-radius: 4px;
-            padding: 35px 40px;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+            border-radius: 20px;
+            padding: 40px 45px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            transition: transform 0.3s ease;
+        }
+
+        .login-box:hover {
+            transform: translateY(-2px);
         }
 
         .login-header {
             text-align: center;
-            margin-bottom: 25px;
+            margin-bottom: 30px;
         }
 
         .logo-container {
@@ -48,7 +54,7 @@
         }
 
         .logo {
-            max-width: 90px;
+            max-width: 100px;
             height: auto;
             display: inline-block;
         }
@@ -57,15 +63,15 @@
             color: #2E7BA8;
             font-size: 14px;
             font-weight: 600;
-            margin-top: 6px;
-            letter-spacing: 0.3px;
+            margin-top: 8px;
+            letter-spacing: 0.5px;
         }
 
         .system-title {
             color: #5A5A5A;
             font-size: 18px;
             font-weight: 600;
-            margin-top: 10px;
+            margin-top: 15px;
             margin-bottom: 4px;
         }
 
@@ -77,7 +83,7 @@
         }
 
         .form-group {
-            margin-bottom: 15px;
+            margin-bottom: 20px;
         }
 
         .form-label {
@@ -155,7 +161,6 @@
             display: block;
         }
 
-        /* Toggle icon formal dengan Bootstrap Icons */
         .password-toggle {
             position: absolute;
             right: 10px;
@@ -191,8 +196,8 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 20px;
-            font-size: 13px;
+            margin-bottom: 0;
+            margin-top: 25px;
         }
 
         .remember-me {
@@ -257,23 +262,6 @@
             margin: 3px 0;
         }
 
-        .register-link {
-            text-align: center;
-            margin-top: 15px;
-            font-size: 13px;
-            color: #666;
-        }
-
-        .register-link a {
-            color: #0066cc;
-            text-decoration: none;
-            font-weight: 500;
-        }
-
-        .register-link a:hover {
-            text-decoration: underline;
-        }
-
         @media (max-width: 480px) {
             .login-box {
                 padding: 30px 20px;
@@ -286,12 +274,12 @@
             .system-subtitle {
                 font-size: 12px;
             }
-            
+
             .password-toggle {
                 font-size: 16px;
                 right: 8px;
             }
-            
+
             .password-wrapper .form-control {
                 padding-right: 34px;
             }
@@ -304,8 +292,7 @@
         <div class="login-box">
             <div class="login-header">
                 <div class="logo-container">
-                    <img src="{{ asset('images/logo-itdel.jpg') }}" 
-                         alt="Institut Teknologi Del" class="logo">
+                    <img src="{{ asset('images/logo-itdel.jpg') }}" alt="Institut Teknologi Del" class="logo">
                     <div class="institute-name">Institut Teknologi Del</div>
                 </div>
                 <div class="system-title">Sistem GJM dan GKM</div>
@@ -325,17 +312,11 @@
 
             <form method="POST" action="{{ route('login.store') }}">
                 @csrf
-                
+
                 <div class="form-group @error('email') has-error @enderror">
                     <label for="email" class="form-label">Email</label>
-                    <input type="email" 
-                           class="form-control @error('email') is-invalid @enderror" 
-                           id="email"
-                           name="email" 
-                           value="{{ old('email') }}" 
-                           required 
-                           autofocus
-                           placeholder="">
+                    <input type="email" class="form-control @error('email') is-invalid @enderror" id="email"
+                        name="email" value="{{ old('email') }}" required autofocus placeholder="">
                     @error('email')
                         <span class="error-message">{{ $message }}</span>
                     @enderror
@@ -344,14 +325,11 @@
                 <div class="form-group @error('password') has-error @enderror" id="password-group">
                     <label for="password" class="form-label">Password</label>
                     <div class="password-wrapper">
-                        <input type="password" 
-                               class="form-control @error('password') is-invalid @enderror" 
-                               id="password"
-                               name="password" 
-                               required
-                               placeholder="">
-                        <button type="button" class="password-toggle" id="togglePassword" aria-label="Tampilkan password">
-                            <i class="bi bi-eye"></i>
+                        <input type="password" class="form-control @error('password') is-invalid @enderror"
+                            id="password" name="password" required placeholder="">
+                        <button type="button" class="password-toggle" id="togglePassword"
+                            aria-label="Tampilkan password">
+                            <i class="bi bi-eye-slash"></i>
                         </button>
                     </div>
                     @error('password')
@@ -379,7 +357,7 @@
             const passwordGroup = document.getElementById('password-group');
             const toggleBtn = document.getElementById('togglePassword');
             const eyeIcon = toggleBtn.querySelector('i');
-            
+
             function updateFieldState(input, group) {
                 if (input.value.trim() !== '') {
                     group.classList.add('has-success');
@@ -388,20 +366,22 @@
                 }
             }
 
-            // Toggle password visibility dengan ikon formal
+            // Toggle password visibility - MULAI DENGAN ICON TERTUTUP (bi-eye-slash)
             if (toggleBtn) {
                 toggleBtn.addEventListener('click', function() {
-                    const type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
-                    passwordInput.setAttribute('type', type);
-                    
-                    // Ganti kelas ikon Bootstrap Icons
-                    if (type === 'text') {
-                        eyeIcon.classList.remove('bi-eye');
-                        eyeIcon.classList.add('bi-eye-slash');
-                        toggleBtn.setAttribute('aria-label', 'Sembunyikan password');
-                    } else {
+                    const isPassword = passwordInput.getAttribute('type') === 'password';
+
+                    if (isPassword) {
+                        // Password tersembunyi -> ingin dilihat
+                        passwordInput.setAttribute('type', 'text');
                         eyeIcon.classList.remove('bi-eye-slash');
                         eyeIcon.classList.add('bi-eye');
+                        toggleBtn.setAttribute('aria-label', 'Sembunyikan password');
+                    } else {
+                        // Password terlihat -> ingin disembunyikan
+                        passwordInput.setAttribute('type', 'password');
+                        eyeIcon.classList.remove('bi-eye');
+                        eyeIcon.classList.add('bi-eye-slash');
                         toggleBtn.setAttribute('aria-label', 'Tampilkan password');
                     }
                 });

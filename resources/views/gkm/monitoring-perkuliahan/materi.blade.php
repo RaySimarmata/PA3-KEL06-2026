@@ -1,3 +1,4 @@
+ini masukkan ke materi.blade.php
 <!DOCTYPE html>
 <html lang="en">
 

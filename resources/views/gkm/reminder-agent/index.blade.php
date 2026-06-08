@@ -47,7 +47,7 @@
     <!-- Jadwal Reminder Table -->
     <div class="monitoring-card">
         <div class="monitoring-header">
-            <i class="bi bi-calendar-event"></i>
+            {{-- <i class="bi bi-calendar-event"></i> --}}
             <h6>Daftar Jadwal Reminder</h6>
             <div style="margin-left: auto;">
                 <a href="{{ route('gkm.reminder-agent.jadwal') }}" class="btn-reminder">

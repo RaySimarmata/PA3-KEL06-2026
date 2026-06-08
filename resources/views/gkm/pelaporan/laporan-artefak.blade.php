@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('page-title', 'Laporan Hasil Artefak Perkuliahan RPS dan Materi')
+@section('page-title', 'Laporan Bulanan')
 
 @section('content')
     <div style="padding: 1.5rem;">

@@ -57,8 +57,8 @@
                     <button type="button" class="btn btn-sm btn-primary" onclick="selectAll()">
                          Pilih Semua
                     </button>
-                    <!-- Tombol Batal Pilih: abu solid (btn-secondary) -->
-                    <button type="button" class="btn btn-sm btn-secondary" onclick="deselectAll()">
+                    <!-- Tombol Batal Pilih: merah solid (btn-danger) -->
+                    <button type="button" class="btn btn-sm btn-danger" onclick="deselectAll()">
                         Batal Pilih
                     </button>
                 </div>

@@ -21,13 +21,13 @@
 
         .ai-chat-wrapper {
             background: linear-gradient(135deg, #f8fbff 0%, #eef4fd 100%);
-            border: 1.5px solid #c9ddf5;
+            border: 1.5px solid #1e3c72;
             border-radius: 16px;
             overflow: hidden;
         }
 
         .ai-chat-header {
-            background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+            background: linear-gradient(135deg, #1e3c72 0%, #1e3c72 100%);
             color: #fff;
             padding: 1rem 1.25rem;
             display: flex;
@@ -88,7 +88,7 @@
         }
 
         .msg-user .bubble {
-            background: #2563eb;
+            background: #1e3c72;
             color: #fff;
             border-radius: 18px 18px 4px 18px;
             padding: 0.75rem 1rem;
@@ -169,7 +169,7 @@
             width: 30px;
             height: 30px;
             flex-shrink: 0;
-            background: linear-gradient(135deg, #2563eb, #7c3aed);
+            background: linear-gradient(135deg, #1e3c72, #1e3c72);
             color: #fff;
             border-radius: 50%;
             display: flex;
@@ -215,7 +215,7 @@
         }
 
         .msg-ai .bubble strong {
-            color: #1d4ed8;
+            color: #1e3c72;
         }
 
         .msg-ai .bubble hr {
@@ -270,7 +270,7 @@
         }
 
         .ai-textarea {
-            border: 1.5px solid #d1dff5;
+            border: 1.5px solid #1e3c72;
             border-radius: 12px;
             padding: 0.75rem 3.5rem 0.75rem 1rem;
             font-size: 0.875rem;
@@ -308,8 +308,8 @@
         }
 
         .ai-textarea:focus {
-            border-color: #2563eb;
-            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+            border-color: #1e3c72;
+            box-shadow: 0 0 0 3px rgba(30, 60, 114, 0.12);
             outline: none;
         }
 
@@ -318,12 +318,12 @@
         }
 
         .ai-input-area>div:first-child:focus-within {
-            border-color: #2563eb;
-            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+            border-color: #1e3c72;
+            box-shadow: 0 0 0 3px rgba(30, 60, 114, 0.12);
         }
 
         .file-upload-zone {
-            border: 1.5px dashed #c9d9f5;
+            border: 1.5px dashed #1e3c72;
             border-radius: 10px;
             padding: 0.75rem 1.25rem;
             cursor: pointer;
@@ -336,9 +336,9 @@
         }
 
         .file-upload-zone:hover {
-            border-color: #2563eb;
+            border-color: #1e3c72;
             background: #eff6ff;
-            color: #2563eb;
+            color: #1e3c72;
         }
 
         .file-upload-zone.has-file {
@@ -414,7 +414,7 @@
             position: absolute;
             bottom: 8px;
             right: 8px;
-            background: linear-gradient(135deg, #60a5fa 0%, #3b82f6 100%);
+            background: linear-gradient(135deg, #1e3c72 0%, #1e3c72 100%);
             color: #fff;
             border: none;
             border-radius: 50%;
@@ -425,21 +425,21 @@
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
+            box-shadow: 0 2px 8px rgba(30, 60, 114, 0.3);
             flex-shrink: 0;
         }
 
         .btn-ask-ai:hover {
             transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
-            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            box-shadow: 0 4px 12px rgba(30, 60, 114, 0.4);
+            background: linear-gradient(135deg, #1e3c72 0%, #1e3c72 100%);
         }
 
         .btn-ask-ai:disabled {
             opacity: 0.6;
             cursor: not-allowed;
             transform: none;
-            box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
+            box-shadow: 0 2px 8px rgba(30, 60, 114, 0.3);
         }
 
         .btn-ask-ai .arrow-icon {
@@ -449,7 +449,7 @@
         }
 
         .btn-ask-ai-inline {
-            background: linear-gradient(135deg, #60a5fa 0%, #3b82f6 100%);
+            background: linear-gradient(135deg, #1e3c72 0%, #1e3c72 100%);
             color: #fff;
             border: none;
             border-radius: 50%;
@@ -466,7 +466,7 @@
 
         .btn-ask-ai-inline:hover {
             transform: scale(1.05);
-            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            background: linear-gradient(135deg, #1e3c72 0%, #1e3c72 100%);
         }
 
         .btn-ask-ai-inline:disabled {
@@ -505,8 +505,8 @@
 
         .btn-attachment.has-files {
             background: #dbeafe;
-            border-color: #3b82f6;
-            color: #2563eb;
+            border-color: #1e3c72;
+            color: #1e3c72;
         }
 
         .btn-attachment i {
@@ -536,7 +536,7 @@
 
         .btn-attachment-inline.has-files {
             background: #dbeafe;
-            color: #2563eb;
+            color: #1e3c72;
         }
 
         .btn-attachment-inline i {
@@ -576,7 +576,7 @@
             padding: 0.6rem 1rem;
             font-size: 0.85rem;
             font-weight: 700;
-            color: #1e40af;
+            color: #1e3c72;
             cursor: pointer;
             display: flex;
             justify-content: space-between;
@@ -833,7 +833,7 @@
         }
 
         .hover\:text-primary:hover {
-            color: #2563eb;
+            color: #1e3c72;
         }
 
         /* Modal body */
@@ -929,19 +929,19 @@
         }
 
         .border-primary {
-            border-color: #2563eb;
+            border-color: #1e3c72;
         }
 
         .text-primary {
-            color: #2563eb;
+            color: #1e3c72;
         }
 
         .hover\:bg-primary\/10:hover {
-            background-color: rgba(37, 99, 235, 0.1);
+            background-color: rgba(30, 60, 114, 0.1);
         }
 
         .bg-primary {
-            background-color: #2563eb;
+            background-color: #1e3c72;
         }
 
         .text-white {
@@ -949,7 +949,7 @@
         }
 
         .hover\:bg-primary\/90:hover {
-            background-color: rgba(37, 99, 235, 0.9);
+            background-color: rgba(30, 60, 114, 0.9);
         }
 
         .pb-4 {
@@ -964,7 +964,7 @@
 @section('content')
     <div style="padding: 1.5rem;">
         <!-- Sub Header -->
-        <div class="monitoring-card mb-4" style="border-left: 4px solid #5B9BD5;">
+        {{-- <div class="monitoring-card mb-4" style="border-left: 4px solid #5B9BD5;">
             <div style="padding: 1.5rem;">
                 <div class="d-flex justify-content-between align-items-center">
                     <div class="d-flex align-items-start gap-3">
@@ -981,31 +981,38 @@
                     </a>
                 </div>
             </div>
-        </div>
+        </div> --}}
+
+
+        <div class="filter-card mb-4 d-flex justify-content-between align-items-center">
+    <h5 class="mb-0 font-semibold" style="text-transform: uppercase; letter-spacing: 0.5px;">
+        Generate Laporan Kuesioner Baru
+    </h5>
+    <a href="{{ route('gkm.laporan-kuesioner.index') }}" class="btn btn-secondary btn-sm">
+        <i class="bi bi-arrow-left me-1"></i> Kembali
+    </a>
+</div>
 
         <div class="row">
             <div class="col-xl-11 col-lg-12 mx-auto">
                 <!-- Info Card -->
-                <div class="monitoring-card mb-4" style="border-left: 4px solid #5B9BD5;">
+                <div class="monitoring-card mb-4" style="border-left: 4px solid #1e3c72;">
                     <div style="padding: 1.5rem;">
                         <div class="d-flex align-items-start">
-                            <i class="bi bi-lightbulb" style="color: #5B9BD5; font-size: 2rem; margin-right: 1rem;"></i>
+                            <i class="bi bi-lightbulb" style="color: #1e3c72; font-size: 2rem; margin-right: 1rem;"></i>
                             <div>
                                 <h6 class="mb-2" style="font-weight: 600; color: #333;">Panduan Pembuatan Laporan</h6>
                                 <ol class="mb-0" style="font-size: 0.875rem; color: #495057; line-height: 1.8;">
                                     <li>Isi informasi laporan (periode, judul, template)</li>
                                     <li>Ketik instruksi atau deskripsi laporan yang diinginkan</li>
-                                    <li><em>(Opsional)</em> Upload file referensi & gambar dokumentasi jika diperlukan
-                                        <em>(multiple files supported)</em>
-                                    </li>
+                                    <li><em>(Opsional)</em> Upload file referensi dan gambar dokumentasi jika diperlukan <em>(multiple files supported)</em></li>
                                     <li>Klik <strong>tombol Generate</strong> untuk melihat preview draft laporan</li>
                                     <li>Klik <strong>Generate Laporan Word</strong> untuk mengunduh file .docx</li>
                                 </ol>
                                 <div class="mt-3" style="font-size: 0.8rem; color: #6b7280;">
                                     <strong>File yang didukung:</strong> DOCX, PDF, JPG, PNG<br>
                                     <strong>Fitur AI Vision:</strong> Analisis gambar dokumentasi kegiatan, daftar hadir<br>
-                                    <strong>Integrasi GKM:</strong> Data monitoring RPS dan Materi otomatis digunakan
-                                    sebagai konteks
+                                    <strong>Integrasi GKM:</strong> Data monitoring kuesioner otomatis digunakan sebagai konteks
                                 </div>
                             </div>
                         </div>
@@ -1022,7 +1029,7 @@
                     <div class="monitoring-card mb-4">
                         <div class="monitoring-header">
                             <div class="d-flex align-items-center gap-2">
-                                <i class="bi bi-info-circle" style="color: #5B9BD5;"></i>
+                                <i class="bi bi-info-circle" style="color: #1e3c72;"></i>
                                 <h6 class="mb-0">Informasi Laporan</h6>
                             </div>
                         </div>
@@ -1083,8 +1090,8 @@
                     <div class="monitoring-card mb-4" id="ai-prompt-section" style="overflow: hidden;">
                         <div class="monitoring-header">
                             <div class="d-flex align-items-center gap-2">
-                                <i class="bi bi-pencil-square" style="color: #5B9BD5;"></i>
-                                <h6 class="mb-0">Instruksi & Referensi Laporan</h6>
+                                {{-- <i class="bi bi-pencil-square" style="color: #1e3c72;"></i> --}}
+                                <h6 class="mb-0">Instruksi dan Referensi Laporan</h6>
                             </div>
                         </div>
                         <div style="padding: 1.5rem;">
@@ -2545,15 +2552,15 @@
                             // Show download notification in chat
                             setTimeout(() => {
                                 appendAIMessage(`
-                                    <div style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; padding: 16px; border-radius: 12px; margin: 12px 0;">
-                                        <p style="margin: 0 0 12px; font-size: 16px; font-weight: 600;">
+                                    <div style="background: #ffffff; color: #1e3c72; padding: 16px; border-radius: 12px; margin: 12px 0; border: 2px solid #10b981;">
+                                        <p style="margin: 0 0 12px; font-size: 16px; font-weight: 600; color: #10b981;">
                                             <i class="bi bi-check-circle-fill"></i> File Word Siap Didownload!
                                         </p>
-                                        <p style="margin: 0 0 12px; font-size: 14px; opacity: 0.95;">
+                                        <p style="margin: 0 0 12px; font-size: 14px; color: #374151;">
                                             Laporan Word telah berhasil di-generate. File akan otomatis ter-download ke perangkat Anda.
                                         </p>
-                                        <a href="${data.download_url}" class="btn btn-sm btn-light" download style="display: inline-flex; align-items: center; gap: 8px; padding: 8px 16px; border-radius: 8px; text-decoration: none; color: #059669; font-weight: 600;">
-                                            <i class="bi bi-download"></i> Download Manual (jika tidak otomatis)
+                                        <a href="${data.download_url}" class="btn btn-sm" download style="display: inline-flex; align-items: center; gap: 8px; padding: 8px 16px; border-radius: 8px; text-decoration: none; background: #10b981; color: white; font-weight: 600; border: none;">
+                                            <i class="bi bi-download"></i> Download
                                         </a>
                                     </div>
                                 `);

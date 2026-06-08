@@ -446,10 +446,14 @@ class ClaudeAIService
 
             $startTime = microtime(true);
 
-            $response = Http::withHeaders([
+            $response = Http::withOptions([
+                'verify' => false, // Disable SSL verification for development (NOT RECOMMENDED FOR PRODUCTION)
+                'connect_timeout' => 30,
+                'timeout' => 120,
+            ])->withHeaders([
                 'Authorization' => 'Bearer ' . $this->fallbackApiKey,
                 'Content-Type'  => 'application/json',
-            ])->timeout(120)->post($this->fallbackBaseUrl . '/chat/completions', [
+            ])->post($this->fallbackBaseUrl . '/chat/completions', [
                 'model' => $this->fallbackModel,
                 'messages' => $openAIMessages,
                 'temperature' => 0.7,
@@ -504,6 +508,14 @@ class ClaudeAIService
 
         } catch (\Exception $e) {
             Log::error('ClaudeAI OpenAI exception', ['error' => $e->getMessage()]);
+
+            // If cURL error (DNS, connection issues), try OpenRouter backup
+            if (strpos($e->getMessage(), 'cURL error') !== false ||
+                strpos($e->getMessage(), 'Could not resolve host') !== false ||
+                strpos($e->getMessage(), 'Connection') !== false) {
+                Log::warning('OpenAI connection failed (DNS/Network issue), trying OpenRouter as backup');
+                return $this->callOpenRouterAPI($systemPrompt, $messages, $maxTokens);
+            }
 
             // If it's a configuration error, throw it
             if (strpos($e->getMessage(), 'API key') !== false ||

@@ -15,7 +15,7 @@
             <div class="card border-0 shadow-sm h-100">
                 <div class="card-body text-center">
                     <i class="bi bi-file-earmark-text" style="font-size: 40px; color: #1e3c72;"></i>
-                    <h6 class="mt-3 mb-2">Laporan Hasil Artefak Perkuliahan RPS dan Materi</h6>
+                    <h6 class="mt-3 mb-2">Laporan Bulanan</h6>
                     <p class="text-muted small mb-3">Generate laporan otomatis hasil monitoring RPS dan materi perkuliahan</p>
                     <a href="{{ route('gkm.pelaporan.artefak') }}" class="btn btn-primary btn-sm">Lihat Laporan</a>
                 </div>

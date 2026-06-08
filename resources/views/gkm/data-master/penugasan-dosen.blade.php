@@ -7,9 +7,9 @@
         <!-- Header -->
         <div class="filter-card mb-4 d-flex justify-content-between align-items-center">
             <h5 class="mb-0 font-semibold" style="text-transform: uppercase; letter-spacing: 0.5px;">
-                Data Master: Penugasan Dosen
+                Penugasan Dosen
             </h5>
-            <a href="{{ url()->previous() }}" class="btn btn-secondary btn-sm">
+            <a href="{{ route('gkm.data-master.index') }}" class="btn btn-secondary btn-sm">
                 <i class="bi bi-arrow-left me-1"></i> Kembali
             </a>
         </div>
@@ -38,8 +38,10 @@
                     <div class="col-md-2">
                         <label class="filter-label">Semester:</label>
                         <select class="form-select" name="sem_ta">
-                            <option value="1" {{ request('sem_ta', $defaultSemTa ?? 1) == 1 ? 'selected' : '' }}>Ganjil</option>
-                            <option value="2" {{ request('sem_ta', $defaultSemTa ?? 1) == 2 ? 'selected' : '' }}>Genap</option>
+                            <option value="1" {{ request('sem_ta', $defaultSemTa ?? 1) == 1 ? 'selected' : '' }}>Ganjil
+                            </option>
+                            <option value="2" {{ request('sem_ta', $defaultSemTa ?? 1) == 2 ? 'selected' : '' }}>Genap
+                            </option>
                         </select>
                     </div>
                     <div class="col-md-2">

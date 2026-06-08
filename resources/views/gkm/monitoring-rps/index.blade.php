@@ -111,7 +111,6 @@
                     <i class="bi bi-file-earmark-pdf text-white"></i> Download PDF
                 </button>
 
-
                 <a href="{{ route('gkm.monitoring-rps.ceklist') }}" class="btn-reminder">
                     <i class="bi bi-send-fill"></i>
                     <span>Kirim Reminder</span>
