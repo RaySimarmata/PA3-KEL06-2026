@@ -313,20 +313,43 @@ class LaporanArtefakService
 
     protected function buildTabelRPS($dataArtefak)
     {
-        $rows = "Semester\tKode MK\tNama MK\tInisial Dosen\tRPS (0=Tidak, 1=Ya)\n";
+        $rows = "Tingkat\tKode MK\tNama MK\tInisial Dosen\tRPS (0=Tidak, 1=Ya)\n";
         $rows .= str_repeat("-", 80) . "\n";
 
+        // Group by kode_mk untuk menggabungkan dosen
+        $grouped = [];
         foreach ($dataArtefak['rps_details'] as $item) {
-            $rps = ($item->status_rps === 'SUDAH UPLOAD') ? '1' : '0';
-            $inisial = $item->dosen->inisial_nama ?? (string) $item->pegawai_id;
-            // Tingkat diambil dari raw_data jika ada
+            $kodeMK = $item->kode_mk ?? '-';
             $tingkat = $item->raw_data['tingkat'] ?? $item->raw_data['semester'] ?? '-';
+            
+            if (!isset($grouped[$kodeMK])) {
+                $grouped[$kodeMK] = [
+                    'tingkat' => $tingkat,
+                    'kode_mk' => $kodeMK,
+                    'nama_matkul' => $item->nama_matkul ?? '-',
+                    'dosen' => [],
+                    'status_rps' => $item->status_rps,
+                ];
+            }
+            
+            $inisial = $item->dosen->inisial_nama ?? (string) $item->pegawai_id;
+            if (!in_array($inisial, $grouped[$kodeMK]['dosen'])) {
+                $grouped[$kodeMK]['dosen'][] = $inisial;
+            }
+        }
+
+        foreach ($grouped as $item) {
+            // Kembalikan ke format 0 dan 1
+            $rps = ($item['status_rps'] === 'SUDAH UPLOAD') ? '1' : '0';
+            
+            // Gabungkan nama dosen dengan koma
+            $dosenGabung = implode(', ', $item['dosen']);
 
             $rows .= implode("\t", [
-                $tingkat,
-                $item->kode_mk ?? '-',
-                $item->nama_matkul ?? '-',
-                $inisial,
+                $item['tingkat'],
+                $item['kode_mk'],
+                $item['nama_matkul'],
+                $dosenGabung,
                 $rps,
             ]) . "\n";
         }
@@ -339,7 +362,7 @@ class LaporanArtefakService
 
     protected function buildTabelMateri($dataArtefak)
     {
-        $rows = "Semester\tKode MK\tNama MK\tInisial Dosen\tTeori (Slide/Video/Catatan)\n";
+        $rows = "Tingkat\tKode MK\tNama MK\tInisial Dosen\tTeori (Slide/Video/Catatan)\n";
         $rows .= str_repeat("-", 80) . "\n";
 
         foreach ($dataArtefak['materi_details'] as $item) {
@@ -547,34 +570,57 @@ class LaporanArtefakService
      */
     protected function injectRPSTable(\PhpOffice\PhpWord\TemplateProcessor $tp, $dataArtefak)
     {
-        $headers = ['Semester', 'Kode Mata Kuliah', 'Nama Mata Kuliah', 'Inisial Dosen Pengampu', 'RPS (0=Tidak, 1=Yes)'];
-        $widths = [1200, 1800, 3000, 2200, 1400];
+        $headers = ['Tingkat', 'Kode Mata Kuliah', 'Nama Mata Kuliah', 'Inisial Dosen Pengampu', 'RPS (0=Tidak, 1=Yes)'];
+        $widths = [800, 1800, 3000, 2200, 1400];
 
-        $dataRows = [];
-        $lastTingkat = '';
+        // Group by kode_mk untuk menggabungkan dosen
+        $grouped = [];
         foreach ($dataArtefak['rps_details'] as $item) {
-            $rps = ($item->status_rps === 'SUDAH UPLOAD') ? '1' : '0';
-
-            // Tingkat dari karakter ke-4 kode_mk (sama seperti Monitoring RPS PDF)
             $kodeMk  = $item->kode_mk ?? '';
             $tingkat = strlen($kodeMk) >= 4 ? substr($kodeMk, 3, 1) : '-';
-
-            // Dosen: ambil dari raw_data['dosen_pengampu'] (nama lengkap dari API)
-            // fallback ke inisial dari relasi dosen
+            
+            if (!isset($grouped[$kodeMk])) {
+                $rawData     = is_array($item->raw_data) ? $item->raw_data : [];
+                
+                $grouped[$kodeMk] = [
+                    'tingkat' => $tingkat,
+                    'kode_mk' => $kodeMk,
+                    'nama_matkul' => $item->nama_matkul ?? '-',
+                    'dosen' => [],
+                    'status_rps' => $item->status_rps,
+                ];
+            }
+            
+            // Ambil nama dosen
             $rawData     = is_array($item->raw_data) ? $item->raw_data : [];
             $dosenNama   = $rawData['dosen_pengampu']
                         ?? $item->dosen->nama
                         ?? $item->dosen->inisial_nama
                         ?? (string) $item->pegawai_id;
+            
+            if (!in_array($dosenNama, $grouped[$kodeMk]['dosen'])) {
+                $grouped[$kodeMk]['dosen'][] = $dosenNama;
+            }
+        }
+
+        $dataRows = [];
+        $lastTingkat = '';
+        
+        foreach ($grouped as $item) {
+            // Kembalikan ke format 0 dan 1
+            $rps = ($item['status_rps'] === 'SUDAH UPLOAD') ? '1' : '0';
+            
+            // Gabungkan nama dosen dengan koma
+            $dosenGabung = implode(', ', $item['dosen']);
 
             $dataRows[] = [
-                $tingkat !== $lastTingkat ? 'Tingkat ' . $tingkat : '',
-                $item->kode_mk     ?? '-',
-                $item->nama_matkul ?? '-',
-                $dosenNama,
+                $item['tingkat'] !== $lastTingkat ? $item['tingkat'] : '',
+                $item['kode_mk'],
+                $item['nama_matkul'],
+                $dosenGabung,
                 $rps,
             ];
-            $lastTingkat = $tingkat;
+            $lastTingkat = $item['tingkat'];
         }
 
         // Baris jumlah
@@ -589,38 +635,52 @@ class LaporanArtefakService
         $xml = $this->buildWordTableXML($headers, $dataRows, $widths);
         $this->replaceWithTable($tp, 'TABEL_RPS', $xml);
 
-        Log::info('RPS table injected', ['rows' => count($dataRows)]);
+        Log::info('RPS table injected (grouped by kode_mk)', ['rows' => count($dataRows)]);
     }
 
     /**
      * Inject tabel Materi ke posisi {{TABEL_MATERI}} di template.
      * Format: header 2 baris merged — Semester | Kode MK | Nama MK | Dosen | Week 1..16 (Teori + Praktikum)
-     * Week 1 diisi dari DB (status_upload), Week 2-16 dikosongkan.
+     * Week diisi dari DB (status_upload dari raw_data['weeks']).
+     * 
+     * PERBAIKAN: 
+     * - Ukuran kolom dikurangi agar semua 16 minggu muat dalam satu halaman
+     * - Ditambahkan landscape orientation untuk memaksimalkan lebar tabel
+     * - Ini memastikan Week 1 sampai Week 16 SEMUA terlihat di hasil generate
      */
     protected function injectMateriTable(\PhpOffice\PhpWord\TemplateProcessor $tp, $dataArtefak)
     {
         $xml = $this->buildMateriTableXML($dataArtefak);
         $this->replaceWithTable($tp, 'TABEL_MATERI', $xml);
-        Log::info('Materi table (week 1-16) injected');
+        Log::info('Materi table (week 1-16) injected with landscape orientation - ALL weeks should be visible');
     }
 
     /**
      * Build OOXML tabel Materi dengan merged header Week 1–16.
      *
      * Struktur:
-     *   Row 1: Semester | Kode MK | Nama MK | Dosen | [Week 1 colspan=2] | [Week 2 colspan=2] | ... | [Week 16 colspan=2]
+     *   Row 1: Tingkat | Kode MK | Nama MK | Dosen | [Week 1 colspan=2] | [Week 2 colspan=2] | ... | [Week 16 colspan=2]
      *   Row 2: (vmerge) | (vmerge) | (vmerge) | (vmerge) | Teori | Praktikum | Teori | Praktikum | ... (×16)
      *   Data : nilai dari DB / kosong
+     * 
+     * OPTIMASI ULTRA (Week 16 P MUAT SEMPURNA):
+     * - Header "Semester" → "Tingkat" (isi: 1, 2, 3, 4)
+     * - Kolom tetap: Tingkat (400), Kode MK (750), Nama MK (1400), Dosen (1000)
+     * - Kolom week: Teori (300), Praktikum (300) per week
+     * - Total: 3550 + (600 × 16) = 13,150 twip → muat sempurna di landscape!
+     * - Sisa margin: 16,838 - 13,150 = 3,688 twip (sangat cukup!)
+     * - Section properties landscape memastikan Week 1-16 SEMUA terlihat tanpa terpotong
      */
     protected function buildMateriTableXML($dataArtefak): string
     {
-        // Ukuran kolom dalam twip
-        $wSemester = 800;
-        $wKodeMK = 1200;
-        $wNamaMK = 2000;
-        $wDosen = 1500;
-        $wTeori = 600;
-        $wPraktikum = 600;
+        // Ukuran kolom dalam twip - ULTRA OPTIMAL untuk memuat Week 1-16 LENGKAP
+        // Total lebar maksimal Word landscape ~16,800 twip
+        $wTingkat = 400;       // kolom "Tingkat" (hanya angka 1-4) - dikurangi dari 450
+        $wKodeMK = 750;        // dikurangi dari 800
+        $wNamaMK = 1400;       // dikurangi dari 1500
+        $wDosen = 1000;        // dikurangi dari 1100
+        $wTeori = 300;         // dikurangi dari 320 agar Week 16 P tidak terpotong
+        $wPraktikum = 300;     // dikurangi dari 320 agar Week 16 P tidak terpotong
         $totalWeeks = 16;
 
         // Warna header
@@ -658,8 +718,9 @@ class LaporanArtefakService
 
         // =====================================================================
         // tblPr — lebar total = 4 kolom tetap + 16×2 kolom week
+        // Total: 400 + 750 + 1400 + 1000 + (300 + 300) × 16 = 13,150 twip (muat sempurna!)
         // =====================================================================
-        $totalWidth = $wSemester + $wKodeMK + $wNamaMK + $wDosen
+        $totalWidth = $wTingkat + $wKodeMK + $wNamaMK + $wDosen
             + ($wTeori + $wPraktikum) * $totalWeeks;
 
         $xml = '<w:tbl>';
@@ -678,7 +739,7 @@ class LaporanArtefakService
         // HEADER ROW 1 — 4 kolom tetap (vMerge restart) + Week 1..16 (colspan 2)
         // =====================================================================
         $xml .= '<w:tr>';
-        $xml .= $makeCell('Semester', $wSemester, true, $fillHeader, 1, true, false);
+        $xml .= $makeCell('Tingkat', $wTingkat, true, $fillHeader, 1, true, false);
         $xml .= $makeCell('Kode Mata Kuliah', $wKodeMK, true, $fillHeader, 1, true, false);
         $xml .= $makeCell('Nama Mata Kuliah', $wNamaMK, true, $fillHeader, 1, true, false);
         $xml .= $makeCell('Dosen Pengampu', $wDosen, true, $fillHeader, 1, true, false);
@@ -691,7 +752,7 @@ class LaporanArtefakService
         // HEADER ROW 2 — 4 kolom kosong (vMerge cont) + Teori|Praktikum ×16
         // =====================================================================
         $xml .= '<w:tr>';
-        $xml .= $makeCell('', $wSemester, false, $fillHeader, 1, false, true);
+        $xml .= $makeCell('', $wTingkat,  false, $fillHeader, 1, false, true);
         $xml .= $makeCell('', $wKodeMK,   false, $fillHeader, 1, false, true);
         $xml .= $makeCell('', $wNamaMK,   false, $fillHeader, 1, false, true);
         $xml .= $makeCell('', $wDosen,    false, $fillHeader, 1, false, true);
@@ -739,15 +800,27 @@ class LaporanArtefakService
             $weeks   = $rawData['weeks'] ?? [];
 
             if ($item->jenis_materi === 'Materi Teori') {
-                foreach ($weeks as $idx => $val) {
-                    if ($idx >= 0 && $idx < 16) {
-                        $mkMap[$key]['teori_weeks'][$idx] = (string) $val;
+                // Isi data teori untuk Week 1-16
+                for ($idx = 0; $idx < 16; $idx++) {
+                    if (isset($weeks[$idx])) {
+                        $val = $weeks[$idx];
+                        // Konversi: 1 → '1', 0 → '0', null/empty → '0'
+                        $mkMap[$key]['teori_weeks'][$idx] = (is_null($val) || $val === '') ? '0' : (string) $val;
+                    } else {
+                        // Jika week ini tidak ada di data API, default ke '0' (belum upload)
+                        $mkMap[$key]['teori_weeks'][$idx] = '0';
                     }
                 }
             } elseif ($item->jenis_materi === 'Materi Praktikum') {
-                foreach ($weeks as $idx => $val) {
-                    if ($idx >= 0 && $idx < 16) {
-                        $mkMap[$key]['prak_weeks'][$idx] = is_null($val) ? '' : (string) $val;
+                // Isi data praktikum untuk Week 1-16
+                for ($idx = 0; $idx < 16; $idx++) {
+                    if (isset($weeks[$idx])) {
+                        // Konversi: 1 → '1', 0 → '0', null/empty → '0'
+                        $val = $weeks[$idx];
+                        $mkMap[$key]['prak_weeks'][$idx] = (is_null($val) || $val === '') ? '0' : (string) $val;
+                    } else {
+                        // Jika week ini tidak ada di data API, default ke '0' (belum upload)
+                        $mkMap[$key]['prak_weeks'][$idx] = '0';
                     }
                 }
             }
@@ -760,12 +833,24 @@ class LaporanArtefakService
             $t = strcmp($a['tingkat'], $b['tingkat']);
             return $t !== 0 ? $t : strcmp($a['kode_mk'], $b['kode_mk']);
         });
+        
+        // Log untuk memverifikasi data Week 16
+        $sampleMk = array_values($mkMap)[0] ?? null;
+        if ($sampleMk) {
+            Log::info('Materi table - Week data verification', [
+                'sample_kode_mk' => $sampleMk['kode_mk'],
+                'teori_week_16' => $sampleMk['teori_weeks'][15] ?? 'N/A',
+                'prak_week_16' => $sampleMk['prak_weeks'][15] ?? 'N/A',
+                'total_mk' => count($mkMap)
+            ]);
+        }
 
         $lastTingkat = '';
         foreach ($mkMap as $row) {
             $tingkat = $row['tingkat'];
             $xml .= '<w:tr>';
-            $xml .= $makeCell($tingkat !== $lastTingkat ? 'Tingkat ' . $tingkat : '', $wSemester, false, 'auto', 1, false, false, 'center');
+            // Hanya tampilkan angka tingkat (1, 2, 3, 4) tanpa kata "Tingkat"
+            $xml .= $makeCell($tingkat !== $lastTingkat ? $tingkat : '', $wTingkat, false, 'auto', 1, false, false, 'center');
             $xml .= $makeCell($row['kode_mk'], $wKodeMK, false, 'auto', 1, false, false, 'center');
             $xml .= $makeCell($row['nama_mk'], $wNamaMK, false, 'auto', 1, false, false, 'left');
             $xml .= $makeCell($row['dosen'],   $wDosen,  false, 'auto', 1, false, false, 'center');
@@ -782,6 +867,14 @@ class LaporanArtefakService
 
 
         $xml .= '</w:tbl>';
+        
+        // Tambahkan section break untuk landscape orientation
+        // Ini akan membuat tabel materi berada di halaman landscape terpisah
+        $xml .= '<w:p><w:pPr><w:sectPr>';
+        $xml .= '<w:pgSz w:w="16838" w:h="11906" w:orient="landscape"/>'; // Landscape: W=16838 (11.69"), H=11906 (8.27")
+        $xml .= '<w:pgMar w:top="720" w:right="720" w:bottom="720" w:left="720" w:header="720" w:footer="720" w:gutter="0"/>';
+        $xml .= '</w:sectPr></w:pPr></w:p>';
+        
         return $xml;
     }
 

@@ -52,12 +52,23 @@ class LaporanKuesioneController extends Controller
 
         // Convert to object format expected by view
         $periodes = $periodesFromDb->map(function($item) {
-            return (object)[
-                'periode' => $item->periode,
-                'bulan' => Carbon::createFromFormat('Y-m', $item->periode)->locale('id')->translatedFormat('F'),
-                'tahun' => $item->tahun,
-            ];
-        });
+            try {
+                // Validate periode format before parsing
+                if (empty($item->periode) || !preg_match('/^\d{4}-\d{2}$/', $item->periode)) {
+                    return null; // Skip invalid entries
+                }
+                
+                return (object)[
+                    'periode' => $item->periode,
+                    'bulan' => Carbon::createFromFormat('Y-m', $item->periode)->locale('id')->translatedFormat('F'),
+                    'tahun' => $item->tahun,
+                ];
+            } catch (\Exception $e) {
+                // Log error and skip invalid entry
+                \Log::warning('Invalid periode format in LaporanBulanan: ' . $item->periode);
+                return null;
+            }
+        })->filter(); // Remove null entries
 
         return view('gkm.laporan-kuesioner.index', compact('laporanList', 'periodes'));
     }
@@ -400,18 +411,176 @@ class LaporanKuesioneController extends Controller
                 'periode' => 'nullable|string',
             ]);
 
+            $userPrompt = $request->input('prompt');
+            $promptLower = strtolower($userPrompt);
+
+            // ================================================================
+            // VALIDASI KONTEKS LAPORAN KUESIONER - BACKEND
+            // ================================================================
+
+            // === DAFTAR KEYWORD YANG DI IZINKAN (WAJIB ADA SALAH SATU) ===
+            $allowedKeywords = [
+                'laporan', 'report', 'kuesioner', 'questionnaire', 'survey', 
+                'kepuasan', 'satisfaction', 'mahasiswa', 'student',
+                'buat', 'buatkan', 'bikin', 'generate', 'create', 'buatlah',
+                'ubah', 'perbaiki', 'edit', 'revisi', 'update', 'ganti', 'tambah', 'hapus',
+                'revisikan', 'perbaharui', 'memperbaiki', 'mengubah', 'menambah', 'menghapus',
+                'struktur', 'format', 'template', 'draft', 'bagian', 'section',
+                'pendahuluan', 'latar belakang', 'metodologi', 'temuan', 'analisis',
+                'kualitas', 'rekomendasi', 'kesimpulan', 'ringkasan eksekutif',
+                'periode', 'semester', 'tahun ajaran', 'tingkat', 'responden',
+                'indeks kepuasan', 'persen kepuasan', 'hasil kuesioner', 'masukan', 'saran',
+                'data kuesioner', 'statistik', 'rata-rata', 'analisis kuesioner'
+            ];
+
+            // === DAFTAR KEYWORD YANG HARUS DITOLAK ===
+            $rejectedKeywords = [
+                'siapa', 'siapakah', 'nama saya', 'nama kamu', 'namamu', 'namaku',
+                'aku siapa', 'kamu siapa', 'perkenalkan', 'kenalan', 'halo', 'hai',
+                'hello', 'hi', 'hey', 'apa kabar', 'kabar', 'gimana kabar',
+                'ganteng', 'cantik', 'tampan', 'cakep', 'jelek', 'buruk rupa', 'penampilan',
+                'hewan', 'binatang', 'kucing', 'anjing', 'ayam', 'bebek', 'sapi', 'kambing',
+                'jerapah', 'gajah', 'singa', 'harimau', 'macan', 'ular', 'burung', 'ikan',
+                'olahraga', 'sport', 'fitness', 'gym', 'danbel', 'dumbell', 'barbel',
+                'barbell', 'lari', 'jogging', 'renang', 'sepak bola', 'bola', 'badminton',
+                'film', 'movie', 'game', 'permainan', 'musik', 'lagu', 'song', 'drama',
+                'sinetron', 'yt', 'youtube', 'tiktok', 'instagram', 'resep', 'masak', 
+                'memasak', 'makanan', 'minuman', 'masakan', 'berita', 'news', 'politik', 
+                'politic', 'pemilu', 'presiden', 'kecelakaan', 'joke', 'lelucon', 'cerita', 
+                'story', 'pantun', 'puisi', 'poem', 'dongeng', 'ngobrol', 'chat', 'mengobrol', 
+                'nge-chat', 'obrolan', 'canda', 'guyon', 'cuaca', 'weather', 'ramalan', 
+                'zodiac', 'horoskop', 'shio', 'tutorial', 'cara membuat', 'cara memasak', 
+                'DIY', 'kerajinan',
+            ];
+
+            // Pola pertanyaan singkat yang mencurigakan
+            $suspiciousShortPatterns = [
+                '/^(siapa|siapakah|apa|kenapa|mengapa|bagaimana|kapan|dimana|kemana)(\s+(paling|yang|itu|ini|dong|nih|sih|ya|kah))?$/i',
+                '/^(halo|hai|hey|hello|hi|yo|haii|hallo|helo)$/i',
+                '/^(apa kabar|kabar|gimana kabar|gmn kabar)$/i',
+                '/^(ngobrol|chat|yuk ngobrol|yuk chat)$/i',
+                '/^(kenalan|perkenalkan|kenal|mari kenalan)$/i',
+                '/^(ganteng|cantik|tampan|cakep|jelek|buruk)$/i',
+                '/^(danbel|dumbell|gym|fitness|olahraga)$/i',
+                '/^(hewan|binatang|kucing|anjing)$/i',
+                '/^(film|game|musik|lagu)$/i',
+                '/^(resep|masak|makanan)$/i',
+                '/^(berita|politik|news)$/i',
+                '/^(joke|lelucon|pantun|puisi)$/i',
+                '/^(cuaca|ramalan|zodiac)$/i',
+            ];
+
+            // Cek apakah ada keyword yang dilarang
+            $hasRejectedKeyword = false;
+            $foundRejectedKeyword = null;
+
+            foreach ($rejectedKeywords as $keyword) {
+                if (strpos($promptLower, $keyword) !== false) {
+                    $hasRejectedKeyword = true;
+                    $foundRejectedKeyword = $keyword;
+                    break;
+                }
+            }
+
+            // Cek apakah ada keyword yang diizinkan
+            $hasAllowedKeyword = false;
+            foreach ($allowedKeywords as $keyword) {
+                if (strpos($promptLower, $keyword) !== false) {
+                    $hasAllowedKeyword = true;
+                    break;
+                }
+            }
+
+            // Cek pola pertanyaan singkat yang mencurigakan
+            $isSuspiciousShort = false;
+            foreach ($suspiciousShortPatterns as $pattern) {
+                if (preg_match($pattern, trim($userPrompt))) {
+                    $isSuspiciousShort = true;
+                    break;
+                }
+            }
+
+            $hasFiles = $request->hasFile('file_referensi') && count($request->file('file_referensi')) > 0;
+
+            // Jika ada keyword terlarang DAN tidak ada keyword yang diizinkan → TOLAK
+            if ($hasRejectedKeyword && !$hasAllowedKeyword) {
+                Log::info('AI Prompt Kuesioner rejected: User prompt contains rejected keyword without allowed context', [
+                    'prompt' => $userPrompt,
+                    'found_keyword' => $foundRejectedKeyword,
+                    'user_id' => Auth::id(),
+                    'ip' => $request->ip()
+                ]);
+                
+                return response()->json([
+                    'success' => true,
+                    'response' => "Maaf, permintaan Anda di luar konteks pembuatan **Laporan Kuesioner Kepuasan Mahasiswa**.\n\n" .
+                                  "Saya hanya dapat membantu dengan:\n" .
+                                  "✅ Pembuatan laporan kuesioner kepuasan mahasiswa\n" .
+                                  "✅ Analisis data kuesioner kepuasan mahasiswa\n" .
+                                  "✅ Struktur dan format laporan kuesioner\n" .
+                                  "✅ Perbaikan dan revisi draft laporan\n" .
+                                  "✅ Pertanyaan terkait kuesioner dan survei kepuasan\n\n" .
+                                  "Silakan ajukan pertanyaan yang terkait dengan **Laporan Kuesioner**.",
+                    'model_info' => 'Context Validation (Rejected)',
+                    'cached' => false,
+                    'rejected' => true
+                ]);
+            }
+
+            // Jika pola pertanyaan singkat yang mencurigakan dan tidak ada allowed keyword → TOLAK
+            if ($isSuspiciousShort && !$hasAllowedKeyword) {
+                Log::info('AI Prompt Kuesioner rejected: Suspicious short pattern detected', [
+                    'prompt' => $userPrompt,
+                    'user_id' => Auth::id()
+                ]);
+                
+                return response()->json([
+                    'success' => true,
+                    'response' => "Maaf, permintaan Anda di luar konteks pembuatan **Laporan Kuesioner Kepuasan Mahasiswa**.\n\n" .
+                                  "Saya adalah AI Assistant khusus untuk membantu membuat Laporan Kuesioner. " .
+                                  "Silakan ajukan pertanyaan terkait pembuatan laporan kuesioner kepuasan mahasiswa.",
+                    'model_info' => 'Context Validation (Suspicious Short Pattern)',
+                    'cached' => false,
+                    'rejected' => true
+                ]);
+            }
+
+            // Validasi: Pertanyaan terlalu pendek (< 10 karakter) tanpa file upload
+            if (strlen(trim($userPrompt)) < 10 && !$hasFiles && !$hasAllowedKeyword) {
+                Log::info('AI Prompt Kuesioner rejected: Too short without context', [
+                    'prompt' => $userPrompt,
+                    'length' => strlen($userPrompt),
+                    'user_id' => Auth::id()
+                ]);
+                
+                return response()->json([
+                    'success' => true,
+                    'response' => "Maaf, instruksi Anda terlalu singkat dan tidak jelas.\n\n" .
+                                  "Silakan berikan instruksi yang lebih spesifik terkait pembuatan **Laporan Kuesioner Kepuasan Mahasiswa**, misalnya:\n" .
+                                  "• \"Buat laporan kuesioner untuk periode ini\"\n" .
+                                  "• \"Analisis data kuesioner kepuasan mahasiswa\"\n" .
+                                  "• \"Tampilkan hasil kuesioner per tingkat\"",
+                    'model_info' => 'Context Validation (Too Short)',
+                    'cached' => false,
+                    'rejected' => true
+                ]);
+            }
+
+            // ================================================================
+            // END OF VALIDASI KONTEKS
+            // ================================================================
+
             $aiService = app(\App\Services\UnifiedAIService::class);
             $textExtraction = app(\App\Services\TextExtractionService::class);
             $ocrService = app(\App\Services\OCRService::class);
 
-            $userPrompt = $request->input('prompt');
             $conversationHistory = $request->input('conversation_history', []);
             $templateId = $request->input('template_id');
             $periode = $request->input('periode');
 
             // Build context for caching
             $cacheContext = [
-                'feature' => 'kuesioner', // For evaluation tracking
+                'feature' => 'kuesioner',
                 'type' => 'laporan_bulanan',
                 'template_id' => $templateId,
                 'periode' => $periode,
@@ -499,17 +668,16 @@ class LaporanKuesioneController extends Controller
                     }
 
                     // Call LaporanKuesioneService to generate full report
-                    // Get user's prodi_id for filtering
                     $user = Auth::user();
                     $prodiId = $user->prodi_id ?? null;
 
                     $result = $this->laporanService->generateLaporan($periode, $prodiId, $templateId);
 
-                    // Update laporan with generated data (including aggregated_data for Word generation)
+                    // Update laporan with generated data
                     $laporan->update([
                         'hasil_laporan' => array_merge(
                             $result['hasil_laporan'],
-                            ['_aggregated_data' => $result['aggregated_data']] // Store aggregated data with underscore prefix
+                            ['_aggregated_data' => $result['aggregated_data']]
                         ),
                         'total_kuesioner' => $result['aggregated_data']['total_kuesioner'] ?? 0,
                         'total_responden' => $result['aggregated_data']['total_responden'] ?? 0,
@@ -518,11 +686,10 @@ class LaporanKuesioneController extends Controller
                         'status' => 'completed',
                     ]);
 
-                    // Generate Word document dari hasil laporan menggunakan service
+                    // Generate Word document
                     $wordGenerationService = app(\App\Services\KuesioneWordGenerationService::class);
                     $wordGenerated = $wordGenerationService->generateWordDocument($laporan);
 
-                    // Get download URL
                     $downloadUrl = route('gkm.laporan-kuesioner.download', ['id' => $laporan->id, 'format' => 'word']);
 
                     // Format response for user
@@ -549,10 +716,6 @@ class LaporanKuesioneController extends Controller
                     $aiResponse .= "Anda dapat mendownload file Word dan langsung menggunakannya atau melakukan penyesuaian sesuai kebutuhan.\n\n";
                     $aiResponse .= "Jika Anda membutuhkan perubahan atau penyesuaian pada laporan, silakan beritahu saya!";
 
-                    // ===== CACHE DISABLED FOR KUESIONER =====
-                    // Cache dinonaktifkan untuk selalu generate fresh & akurat
-                    Log::info('Cache save SKIPPED for Kuesioner - Always fresh response');
-
                     Log::info('Auto-generated laporan kuesioner successfully', [
                         'laporan_id' => $laporan->id,
                         'file_word' => $laporan->file_word ?? null,
@@ -574,7 +737,6 @@ class LaporanKuesioneController extends Controller
                         'trace' => $e->getTraceAsString(),
                     ]);
 
-                    // Fallback to regular AI chat if auto-generate fails
                     $shouldAutoGenerate = false;
                     Log::info('Falling back to regular AI chat after auto-generate failure');
                 }
@@ -589,11 +751,38 @@ class LaporanKuesioneController extends Controller
             // System context for Kuesioner reports
             $systemContext = "Anda adalah AI Assistant untuk Gugus Kendali Mutu (GKM) Institut Teknologi Del.\n\n";
             $systemContext .= "Tugas Anda: Membantu membuat LAPORAN KUESIONER berdasarkan dokumen yang diupload dan instruksi user.\n\n";
+            
+            $systemContext .= "=== BATASAN KONTEKS YANG SANGAT KETAT ===\n";
+            $systemContext .= "ANDA HANYA BOLEH MEMBANTU DENGAN:\n";
+            $systemContext .= "1. Pembuatan laporan kuesioner kepuasan mahasiswa\n";
+            $systemContext .= "2. Analisis data kuesioner kepuasan mahasiswa\n";
+            $systemContext .= "3. Format dan struktur laporan kuesioner\n";
+            $systemContext .= "4. Perbaikan dan revisi draft laporan kuesioner\n";
+            $systemContext .= "5. Pertanyaan terkait kuesioner kepuasan mahasiswa\n\n";
+            
+            $systemContext .= "⚠️⚠️⚠️ ANDA TIDAK BOLEH DAN HARUS MENOLAK: ⚠️⚠️⚠️\n";
+            $systemContext .= "- Pertanyaan tentang SIAPA (identitas, nama orang, tokoh, dll)\n";
+            $systemContext .= "- Pertanyaan tentang PENAMPILAN (ganteng, cantik, tampan, cakep)\n";
+            $systemContext .= "- Pertanyaan tentang HEWAN atau BINATANG\n";
+            $systemContext .= "- Pertanyaan tentang OLAHRAGA, FITNESS, GYM, DUMBBELL\n";
+            $systemContext .= "- Menjawab pertanyaan umum di luar konteks laporan kuesioner\n";
+            $systemContext .= "- Membantu dengan topik selain kuesioner dan survei\n";
+            $systemContext .= "- Memberikan informasi atau saran di luar kepuasan mahasiswa\n";
+            $systemContext .= "- Membahas topik pribadi, hiburan, atau hal-hal di luar akademik\n";
+            $systemContext .= "- Small talk, chitchat, atau obrolan santai\n";
+            $systemContext .= "- Pertanyaan 'apa kabar', 'hello', 'kenalan', dll\n\n";
+            
+            $systemContext .= "🚨 WAJIB: JIKA USER BERTANYA DI LUAR KONTEKS 🚨\n";
+            $systemContext .= "Anda HARUS LANGSUNG menolak dengan respons PERSIS ini:\n\n";
+            $systemContext .= "\"Maaf, permintaan Anda di luar konteks pembuatan Laporan Kuesioner. Saya hanya dapat membantu dengan pembuatan laporan kuesioner kepuasan mahasiswa. Silakan ajukan pertanyaan terkait laporan kuesioner.\"\n\n";
+            $systemContext .= "JANGAN TAMBAHKAN penjelasan lain. JANGAN JAWAB pertanyaan user. LANGSUNG TOLAK!\n\n";
+            
             $systemContext .= "PENTING - CONVERSATION CONTEXT:\n";
             $systemContext .= "- Ini mungkin percakapan lanjutan. Jika user meminta perubahan atau perbaikan, modifikasi konten yang sudah ada.\n";
             $systemContext .= "- Jika user mengatakan 'ubah bagian X', 'perbaiki Y', atau 'tambahkan Z', lakukan perubahan pada draft sebelumnya.\n";
             $systemContext .= "- Pertahankan konsistensi dengan respons sebelumnya kecuali diminta mengubahnya.\n";
-            $systemContext .= "- Jika ini permintaan pertama, buat draft lengkap. Jika permintaan lanjutan, fokus pada perubahan yang diminta.\n\n";
+            $systemContext .= "- Jika ini permintaan pertama, buat draft lengkap. Jika permintaan lanjutan, fokus pada perubahan yang diminta.\n";
+            $systemContext .= "- SELALU PERIKSA: Apakah pertanyaan user masih dalam konteks laporan kuesioner? Jika tidak, tolak dengan sopan.\n\n";
 
             if ($templateStructure) {
                 $systemContext .= "STRUKTUR TEMPLATE YANG HARUS DIIKUTI:\n";
@@ -610,19 +799,9 @@ class LaporanKuesioneController extends Controller
                 $systemContext .= "# METODOLOGI\n";
                 $systemContext .= "[Metode pengumpulan dan analisis data kuesioner]\n\n";
                 $systemContext .= "# I. HASIL KUESIONER\n";
-                $systemContext .= "[Gunakan format berikut untuk hasil kuesioner per tingkat:]\n\n";
-                $systemContext .= "## I. Tingkat I\n";
-                $systemContext .= "{{HASIL_KUESIONER_TINGKAT_I}}\n";
-                $systemContext .= "{{MASUKAN_SARAN_TINGKAT_I}}\n\n";
-                $systemContext .= "## II. Tingkat II\n";
-                $systemContext .= "{{HASIL_KUESIONER_TINGKAT_II}}\n";
-                $systemContext .= "{{MASUKAN_SARAN_TINGKAT_II}}\n\n";
-                $systemContext .= "## III. Tingkat III\n";
-                $systemContext .= "{{HASIL_KUESIONER_TINGKAT_III}}\n";
-                $systemContext .= "{{MASUKAN_SARAN_TINGKAT_III}}\n\n";
-                $systemContext .= "## IV. Tingkat IV\n";
-                $systemContext .= "{{HASIL_KUESIONER_TINGKAT_IV}}\n";
-                $systemContext .= "{{MASUKAN_SARAN_TINGKAT_IV}}\n\n";
+                $systemContext .= "[Hasil kuesioner per tingkat]\n\n";
+                $systemContext .= "# II. MASUKAN DAN SARAN\n";
+                $systemContext .= "[Masukan dan saran dari responden]\n\n";
                 $systemContext .= "# ANALISIS KUALITAS\n";
                 $systemContext .= "[Evaluasi kualitas kuesioner berdasarkan standar]\n\n";
                 $systemContext .= "# REKOMENDASI\n";
@@ -632,9 +811,8 @@ class LaporanKuesioneController extends Controller
             }
 
             $systemContext .= "FORMAT DATA KUESIONER:\n";
-            $systemContext .= "Data kuesioner dari database sudah disiapkan dalam format placeholder seperti {{HASIL_KUESIONER_TINGKAT_I}}, {{MASUKAN_SARAN_TINGKAT_I}}, dll.\n";
-            $systemContext .= "Anda HARUS menggunakan data ini dalam laporan dengan menyisipkan tabel yang sudah disiapkan.\n";
-            $systemContext .= "Placeholder akan otomatis diganti dengan tabel data kuesioner yang sebenarnya.\n\n";
+            $systemContext .= "Data kuesioner dari database sudah disiapkan dalam format tabel.\n";
+            $systemContext .= "Anda HARUS menggunakan data ini dalam laporan dengan menyisipkan tabel yang sudah disiapkan.\n\n";
 
             $systemContext .= "Fokus pada analisis kuesioner kepuasan mahasiswa terhadap proses pembelajaran.\n";
             $systemContext .= "Gunakan Bahasa Indonesia formal dan profesional. Setiap bagian harus berisi konten yang substantif dan relevan.\n\n";
@@ -651,14 +829,11 @@ class LaporanKuesioneController extends Controller
                     $fileName = $file->getClientOriginalName();
                     $fileExtension = strtolower($file->getClientOriginalExtension());
 
-                    // Check if it's an image
                     if (in_array($fileExtension, ['jpg', 'jpeg', 'png', 'gif', 'webp'])) {
-                        // Process image with OCR
                         try {
                             $imagePath = $file->store('temp_uploads', 'local');
                             $fullImagePath = storage_path('app/' . $imagePath);
 
-                            // Extract text using OCR
                             $ocrResult = $ocrService->extractText($fullImagePath);
 
                             if ($ocrResult['success'] && !empty($ocrResult['text'])) {
@@ -672,7 +847,6 @@ class LaporanKuesioneController extends Controller
                                 ];
                             }
 
-                            // Clean up temp file
                             if (file_exists($fullImagePath)) {
                                 @unlink($fullImagePath);
                             }
@@ -688,7 +862,6 @@ class LaporanKuesioneController extends Controller
                             ]);
                         }
                     } else {
-                        // Process document file
                         $filePath = $file->store('temp_uploads', 'local');
                         $fullPath = storage_path('app/' . $filePath);
 
@@ -717,7 +890,6 @@ class LaporanKuesioneController extends Controller
                                 'message' => 'Gagal membaca file ' . $fileName . ': ' . $e->getMessage()
                             ], 400);
                         } finally {
-                            // Clean up temp file
                             if (file_exists($fullPath)) {
                                 @unlink($fullPath);
                             }
@@ -729,22 +901,18 @@ class LaporanKuesioneController extends Controller
             // Build conversation messages for Chat Completions API
             $messages = [];
 
-            // Add system context as first message
             $messages[] = [
                 'role' => 'system',
                 'content' => $systemContext
             ];
 
-            // If there's conversation history, include it (for multi-turn conversation)
             if (!empty($conversationHistory)) {
                 foreach ($conversationHistory as $msg) {
                     $role = $msg['role'] ?? 'user';
                     $content = $msg['content'] ?? '';
 
-                    // Skip empty messages
                     if (empty($content)) continue;
 
-                    // Normalize role
                     if ($role === 'assistant' || $role === 'ai') {
                         $role = 'assistant';
                     }
@@ -756,27 +924,22 @@ class LaporanKuesioneController extends Controller
                 }
             }
 
-            // Add current user message
             $currentMessage = '';
 
-            // Add periode context if provided
             if (!empty($periode)) {
                 $currentMessage .= "PERIODE LAPORAN: {$periode}\n\n";
             }
 
-            // Add database context (Kuesioner Kepuasan Mahasiswa data) if no file upload
             if (!empty($databaseContext)) {
                 $currentMessage .= "===== DATA KUESIONER KEPUASAN MAHASISWA DARI DATABASE =====\n\n";
                 $currentMessage .= $databaseContext . "\n\n";
                 $currentMessage .= "===== END DATA DATABASE =====\n\n";
             }
 
-            // Process uploaded documents
             if (!empty($filesContext)) {
                 $currentMessage .= "Saya telah mengupload beberapa dokumen kuesioner:\n\n";
 
                 foreach ($filesContext as $fileData) {
-                    // Truncate very long content
                     $content = $fileData['content'];
                     $maxFileContentLength = 15000;
 
@@ -789,7 +952,6 @@ class LaporanKuesioneController extends Controller
                 }
             }
 
-            // Add OCR texts from current upload
             if (!empty($ocrTexts)) {
                 $currentMessage .= "Teks yang diekstrak dari gambar kuesioner:\n\n";
                 foreach ($ocrTexts as $ocrData) {
@@ -799,6 +961,15 @@ class LaporanKuesioneController extends Controller
             }
 
             $currentMessage .= "Instruksi dari user: " . $userPrompt . "\n\n";
+            
+            $currentMessage .= "⚠️ PERINGATAN KERAS: Periksa terlebih dahulu apakah instruksi user di atas terkait dengan LAPORAN KUESIONER KEPUASAN MAHASISWA.\n\n";
+            $currentMessage .= "Jika instruksi di atas TIDAK terkait dengan:\n";
+            $currentMessage .= "- Pembuatan laporan kuesioner\n";
+            $currentMessage .= "- Analisis data kuesioner\n";
+            $currentMessage .= "- Format/struktur laporan kuesioner\n";
+            $currentMessage .= "- Perbaikan draft laporan kuesioner\n\n";
+            $currentMessage .= "Maka Anda WAJIB menolak dengan respons: \"Maaf, permintaan Anda di luar konteks pembuatan Laporan Kuesioner. Saya hanya dapat membantu dengan pembuatan laporan kuesioner kepuasan mahasiswa. Silakan ajukan pertanyaan terkait laporan kuesioner.\"\n\n";
+            $currentMessage .= "JANGAN JAWAB pertanyaan tentang: siapa, kenalan, cuaca, berita, resep, musik, film, game, olahraga, hewan, fitness, atau topik pribadi lainnya!\n\n";
 
             if ($templateStructure) {
                 $currentMessage .= "PENTING: Anda HARUS menghasilkan draft laporan kuesioner yang mengikuti STRUKTUR TEMPLATE yang telah diberikan di system context.\n\n";
@@ -809,10 +980,11 @@ class LaporanKuesioneController extends Controller
                 $currentMessage .= "1. # RINGKASAN EKSEKUTIF\n";
                 $currentMessage .= "2. # PENDAHULUAN\n";
                 $currentMessage .= "3. # METODOLOGI\n";
-                $currentMessage .= "4. # TEMUAN UTAMA\n";
-                $currentMessage .= "5. # ANALISIS KUALITAS\n";
-                $currentMessage .= "6. # REKOMENDASI\n";
-                $currentMessage .= "7. # KESIMPULAN\n\n";
+                $currentMessage .= "4. # I. HASIL KUESIONER\n";
+                $currentMessage .= "5. # II. MASUKAN DAN SARAN\n";
+                $currentMessage .= "6. # ANALISIS KUALITAS\n";
+                $currentMessage .= "7. # REKOMENDASI\n";
+                $currentMessage .= "8. # KESIMPULAN\n\n";
                 $currentMessage .= "Jangan skip bagian manapun. Setiap bagian harus berisi minimal 2-3 paragraf dengan analisis yang mendalam.\n";
             }
 
@@ -823,7 +995,6 @@ class LaporanKuesioneController extends Controller
                 'content' => $currentMessage
             ];
 
-            // Call AI service using Chat Completions API with conversation history
             $aiResult = $aiService->generateChat($messages, [
                 'max_tokens' => 8192,
                 'temperature' => 0.7
@@ -833,14 +1004,11 @@ class LaporanKuesioneController extends Controller
                 Log::error('AI returned empty response for Kuesioner', [
                     'prompt_length' => strlen($userPrompt),
                     'files_count' => count($filesContext),
-                    'images_count' => count($imageContents),
                     'messages_count' => count($messages),
-                    'conversation_turns' => count(array_filter($messages, fn($m) => ($m['role'] ?? '') !== 'system')),
                     'error' => $aiResult['error'] ?? 'Unknown error',
                     'provider' => $aiResult['provider'] ?? 'unknown'
                 ]);
 
-                // More specific error messages
                 $errorMessage = 'Layanan AI mengalami masalah. ';
                 if (isset($aiResult['error'])) {
                     if (str_contains($aiResult['error'], 'Rate limit') || str_contains($aiResult['error'], '429')) {
@@ -867,18 +1035,10 @@ class LaporanKuesioneController extends Controller
 
             $aiResponse = $aiResult['text'];
 
-            // ===== CACHE DISABLED FOR KUESIONER =====
-            // Cache save dinonaktifkan untuk Laporan Kuesioner agar selalu fresh
-            Log::info('Cache save SKIPPED for Kuesioner - Always generating fresh response', [
-                'provider' => $aiResult['provider'],
-                'model' => $aiResult['model']
-            ]);
-
             Log::info('AI Prompt successful for Kuesioner', [
                 'prompt_length' => strlen($userPrompt),
                 'response_length' => strlen($aiResponse),
                 'files_count' => count($filesContext),
-                'images_count' => count($imageContents),
                 'messages_count' => count($messages),
                 'has_template' => !empty($templateStructure),
                 'provider' => $aiResult['provider'],
@@ -919,19 +1079,17 @@ class LaporanKuesioneController extends Controller
             $request->validate([
                 'laporan_id' => 'required|exists:laporan_bulanan,id',
                 'ai_preview_draft' => 'required|string',
-                'ai_sections' => 'nullable|string', // JSON string
+                'ai_sections' => 'nullable|string',
             ]);
 
             $laporanId = $request->input('laporan_id');
             $aiPreviewDraft = $request->input('ai_preview_draft');
             $aiSectionsJson = $request->input('ai_sections', '[]');
 
-            // Parse sections from JSON
             $sections = [];
             try {
                 $sectionsArray = json_decode($aiSectionsJson, true);
                 if (is_array($sectionsArray)) {
-                    // Convert sections array to associative array
                     foreach ($sectionsArray as $section) {
                         if (isset($section['title']) && isset($section['content'])) {
                             $key = $this->sectionTitleToKey($section['title']);
@@ -946,10 +1104,8 @@ class LaporanKuesioneController extends Controller
                 ]);
             }
 
-            // Find laporan
             $laporan = LaporanBulanan::findOrFail($laporanId);
 
-            // Save preview data
             $laporan->update([
                 'ai_preview_draft' => $aiPreviewDraft,
                 'ai_sections' => $sections,
@@ -987,7 +1143,6 @@ class LaporanKuesioneController extends Controller
     /**
      * Generate Word document from AI preview
      * Called from AI Assistant after user gets AI response
-     * Uses template with placeholders if template is selected
      */
     public function generateWordDocument(Request $request)
     {
@@ -1002,7 +1157,6 @@ class LaporanKuesioneController extends Controller
 
             $laporan = LaporanBulanan::findOrFail($laporanId);
 
-            // Check access
             $user = Auth::user();
             $hasAccess = $laporan->user_id == $user->id || in_array($user->role, ['GKM', 'GJM']);
 
@@ -1019,8 +1173,6 @@ class LaporanKuesioneController extends Controller
                 'template_id' => $laporan->template_id
             ]);
 
-            // Step 1: Generate AI content with placeholder structure
-            // Use generateLaporanWithPlaceholders if template is selected
             if ($laporan->template_id) {
                 Log::info('Using template with placeholders', ['template_id' => $laporan->template_id]);
 
@@ -1030,7 +1182,6 @@ class LaporanKuesioneController extends Controller
                     $laporan->template_id
                 );
             } else {
-                // Fallback to regular generation without placeholder structure
                 Log::info('No template selected, using regular generation');
 
                 $hasilAI = $this->laporanService->generateLaporan(
@@ -1040,11 +1191,9 @@ class LaporanKuesioneController extends Controller
                 );
             }
 
-            // Parse hasil_laporan from AI response
             $hasilLaporan = $hasilAI['hasil_laporan'] ?? [];
             $aggregatedData = $hasilAI['aggregated_data'] ?? [];
 
-            // Save to database
             $laporan->update([
                 'hasil_laporan' => $hasilLaporan,
                 'aggregated_data' => $aggregatedData,
@@ -1056,9 +1205,7 @@ class LaporanKuesioneController extends Controller
                 'laporan_id' => $laporanId,
             ]);
 
-            // Step 2: Generate Word document
             if ($laporan->template_id) {
-                // Use template-based generation (fill placeholders)
                 Log::info('Generating Word from template with placeholders', [
                     'template_id' => $laporan->template_id
                 ]);
@@ -1068,7 +1215,6 @@ class LaporanKuesioneController extends Controller
                     $hasilLaporan
                 );
             } else {
-                // Use simple Word generation
                 Log::info('Generating Word without template');
 
                 $wordGenerationService = app(\App\Services\KuesioneWordGenerationService::class);
@@ -1079,10 +1225,8 @@ class LaporanKuesioneController extends Controller
                 throw new \Exception('Gagal membuat file Word document');
             }
 
-            // Refresh laporan to get updated file_word path
             $laporan = $laporan->fresh();
 
-            // Check if file exists
             if (!$laporan->file_word || !file_exists(storage_path('app/' . $laporan->file_word))) {
                 throw new \Exception('File Word gagal dibuat');
             }
@@ -1095,7 +1239,6 @@ class LaporanKuesioneController extends Controller
                 'file_path' => $laporan->file_word,
             ]);
 
-            // Return the file as download
             return response()->download($filePath, $fileName, [
                 'Content-Type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
             ]);
@@ -1119,20 +1262,17 @@ class LaporanKuesioneController extends Controller
      */
     private function generateWordFromTemplateWithPlaceholders($laporan, $hasilLaporan)
     {
-        // Use the new Word Generation Service which handles templates properly
         $wordGenerationService = app(\App\Services\KuesioneWordGenerationService::class);
         return $wordGenerationService->generateWordDocument($laporan);
     }
 
     /**
      * Extract placeholder values from hasil_laporan JSON
-     * Maps JSON keys to template placeholder names
      */
     private function extractPlaceholdersFromLaporan($hasilLaporan)
     {
         $placeholders = [];
 
-        // Map hasil_laporan JSON keys to template placeholders
         $mapping = [
             'PENDAHULUAN_TUJUAN' => 'PENDAHULUAN_TUJUAN',
             'PENDAHULUAN_WAKTU' => 'PENDAHULUAN_WAKTU',
@@ -1153,14 +1293,12 @@ class LaporanKuesioneController extends Controller
             if (isset($hasilLaporan[$jsonKey])) {
                 $value = $hasilLaporan[$jsonKey];
 
-                // Handle different data types
                 if (is_array($value)) {
                     $value = json_encode($value, JSON_UNESCAPED_UNICODE);
                 }
 
                 $placeholders[$placeholderKey] = (string)$value;
             } else {
-                // Provide empty value for missing placeholders
                 $placeholders[$placeholderKey] = '';
             }
         }
@@ -1169,7 +1307,7 @@ class LaporanKuesioneController extends Controller
     }
 
     /**
-     * Extract template structure (placeholder - implement based on your template system)
+     * Extract template structure
      */
     private function extractTemplateStructure($templateId)
     {
@@ -1179,7 +1317,6 @@ class LaporanKuesioneController extends Controller
             $template = TemplateLaporan::find($templateId);
             if (!$template) return null;
 
-            // This is a placeholder - implement based on your template structure
             return "Template structure for kuesioner report...";
         } catch (\Exception $e) {
             Log::warning('Failed to extract template structure for Kuesioner', [
@@ -1217,7 +1354,6 @@ class LaporanKuesioneController extends Controller
      */
     private function sectionTitleToKey($title)
     {
-        // Normalize title to key format
         $key = strtolower(trim($title));
         $key = preg_replace('/[^a-z0-9]+/', '_', $key);
         $key = trim($key, '_');
@@ -1227,9 +1363,6 @@ class LaporanKuesioneController extends Controller
 
     /**
      * Get Kuesioner Kepuasan Mahasiswa data from database for AI context
-     *
-     * @param string|null $periode Format: YYYY-MM (e.g., "2026-06")
-     * @return string Formatted context string for AI
      */
     private function getKuesioneDataFromDatabase($periode = null)
     {
@@ -1237,16 +1370,15 @@ class LaporanKuesioneController extends Controller
             $user = Auth::user();
             $prodiKode = $user->prodi->kode_prodi ?? 'TRPL';
 
-            // Parse periode to get semester and tahun ajaran
             if ($periode) {
                 $year  = (int) substr($periode, 0, 4);
                 $month = (int) substr($periode, 5, 2);
 
                 if ($month <= 6) {
-                    $semester    = 2; // Genap
+                    $semester    = 2;
                     $tahunAjaran = ($year - 1) . '/' . $year;
                 } else {
-                    $semester    = 1; // Ganjil
+                    $semester    = 1;
                     $tahunAjaran = $year . '/' . ($year + 1);
                 }
             } else {
@@ -1276,10 +1408,6 @@ class LaporanKuesioneController extends Controller
             $context .= "Semester: " . ($semester == 1 ? 'Ganjil' : 'Genap') . " {$tahunAjaran}\n";
             $context .= "Periode Pelaporan: {$periode}\n\n";
 
-            // ------------------------------------------------------------------
-            // Fetch data from kuesioner_uploads table
-            // Filter by semester and user's prodi menggunakan user relationship
-            // ------------------------------------------------------------------
             $uploads = KuesioneUpload::query()
                 ->where('semester', $semester)
                 ->whereHas('user', function($q) use ($prodiKode) {
@@ -1295,21 +1423,16 @@ class LaporanKuesioneController extends Controller
                 ->get();
 
             if ($uploads->isNotEmpty()) {
-                // Group data by tingkat
                 $dataByTingkat = $uploads->groupBy('tingkat');
 
-                $context .= "## I. HASIL KUESIONER\n\n";
-                $context .= "FORMAT DATA: Data ini akan digunakan untuk mengisi placeholder di template laporan\n\n";
+                $context .= "## HASIL KUESIONER PER TINGKAT\n\n";
 
-                // Process each tingkat (I, II, III, IV)
                 for ($tingkat = 1; $tingkat <= 4; $tingkat++) {
                     $context .= "### TINGKAT " . $this->numberToRoman($tingkat) . "\n\n";
 
                     $kuesioneData = $dataByTingkat->get($tingkat, collect());
 
                     if ($kuesioneData->isNotEmpty()) {
-                        // Tabel Hasil Kuesioner
-                        $context .= "**{{HASIL_KUESIONER_TINGKAT_" . $this->numberToRoman($tingkat) . "}}**\n\n";
                         $context .= "| No | Kode Matakuliah | Nama Matakuliah | Dosen Pengampu | Indeks Kepuasan | % Kepuasan | Total Responden |\n";
                         $context .= "|----|----------------|-----------------|----------------|-----------------|-----------|------------------|\n";
 
@@ -1327,18 +1450,15 @@ class LaporanKuesioneController extends Controller
 
                         $context .= "\n";
 
-                        // Tabel Masukan/Saran
-                        $context .= "**{{MASUKAN_SARAN_TINGKAT_" . $this->numberToRoman($tingkat) . "}}**\n\n";
-                        $context .= "| No | Kode Matakuliah | Nama Matakuliah | Dosen Pengampu | Masukan/Saran |\n";
-                        $context .= "|----|----------------|-----------------|----------------|---------------|\n";
+                        $context .= "**Masukan dan Saran Tingkat " . $this->numberToRoman($tingkat) . ":**\n";
+                        $context .= "| No | Kode Matakuliah | Nama Matakuliah | Masukan/Saran |\n";
+                        $context .= "|----|----------------|-----------------|---------------|\n";
 
                         foreach ($kuesioneData as $i => $row) {
                             $no = $i + 1;
                             $kodeMK = $row->kode_matakuliah ?? '-';
                             $namaMK = $row->nama_matakuliah ?? '-';
-                            $dosen = $row->dosen_pengampu ?? '-';
 
-                            // Extract masukan/saran from hasil_analisis
                             $masukanSaran = '-';
                             if (!empty($row->hasil_analisis)) {
                                 $analisis = is_string($row->hasil_analisis)
@@ -1354,7 +1474,6 @@ class LaporanKuesioneController extends Controller
                                 }
                             }
 
-                            // Jika masih kosong, gunakan keterangan default
                             if ($masukanSaran === '-' || empty(trim($masukanSaran))) {
                                 if ($row->index_kepuasan >= 3.5) {
                                     $masukanSaran = 'Pertahankan kualitas pembelajaran yang sudah baik';
@@ -1365,12 +1484,11 @@ class LaporanKuesioneController extends Controller
                                 }
                             }
 
-                            $context .= "| {$no} | {$kodeMK} | {$namaMK} | {$dosen} | {$masukanSaran} |\n";
+                            $context .= "| {$no} | {$kodeMK} | {$namaMK} | {$masukanSaran} |\n";
                         }
 
                         $context .= "\n";
 
-                        // Statistik tingkat
                         $avgIndex = $kuesioneData->avg('index_kepuasan');
                         $avgPersen = $kuesioneData->avg('persen_kepuasan');
                         $totalMK = $kuesioneData->count();
@@ -1382,15 +1500,10 @@ class LaporanKuesioneController extends Controller
                         $context .= "- Rata-rata % Kepuasan: " . number_format($avgPersen, 1) . "%\n";
                         $context .= "- Total Responden: {$totalResponden}\n\n";
                     } else {
-                        $context .= "**{{HASIL_KUESIONER_TINGKAT_" . $this->numberToRoman($tingkat) . "}}**\n\n";
                         $context .= "Tidak ada data kuesioner untuk Tingkat " . $this->numberToRoman($tingkat) . ".\n\n";
-
-                        $context .= "**{{MASUKAN_SARAN_TINGKAT_" . $this->numberToRoman($tingkat) . "}}**\n\n";
-                        $context .= "Tidak ada masukan atau saran untuk Tingkat " . $this->numberToRoman($tingkat) . ".\n\n";
                     }
                 }
 
-                // Overall Statistics
                 $totalMK = $uploads->count();
                 $totalResponden = $uploads->sum('total_responden');
                 $avgIndex = $uploads->avg('index_kepuasan');
@@ -1447,7 +1560,6 @@ class LaporanKuesioneController extends Controller
             $phpWord = new \PhpOffice\PhpWord\PhpWord();
             $section = $phpWord->addSection();
 
-            // Add title
             $periodeObj = Carbon::createFromFormat('Y-m', $laporan->periode);
             $bulanTahun = $periodeObj->locale('id')->translatedFormat('F Y');
 
@@ -1457,7 +1569,6 @@ class LaporanKuesioneController extends Controller
 
             $hasilLaporan = $laporan->hasil_laporan ?? [];
 
-            // Ringkasan Eksekutif
             if (isset($hasilLaporan['ringkasan_eksekutif'])) {
                 $section->addTitle("RINGKASAN EKSEKUTIF", 1);
                 $ringkasan = $hasilLaporan['ringkasan_eksekutif'];
@@ -1484,7 +1595,6 @@ class LaporanKuesioneController extends Controller
                 }
             }
 
-            // Statistik Utama
             if (isset($hasilLaporan['statistik_utama'])) {
                 $section->addTitle("STATISTIK UTAMA", 1);
                 $stats = $hasilLaporan['statistik_utama'];
@@ -1521,7 +1631,6 @@ class LaporanKuesioneController extends Controller
                 $section->addTextBreak(2);
             }
 
-            // Insight Utama
             if (isset($hasilLaporan['insight_utama']) && !empty($hasilLaporan['insight_utama'])) {
                 $section->addTitle("INSIGHT UTAMA", 1);
                 foreach ($hasilLaporan['insight_utama'] as $idx => $insight) {
@@ -1530,7 +1639,6 @@ class LaporanKuesioneController extends Controller
                 $section->addTextBreak(2);
             }
 
-            // Rekomendasi
             if (isset($hasilLaporan['rekomendasi']) && !empty($hasilLaporan['rekomendasi'])) {
                 $section->addTitle("REKOMENDASI", 1);
 
@@ -1552,12 +1660,10 @@ class LaporanKuesioneController extends Controller
                 $section->addTextBreak(2);
             }
 
-            // Save Word file
             $fileName = 'laporan_kuesioner_' . $laporan->periode . '_' . time() . '.docx';
             $filePath = 'laporan_kuesioner/' . $fileName;
             $fullPath = storage_path('app/' . $filePath);
 
-            // Create directory if not exists
             $directory = dirname($fullPath);
             if (!file_exists($directory)) {
                 mkdir($directory, 0755, true);
@@ -1566,7 +1672,6 @@ class LaporanKuesioneController extends Controller
             $objWriter = \PhpOffice\PhpWord\IOFactory::createWriter($phpWord, 'Word2007');
             $objWriter->save($fullPath);
 
-            // Update laporan
             $laporan->file_word = $filePath;
             $laporan->save();
 
@@ -1591,9 +1696,6 @@ class LaporanKuesioneController extends Controller
     // TEMPLATE MANAGEMENT METHODS
     // ============================================================
 
-    /**
-     * Display a listing of templates
-     */
     public function templateIndex()
     {
         $templates = TemplateLaporan::where('jenis_laporan', 'kuesioner')
@@ -1604,17 +1706,11 @@ class LaporanKuesioneController extends Controller
         return view('gkm.laporan-kuesioner.template.index', compact('templates'));
     }
 
-    /**
-     * Show the form for uploading a new template
-     */
     public function templateUpload()
     {
         return view('gkm.laporan-kuesioner.template.upload');
     }
 
-    /**
-     * Store a newly uploaded template
-     */
     public function templateStore(Request $request)
     {
         try {
@@ -1650,7 +1746,6 @@ class LaporanKuesioneController extends Controller
                 'nama_file' => $originalFileName,
             ]);
 
-            // Process template to vector DB
             try {
                 $this->laporanService->processTemplateToVectorDB($template->id);
                 $message = 'Template berhasil diupload dan diindeks ke vector database!';
@@ -1677,9 +1772,6 @@ class LaporanKuesioneController extends Controller
         }
     }
 
-    /**
-     * Download template file
-     */
     public function templateDownload($id)
     {
         try {
@@ -1706,9 +1798,6 @@ class LaporanKuesioneController extends Controller
         }
     }
 
-    /**
-     * Toggle template active status
-     */
     public function templateToggle($id)
     {
         try {
@@ -1740,15 +1829,11 @@ class LaporanKuesioneController extends Controller
         }
     }
 
-    /**
-     * Reindex template for search/RAG
-     */
     public function templateReindex($id)
     {
         try {
             $template = TemplateLaporan::findOrFail($id);
 
-            // Process template to vector DB
             $result = $this->laporanService->processTemplateToVectorDB($template->id);
 
             Log::info('Template reindexed', [
@@ -1773,15 +1858,11 @@ class LaporanKuesioneController extends Controller
         }
     }
 
-    /**
-     * Delete template
-     */
     public function templateDestroy($id)
     {
         try {
             $template = TemplateLaporan::findOrFail($id);
 
-            // Delete file from storage
             if (Storage::exists($template->file_path)) {
                 Storage::delete($template->file_path);
             }
