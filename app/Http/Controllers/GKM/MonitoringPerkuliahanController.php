@@ -516,6 +516,28 @@ $selectedTahunAjaran = $request->input(
             }
         }
 
+        // =========================
+        // PAGINATION
+        // =========================
+        $perPage = 10;
+        $currentPage = $request->input('page', 1);
+
+        $paginationTeori = new LengthAwarePaginator(
+            collect($materiTeori)->forPage($currentPage, $perPage),
+            count($materiTeori),
+            $perPage,
+            $currentPage,
+            ['path' => $request->url(), 'query' => array_merge($request->query(), ['tab' => 'teori'])]
+        );
+
+        $paginationPraktikum = new LengthAwarePaginator(
+            collect($materiPraktikum)->forPage($currentPage, $perPage),
+            count($materiPraktikum),
+            $perPage,
+            $currentPage,
+            ['path' => $request->url(), 'query' => array_merge($request->query(), ['tab' => 'praktikum'])]
+        );
+
         return view('gkm.monitoring-perkuliahan.index', [
             'user' => $user,
             'tahunAjaranList' => $tahunAjaranList,
@@ -525,6 +547,8 @@ $selectedTahunAjaran = $request->input(
             'filterApplied' => $filterApplied,
             'materiTeori' => $materiTeori,
             'materiPraktikum' => $materiPraktikum,
+            'paginationTeori' => $paginationTeori,
+            'paginationPraktikum' => $paginationPraktikum,
             'noDataFromAPI' => $noDataFromAPI,
         ]);
     }

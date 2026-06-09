@@ -205,6 +205,67 @@
     @endif
 </div>
 
+<style>
+    /* Custom Pagination Style - Modern & Clean */
+    .pagination {
+        gap: 0.5rem;
+        margin: 0;
+    }
+
+    .pagination .page-item {
+        margin: 0;
+    }
+
+    .pagination .page-link {
+        color: #495057;
+        background-color: #ffffff;
+        border: 1px solid #e0e0e0;
+        padding: 0.5rem 0.85rem;
+        border-radius: 0.5rem;
+        transition: all 0.3s ease;
+        font-weight: 500;
+        min-width: 2.5rem;
+        text-align: center;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+    }
+
+    .pagination .page-link:hover {
+        background-color: #f8f9fa;
+        border-color: #5B9BD5;
+        color: #5B9BD5;
+        transform: translateY(-1px);
+        box-shadow: 0 2px 4px rgba(91, 155, 213, 0.15);
+    }
+
+    .pagination .page-item.active .page-link {
+        background: linear-gradient(135deg, #5B9BD5 0%, #4a8bc2 100%);
+        border-color: #5B9BD5;
+        color: white !important;
+        font-weight: 600;
+        box-shadow: 0 3px 8px rgba(91, 155, 213, 0.3);
+        transform: translateY(-1px);
+    }
+
+    .pagination .page-item.active .page-link:hover {
+        background: linear-gradient(135deg, #4a8bc2 0%, #3d7aad 100%);
+        transform: translateY(-1px);
+    }
+
+    .pagination .page-item.disabled .page-link {
+        color: #ced4da;
+        background-color: #f8f9fa;
+        border-color: #e9ecef;
+        cursor: not-allowed;
+        box-shadow: none;
+    }
+
+    /* Arrow buttons special styling */
+    .pagination .page-item:first-child .page-link,
+    .pagination .page-item:last-child .page-link {
+        font-weight: 600;
+    }
+</style>
+
 <script>
 document.getElementById('filterForm').addEventListener('submit', function() {
     const overlay = document.createElement('div');

@@ -206,7 +206,7 @@
             <h6 class="mb-3 font-semibold">Aksi Cepat</h6>
             <div class="action-grid">
                 <div class="action-item">
-                    <a href="{{ route('gkm.laporan-kuesioner.index') }}" class="action-btn primary-dark">
+                    <a href="{{ route('gkm.laporan-artefak.create') }}" class="action-btn primary-dark">
                         <span class="action-icon"><i class="bi bi-file-earmark-pdf"></i></span>
                         <span class="action-text">
                             <span class="action-title">Generate Laporan Bulanan</span>
@@ -478,194 +478,13 @@
             console.log('Status Labels:', statusLabels);
             console.log('Status Values:', statusValues);
 
-            if (statusLabels.length > 0) {
-                new Chart(document.getElementById('chartStatus'), {
-                    type: 'doughnut',
-                    data: {
-                        labels: statusLabels,
-                        datasets: [{
-                            data: statusValues,
-                            backgroundColor: ['#198754', '#ffc107', '#dc3545', '#0d6efd']
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: true,
-                        plugins: {
-                            legend: {
-                                position: 'bottom'
-                            },
-                            tooltip: {
-                                callbacks: {
-                                    label: function(context) {
-                                        return context.label + ': ' + context.parsed + '%';
-                                    }
-                                }
-                            }
-                        }
-                    }
-                });
-            } else {
-                const canvas = document.getElementById('chartStatus');
-                const ctx = canvas.getContext('2d');
-                ctx.font = '14px Arial';
-                ctx.fillStyle = '#6c757d';
-                ctx.textAlign = 'center';
-                ctx.fillText('Tidak ada data untuk ditampilkan', canvas.width / 2, canvas.height / 2);
-            }
-
-            // Chart Trend Kepatuhan
-            const trendData = @json($trendSemester ?? collect());
-            const trendLabels = Object.keys(trendData).map(key => 'Semester ' + key);
-            const trendValues = Object.values(trendData);
-
-            console.log('Trend Data (raw):', trendData);
-            console.log('Trend Labels:', trendLabels);
-            console.log('Trend Values:', trendValues);
-            console.log('Trend Labels length:', trendLabels.length);
-            console.log('Trend Values length:', trendValues.length);
-
-            if (trendLabels.length > 0 && trendValues.length > 0) {
-                new Chart(document.getElementById('trendChart'), {
-                    type: 'line',
-                    data: {
-                        labels: trendLabels,
-                        datasets: [{
-                            label: 'Trend Kepatuhan (%)',
-                            data: trendValues,
-                            borderColor: '#198754',
-                            backgroundColor: 'rgba(25, 135, 84, 0.15)',
-                            tension: 0.4,
-                            fill: true,
-                            pointRadius: 5,
-                            pointHoverRadius: 7,
-                            pointBackgroundColor: '#198754',
-                            pointBorderColor: '#fff',
-                            pointBorderWidth: 2
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: true,
-                        scales: {
-                            y: {
-                                beginAtZero: true,
-                                max: 100,
-                                ticks: {
-                                    callback: function(value) {
-                                        return value + '%';
-                                    }
-                                }
-                            },
-                            x: {
-                                ticks: {
-                                    font: {
-                                        size: 12,
-                                        weight: 'bold'
-                                    }
-                                }
-                            }
-                        },
-                        plugins: {
-                            legend: {
-                                display: true
-                            },
-                            tooltip: {
-                                callbacks: {
-                                    label: function(context) {
-                                        return 'Kepatuhan: ' + context.parsed.y + '%';
-                                    }
-                                }
-                            }
-                        }
-                    }
-                });
-                console.log('Trend chart created successfully');
-            } else {
-                // Jika tidak ada data, tampilkan pesan
-                const trendCanvas = document.getElementById('trendChart');
-                const ctx = trendCanvas.getContext('2d');
-                ctx.font = '16px Arial';
-                ctx.fillStyle = '#6c757d';
-                ctx.textAlign = 'center';
-                ctx.fillText('Tidak ada data trend untuk ditampilkan', trendCanvas.width / 2, trendCanvas.height /
-                    2);
-                console.log('No trend data available');
-            }
-        });
-    </script>
-@endsection
-
-@section('scripts')
-    <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            // Chart Kepatuhan per Tingkat
-            const tingkatData = @json($groupByTingkat ?? collect());
-            const tingkatLabels = Object.keys(tingkatData);
-            const tingkatValues = Object.values(tingkatData);
-
-            console.log('Tingkat Data:', tingkatData);
-            console.log('Tingkat Labels:', tingkatLabels);
-            console.log('Tingkat Values:', tingkatValues);
-
-            if (tingkatLabels.length > 0) {
-                new Chart(document.getElementById('chartTingkat'), {
-                    type: 'bar',
-                    data: {
-                        labels: tingkatLabels,
-                        datasets: [{
-                            label: 'Rata-rata Kepatuhan (%)',
-                            data: tingkatValues,
-                            backgroundColor: '#0d6efd',
-                            borderRadius: 10,
-                            borderWidth: 1
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: true,
-                        scales: {
-                            y: {
-                                beginAtZero: true,
-                                max: 100,
-                                ticks: {
-                                    callback: function(value) {
-                                        return value + '%';
-                                    }
-                                }
-                            }
-                        },
-                        plugins: {
-                            legend: {
-                                display: true
-                            },
-                            tooltip: {
-                                callbacks: {
-                                    label: function(context) {
-                                        return 'Kepatuhan: ' + context.parsed.y + '%';
-                                    }
-                                }
-                            }
-                        }
-                    }
-                });
-            } else {
-                const canvas = document.getElementById('chartTingkat');
-                const ctx = canvas.getContext('2d');
-                ctx.font = '14px Arial';
-                ctx.fillStyle = '#6c757d';
-                ctx.textAlign = 'center';
-                ctx.fillText('Tidak ada data untuk ditampilkan', canvas.width / 2, canvas.height / 2);
-            }
-
-            // Chart Distribusi Status
-            const statusData = @json($statusDistribution ?? collect());
-            const statusLabels = Object.keys(statusData);
-            const statusValues = Object.values(statusData);
-
-            console.log('Status Data:', statusData);
-            console.log('Status Labels:', statusLabels);
-            console.log('Status Values:', statusValues);
+            // Map warna berdasarkan label status
+            const statusColors = statusLabels.map(label => {
+                if (label === 'BELUM PATUH') return '#dc3545'; // Merah untuk Belum Patuh
+                if (label === 'KURANG PATUH') return '#ffc107'; // Kuning untuk Kurang Patuh
+                if (label === 'PATUH') return '#198754'; // Hijau untuk Patuh
+                return '#0d6efd'; // Biru default
+            });
 
             if (statusLabels.length > 0) {
                 new Chart(document.getElementById('chartStatus'), {
@@ -674,7 +493,7 @@
                         labels: statusLabels,
                         datasets: [{
                             data: statusValues,
-                            backgroundColor: ['#198754', '#ffc107', '#dc3545', '#0d6efd']
+                            backgroundColor: statusColors
                         }]
                     },
                     options: {

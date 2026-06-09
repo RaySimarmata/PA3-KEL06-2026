@@ -202,7 +202,12 @@
                 labels: @json($statusDistribution->keys()),
                 datasets: [{
                     data: @json($statusDistribution->values()),
-                    backgroundColor: ['#198754', '#ffc107', '#dc3545', '#0d6efd']
+                    backgroundColor: @json($statusDistribution->keys()->map(function($label) {
+                        if ($label === 'BELUM PATUH') return '#dc3545';
+                        if ($label === 'KURANG PATUH') return '#ffc107';
+                        if ($label === 'PATUH') return '#198754';
+                        return '#0d6efd';
+                    })->values())
                 }]
             },
             options: {
