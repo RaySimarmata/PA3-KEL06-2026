@@ -583,7 +583,7 @@ public function Dmatakuliah(Request $request)
             }
         }
 
-        $selectedTingkat = $request->tingkat ?? 1;
+        $selectedTingkat = $request->tingkat ?? '';
 
         /*
         |--------------------------------------------------------------------------

@@ -108,6 +108,13 @@ class MonitoringRPSController extends Controller
                     $selectedTahunAjaran
                 );
 
+                $rpsCompliance = $this->saveRpsComplianceSnapshot(
+                    $prodiId,
+                    $prodiKode,
+                    $selectedSemester,
+                    $selectedTahunAjaran
+                );
+
                 // Cache the result
                 \Cache::put($cacheKey, $matkulList, 1800);
                 
@@ -125,6 +132,8 @@ class MonitoringRPSController extends Controller
                 'count' => count($matkulList)
             ]);
         }
+
+        $rpsCompliance = $rpsCompliance ?? $this->getRpsComplianceSummary($prodiId, $selectedSemester, $selectedTahunAjaran);
 
         // =========================
         // PAGINATION
@@ -148,7 +157,8 @@ class MonitoringRPSController extends Controller
             'selectedSemester',
             'selectedTahunAjaran',
             'selectedTingkat',
-            'periodeAktif'
+            'periodeAktif',
+            'rpsCompliance'
         ))->with('noDataFromAPI', empty($matkulList));
 
     } catch (\Exception $e) {
@@ -165,6 +175,12 @@ class MonitoringRPSController extends Controller
             'selectedTahunAjaran' => '',
             'selectedTingkat' => '',
             'periodeAktif' => null,
+            'rpsCompliance' => [
+                'total_records' => 0,
+                'total_upload' => 0,
+                'jumlah_belum_upload' => 0,
+                'persentase_kepatuhan' => 0,
+            ],
         ])->with('error', 'Terjadi kesalahan.');
     }
 }
@@ -577,7 +593,105 @@ private function saveSnapshotToDB(
             'error' => $e->getMessage()
         ]);
     }
-}    /**
+}
+
+private function saveRpsComplianceSnapshot(
+    int $prodiId,
+    string $prodiKode,
+    string $semester,
+    string $tahunAjaran
+) {
+    try {
+        $summary = $this->buildRpsComplianceSummary($prodiId, $semester, $tahunAjaran);
+
+        \Cache::put(
+            "rps_compliance_{$prodiId}_{$semester}_{$tahunAjaran}",
+            $summary,
+            1800
+        );
+
+        \Log::info('MonitoringRPS - Compliance snapshot calculated', [
+            'prodi_id' => $prodiId,
+            'prodi_kode' => $prodiKode,
+            'semester' => $semester,
+            'tahun_ajaran' => $tahunAjaran,
+            'summary' => $summary,
+        ]);
+
+        return $summary;
+    } catch (\Exception $e) {
+        \Log::error('MonitoringRPS - Failed to calculate compliance snapshot', [
+            'error' => $e->getMessage(),
+        ]);
+
+        return [
+            'total_records' => 0,
+            'total_upload' => 0,
+            'jumlah_belum_upload' => 0,
+            'persentase_kepatuhan' => 0,
+        ];
+    }
+}
+
+private function getRpsComplianceSummary(int $prodiId, string $semester, string $tahunAjaran)
+{
+    $cached = \Cache::get("rps_compliance_{$prodiId}_{$semester}_{$tahunAjaran}");
+
+    if (!empty($cached)) {
+        return $cached;
+    }
+
+    return $this->buildRpsComplianceSummary($prodiId, $semester, $tahunAjaran);
+}
+
+private function buildRpsComplianceSummary(int $prodiId, string $semester, string $tahunAjaran)
+{
+    $snapshots = RpsMonitoringSnapshot::query()
+        ->where('prodi_id', $prodiId)
+        ->where('semester', (int) $semester)
+        ->where('tahun_ajaran', (string) $tahunAjaran)
+        ->get();
+
+    $courseKey = function ($snapshot) {
+        $kuliahId = trim((string) ($snapshot->kuliah_id ?? ''));
+        $kodeMk = trim((string) ($snapshot->kode_mk ?? ''));
+
+        return $kuliahId !== '' ? $kuliahId : $kodeMk;
+    };
+
+    $uniqueCourses = $snapshots
+        ->map($courseKey)
+        ->filter()
+        ->unique()
+        ->values();
+
+    $totalRecords = $uniqueCourses->count();
+    $uploadedStatuses = ['SUDAH UPLOAD', 'SUDAH DIVALIDASI', 'UPLOAD'];
+
+    $uploadedCourses = $snapshots->filter(function ($snapshot) use ($uploadedStatuses, $courseKey) {
+        $status = strtoupper((string) ($snapshot->status_rps ?? ''));
+
+        return in_array($status, $uploadedStatuses, true);
+    })->map($courseKey)
+        ->filter()
+        ->unique()
+        ->values();
+
+    $totalUpload = $uploadedCourses->count();
+    $jumlahBelumUpload = $totalRecords - $totalUpload;
+    $persentaseKepatuhan = $totalRecords > 0
+        ? round(($totalUpload / $totalRecords) * 100, 2)
+        : 0;
+
+    return [
+        'total_records' => $totalRecords,
+        'total_upload' => $totalUpload,
+        'jumlah_belum_upload' => $jumlahBelumUpload,
+        'persentase_kepatuhan' => $persentaseKepatuhan,
+    ];
+}
+
+/**
      * Clear cache for monitoring RPS data
      */
     public function clearCache(Request $request)

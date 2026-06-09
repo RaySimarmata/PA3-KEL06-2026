@@ -93,6 +93,32 @@
     
     @if(isset($pagination))
 
+    {{-- <div class="row g-3 mb-4">
+        <div class="col-md-3">
+            <div class="stats-card h-100" style="border-left: 4px solid #0d6efd;">
+                <small class="text-muted">Kepatuhan RPS</small>
+                <h2 class="fw-bold text-primary mt-2">{{ data_get($rpsCompliance, 'persentase_kepatuhan', 0) }}%</h2>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stats-card h-100" style="border-left: 4px solid #28a745;">
+                <small class="text-muted">Total RPS</small>
+                <h2 class="fw-bold text-success mt-2">{{ data_get($rpsCompliance, 'total_records', 0) }}</h2>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stats-card h-100" style="border-left: 4px solid #ffc107;">
+                <small class="text-muted">Sudah Upload</small>
+                <h2 class="fw-bold text-warning mt-2">{{ data_get($rpsCompliance, 'total_upload', 0) }}</h2>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stats-card h-100" style="border-left: 4px solid #dc3545;">
+                <small class="text-muted">Belum Upload</small>
+                <h2 class="fw-bold text-danger mt-2">{{ data_get($rpsCompliance, 'jumlah_belum_upload', 0) }}</h2>
+            </div>
+        </div>
+    </div> --}}
 
     {{-- Field Kedua  --}}
     <div class="monitoring-card">

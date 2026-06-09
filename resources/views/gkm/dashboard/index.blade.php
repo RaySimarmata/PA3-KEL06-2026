@@ -206,17 +206,17 @@
             <h6 class="mb-3 font-semibold">Aksi Cepat</h6>
             <div class="action-grid">
                 <div class="action-item">
-                    <a href="{{ route('gkm.laporan-kuesioner.index') }}" class="action-btn primary-dark">
+                    <a href="{{ route('gkm.laporan-artefak.index') }}" class="action-btn primary-dark">
                         <span class="action-icon"><i class="bi bi-file-earmark-pdf"></i></span>
                         <span class="action-text">
                             <span class="action-title">Generate Laporan Bulanan</span>
-                            <span class="action-subtitle">Buat ringkasan laporan GKM bulanan</span>
+                            <span class="action-subtitle">Susun laporan GKM bulanan</span>
                         </span>
                     </a>
                 </div>
 
                 <div class="action-item">
-                    <a href="{{ route('gkm.laporan-kuesioner.create') }}" class="action-btn primary-soft">
+                    <a href="{{ route('gkm.laporan-kuesioner.index') }}" class="action-btn primary-soft">
                         <span class="action-icon"><i class="bi bi-file-earmark-text"></i></span>
                         <span class="action-text">
                             <span class="action-title">Generate Laporan Kuesioner</span>
@@ -293,26 +293,26 @@
             <div class="row mb-4">
                 <div class="col-lg-3 col-md-6 mb-3">
                     <div class="stats-card" style="border-left: 4px solid #0d6efd;">
-                        <small class="text-muted">Rata-rata Kepatuhan</small>
+                        <small class="text-muted">Rata-rata Kepatuhan Upload Materi & RPS</small>
                         <h2 class="fw-bold text-primary mt-2">{{ $analyticsStats['avg_kepatuhan'] ?? 0 }}%</h2>
                     </div>
                 </div>
                 <div class="col-lg-3 col-md-6 mb-3">
                     <div class="stats-card" style="border-left: 4px solid #28a745;">
                         <small class="text-muted">Total Mata Kuliah</small>
-                        <h2 class="fw-bold text-success mt-2">{{ $analyticsStats['total_mata_kuliah'] ?? 0 }}</h2>
+                        <h2 class="fw-bold text-success mt-2">{{ $totalMatakuliahFromMaster ?? $analyticsStats['total_mata_kuliah'] ?? 0 }}</h2>
                     </div>
                 </div>
                 <div class="col-lg-3 col-md-6 mb-3">
                     <div class="stats-card" style="border-left: 4px solid #ffc107;">
                         <small class="text-muted">Total Dosen</small>
-                        <h2 class="fw-bold text-warning mt-2">{{ $analyticsStats['total_dosen'] ?? 0 }}</h2>
+                        <h2 class="fw-bold text-warning mt-2">{{ $totalDosenFromMaster ?? $analyticsStats['total_dosen'] ?? 0 }}</h2>
                     </div>
                 </div>
                 <div class="col-lg-3 col-md-6 mb-3">
                     <div class="stats-card" style="border-left: 4px solid #dc3545;">
-                        <small class="text-muted">Belum Upload</small>
-                        <h2 class="fw-bold text-danger mt-2">{{ $analyticsStats['jumlah_belum_upload'] ?? 0 }}</h2>
+                        <small class="text-muted">Rata-rata Kepuasan Prodi</small>
+                        <h2 class="fw-bold text-danger mt-2">{{ $kepuasanProdi ?? 0 }}%</h2>
                     </div>
                 </div>
             </div>

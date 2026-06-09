@@ -41,7 +41,11 @@
         <!-- Table Card -->
         <div class="monitoring-card mb-4">
             <div class="monitoring-header d-flex flex-wrap align-items-center gap-2">
-                <h6 class="mb-0">Pilih Dosen</h6>
+                {{-- <h6 class="mb-0">Pilih Dosen</h6> --}}
+                <select id="reminderMode" class="form-select form-select-sm" style="width: 150px;">
+    <option value="uts">Reminder UTS</option>
+    <option value="uas">Reminder UAS</option>
+</select>
                 <div class="ms-auto d-flex gap-2">
                     <!-- Input group dengan ikon search, lebar 300px -->
                     <div class="input-group input-group-sm" style="width: 300px;">
@@ -72,6 +76,7 @@
                             <th style="width: 25%;">Nama Dosen</th>
                             <th style="width: 25%;">Email</th>
                             <th style="width: 30%;">Mata Kuliah</th>
+                            <th style="width: 15%;">Jenis Perkuliahan</th>
                             <th style="width: 10%;" class="text-center">Status Upload</th>
                         </tr>
                     </thead>
@@ -168,25 +173,40 @@
     let timeout = null;
     let currentPage = 1;
 
-    document.addEventListener('DOMContentLoaded', function() {
-        loadDosenData();
-    });
+    document.addEventListener('DOMContentLoaded', function () {
 
-    document.getElementById('searchInput').addEventListener('keyup', function () {
-        clearTimeout(timeout);
-        timeout = setTimeout(() => {
-            currentPage = 1;
-            loadDosenData();
-        }, 400);
+        loadDosenData();
+
+        // Search
+        document.getElementById('searchInput').addEventListener('keyup', function () {
+            clearTimeout(timeout);
+
+            timeout = setTimeout(() => {
+                currentPage = 1;
+                loadDosenData();
+            }, 400);
+        });
+
+        // Filter UTS / UAS
+        const reminderMode = document.getElementById('reminderMode');
+
+        if (reminderMode) {
+            reminderMode.addEventListener('change', function () {
+                currentPage = 1;
+                loadDosenData();
+            });
+        }
     });
 
     function loadDosenData(page = 1) {
+
         const search = document.getElementById('searchInput').value;
+        const mode = document.getElementById('reminderMode')?.value || 'uts';
         const tbody = document.getElementById('dosenTableBody');
-        
+
         tbody.innerHTML = `
             <tr>
-                <td colspan="6" class="text-center py-5">
+                <td colspan="8" class="text-center py-5">
                     <div class="empty-state">
                         <div class="spinner-border text-primary" role="status">
                             <span class="visually-hidden">Loading...</span>
@@ -198,20 +218,25 @@
         `;
 
         const url = new URL('{{ route("gkm.monitoring-perkuliahan.materi") }}');
+
         url.searchParams.set('search', search);
         url.searchParams.set('page', page);
+        url.searchParams.set('mode', mode);
 
         fetch(url, {
-            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            }
         })
         .then(response => response.json())
         .then(data => {
+
             if (data.dosenList && data.dosenList.data) {
                 displayDosenData(data.dosenList);
             } else {
                 tbody.innerHTML = `
                     <tr>
-                        <td colspan="6" class="text-center py-5">
+                        <td colspan="8" class="text-center py-5">
                             <div class="empty-state">
                                 <i class="bi bi-inbox fs-1 text-muted"></i>
                                 <p class="mt-2 mb-0">Tidak ada data dosen</p>
@@ -224,8 +249,10 @@
         .catch(error => {
             tbody.innerHTML = `
                 <tr>
-                    <td colspan="6" class="text-center py-5">
-                        <div class="alert alert-danger m-3">Gagal memuat data: ${error.message}</div>
+                    <td colspan="8" class="text-center py-5">
+                        <div class="alert alert-danger m-3">
+                            Gagal memuat data: ${error.message}
+                        </div>
                     </td>
                 </tr>
             `;
@@ -233,14 +260,16 @@
     }
 
     function displayDosenData(dosenList) {
+
         const tbody = document.getElementById('dosenTableBody');
         const paginationInfo = document.getElementById('paginationInfo');
         const paginationLinks = document.getElementById('paginationLinks');
 
         if (dosenList.data.length === 0) {
+
             tbody.innerHTML = `
                 <tr>
-                    <td colspan="6" class="text-center py-5">
+                    <td colspan="8" class="text-center py-5">
                         <div class="empty-state">
                             <i class="bi bi-inbox fs-1 text-muted"></i>
                             <p class="mt-2 mb-0">Tidak ada data dosen</p>
@@ -248,26 +277,54 @@
                     </td>
                 </tr>
             `;
+
             paginationInfo.innerHTML = 'Menampilkan 0 - 0 dari 0 data';
             paginationLinks.innerHTML = '';
             return;
         }
 
-        // Populate table
         let rows = '';
+
         dosenList.data.forEach((dosen, index) => {
-            const no = (dosenList.current_page - 1) * dosenList.per_page + index + 1;
+
+            const no = ((dosenList.current_page - 1) * dosenList.per_page) + index + 1;
+
             rows += `
                 <tr>
                     <td class="text-center">
-                        <input type="checkbox" class="form-check-input dosen-checkbox" name="dosen_ids[]" value="${dosen.id}">
+                        <input
+                            type="checkbox"
+                            class="form-check-input dosen-checkbox"
+                            name="dosen_ids[]"
+                            value="${dosen.id}">
                     </td>
+
                     <td class="text-center">${no}</td>
-                    <td class="dosen-name fw-medium">${dosen.nama || '-'}</td>
-                    <td class="text-secondary">${dosen.email || '-'}</td>
-                    <td>
-                        ${dosen.matkul ? `<span class="badge-gkm info">${dosen.matkul}</span>` : '<span class="text-muted">-</span>'}
+
+                    <td class="dosen-name fw-medium">
+                        ${dosen.nama || '-'}
                     </td>
+
+                    <td class="text-secondary">
+                        ${dosen.email || '-'}
+                    </td>
+
+                    <td>
+                        ${
+                            dosen.matkul
+                                ? `<span class="badge-gkm info">${dosen.matkul}</span>`
+                                : '<span class="text-muted">-</span>'
+                        }
+                    </td>
+
+                    <td>
+                        ${
+                            dosen.jenis
+                                ? `<span class="badge bg-info">${dosen.jenis}</span>`
+                                : '<span class="text-muted">-</span>'
+                        }
+                    </td>
+
                     <td class="text-center">
                         <span class="status-icon danger">
                             <i class="bi bi-x-lg"></i>
@@ -276,143 +333,286 @@
                 </tr>
             `;
         });
+
         tbody.innerHTML = rows;
 
-        // Update pagination info
-        paginationInfo.innerHTML = `Menampilkan ${dosenList.from || 0} - ${dosenList.to || 0} dari ${dosenList.total || 0} data`;
+        paginationInfo.innerHTML =
+            `Menampilkan ${dosenList.from || 0} - ${dosenList.to || 0} dari ${dosenList.total || 0} data`;
 
-        // Build pagination links
         let linksHtml = '<nav><ul class="pagination pagination-sm mb-0">';
-        
-        // Previous button
+
         if (dosenList.current_page > 1) {
-            linksHtml += `<li class="page-item"><a class="page-link" href="#" onclick="loadDosenData(${dosenList.current_page - 1}); return false;">«</a></li>`;
+            linksHtml += `
+                <li class="page-item">
+                    <a class="page-link"
+                       href="#"
+                       onclick="loadDosenData(${dosenList.current_page - 1}); return false;">
+                        «
+                    </a>
+                </li>
+            `;
         } else {
-            linksHtml += `<li class="page-item disabled"><span class="page-link">«</span></li>`;
+            linksHtml += `
+                <li class="page-item disabled">
+                    <span class="page-link">«</span>
+                </li>
+            `;
         }
 
-        // Page numbers
         for (let i = 1; i <= dosenList.last_page; i++) {
+
             if (i === dosenList.current_page) {
-                linksHtml += `<li class="page-item active"><span class="page-link">${i}</span></li>`;
+
+                linksHtml += `
+                    <li class="page-item active">
+                        <span class="page-link">${i}</span>
+                    </li>
+                `;
+
             } else {
-                linksHtml += `<li class="page-item"><a class="page-link" href="#" onclick="loadDosenData(${i}); return false;">${i}</a></li>`;
+
+                linksHtml += `
+                    <li class="page-item">
+                        <a class="page-link"
+                           href="#"
+                           onclick="loadDosenData(${i}); return false;">
+                            ${i}
+                        </a>
+                    </li>
+                `;
             }
         }
 
-        // Next button
         if (dosenList.current_page < dosenList.last_page) {
-            linksHtml += `<li class="page-item"><a class="page-link" href="#" onclick="loadDosenData(${dosenList.current_page + 1}); return false;">»</a></li>`;
+            linksHtml += `
+                <li class="page-item">
+                    <a class="page-link"
+                       href="#"
+                       onclick="loadDosenData(${dosenList.current_page + 1}); return false;">
+                        »
+                    </a>
+                </li>
+            `;
         } else {
-            linksHtml += `<li class="page-item disabled"><span class="page-link">»</span></li>`;
+            linksHtml += `
+                <li class="page-item disabled">
+                    <span class="page-link">»</span>
+                </li>
+            `;
         }
 
         linksHtml += '</ul></nav>';
+
         paginationLinks.innerHTML = linksHtml;
     }
 
-    function toggleAll(checkbox) {
-        document.querySelectorAll('.dosen-checkbox').forEach(cb => cb.checked = checkbox.checked);
-    }
-
     function selectAll() {
-        document.querySelectorAll('.dosen-checkbox').forEach(cb => cb.checked = true);
+        document.querySelectorAll('.dosen-checkbox').forEach(checkbox => {
+            checkbox.checked = true;
+        });
         document.getElementById('selectAllCheckbox').checked = true;
     }
 
     function deselectAll() {
-        document.querySelectorAll('.dosen-checkbox').forEach(cb => cb.checked = false);
+        document.querySelectorAll('.dosen-checkbox').forEach(checkbox => {
+            checkbox.checked = false;
+        });
         document.getElementById('selectAllCheckbox').checked = false;
     }
 
-    function generateMessage() {
-        const selected = document.querySelectorAll('.dosen-checkbox:checked');
-        if (selected.length === 0) {
-            alert('Pilih minimal 1 dosen terlebih dahulu');
-            return;
-        }
-        const dosenIds = Array.from(selected).map(cb => cb.value);
-        const messageTextarea = document.getElementById('message');
-        const originalValue = messageTextarea.value;
-        messageTextarea.value = 'Generating pesan dengan AI Agent...\nMohon tunggu...';
-        messageTextarea.disabled = true;
-        const btn = event.target;
-        btn.disabled = true;
-        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Generating...';
-
-        fetch('{{ route("gkm.monitoring-perkuliahan.materi.generate") }}', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}' },
-            body: JSON.stringify({ dosen_ids: dosenIds })
-        })
-        .then(res => res.ok ? res.json() : res.json().then(err => Promise.reject(err)))
-        .then(data => {
-            if (data.success) {
-                messageTextarea.value = data.message;
-                showTemporaryAlert('success', 'Pesan berhasil di-generate oleh AI Agent!');
-            } else throw new Error(data.message || 'Gagal generate');
-        })
-        .catch(err => {
-            showTemporaryAlert('danger', err.message);
-            messageTextarea.value = originalValue;
-        })
-        .finally(() => {
-            messageTextarea.disabled = false;
-            btn.disabled = false;
-            btn.innerHTML = '<i class="bi bi-magic"></i> Generate Pesan';
+    function toggleAll(checkbox) {
+        document.querySelectorAll('.dosen-checkbox').forEach(cb => {
+            cb.checked = checkbox.checked;
         });
     }
 
-    function showTemporaryAlert(type, message) {
-        const alertDiv = document.createElement('div');
-        alertDiv.className = `alert alert-${type} alert-dismissible fade show mb-3`;
-        alertDiv.innerHTML = `<i class="bi bi-${type === 'success' ? 'check-circle' : 'exclamation-triangle'}-fill me-2"></i> ${message}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>`;
-        const container = document.querySelector('#reminderForm .monitoring-card:last-child .p-4');
-        container.prepend(alertDiv);
-        setTimeout(() => alertDiv.remove(), 3000);
+    function generateMessage() {
+        try {
+            const dosenCheckboxes = document.querySelectorAll('.dosen-checkbox:checked');
+            
+            if (dosenCheckboxes.length === 0) {
+                alert('Silakan pilih minimal satu dosen');
+                return;
+            }
+
+            const dosenIds = Array.from(dosenCheckboxes).map(cb => cb.value);
+
+            // Show loading state
+            const btn = event.target.closest('button');
+            const originalText = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Generating...';
+
+            fetch('{{ route("gkm.monitoring-perkuliahan.materi.generate") }}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('input[name="_token"]').value,
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify({ dosen_ids: dosenIds })
+            })
+            .then(response => {
+                console.log('Response status:', response.status);
+                return response.text().then(text => {
+                    try {
+                        return JSON.parse(text);
+                    } catch (e) {
+                        console.error('Failed to parse JSON:', text);
+                        throw new Error('Invalid response format: ' + text.substring(0, 200));
+                    }
+                });
+            })
+            .then(data => {
+                if (data.success) {
+                    document.getElementById('message').value = data.message;
+                    // Show success toast
+                    showToast('Pesan berhasil di-generate', 'success');
+                } else {
+                    alert('Error: ' + (data.message || 'Unknown error'));
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Gagal generate pesan: ' + error.message);
+            })
+            .finally(() => {
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+            });
+
+        } catch (error) {
+            console.error('Error:', error);
+            alert('Terjadi kesalahan: ' + error.message);
+        }
     }
 
     function previewMessage() {
         const subject = document.getElementById('subject').value;
         const message = document.getElementById('message').value;
+
         if (!subject || !message) {
-            alert('Subjek dan pesan harus diisi');
+            alert('Subjek dan isi pesan harus diisi');
             return;
         }
+
         document.getElementById('previewSubject').textContent = subject;
         document.getElementById('previewMessage').textContent = message;
-        new bootstrap.Modal(document.getElementById('previewModal')).show();
+
+        const previewModal = new bootstrap.Modal(document.getElementById('previewModal'));
+        previewModal.show();
     }
 
     function sendReminder() {
-        const selected = document.querySelectorAll('.dosen-checkbox:checked');
-        if (selected.length === 0) {
-            alert('Pilih minimal 1 dosen terlebih dahulu');
-            return;
-        }
-        const subject = document.getElementById('subject').value;
-        const message = document.getElementById('message').value;
-        if (!subject || !message) {
-            alert('Subjek dan pesan harus diisi');
-            return;
-        }
-        if (!confirm(`Kirim reminder ke ${selected.length} dosen?`)) return;
+        try {
+            const dosenCheckboxes = document.querySelectorAll('.dosen-checkbox:checked');
+            
+            if (dosenCheckboxes.length === 0) {
+                alert('Silakan pilih minimal satu dosen');
+                return;
+            }
 
-        const form = document.createElement('form');
-        form.method = 'POST';
-        form.action = '{{ route("gkm.monitoring-perkuliahan.materi.send") }}';
-        form.innerHTML = `<input type="hidden" name="_token" value="{{ csrf_token() }}">
-                          <input type="hidden" name="subject" value="${subject.replace(/"/g, '&quot;')}">
-                          <input type="hidden" name="message" value="${message.replace(/"/g, '&quot;')}">`;
-        Array.from(selected).forEach(cb => {
-            const input = document.createElement('input');
-            input.type = 'hidden';
-            input.name = 'dosen_ids[]';
-            input.value = cb.value;
-            form.appendChild(input);
-        });
-        document.body.appendChild(form);
-        form.submit();
+            const subject = document.getElementById('subject').value;
+            const message = document.getElementById('message').value;
+
+            if (!subject || !message) {
+                alert('Subjek dan isi pesan harus diisi');
+                return;
+            }
+
+            const dosenIds = Array.from(dosenCheckboxes).map(cb => cb.value);
+
+            // Confirm before sending
+            if (!confirm(`Apakah Anda yakin ingin mengirim reminder ke ${dosenIds.length} dosen?`)) {
+                return;
+            }
+
+            // Show loading state
+            const btn = event.target.closest('button');
+            const originalText = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Mengirim...';
+
+            fetch('{{ route("gkm.monitoring-perkuliahan.materi.send") }}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('input[name="_token"]').value,
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify({
+                    dosen_ids: dosenIds,
+                    subject: subject,
+                    pesan: message
+                })
+            })
+            .then(response => {
+                // Log response for debugging
+                console.log('Response status:', response.status);
+                console.log('Response headers:', response.headers);
+                
+                // Try to parse as JSON
+                return response.text().then(text => {
+                    try {
+                        return JSON.parse(text);
+                    } catch (e) {
+                        console.error('Failed to parse JSON:', text);
+                        throw new Error('Invalid response format: ' + text.substring(0, 200));
+                    }
+                });
+            })
+            .then(data => {
+                if (data.success) {
+                    alert('Reminder berhasil dikirim ke ' + dosenIds.length + ' dosen');
+                    // Clear selection
+                    deselectAll();
+                    // Reload data
+                    currentPage = 1;
+                    loadDosenData();
+                    // Clear form
+                    document.getElementById('message').value = '';
+                } else {
+                    const errorMsg = data.message || 'Gagal mengirim reminder';
+                    alert('Error: ' + errorMsg);
+                    if (data.errors && data.errors.length > 0) {
+                        console.error('Detailed errors:', data.errors);
+                    }
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Gagal mengirim reminder: ' + error.message);
+            })
+            .finally(() => {
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+            });
+
+        } catch (error) {
+            console.error('Error:', error);
+            alert('Terjadi kesalahan: ' + error.message);
+        }
+    }
+
+    function showToast(message, type = 'info') {
+        const alertClass = type === 'success' ? 'alert-success' : 'alert-info';
+        const icon = type === 'success' ? 'bi-check-circle-fill' : 'bi-info-circle-fill';
+        
+        const toastHtml = `
+            <div class="alert ${alertClass} alert-dismissible fade show" role="alert">
+                <i class="bi ${icon} me-2"></i> ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        `;
+        
+        const container = document.createElement('div');
+        container.innerHTML = toastHtml;
+        document.body.appendChild(container.firstElementChild);
+        
+        // Auto-dismiss after 5 seconds
+        setTimeout(() => {
+            container.firstElementChild?.remove();
+        }, 5000);
     }
 </script>
 @endsection

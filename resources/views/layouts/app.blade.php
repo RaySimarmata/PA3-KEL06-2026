@@ -662,21 +662,41 @@
                             <a href="javascript:void(0)"
                                 class="nav-item {{ request()->routeIs('gjm.buat-laporan.*') ? 'active' : '' }}"
                                 onclick="toggleDropdown(this)">
-                                <span><i class="bi bi-file-earmark-text"></i> Pelaporan</span>
+                                <span><img src="{{ asset('images/pengelolaan1.png') }}"
+         alt="Kuesioner"
+         width="23"
+         height="23"
+         style="margin-right:15px;"
+         filter: brightness(0) invert(1);> Pelaporan</span>
                                 <i class="bi bi-chevron-down dropdown-icon"></i>
                             </a>
                             <div class="dropdown-submenu">
                                 <a href="{{ route('gjm.buat-laporan.triwulan.index') }}"
                                     class="nav-item {{ request()->routeIs('gjm.buat-laporan.triwulan.*') ? 'active' : '' }}">
-                                    <span><i class="bi bi-calendar3"></i> Buat Laporan Triwulan</span>
+                                    <span><img src="{{ asset('images/pengelolaan1.png') }}"
+         alt="Kuesioner"
+         width="23"
+         height="23"
+         style="margin-right:15px;"
+         filter: brightness(0) invert(1);></i> Buat Laporan Triwulan</span>
                                 </a>
                                 <a href="{{ route('gjm.buat-laporan.semester.index') }}"
                                     class="nav-item {{ request()->routeIs('gjm.buat-laporan.semester.*') ? 'active' : '' }}">
-                                    <span><i class="bi bi-file-earmark-plus"></i> Buat Laporan Semester</span>
+                                    <span><img src="{{ asset('images/pengelolaan1.png') }}"
+         alt="Kuesioner"
+         width="23"
+         height="23"
+         style="margin-right:15px;"
+         filter: brightness(0) invert(1);></i> Buat Laporan Semester</span>
                                 </a>
                                 <a href="{{ route('gjm.buat-laporan.vmts.index') }}"
                                     class="nav-item {{ request()->routeIs('gjm.buat-laporan.vmts.*') ? 'active' : '' }}">
-                                    <span><i class="bi bi-file-earmark-text"></i> Buat Laporan VMTS</span>
+                                    <span><img src="{{ asset('images/pengelolaan1.png') }}"
+         alt="Kuesioner"
+         width="23"
+         height="23"
+         style="margin-right:15px;"
+         filter: brightness(0) invert(1);></i> Buat Laporan VMTS</span>
                                 </a>
                             </div>
                         </div>
