@@ -316,17 +316,40 @@ class LaporanArtefakService
         $rows = "Semester\tKode MK\tNama MK\tInisial Dosen\tRPS (0=Tidak, 1=Ya)\n";
         $rows .= str_repeat("-", 80) . "\n";
 
+        // Group by kode_mk untuk menggabungkan dosen
+        $grouped = [];
         foreach ($dataArtefak['rps_details'] as $item) {
-            $rps = ($item->status_rps === 'SUDAH UPLOAD') ? '1' : '0';
-            $inisial = $item->dosen->inisial_nama ?? (string) $item->pegawai_id;
-            // Tingkat diambil dari raw_data jika ada
+            $kodeMK = $item->kode_mk ?? '-';
             $tingkat = $item->raw_data['tingkat'] ?? $item->raw_data['semester'] ?? '-';
+            
+            if (!isset($grouped[$kodeMK])) {
+                $grouped[$kodeMK] = [
+                    'tingkat' => $tingkat,
+                    'kode_mk' => $kodeMK,
+                    'nama_matkul' => $item->nama_matkul ?? '-',
+                    'dosen' => [],
+                    'status_rps' => $item->status_rps,
+                ];
+            }
+            
+            $inisial = $item->dosen->inisial_nama ?? (string) $item->pegawai_id;
+            if (!in_array($inisial, $grouped[$kodeMK]['dosen'])) {
+                $grouped[$kodeMK]['dosen'][] = $inisial;
+            }
+        }
+
+        foreach ($grouped as $item) {
+            // Kembalikan ke format 0 dan 1
+            $rps = ($item['status_rps'] === 'SUDAH UPLOAD') ? '1' : '0';
+            
+            // Gabungkan nama dosen dengan koma
+            $dosenGabung = implode(', ', $item['dosen']);
 
             $rows .= implode("\t", [
-                $tingkat,
-                $item->kode_mk ?? '-',
-                $item->nama_matkul ?? '-',
-                $inisial,
+                $item['tingkat'],
+                $item['kode_mk'],
+                $item['nama_matkul'],
+                $dosenGabung,
                 $rps,
             ]) . "\n";
         }
@@ -550,31 +573,54 @@ class LaporanArtefakService
         $headers = ['Semester', 'Kode Mata Kuliah', 'Nama Mata Kuliah', 'Inisial Dosen Pengampu', 'RPS (0=Tidak, 1=Yes)'];
         $widths = [1200, 1800, 3000, 2200, 1400];
 
-        $dataRows = [];
-        $lastTingkat = '';
+        // Group by kode_mk untuk menggabungkan dosen
+        $grouped = [];
         foreach ($dataArtefak['rps_details'] as $item) {
-            $rps = ($item->status_rps === 'SUDAH UPLOAD') ? '1' : '0';
-
-            // Tingkat dari karakter ke-4 kode_mk (sama seperti Monitoring RPS PDF)
             $kodeMk  = $item->kode_mk ?? '';
             $tingkat = strlen($kodeMk) >= 4 ? substr($kodeMk, 3, 1) : '-';
-
-            // Dosen: ambil dari raw_data['dosen_pengampu'] (nama lengkap dari API)
-            // fallback ke inisial dari relasi dosen
+            
+            if (!isset($grouped[$kodeMk])) {
+                $rawData     = is_array($item->raw_data) ? $item->raw_data : [];
+                
+                $grouped[$kodeMk] = [
+                    'tingkat' => $tingkat,
+                    'kode_mk' => $kodeMk,
+                    'nama_matkul' => $item->nama_matkul ?? '-',
+                    'dosen' => [],
+                    'status_rps' => $item->status_rps,
+                ];
+            }
+            
+            // Ambil nama dosen
             $rawData     = is_array($item->raw_data) ? $item->raw_data : [];
             $dosenNama   = $rawData['dosen_pengampu']
                         ?? $item->dosen->nama
                         ?? $item->dosen->inisial_nama
                         ?? (string) $item->pegawai_id;
+            
+            if (!in_array($dosenNama, $grouped[$kodeMk]['dosen'])) {
+                $grouped[$kodeMk]['dosen'][] = $dosenNama;
+            }
+        }
+
+        $dataRows = [];
+        $lastTingkat = '';
+        
+        foreach ($grouped as $item) {
+            // Kembalikan ke format 0 dan 1
+            $rps = ($item['status_rps'] === 'SUDAH UPLOAD') ? '1' : '0';
+            
+            // Gabungkan nama dosen dengan koma
+            $dosenGabung = implode(', ', $item['dosen']);
 
             $dataRows[] = [
-                $tingkat !== $lastTingkat ? 'Tingkat ' . $tingkat : '',
-                $item->kode_mk     ?? '-',
-                $item->nama_matkul ?? '-',
-                $dosenNama,
+                $item['tingkat'] !== $lastTingkat ? 'Tingkat ' . $item['tingkat'] : '',
+                $item['kode_mk'],
+                $item['nama_matkul'],
+                $dosenGabung,
                 $rps,
             ];
-            $lastTingkat = $tingkat;
+            $lastTingkat = $item['tingkat'];
         }
 
         // Baris jumlah
@@ -589,7 +635,7 @@ class LaporanArtefakService
         $xml = $this->buildWordTableXML($headers, $dataRows, $widths);
         $this->replaceWithTable($tp, 'TABEL_RPS', $xml);
 
-        Log::info('RPS table injected', ['rows' => count($dataRows)]);
+        Log::info('RPS table injected (grouped by kode_mk)', ['rows' => count($dataRows)]);
     }
 
     /**

@@ -24,15 +24,25 @@ document.addEventListener('DOMContentLoaded', function () {
     let maxConversationTurns = 15;
 
     // Add welcome message
-    addMessage('ai', `<p>Halo! Saya AI Assistant untuk membantu Anda membuat laporan artefak. Saya dapat membantu dengan:</p>
+    addMessage('ai', `<p>Halo! Saya AI Assistant khusus untuk membantu Anda membuat <strong>Laporan Artefak RPS dan Materi</strong>.</p>
+        
+        <p><strong>🎯 Saya HANYA dapat membantu dengan:</strong></p>
         <ul>
-            <li>Memberikan saran konten laporan artefak RPS dan Materi</li>
-            <li>Menganalisis data monitoring dalam periode yang dipilih</li>
-            <li>Membantu struktur laporan yang sesuai standar</li>
-            <li>Memberikan template dan format yang tepat</li>
-            <li>Melakukan iterasi dan perbaikan draft</li>
+            <li>✅ Pembuatan laporan artefak RPS dan Materi</li>
+            <li>✅ Analisis data monitoring RPS dan Materi</li>
+            <li>✅ Struktur dan format laporan artefak</li>
+            <li>✅ Perbaikan dan revisi draft laporan</li>
+            <li>✅ Pertanyaan terkait RPS dan Materi perkuliahan</li>
         </ul>
-        <p><strong>Tips:</strong> Anda bisa mengatakan "ubah bagian X" atau "perbaiki Y" untuk melakukan revisi!</p>`);
+        
+        <p><strong>⚠️ Saya TIDAK dapat membantu dengan:</strong></p>
+        <ul>
+            <li>❌ Pertanyaan umum di luar konteks laporan artefak</li>
+            <li>❌ Topik selain monitoring RPS dan Materi</li>
+            <li>❌ Hal-hal pribadi atau di luar akademik</li>
+        </ul>
+        
+        <p><strong>💡 Tips:</strong> Katakan "buat laporan", "analisis data", atau "ubah bagian X" untuk mulai!</p>`);
 
     // Attachment button click handler
     if (btnAttachment) {
@@ -249,6 +259,82 @@ document.addEventListener('DOMContentLoaded', function () {
 
         if (message.length < 5) {
             addMessage('system', '<strong>⚠️ Instruksi terlalu singkat!</strong><br><br>Silakan berikan instruksi yang lebih jelas dan spesifik (minimal 5 karakter).');
+            return;
+        }
+
+        // === VALIDASI KONTEKS LAPORAN ARTEFAK ===
+        // Periksa apakah pesan mengandung keyword yang tidak relevan dengan laporan artefak
+        const irrelevantKeywords = [
+            'siapa', 'siapakah', 'apa kabar', 'hello', 'halo apa', 'kenalan', 'perkenalkan',
+            'cuaca', 'weather', 'berita', 'news', 'resep', 'recipe',
+            'musik', 'music', 'film', 'movie', 'game', 'permainan',
+            'olahraga', 'sport', 'politik', 'politic', 'gosip',
+            'cara memasak', 'cara membuat', 'tutorial', 'joke', 'lelucon',
+            'cerita', 'story', 'pantun', 'puisi', 'poem',
+            'ganteng', 'cantik', 'tampan', 'cakep', 'jelek', 'buruk rupa',
+            'hewan', 'binatang', 'animal', 'jerapah', 'gajah', 'singa',
+            'danbel', 'dumbell', 'barbel', 'barbell', 'fitness', 'gym',
+            'ngobrol', 'chat', 'mengobrol', 'nge-chat',
+            'pribadi', 'personal', 'rahasia', 'secret'
+        ];
+
+        // Keyword yang relevan dengan laporan artefak
+        const relevantKeywords = [
+            'laporan', 'report', 'artefak', 'artifact', 'rps', 'materi',
+            'monitoring', 'analisis', 'analysis', 'buat', 'create', 'generate',
+            'struktur', 'format', 'template', 'draft', 'revisi', 'ubah',
+            'perbaiki', 'edit', 'perkuliahan', 'dosen', 'matakuliah',
+            'semester', 'periode', 'upload', 'dokumen', 'document',
+            'akademik', 'pendidikan', 'pembelajaran', 'kuliah', 'kampus'
+        ];
+
+        const messageLower = message.toLowerCase();
+
+        // Cek apakah ada irrelevant keyword tanpa ada relevant keyword
+        const hasIrrelevantKeyword = irrelevantKeywords.some(keyword => messageLower.includes(keyword));
+        const hasRelevantKeyword = relevantKeywords.some(keyword => messageLower.includes(keyword));
+
+        // Jika ada keyword yang tidak relevan dan tidak ada keyword relevan, beri peringatan
+        if (hasIrrelevantKeyword && !hasRelevantKeyword) {
+            addMessage('system',
+                '<strong>⚠️ Pertanyaan di Luar Konteks!</strong><br><br>' +
+                'Maaf, pertanyaan Anda sepertinya <strong>tidak terkait dengan pembuatan Laporan Artefak</strong>.<br><br>' +
+                '<strong>Saya hanya dapat membantu dengan:</strong><br>' +
+                '• Pembuatan laporan artefak RPS dan Materi<br>' +
+                '• Analisis data monitoring<br>' +
+                '• Format dan struktur laporan<br>' +
+                '• Revisi dan perbaikan draft<br><br>' +
+                'Silakan ajukan pertanyaan yang terkait dengan laporan artefak.'
+            );
+            promptInput.value = ''; // Clear input
+            return;
+        }
+
+        // Validasi khusus untuk kata tunggal atau frasa pendek yang mencurigakan
+        const singleWordPatterns = /^(siapa|siapakah|danbel|dumbell|hewan|binatang|ganteng|cantik|tampan|cakep|ngobrol|chat|hello|halo|hai|apa|kenapa|mengapa|bagaimana)(\s+(paling|yang|itu|ini|dong|nih|sih))?$/i;
+        if (singleWordPatterns.test(message.trim())) {
+            addMessage('system',
+                '<strong>⚠️ Pertanyaan di Luar Konteks!</strong><br><br>' +
+                'Maaf, permintaan Anda di luar konteks pembuatan Laporan Artefak.<br><br>' +
+                'Saya hanya dapat membantu dengan pembuatan laporan monitoring RPS dan Materi perkuliahan.<br><br>' +
+                'Silakan ajukan pertanyaan terkait laporan artefak.'
+            );
+            promptInput.value = ''; // Clear input
+            return;
+        }
+
+        // Cek jika pesan terlalu umum (< 10 karakter dan tidak ada file)
+        if (message.length < 10 && !hasFiles && !hasRelevantKeyword) {
+            addMessage('system',
+                '<strong>⚠️ Instruksi Tidak Jelas!</strong><br><br>' +
+                'Instruksi Anda terlalu singkat dan tidak spesifik.<br><br>' +
+                '<strong>Contoh instruksi yang baik:</strong><br>' +
+                '• "Buat laporan artefak untuk periode ini"<br>' +
+                '• "Analisis data RPS dan Materi yang tersedia"<br>' +
+                '• "Ubah bagian metodologi pada draft"<br>' +
+                '• "Berikan struktur laporan yang sesuai standar"'
+            );
+            promptInput.value = ''; // Clear input
             return;
         }
 

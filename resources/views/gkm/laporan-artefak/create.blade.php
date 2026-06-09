@@ -7,8 +7,8 @@
     <meta name="cache-version" content="1.2.0-{{ time() }}">
     <style>
         /* ===============================================================
-                                                                                                                                   AI PROMPT ASSISTANT — ARTEFAK
-                                                                                                                                   =============================================================== */
+                                                                                                                                           AI PROMPT ASSISTANT — ARTEFAK
+                                                                                                                                           =============================================================== */
 
         /* Button hover effect - icon turns white */
         .btn-template-link:hover i {
@@ -710,8 +710,8 @@
         }
 
         /* ===============================================================
-                                                                                                                                   SETTINGS MODAL STYLES
-                                                                                                                                   =============================================================== */
+                                                                                                                                           SETTINGS MODAL STYLES
+                                                                                                                                           =============================================================== */
 
         /* Modal overlay */
         .fixed {
@@ -985,13 +985,13 @@
 
 
         <div class="filter-card mb-4 d-flex justify-content-between align-items-center">
-    <h5 class="mb-0 font-semibold" style="text-transform: uppercase; letter-spacing: 0.5px;">
-        Generate Laporan Artefak Baru
-    </h5>
-    <a href="{{ route('gkm.laporan-artefak.index') }}" class="btn btn-secondary btn-sm">
-        <i class="bi bi-arrow-left me-1"></i> Kembali
-    </a>
-</div>
+            <h5 class="mb-0 font-semibold" style="text-transform: uppercase; letter-spacing: 0.5px;">
+                Generate Laporan Bulanan Baru
+            </h5>
+            <a href="{{ route('gkm.laporan-artefak.index') }}" class="btn btn-secondary btn-sm">
+                <i class="bi bi-arrow-left me-1"></i> Kembali
+            </a>
+        </div>
 
 
         <div class="row">
@@ -1006,14 +1006,17 @@
                                 <ol class="mb-0" style="font-size: 0.875rem; color: #495057; line-height: 1.8;">
                                     <li>Isi informasi laporan (periode, judul, template)</li>
                                     <li>Ketik instruksi atau deskripsi laporan yang diinginkan</li>
-                                    <li><em>(Opsional)</em> Upload file referensi dan gambar dokumentasi jika diperlukan <em>(multiple files supported)</em></li>
+                                    <li><em>(Opsional)</em> Upload file referensi dan gambar dokumentasi jika diperlukan
+                                        <em>(multiple files supported)</em>
+                                    </li>
                                     <li>Klik <strong>tombol Generate</strong> untuk melihat preview draft laporan</li>
                                     <li>Klik <strong>Generate Laporan Word</strong> untuk mengunduh file .docx</li>
                                 </ol>
                                 <div class="mt-3" style="font-size: 0.8rem; color: #6b7280;">
                                     <strong>File yang didukung:</strong> DOCX, PDF, JPG, PNG<br>
                                     <strong>Fitur AI Vision:</strong> Analisis gambar dokumentasi kegiatan, daftar hadir<br>
-                                    <strong>Integrasi GKM:</strong> Data monitoring RPS dan Materi otomatis digunakan sebagai konteks
+                                    <strong>Integrasi GKM:</strong> Data monitoring RPS dan Materi otomatis digunakan
+                                    sebagai konteks
                                 </div>
                             </div>
                         </div>
@@ -1041,7 +1044,8 @@
                                     <select class="form-select" name="periode" id="periode" required>
                                         <option value="">-- Pilih Periode --</option>
                                         @foreach ($periodes as $p)
-                                            <option value="{{ $p['value'] }}" {{ old('periode') == $p['value'] ? 'selected' : '' }}>
+                                            <option value="{{ $p['value'] }}"
+                                                {{ old('periode') == $p['value'] ? 'selected' : '' }}>
                                                 {{ $p['label'] }}
                                             </option>
                                         @endforeach
@@ -1077,7 +1081,7 @@
                                 <div class="col-md-12 mb-0">
                                     <button type="button" id="btn-create-draft" class="btn btn-primary">
                                         {{-- <i class="bi bi-plus-circle"></i> --}}
-                                         Buat Draf Laporan
+                                        Buat Draf Laporan
                                     </button>
                                     <small class="text-muted d-block mt-2" style="font-size: 0.8rem;">
                                         <i class="bi bi-info-circle"></i> Klik tombol ini terlebih dahulu untuk membuat
@@ -1306,7 +1310,7 @@
                                         <i class="bi bi-stars"></i>
                                     </div>
                                     <div>
-                                        <h6>AI Assistant - Laporan Artefak</h6>
+                                        <h6>AI Assistant - Laporan Bulanan</h6>
                                         <small>Siap membantu Anda membuat laporan RPS dan Materi</small>
                                     </div>
                                 </div>
@@ -1347,7 +1351,8 @@
                                         </button>
 
                                         <!-- Textarea -->
-                                        <textarea class="ai-textarea-inline" id="ai-prompt-input" placeholder="Deskripsikan laporan artefak yang ingin Anda buat..."></textarea>
+                                        <textarea class="ai-textarea-inline" id="ai-prompt-input"
+                                            placeholder="Deskripsikan laporan bulanan yang ingin Anda buat..."></textarea>
 
                                         <!-- Send Button (Inside Right) - Hidden by default -->
                                         <button type="button" class="btn-ask-ai-inline" id="btn-ask-ai">
@@ -1665,7 +1670,7 @@
                     promptInput.placeholder =
                         `${selectedFiles.length + selectedOCRImages.length} file terpilih! Ketik instruksi Anda (opsional), lalu klik ↑ untuk mengirim`;
                 } else if (selectedFiles.length === 0 && selectedOCRImages.length === 0) {
-                    promptInput.placeholder = 'Deskripsikan laporan artefak yang ingin Anda buat...';
+                    promptInput.placeholder = 'Deskripsikan laporan bulanan yang ingin Anda buat...';
                 }
             };
 
@@ -1681,7 +1686,7 @@
                     promptInput.placeholder =
                         `${selectedFiles.length + selectedOCRImages.length} file terpilih! Ketik instruksi Anda (opsional), lalu klik ↑ untuk mengirim`;
                 } else if (selectedFiles.length === 0 && selectedOCRImages.length === 0) {
-                    promptInput.placeholder = 'Deskripsikan laporan artefak yang ingin Anda buat...';
+                    promptInput.placeholder = 'Deskripsikan laporan bulanan yang ingin Anda buat...';
                 }
             };
 
@@ -1729,7 +1734,7 @@
                                 `📸 ${successCount} dari ${totalCount} gambar berhasil diproses<br>` +
                                 `📝 ${textLength.toLocaleString()} karakter teks diekstrak<br>` +
                                 `⏱️ Waktu proses: ${procSec}s<br>` +
-                                `✓ Konten tervalidasi relevan dengan Laporan Artefak<br><br>` +
+                                `✓ Konten tervalidasi relevan dengan Laporan Bulanan<br><br>` +
                                 `<em>Teks OCR diintegrasikan. Melanjutkan generate laporan...</em>`;
                         } else {
                             // GD fallback — images registered but no text extracted (Tesseract not installed)
@@ -1751,11 +1756,11 @@
                         if (data.validation_error) {
                             // Show validation error with better formatting
                             const errorMessage = data.message.replace(/\n/g, '<br>');
-                            
+
                             appendAIMessage(`
                                 <div style="background:#fef2f2;border-left:4px solid #dc2626;padding:16px;border-radius:8px;margin:8px 0;">
                                     <p style="color:#dc2626;margin:0 0 12px 0;font-weight:600;font-size:16px;">
-                                        <i class="bi bi-exclamation-triangle-fill"></i> Gambar Tidak Relevan dengan Laporan Artefak
+                                        <i class="bi bi-exclamation-triangle-fill"></i> Gambar Tidak Relevan dengan Laporan Bulanan
                                     </p>
                                     <div style="background:white;padding:12px;border-radius:4px;margin-bottom:12px;">
                                         <p style="color:#991b1b;margin:0;font-size:14px;line-height:1.6;">
@@ -1771,15 +1776,16 @@
                                     </p>
                                 </div>
                             `);
-                            
+
                             // Clear the invalid images
                             selectedOCRImages = [];
                             updateAllAttachmentsDisplay();
-                            
+
                             // Also clear prompt input to prevent user from sending without valid images
                             promptInput.value = '';
-                            promptInput.placeholder = '⚠️ Upload gambar yang relevan terlebih dahulu sebelum chat dengan AI';
-                            
+                            promptInput.placeholder =
+                                '⚠️ Upload gambar yang relevan terlebih dahulu sebelum chat dengan AI';
+
                             return false;
                         } else {
                             appendAIMessage(`<strong>❌ OCR Error:</strong> ${data.message}`);
@@ -2001,7 +2007,8 @@
                 let requestedPart = modifyMatch[2].trim().toUpperCase();
                 // Remove trailing modifiers
                 requestedPart = requestedPart.replace(
-                    /\s+(AGAR|LEBIH|BAGUS|DETAIL|LENGKAP|FORMAL|PROFESIONAL|KOMPREHENSIF|JADI|MENJADI|DENGAN|SUPAYA|BIAR).*$/i, ''
+                    /\s+(AGAR|LEBIH|BAGUS|DETAIL|LENGKAP|FORMAL|PROFESIONAL|KOMPREHENSIF|JADI|MENJADI|DENGAN|SUPAYA|BIAR).*$/i,
+                    ''
                 ).trim();
 
                 // Find the best matching section name
@@ -2034,7 +2041,8 @@
                     const sectionCount = sectionMatches ? sectionMatches.length : 0;
 
                     if (sectionCount >= 5) {
-                        console.log('[SmartMerge] Found full draft at history index', i, 'with', sectionCount, 'sections');
+                        console.log('[SmartMerge] Found full draft at history index', i, 'with', sectionCount,
+                            'sections');
                         return msg.content;
                     }
                 }
@@ -2044,7 +2052,8 @@
                     const sectionMatches = currentPreviewText.match(/^# [A-Z][A-Z\s]+$/gm);
                     const sectionCount = sectionMatches ? sectionMatches.length : 0;
                     if (sectionCount >= 5) {
-                        console.log('[SmartMerge] Using currentPreviewText as full draft with', sectionCount, 'sections');
+                        console.log('[SmartMerge] Using currentPreviewText as full draft with', sectionCount,
+                            'sections');
                         return currentPreviewText;
                     }
                 }
@@ -2066,18 +2075,27 @@
                 const match = response.match(pattern);
 
                 if (match) {
-                    return { title: match[1].trim(), content: match[2].trim() };
+                    return {
+                        title: match[1].trim(),
+                        content: match[2].trim()
+                    };
                 }
 
                 // Fallback: if AI returned only one section or bare text
                 const allSections = parseMarkdownSections(response);
                 if (allSections.length === 1) {
-                    return { title: allSections[0].title.trim(), content: allSections[0].content.trim() };
+                    return {
+                        title: allSections[0].title.trim(),
+                        content: allSections[0].content.trim()
+                    };
                 }
 
                 // If no sections found at all, treat entire response as the section content
                 if (allSections.length === 0 && response.trim().length > 0) {
-                    return { title: sectionName, content: response.trim() };
+                    return {
+                        title: sectionName,
+                        content: response.trim()
+                    };
                 }
 
                 return null;
@@ -2088,7 +2106,10 @@
              * Replaces the matching section in fullDraft with the new content.
              */
             function mergeSectionIntoDraft(fullDraft, modifiedSection) {
-                const { title, content } = modifiedSection;
+                const {
+                    title,
+                    content
+                } = modifiedSection;
                 const escapedTitle = title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
                 // Try to find and replace the section
@@ -2126,7 +2147,8 @@
                 const responseSections = parseMarkdownSections(aiResponse);
                 if (responseSections.length >= 5) {
                     // AI already returned a full draft (all sections), no merge needed
-                    console.log('[SmartMerge] AI returned full draft (' + responseSections.length + ' sections), no merge needed');
+                    console.log('[SmartMerge] AI returned full draft (' + responseSections.length +
+                        ' sections), no merge needed');
                     return aiResponse;
                 }
 
@@ -2146,7 +2168,8 @@
 
                 console.log('[SmartMerge] Merging section "' + extracted.title + '" into full draft');
                 const merged = mergeSectionIntoDraft(lastFullDraft, extracted);
-                console.log('[SmartMerge] Merge complete. Sections in merged:', parseMarkdownSections(merged).length);
+                console.log('[SmartMerge] Merge complete. Sections in merged:', parseMarkdownSections(merged)
+                    .length);
                 return merged;
             }
 
@@ -2248,7 +2271,7 @@
                 const hasFiles = selectedFiles.length > 0 || selectedOCRImages.length > 0;
                 const hasOCRText = ocrExtractedText && ocrExtractedText.length > 0;
                 const hasConversation = conversationHistory.length > 0;
-                
+
                 console.log('🔍 VALIDATION CHECK:', {
                     prompt: prompt,
                     promptLength: prompt.length,
@@ -2265,29 +2288,29 @@
                 if (!hasConversation && !hasFiles && !hasOCRText) {
                     console.warn('❌ VALIDATION FAILED: No files uploaded for first interaction');
                     appendAIMessage(`
-                        <div style="background:#fee2e2;border-left:4px solid #dc2626;padding:15px;border-radius:6px;">
-                            <p style="color:#dc2626;margin:0;font-weight:700;font-size:16px;">
-                                <i class="bi bi-exclamation-triangle-fill"></i> UPLOAD FILE TERLEBIH DAHULU!
-                            </p>
-                            <p style="color:#dc2626;margin:10px 0 0 0;line-height:1.6;">
-                                Untuk chat pertama dengan AI, Anda <strong>WAJIB upload file</strong> terlebih dahulu.
-                            </p>
-                            <p style="color:#dc2626;margin:10px 0 0 0;line-height:1.6;">
-                                <strong>File yang didukung:</strong>
-                            </p>
-                            <ul style="color:#dc2626;margin:8px 0 0 20px;line-height:1.6;">
-                                <li>📄 Dokumen: PDF, DOCX, TXT, XLSX</li>
-                                <li>🖼️ Gambar: JPG, PNG, GIF, WEBP</li>
-                            </ul>
-                            <p style="color:#dc2626;margin:10px 0 0 0;line-height:1.6;">
-                                <strong>Cara upload:</strong> Klik tombol 📎 (attachment) di sebelah kolom chat.
-                            </p>
-                            <p style="color:#dc2626;margin:10px 0 0 0;font-style:italic;">
-                                Setelah upload file, baru Anda bisa chat dengan AI.
-                            </p>
-                        </div>
-                    `);
-                    
+                <div style="background:#fee2e2;border-left:4px solid #dc2626;padding:15px;border-radius:6px;">
+                    <p style="color:#dc2626;margin:0;font-weight:700;font-size:16px;">
+                        <i class="bi bi-exclamation-triangle-fill"></i> UPLOAD FILE TERLEBIH DAHULU!
+                    </p>
+                    <p style="color:#dc2626;margin:10px 0 0 0;line-height:1.6;">
+                        Untuk chat pertama dengan AI, Anda <strong>WAJIB upload file</strong> terlebih dahulu.
+                    </p>
+                    <p style="color:#dc2626;margin:10px 0 0 0;line-height:1.6;">
+                        <strong>File yang didukung:</strong>
+                    </p>
+                    <ul style="color:#dc2626;margin:8px 0 0 20px;line-height:1.6;">
+                        <li>📄 Dokumen: PDF, DOCX, TXT, XLSX</li>
+                        <li>🖼️ Gambar: JPG, PNG, GIF, WEBP</li>
+                    </ul>
+                    <p style="color:#dc2626;margin:10px 0 0 0;line-height:1.6;">
+                        <strong>Cara upload:</strong> Klik tombol 📎 (attachment) di sebelah kolom chat.
+                    </p>
+                    <p style="color:#dc2626;margin:10px 0 0 0;font-style:italic;">
+                        Setelah upload file, baru Anda bisa chat dengan AI.
+                    </p>
+                </div>
+            `);
+
                     // Focus to attachment button or input
                     setTimeout(() => {
                         const attachBtn = document.getElementById('btn-attachment');
@@ -2297,7 +2320,7 @@
                             promptInput.focus();
                         }
                     }, 100);
-                    
+
                     // Reset button
                     isAISending = false;
                     submitBtn.disabled = false;
@@ -2305,7 +2328,7 @@
                     return;
                 }
                 */
-                
+
                 // Files are now optional - AI can use database context if no files uploaded
 
                 // VALIDATION 2: No instruction provided
@@ -2318,7 +2341,7 @@
                                     <i class="bi bi-exclamation-triangle-fill"></i> INSTRUKSI WAJIB DIISI!
                                 </p>
                                 <p style="color:#dc2626;margin:10px 0 0 0;line-height:1.6;">
-                                    Anda telah mengupload <strong>${selectedFiles.length + selectedOCRImages.length} file</strong>, 
+                                    Anda telah mengupload <strong>${selectedFiles.length + selectedOCRImages.length} file</strong>,
                                     tetapi belum memberikan instruksi.
                                 </p>
                                 <p style="color:#dc2626;margin:10px 0 0 0;line-height:1.6;">
@@ -2334,7 +2357,7 @@
                                 </p>
                             </div>
                         `);
-                        
+
                         // Focus back to input
                         setTimeout(() => {
                             promptInput.focus();
@@ -2349,7 +2372,7 @@
                                 </p>
                             </div>
                         `);
-                        
+
                         // Focus back to input
                         setTimeout(() => {
                             promptInput.focus();
@@ -2360,7 +2383,8 @@
 
                 // VALIDATION 3: Instruction too short
                 if (prompt && prompt.length < 5) {
-                    console.warn('❌ VALIDATION FAILED: Instruction too short (' + prompt.length + ' chars)');
+                    console.warn('❌ VALIDATION FAILED: Instruction too short (' + prompt.length +
+                        ' chars)');
                     appendAIMessage(`
                         <div style="background:#fee2e2;border-left:4px solid #dc2626;padding:15px;border-radius:6px;">
                             <p style="color:#dc2626;margin:0;font-weight:700;">
@@ -2380,14 +2404,14 @@
                             </ul>
                         </div>
                     `);
-                    
+
                     // Focus back to input
                     setTimeout(() => {
                         promptInput.focus();
                     }, 100);
                     return;
                 }
-                
+
                 console.log('✅ VALIDATION PASSED: Proceeding with request');
 
                 // Tangkap file yang dipilih sebelum OCR memproses (karena OCR akan clear selectedOCRImages)
@@ -2406,7 +2430,8 @@
                 const template = document.getElementById('template_id').value;
 
                 // Tampilkan bubble pesan user (dengan file yang sudah dipilih sebelumnya)
-                appendUserMessage(prompt || '(File dikirim)', allFilesForBubble.length > 0 ? allFilesForBubble : null);
+                appendUserMessage(prompt || '(File dikirim)', allFilesForBubble.length > 0 ?
+                    allFilesForBubble : null);
                 promptInput.value = '';
                 promptInput.style.height = 'auto';
                 promptInput.placeholder = 'Ketik instruksi Anda...';
@@ -2415,17 +2440,17 @@
                 const currentFiles = [...selectedFiles]; // Simpan referensi file untuk request
                 const currentOCRImages = [...selectedOCRImages];
                 const currentOCRText = ocrExtractedText;
-                
+
                 selectedFiles = [];
                 selectedOCRImages = [];
                 ocrExtractedText = '';
-                
+
                 // Reset file inputs
                 const fileInput = document.getElementById('file_referensi_artefak');
                 const ocrInput = document.getElementById('ocr_images_artefak');
                 if (fileInput) fileInput.value = '';
                 if (ocrInput) ocrInput.value = '';
-                
+
                 // Update display to hide attachment chips
                 updateAllAttachmentsDisplay();
                 toggleSendButton();
@@ -2448,7 +2473,8 @@
                     if (conversationHistory.length > 0) {
                         conversationHistory.forEach((msg, index) => {
                             formData.append(`conversation_history[${index}][role]`, msg.role);
-                            formData.append(`conversation_history[${index}][content]`, msg.content);
+                            formData.append(`conversation_history[${index}][content]`, msg
+                                .content);
                         });
                     }
 
@@ -2479,7 +2505,9 @@
                             });
                     } catch (fetchErr) {
                         if (fetchErr.name === 'AbortError') {
-                            throw new Error('⏱️ Request timeout (>2 menit). Server AI sedang sibuk. Coba kurangi ukuran file atau coba lagi nanti.');
+                            throw new Error(
+                                '⏱️ Request timeout (>2 menit). Server AI sedang sibuk. Coba kurangi ukuran file atau coba lagi nanti.'
+                            );
                         }
                         throw fetchErr;
                     } finally {
@@ -2732,7 +2760,7 @@
             // Initialize welcome message
             // ================================================================
             appendAIMessage(
-                '<strong>Selamat datang di AI Assistant Laporan Artefak!</strong><br>Saya siap membantu Anda membuat laporan artefak yang komprehensif. Silakan:<br><br>1. Klik <strong>"Buat Laporan Draft"</strong> terlebih dahulu<br>2. Ketik instruksi atau deskripsi laporan yang diinginkan<br>3. <em>(Opsional)</em> Upload file referensi jika Anda memiliki dokumen tambahan<br>4. Saya akan mengambil data dari database dan membantu generate draft laporan untuk Anda'
+                '<strong>Selamat datang di AI Assistant Laporan Bulanan!</strong><br>Saya siap membantu Anda membuat laporan bulanan yang komprehensif. Silakan:<br><br>1. Klik <strong>"Buat Laporan Draft"</strong> terlebih dahulu<br>2. Ketik instruksi atau deskripsi laporan yang diinginkan<br>3. <em>(Opsional)</em> Upload file referensi jika Anda memiliki dokumen tambahan<br>4. Saya akan mengambil data dari database dan membantu generate draft laporan untuk Anda'
             );
 
         });

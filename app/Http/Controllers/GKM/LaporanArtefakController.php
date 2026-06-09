@@ -197,6 +197,86 @@ class LaporanArtefakController extends Controller
             $templateId = $request->input('template_id');
             $periode = $request->input('periode');
 
+            // === VALIDASI KONTEKS DI BACKEND - EARLY VALIDATION ===
+            // Cek apakah ada file upload
+            $hasFiles = $request->hasFile('file_referensi') && count($request->file('file_referensi')) > 0;
+            
+            // Validasi apakah prompt user relevan dengan laporan artefak
+            $promptLower = strtolower($userPrompt);
+            
+            // Keywords yang HARUS ditolak
+            $rejectKeywords = [
+                'siapa', 'apa kabar', 'halo', 'hello', 'kenalan', 'perkenalkan',
+                'cuaca', 'berita', 'resep', 'musik', 'film', 'game',
+                'olahraga', 'politik', 'gosip', 'lelucon', 'joke',
+                'cerita', 'pantun', 'puisi', 'memasak',
+                'ganteng', 'cantik', 'tampan', 'cakep',
+                'hewan', 'binatang', 'animal',
+                'danbel', 'dumbell', 'barbel', 'fitness', 'gym'
+            ];
+            
+            // Keywords yang menunjukkan konteks relevan
+            $acceptKeywords = [
+                'laporan', 'report', 'artefak', 'artifact',
+                'rps', 'materi', 'monitoring', 'analisis',
+                'buat', 'create', 'generate', 'draft',
+                'struktur', 'format', 'template',
+                'ubah', 'perbaiki', 'edit', 'revisi',
+                'perkuliahan', 'dosen', 'matakuliah',
+                'semester', 'periode', 'dokumen'
+            ];
+            
+            // Cek apakah ada reject keyword
+            $hasRejectKeyword = false;
+            foreach ($rejectKeywords as $keyword) {
+                if (strpos($promptLower, $keyword) !== false) {
+                    $hasRejectKeyword = true;
+                    break;
+                }
+            }
+            
+            // Cek apakah ada accept keyword
+            $hasAcceptKeyword = false;
+            foreach ($acceptKeywords as $keyword) {
+                if (strpos($promptLower, $keyword) !== false) {
+                    $hasAcceptKeyword = true;
+                    break;
+                }
+            }
+            
+            // Jika ada reject keyword dan tidak ada accept keyword, tolak langsung
+            if ($hasRejectKeyword && !$hasAcceptKeyword) {
+                Log::info('AI Prompt Artefak rejected due to irrelevant context', [
+                    'prompt' => $userPrompt,
+                    'user_id' => Auth::id()
+                ]);
+                
+                return response()->json([
+                    'success' => true,
+                    'response' => "Maaf, permintaan Anda di luar konteks pembuatan Laporan Artefak. Saya hanya dapat membantu dengan pembuatan laporan monitoring RPS dan Materi perkuliahan. Silakan ajukan pertanyaan terkait laporan artefak.",
+                    'model_info' => 'Context Validation (Rejected)',
+                    'cached' => false,
+                    'rejected' => true
+                ]);
+            }
+            
+            // Jika prompt terlalu pendek (<15 karakter) dan tidak ada keyword yang relevan, tolak
+            if (strlen($userPrompt) < 15 && !$hasAcceptKeyword && !$hasFiles) {
+                Log::info('AI Prompt Artefak rejected due to too short and no context', [
+                    'prompt' => $userPrompt,
+                    'length' => strlen($userPrompt),
+                    'user_id' => Auth::id()
+                ]);
+                
+                return response()->json([
+                    'success' => true,
+                    'response' => "Maaf, permintaan Anda di luar konteks pembuatan Laporan Artefak. Silakan berikan instruksi yang lebih jelas terkait pembuatan laporan monitoring RPS dan Materi perkuliahan.",
+                    'model_info' => 'Context Validation (Too Short)',
+                    'cached' => false,
+                    'rejected' => true
+                ]);
+            }
+
             // Build context for caching
             $cacheContext = [
                 'feature' => 'artefak', // For evaluation tracking
@@ -402,11 +482,38 @@ class LaporanArtefakController extends Controller
             // System context for Artefak reports
             $systemContext = "Anda adalah AI Assistant untuk Gugus Kendali Mutu (GKM) Institut Teknologi Del.\n\n";
             $systemContext .= "Tugas Anda: Membantu membuat LAPORAN ARTEFAK BULANAN berdasarkan data monitoring RPS dan Materi yang diupload dan instruksi user.\n\n";
+            
+            $systemContext .= "=== BATASAN KONTEKS YANG SANGAT KETAT ===\n";
+            $systemContext .= "ANDA HANYA BOLEH MEMBANTU DENGAN:\n";
+            $systemContext .= "1. Pembuatan laporan artefak RPS dan Materi\n";
+            $systemContext .= "2. Analisis data monitoring RPS dan Materi\n";
+            $systemContext .= "3. Format dan struktur laporan artefak\n";
+            $systemContext .= "4. Perbaikan dan revisi draft laporan artefak\n";
+            $systemContext .= "5. Pertanyaan terkait RPS, Materi perkuliahan, dan artefak akademik\n\n";
+            
+            $systemContext .= "⚠️⚠️⚠️ ANDA TIDAK BOLEH DAN HARUS MENOLAK: ⚠️⚠️⚠️\n";
+            $systemContext .= "- Pertanyaan tentang SIAPA (identitas, nama orang, tokoh, dll)\n";
+            $systemContext .= "- Pertanyaan tentang PENAMPILAN (ganteng, cantik, tampan, cakep)\n";
+            $systemContext .= "- Pertanyaan tentang HEWAN atau BINATANG\n";
+            $systemContext .= "- Pertanyaan tentang OLAHRAGA, FITNESS, GYM, DUMBBELL\n";
+            $systemContext .= "- Menjawab pertanyaan umum di luar konteks laporan artefak\n";
+            $systemContext .= "- Membantu dengan topik selain RPS dan Materi\n";
+            $systemContext .= "- Memberikan informasi atau saran di luar monitoring perkuliahan\n";
+            $systemContext .= "- Membahas topik pribadi, hiburan, atau hal-hal di luar akademik\n";
+            $systemContext .= "- Small talk, chitchat, atau obrolan santai\n";
+            $systemContext .= "- Pertanyaan 'apa kabar', 'hello', 'kenalan', dll\n\n";
+            
+            $systemContext .= "🚨 WAJIB: JIKA USER BERTANYA DI LUAR KONTEKS 🚨\n";
+            $systemContext .= "Anda HARUS LANGSUNG menolak dengan respons PERSIS ini:\n\n";
+            $systemContext .= "\"Maaf, permintaan Anda di luar konteks pembuatan Laporan Artefak. Saya hanya dapat membantu dengan pembuatan laporan monitoring RPS dan Materi perkuliahan. Silakan ajukan pertanyaan terkait laporan artefak.\"\n\n";
+            $systemContext .= "JANGAN TAMBAHKAN penjelasan lain. JANGAN JAWAB pertanyaan user. LANGSUNG TOLAK!\n\n";
+            
             $systemContext .= "PENTING - CONVERSATION CONTEXT:\n";
             $systemContext .= "- Ini mungkin percakapan lanjutan. Jika user meminta perubahan atau perbaikan, modifikasi konten yang sudah ada.\n";
             $systemContext .= "- Jika user mengatakan 'ubah bagian X', 'perbaiki Y', atau 'tambahkan Z', lakukan perubahan pada draft sebelumnya.\n";
             $systemContext .= "- Pertahankan konsistensi dengan respons sebelumnya kecuali diminta mengubahnya.\n";
-            $systemContext .= "- Jika ini permintaan pertama, buat draft lengkap. Jika permintaan lanjutan, fokus pada perubahan yang diminta.\n\n";
+            $systemContext .= "- Jika ini permintaan pertama, buat draft lengkap. Jika permintaan lanjutan, fokus pada perubahan yang diminta.\n";
+            $systemContext .= "- SELALU PERIKSA: Apakah pertanyaan user masih dalam konteks laporan artefak? Jika tidak, tolak dengan sopan.\n\n";
 
             if ($templateStructure) {
                 $systemContext .= "STRUKTUR TEMPLATE YANG HARUS DIIKUTI:\n";
@@ -432,8 +539,18 @@ class LaporanArtefakController extends Controller
                 $systemContext .= "[Kesimpulan dan ringkasan rekomendasi]\n\n";
             }
 
-            $systemContext .= "Fokus pada analisis artefak akademik seperti RPS, silabus, materi kuliah, dan dokumen pembelajaran.\n";
-            $systemContext .= "Gunakan Bahasa Indonesia formal dan profesional. Setiap bagian harus berisi konten yang substantif dan relevan.\n\n";
+            $systemContext .= "Fokus EKSKLUSIF pada analisis artefak akademik seperti RPS, silabus, materi kuliah, dan dokumen pembelajaran.\n";
+            $systemContext .= "Gunakan Bahasa Indonesia formal dan profesional. Setiap bagian harus berisi konten yang substantif dan relevan.\n";
+            $systemContext .= "INGAT: Tolak dengan sopan setiap permintaan yang tidak terkait dengan laporan artefak RPS dan Materi!\n\n";
+            
+            $systemContext .= "=== FORMAT DATA DALAM LAPORAN ===\n";
+            $systemContext .= "1. **Penggabungan Matakuliah**: Jika ada matakuliah dengan kode yang sama tetapi dosen berbeda, GABUNGKAN dalam satu baris dengan nama dosen dipisahkan koma.\n";
+            $systemContext .= "   Contoh: Dosen A, Dosen B, Dosen C (BUKAN baris terpisah)\n\n";
+            $systemContext .= "2. **Format Status Upload**: Gunakan angka:\n";
+            $systemContext .= "   - '1' untuk sudah upload\n";
+            $systemContext .= "   - '0' untuk belum upload\n";
+            $systemContext .= "   - Format header: 'RPS (0=Tidak, 1=Ya)'\n\n";
+            $systemContext .= "3. **Tabel yang Rapi**: Pastikan tabel mudah dibaca dengan kolom yang jelas\n\n";
 
             // Extract file content if uploaded
             $filesContext = [];
@@ -595,6 +712,16 @@ class LaporanArtefakController extends Controller
             }
 
             $currentMessage .= "Instruksi dari user: " . $userPrompt . "\n\n";
+            
+            // Tambahkan reminder keras di current message
+            $currentMessage .= "⚠️ PERINGATAN KERAS: Periksa terlebih dahulu apakah instruksi user di atas terkait dengan LAPORAN ARTEFAK RPS DAN MATERI.\n\n";
+            $currentMessage .= "Jika instruksi di atas TIDAK terkait dengan:\n";
+            $currentMessage .= "- Pembuatan laporan artefak\n";
+            $currentMessage .= "- Analisis RPS dan Materi\n";
+            $currentMessage .= "- Format/struktur laporan\n";
+            $currentMessage .= "- Perbaikan draft laporan\n\n";
+            $currentMessage .= "Maka Anda WAJIB menolak dengan respons: \"Maaf, permintaan Anda di luar konteks pembuatan Laporan Artefak. Saya hanya dapat membantu dengan pembuatan laporan monitoring RPS dan Materi perkuliahan. Silakan ajukan pertanyaan terkait laporan artefak.\"\n\n";
+            $currentMessage .= "JANGAN JAWAB pertanyaan tentang: siapa, kenalan, cuaca, berita, resep, musik, film, game, olahraga, hewan, fitness, atau topik pribadi lainnya!\n\n";
 
             if ($templateStructure) {
                 $currentMessage .= "PENTING: Anda HARUS menghasilkan draft laporan artefak yang mengikuti STRUKTUR TEMPLATE yang telah diberikan di system context.\n\n";
@@ -1393,6 +1520,43 @@ class LaporanArtefakController extends Controller
                                  $rpsSnapshots->monitoring_data;
                 
                 if (is_array($monitoringData) && !empty($monitoringData)) {
+                    // PENTING: Gabungkan matakuliah dengan kode yang sama
+                    // Key: kode_matakuliah, Value: array data matakuliah
+                    $groupedByKode = [];
+                    
+                    foreach ($monitoringData as $matkul) {
+                        $kodeMK = $matkul['kode_matakuliah'] ?? '-';
+                        
+                        if (!isset($groupedByKode[$kodeMK])) {
+                            $groupedByKode[$kodeMK] = [
+                                'kode_matakuliah' => $kodeMK,
+                                'nama_matakuliah' => $matkul['nama_matakuliah'] ?? '-',
+                                'dosen_pengampu' => [],
+                                'status_upload_rps' => $matkul['status_upload_rps'] ?? 'Belum Upload',
+                                'status_materi' => $matkul['status_materi'] ?? 'Belum Upload',
+                                'minggu_ke' => $matkul['minggu_ke'] ?? '-',
+                                'keterangan' => $matkul['keterangan'] ?? '-',
+                            ];
+                        }
+                        
+                        // Gabungkan nama dosen
+                        $dosen = $matkul['dosen_pengampu'] ?? '-';
+                        if ($dosen !== '-' && !in_array($dosen, $groupedByKode[$kodeMK]['dosen_pengampu'])) {
+                            $groupedByKode[$kodeMK]['dosen_pengampu'][] = $dosen;
+                        }
+                        
+                        // Update status jika ada yang sudah upload (ambil yang terbaru/terbaik)
+                        if (isset($matkul['status_upload_rps']) && 
+                            (str_contains(strtolower($matkul['status_upload_rps']), 'upload') || $matkul['status_upload_rps'] === '1')) {
+                            $groupedByKode[$kodeMK]['status_upload_rps'] = 'Sudah Upload';
+                        }
+                        
+                        if (isset($matkul['status_materi']) && 
+                            (str_contains(strtolower($matkul['status_materi']), 'upload') || $matkul['status_materi'] === '1')) {
+                            $groupedByKode[$kodeMK]['status_materi'] = 'Sudah Upload';
+                        }
+                    }
+                    
                     $context .= "## STATUS UPLOAD RPS DAN MATERI\n\n";
                     $context .= "| Kode | Nama Matakuliah | Dosen Pengampu | Status RPS | Status Materi | Minggu Ke | Keterangan |\n";
                     $context .= "|------|----------------|----------------|------------|---------------|-----------|------------|\n";
@@ -1401,23 +1565,50 @@ class LaporanArtefakController extends Controller
                     $rpsUploaded = 0;
                     $materiUploaded = 0;
                     
-                    foreach ($monitoringData as $matkul) {
+                    foreach ($groupedByKode as $matkul) {
                         $totalMK++;
-                        $kodeMK = $matkul['kode_matakuliah'] ?? '-';
-                        $namaMK = $matkul['nama_matakuliah'] ?? '-';
-                        $dosen = $matkul['dosen_pengampu'] ?? '-';
-                        $statusRPS = $matkul['status_upload_rps'] ?? 'Belum Upload';
-                        $statusMateri = $matkul['status_materi'] ?? 'Belum Upload';
-                        $mingguKe = $matkul['minggu_ke'] ?? '-';
-                        $keterangan = $matkul['keterangan'] ?? '-';
+                        $kodeMK = $matkul['kode_matakuliah'];
+                        $namaMK = $matkul['nama_matakuliah'];
                         
-                        if ($statusRPS === 'Sudah Upload' || str_contains(strtolower($statusRPS), 'upload')) {
+                        // Gabungkan nama dosen dengan koma
+                        $dosen = !empty($matkul['dosen_pengampu']) ? 
+                                implode(', ', $matkul['dosen_pengampu']) : '-';
+                        
+                        // Format status: tetap gunakan 0/1
+                        $statusRPS = $matkul['status_upload_rps'];
+                        if ($statusRPS === '0' || $statusRPS === 0 || strtolower($statusRPS) === 'belum upload') {
+                            $statusRPS = '0';
+                        } elseif ($statusRPS === '1' || $statusRPS === 1 || strtolower($statusRPS) === 'sudah upload') {
+                            $statusRPS = '1';
                             $rpsUploaded++;
+                        } else {
+                            // Jika sudah dalam format teks, normalisasi ke 0/1
+                            if (str_contains(strtolower($statusRPS), 'upload') && !str_contains(strtolower($statusRPS), 'belum')) {
+                                $statusRPS = '1';
+                                $rpsUploaded++;
+                            } else {
+                                $statusRPS = '0';
+                            }
                         }
                         
-                        if ($statusMateri === 'Sudah Upload' || str_contains(strtolower($statusMateri), 'upload')) {
+                        $statusMateri = $matkul['status_materi'];
+                        if ($statusMateri === '0' || $statusMateri === 0 || strtolower($statusMateri) === 'belum upload') {
+                            $statusMateri = '0';
+                        } elseif ($statusMateri === '1' || $statusMateri === 1 || strtolower($statusMateri) === 'sudah upload') {
+                            $statusMateri = '1';
                             $materiUploaded++;
+                        } else {
+                            // Jika sudah dalam format teks, normalisasi ke 0/1
+                            if (str_contains(strtolower($statusMateri), 'upload') && !str_contains(strtolower($statusMateri), 'belum')) {
+                                $statusMateri = '1';
+                                $materiUploaded++;
+                            } else {
+                                $statusMateri = '0';
+                            }
                         }
+                        
+                        $mingguKe = $matkul['minggu_ke'];
+                        $keterangan = $matkul['keterangan'];
                         
                         $context .= "| {$kodeMK} | {$namaMK} | {$dosen} | {$statusRPS} | {$statusMateri} | {$mingguKe} | {$keterangan} |\n";
                     }
@@ -1425,8 +1616,8 @@ class LaporanArtefakController extends Controller
                     $context .= "\n";
                     $context .= "### RINGKASAN STATISTIK\n\n";
                     $context .= "- Total Matakuliah: {$totalMK}\n";
-                    $context .= "- RPS Sudah Diupload: {$rpsUploaded} (" . round(($rpsUploaded / $totalMK) * 100, 1) . "%)\n";
-                    $context .= "- Materi Sudah Diupload: {$materiUploaded} (" . round(($materiUploaded / $totalMK) * 100, 1) . "%)\n";
+                    $context .= "- RPS Sudah Diupload: {$rpsUploaded} (" . ($totalMK > 0 ? round(($rpsUploaded / $totalMK) * 100, 1) : 0) . "%)\n";
+                    $context .= "- Materi Sudah Diupload: {$materiUploaded} (" . ($totalMK > 0 ? round(($materiUploaded / $totalMK) * 100, 1) : 0) . "%)\n";
                     $context .= "- RPS Belum Diupload: " . ($totalMK - $rpsUploaded) . "\n";
                     $context .= "- Materi Belum Diupload: " . ($totalMK - $materiUploaded) . "\n\n";
                 }
