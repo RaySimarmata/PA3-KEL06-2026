@@ -1,7 +1,7 @@
 /**
  * AI Prompt Assistant untuk Laporan Kuesioner
  * Menyediakan fitur AI assistant dengan conversation history untuk membantu pengguna dalam membuat laporan kuesioner
- * Version: 1.1.0 - With Auto-Download Feature
+ * Version: 1.2.0 - With Context Validation & Auto-Download Feature
  * Last Updated: 2026-06-03
  */
 
@@ -23,21 +23,104 @@ document.addEventListener('DOMContentLoaded', function () {
     let maxConversationHistory = 10;
     let maxConversationTurns = 15;
 
-    // Add welcome message
-    addMessage('ai', `<p>Halo! Saya AI Assistant untuk membantu Anda membuat laporan kuesioner kepuasan mahasiswa. Saya dapat membantu dengan:</p>
+    // ================================================================
+    // VALIDASI KONTEKS LAPORAN KUESIONER - FRONTEND
+    // ================================================================
+
+    // Keyword yang DIIZINKAN (wajib ada minimal 1)
+    const allowedKeywords = [
+        'laporan', 'report', 'kuesioner', 'questionnaire', 'survey',
+        'kepuasan', 'satisfaction', 'mahasiswa', 'student',
+        'buat', 'buatkan', 'bikin', 'generate', 'create', 'buatlah',
+        'ubah', 'perbaiki', 'edit', 'revisi', 'update', 'ganti', 'tambah', 'hapus',
+        'revisikan', 'perbaharui', 'memperbaiki', 'mengubah', 'menambah', 'menghapus',
+        'struktur', 'format', 'template', 'draft', 'bagian', 'section',
+        'pendahuluan', 'latar belakang', 'metodologi', 'temuan', 'analisis',
+        'kualitas', 'rekomendasi', 'kesimpulan', 'ringkasan eksekutif',
+        'periode', 'semester', 'tahun ajaran', 'tingkat', 'responden',
+        'indeks kepuasan', 'persen kepuasan', 'hasil kuesioner', 'masukan', 'saran',
+        'data kuesioner', 'statistik', 'rata-rata', 'analisis kuesioner'
+    ];
+
+    // Keyword yang DILARANG (jika muncul tanpa allowed keyword)
+    const rejectedKeywords = [
+        'siapa', 'siapakah', 'nama saya', 'nama kamu', 'namamu', 'namaku',
+        'aku siapa', 'kamu siapa', 'perkenalkan', 'kenalan', 'halo', 'hai',
+        'hello', 'hi', 'hey', 'apa kabar', 'kabar', 'gimana kabar',
+        'ganteng', 'cantik', 'tampan', 'cakep', 'jelek', 'buruk rupa', 'penampilan',
+        'hewan', 'binatang', 'kucing', 'anjing', 'ayam', 'bebek', 'sapi', 'kambing',
+        'jerapah', 'gajah', 'singa', 'harimau', 'macan', 'ular', 'burung', 'ikan',
+        'olahraga', 'sport', 'fitness', 'gym', 'danbel', 'dumbell', 'barbel',
+        'barbell', 'lari', 'jogging', 'renang', 'sepak bola', 'bola', 'badminton',
+        'film', 'movie', 'game', 'permainan', 'musik', 'lagu', 'song', 'drama',
+        'sinetron', 'yt', 'youtube', 'tiktok', 'instagram', 'resep', 'masak',
+        'memasak', 'makanan', 'minuman', 'masakan', 'berita', 'news', 'politik',
+        'politic', 'pemilu', 'presiden', 'kecelakaan', 'joke', 'lelucon', 'cerita',
+        'story', 'pantun', 'puisi', 'poem', 'dongeng', 'ngobrol', 'chat', 'mengobrol',
+        'nge-chat', 'obrolan', 'canda', 'guyon', 'cuaca', 'weather', 'ramalan',
+        'zodiac', 'horoskop', 'shio', 'tutorial', 'cara membuat', 'cara memasak',
+        'DIY', 'kerajinan',
+    ];
+
+    // Pola pertanyaan singkat yang mencurigakan
+    const suspiciousShortPatterns = [
+        /^(siapa|siapakah|apa|kenapa|mengapa|bagaimana|kapan|dimana|kemana)(\s+(paling|yang|itu|ini|dong|nih|sih|ya|kah))?$/i,
+        /^(halo|hai|hey|hello|hi|yo|haii|hallo|helo)$/i,
+        /^(apa kabar|kabar|gimana kabar|gmn kabar)$/i,
+        /^(ngobrol|chat|yuk ngobrol|yuk chat)$/i,
+        /^(kenalan|perkenalkan|kenal|mari kenalan)$/i,
+        /^(ganteng|cantik|tampan|cakep|jelek|buruk)$/i,
+        /^(danbel|dumbell|gym|fitness|olahraga)$/i,
+        /^(hewan|binatang|kucing|anjing)$/i,
+        /^(film|game|musik|lagu)$/i,
+        /^(resep|masak|makanan)$/i,
+        /^(berita|politik|news)$/i,
+        /^(joke|lelucon|pantun|puisi)$/i,
+        /^(cuaca|ramalan|zodiac)$/i,
+    ];
+
+    // Add welcome message with context warning
+    addMessage('ai', `<div style="background: #e0f2fe; border-left: 4px solid #0284c7; padding: 16px; border-radius: 8px; margin-bottom: 16px;">
+            <strong>🤖 Selamat datang di AI Assistant Laporan Kuesioner Kepuasan Mahasiswa!</strong><br><br>
+            Saya adalah asisten khusus untuk membantu Anda membuat laporan kuesioner kepuasan mahasiswa.
+        </div>
+        
+        <p><strong>✅ Saya dapat membantu Anda dengan:</strong></p>
         <ul>
-            <li>Memberikan saran konten laporan kuesioner</li>
-            <li>Menganalisis data kuesioner dalam periode yang dipilih</li>
-            <li>Membantu struktur laporan yang sesuai standar</li>
-            <li>Memberikan template dan format yang tepat</li>
-            <li>Melakukan iterasi dan perbaikan draft</li>
+            <li>📋 Pembuatan laporan kuesioner kepuasan mahasiswa</li>
+            <li>📊 Analisis data kuesioner kepuasan mahasiswa</li>
+            <li>📝 Struktur dan format laporan kuesioner</li>
+            <li>✏️ Perbaikan dan revisi draft laporan</li>
+            <li>❓ Pertanyaan terkait kuesioner dan survei kepuasan</li>
         </ul>
-        <p><strong>Tips:</strong> Anda bisa mengatakan "buat laporan kuesioner" untuk langsung generate laporan lengkap dengan file Word!</p>`);
+        
+        <div style="background: #fef3c7; border-left: 4px solid #f59e0b; padding: 12px; border-radius: 8px; margin: 12px 0;">
+            <strong>⚠️ PENTING!</strong><br>
+            Saya HANYA bisa membantu dengan topik yang berkaitan dengan LAPORAN KUESIONER KEPUASAN MAHASISWA.<br>
+            Pertanyaan di luar konteks ini (seperti siapa, kabar, ganteng, hewan, game, dll) akan otomatis ditolak.
+        </div>
+        
+        <p><strong>💡 Contoh instruksi yang tepat:</strong></p>
+        <ul>
+            <li>"Buat laporan kuesioner untuk periode ini"</li>
+            <li>"Analisis data kuesioner kepuasan mahasiswa"</li>
+            <li>"Tampilkan hasil kuesioner per tingkat"</li>
+            <li>"Ubah bagian ringkasan eksekutif"</li>
+        </ul>
+        
+        <p><strong>🚫 Contoh yang akan ditolak:</strong></p>
+        <ul>
+            <li>"Siapa kamu?" / "Apa kabar?"</li>
+            <li>"Ceritakan tentang kucing"</li>
+            <li>"Gimana cara main game?"</li>
+            <li>"Resep masakan enak"</li>
+        </ul>
+        
+        <p>Silakan mulai dengan mengisi informasi laporan (periode, judul) lalu klik <strong>"Buat Laporan Draft"</strong> terlebih dahulu.</p>`);
 
     // Attachment button click handler
     if (btnAttachment) {
         btnAttachment.addEventListener('click', function () {
-            // Show menu untuk pilih file type
             const menu = document.createElement('div');
             menu.className = 'attachment-menu';
             menu.style.cssText = `
@@ -62,7 +145,6 @@ document.addEventListener('DOMContentLoaded', function () {
                 </button>
             `;
 
-            // Style menu items
             const styleSheet = document.createElement('style');
             styleSheet.textContent = `
                 .attachment-menu-item {
@@ -85,14 +167,11 @@ document.addEventListener('DOMContentLoaded', function () {
             `;
             document.head.appendChild(styleSheet);
 
-            // Remove existing menu if any
             const existingMenu = document.querySelector('.attachment-menu');
             if (existingMenu) existingMenu.remove();
 
-            // Add menu to DOM
             btnAttachment.parentElement.appendChild(menu);
 
-            // Handle menu item clicks
             menu.querySelectorAll('.attachment-menu-item').forEach(item => {
                 item.addEventListener('click', function () {
                     const type = this.getAttribute('data-type');
@@ -105,7 +184,6 @@ document.addEventListener('DOMContentLoaded', function () {
                 });
             });
 
-            // Close menu when clicking outside
             setTimeout(() => {
                 document.addEventListener('click', function closeMenu(e) {
                     if (!menu.contains(e.target) && e.target !== btnAttachment) {
@@ -148,10 +226,11 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     function displayAttachments() {
+        if (!allAttachmentsList) return;
+
         allAttachmentsList.innerHTML = '';
         let hasAttachments = false;
 
-        // Display file referensi
         if (fileReferensi && fileReferensi.files.length > 0) {
             Array.from(fileReferensi.files).forEach((file, index) => {
                 hasAttachments = true;
@@ -160,7 +239,6 @@ document.addEventListener('DOMContentLoaded', function () {
             });
         }
 
-        // Display OCR images
         if (ocrImages && ocrImages.files.length > 0) {
             Array.from(ocrImages.files).forEach((file, index) => {
                 hasAttachments = true;
@@ -179,7 +257,7 @@ document.addEventListener('DOMContentLoaded', function () {
         chip.className = 'file-chip';
         chip.innerHTML = `
             <i class="bi bi-file-earmark"></i>
-            <span class="file-name">${file.name}</span>
+            <span class="file-name">${escapeHtml(file.name)}</span>
             <span class="remove-file" data-type="${type}" data-index="${index}">×</span>
         `;
 
@@ -197,8 +275,8 @@ document.addEventListener('DOMContentLoaded', function () {
         const reader = new FileReader();
         reader.onload = function (e) {
             chip.innerHTML = `
-                <img src="${e.target.result}" alt="${file.name}">
-                <span class="file-name">${file.name}</span>
+                <img src="${e.target.result}" alt="${escapeHtml(file.name)}">
+                <span class="file-name">${escapeHtml(file.name)}</span>
                 <span class="remove-file" data-type="${type}" data-index="${index}">×</span>
             `;
 
@@ -213,6 +291,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
     function removeAttachment(type, index) {
         const input = type === 'file' ? fileReferensi : ocrImages;
+        if (!input) return;
+
         const dt = new DataTransfer();
 
         Array.from(input.files).forEach((file, i) => {
@@ -225,13 +305,14 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     function updateAttachmentButtonState() {
-        const hasFiles = (fileReferensi && fileReferensi.files.length > 0) || (ocrImages && ocrImages.files.length > 0);
-        if (btnAttachment) {
-            if (hasFiles) {
-                btnAttachment.classList.add('has-files');
-            } else {
-                btnAttachment.classList.remove('has-files');
-            }
+        if (!btnAttachment) return;
+
+        const hasFiles = (fileReferensi && fileReferensi.files.length > 0) ||
+            (ocrImages && ocrImages.files.length > 0);
+        if (hasFiles) {
+            btnAttachment.classList.add('has-files');
+        } else {
+            btnAttachment.classList.remove('has-files');
         }
     }
 
@@ -239,20 +320,85 @@ document.addEventListener('DOMContentLoaded', function () {
         if (isProcessing) return;
 
         const message = promptInput.value.trim();
-        const hasFiles = (fileReferensi && fileReferensi.files.length > 0) || (ocrImages && ocrImages.files.length > 0);
+        const hasFiles = (fileReferensi && fileReferensi.files.length > 0) ||
+            (ocrImages && ocrImages.files.length > 0);
 
-        // Validation
+        // ================================================================
+        // VALIDASI KONTEKS - FRONTEND
+        // ================================================================
+
         if (!message || message.length === 0) {
             if (hasFiles) {
-                addMessage('system', '<strong>⚠️ INSTRUKSI WAJIB DIISI!</strong><br><br>Anda telah mengupload file, tetapi belum memberikan instruksi.<br><br><strong>Silakan ketik instruksi Anda terlebih dahulu</strong>, misalnya:<br>• "Analisis dokumen ini dan buat ringkasan"<br>• "Buat laporan berdasarkan data yang diupload"<br>• "Ekstrak informasi penting dari dokumen"');
+                addMessage('system', '<strong>⚠️ INSTRUKSI WAJIB DIISI!</strong><br><br>Anda telah mengupload file, tetapi belum memberikan instruksi.<br><br><strong>Silakan ketik instruksi Anda terlebih dahulu</strong>, misalnya:<br>• "Buat laporan kuesioner untuk periode ini"<br>• "Analisis data kuesioner kepuasan mahasiswa"');
             } else {
-                addMessage('system', 'Silakan masukkan pesan atau pertanyaan Anda.');
+                addMessage('system', 'Silakan masukkan instruksi atau pertanyaan Anda.');
             }
             return;
         }
 
         if (message.length < 5) {
             addMessage('system', '<strong>⚠️ Instruksi terlalu singkat!</strong><br><br>Silakan berikan instruksi yang lebih jelas dan spesifik (minimal 5 karakter).');
+            return;
+        }
+
+        const messageLower = message.toLowerCase();
+
+        // Cek apakah ada rejected keyword tanpa allowed keyword
+        const hasRejectedKeyword = rejectedKeywords.some(keyword => messageLower.includes(keyword));
+        const hasAllowedKeyword = allowedKeywords.some(keyword => messageLower.includes(keyword));
+
+        // Cek pola pertanyaan singkat yang mencurigakan
+        let isSuspiciousShort = false;
+        for (const pattern of suspiciousShortPatterns) {
+            if (pattern.test(message.trim())) {
+                isSuspiciousShort = true;
+                break;
+            }
+        }
+
+        // Jika ada keyword terlarang DAN tidak ada keyword yang diizinkan → TOLAK
+        if (hasRejectedKeyword && !hasAllowedKeyword) {
+            addMessage('system',
+                '<div style="background: #fef2f2; border-left: 4px solid #dc2626; padding: 12px; border-radius: 8px;">' +
+                '<strong>⚠️ Maaf, permintaan Anda di luar konteks!</strong><br><br>' +
+                'Saya adalah <strong>AI Assistant Laporan Kuesioner Kepuasan Mahasiswa</strong>.<br><br>' +
+                '<strong>Saya hanya dapat membantu dengan:</strong><br>' +
+                '✅ Pembuatan laporan kuesioner kepuasan mahasiswa<br>' +
+                '✅ Analisis data kuesioner kepuasan mahasiswa<br>' +
+                '✅ Struktur dan format laporan kuesioner<br>' +
+                '✅ Perbaikan dan revisi draft laporan<br><br>' +
+                'Silakan ajukan pertanyaan yang terkait dengan <strong>Laporan Kuesioner</strong>.' +
+                '</div>'
+            );
+            promptInput.value = '';
+            return;
+        }
+
+        // Jika pola pertanyaan singkat yang mencurigakan dan tidak ada allowed keyword → TOLAK
+        if (isSuspiciousShort && !hasAllowedKeyword) {
+            addMessage('system',
+                '<div style="background: #fef2f2; border-left: 4px solid #dc2626; padding: 12px; border-radius: 8px;">' +
+                '<strong>⚠️ Maaf, permintaan Anda di luar konteks!</strong><br><br>' +
+                'Saya adalah AI Assistant khusus untuk membantu membuat <strong>Laporan Kuesioner Kepuasan Mahasiswa</strong>.<br><br>' +
+                'Silakan ajukan pertanyaan terkait pembuatan laporan kuesioner.' +
+                '</div>'
+            );
+            promptInput.value = '';
+            return;
+        }
+
+        // Cek pesan terlalu pendek (< 10 karakter) tanpa file
+        if (message.length < 10 && !hasFiles && !hasAllowedKeyword) {
+            addMessage('system',
+                '<div style="background: #fef3c7; border-left: 4px solid #f59e0b; padding: 12px; border-radius: 8px;">' +
+                '<strong>⚠️ Instruksi terlalu singkat!</strong><br><br>' +
+                'Silakan berikan instruksi yang lebih spesifik terkait pembuatan <strong>Laporan Kuesioner Kepuasan Mahasiswa</strong>, misalnya:<br>' +
+                '• "Buat laporan kuesioner untuk periode ini"<br>' +
+                '• "Analisis data kuesioner kepuasan mahasiswa"<br>' +
+                '• "Tampilkan hasil kuesioner per tingkat"' +
+                '</div>'
+            );
+            promptInput.value = '';
             return;
         }
 
@@ -343,7 +489,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 setTimeout(() => {
                     const downloadLink = document.createElement('a');
                     downloadLink.href = data.download_url;
-                    downloadLink.download = '';  // Akan menggunakan nama file dari server
+                    downloadLink.download = '';
                     document.body.appendChild(downloadLink);
                     downloadLink.click();
                     document.body.removeChild(downloadLink);
@@ -415,13 +561,15 @@ document.addEventListener('DOMContentLoaded', function () {
             `;
         }
 
-        messagesBox.appendChild(msgDiv);
-        scrollToBottom();
+        if (messagesBox) {
+            messagesBox.appendChild(msgDiv);
+            scrollToBottom();
+        }
 
         // Add to conversation history
         if (type === 'user' || type === 'ai') {
             conversationHistory.push({
-                type: type,
+                role: type === 'user' ? 'user' : 'assistant',
                 content: content
             });
         }
@@ -440,7 +588,6 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     function showSuccessToast(message) {
-        // Simple toast notification
         const toast = document.createElement('div');
         toast.className = 'toast-notification';
         toast.style.cssText = `
@@ -462,11 +609,12 @@ document.addEventListener('DOMContentLoaded', function () {
         setTimeout(() => {
             toast.style.animation = 'slideOutRight 0.3s ease';
             setTimeout(() => {
-                document.body.removeChild(toast);
+                if (document.body.contains(toast)) {
+                    document.body.removeChild(toast);
+                }
             }, 300);
         }, 3000);
 
-        // Add animation styles
         const style = document.createElement('style');
         style.textContent = `
             @keyframes slideInRight {
@@ -493,5 +641,5 @@ document.addEventListener('DOMContentLoaded', function () {
         document.head.appendChild(style);
     }
 
-    console.log('AI Prompt Assistant Kuesioner initialized with auto-download feature');
+    console.log('AI Prompt Assistant Kuesioner initialized with context validation and auto-download feature');
 });

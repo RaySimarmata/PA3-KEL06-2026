@@ -7,7 +7,7 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>@yield('title', 'Sistem GJK & GKM')</title>
     <link rel="icon" href="{{ asset('images/logo-itdel.jpg') }}" type="image/jpeg">
-    
+
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
 
@@ -243,15 +243,30 @@
             max-height: 500px;
         }
 
+        /* Perbaikan alignment submenu */
         .dropdown-submenu .nav-item {
             padding: 0.6rem 0.8rem;
             font-size: 0.8rem;
             margin-bottom: 0.15rem;
+            display: flex;
+            align-items: center;
+            gap: 0.7rem;
         }
 
-        .dropdown-submenu .nav-item i {
+        .dropdown-submenu .nav-item i,
+        .dropdown-submenu .nav-item .menu-icon {
             font-size: 0.9rem;
             width: 1.3rem;
+            text-align: center;
+            flex-shrink: 0;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .dropdown-submenu .nav-item .menu-text {
+            flex: 1;
+            text-align: left;
         }
 
         .dropdown-submenu .nav-item:hover {
@@ -543,32 +558,26 @@
 
                         <!-- Pengelolaan RPS -->
                         <div class="nav-dropdown {{ request()->routeIs('gkm.monitoring-rps.*') ? 'open' : '' }}">
-                            {{-- <a href="javascript:void(0)"
-                                class="nav-item {{ request()->routeIs('gkm.monitoring-rps.*') ? 'active' : '' }}"
-                                onclick="toggleDropdown(this)">
-                                <span><i class="bi bi-check-circle"></i> Pengelolaan RPS</span>
-                                <i class="bi bi-chevron-down dropdown-icon"></i>
-                            </a> --}}
-
                             <a href="javascript:void(0)"
                                 class="nav-item {{ request()->routeIs('gkm.monitoring-rps.*') ? 'active' : '' }}"
                                 onclick="toggleDropdown(this)">
-                                <span><img src="{{ asset('images/pengelolaan1.png') }}"
-         alt="Rps"
-         width="23"
-         height="23"
-         style="margin-right:15px;"
-         filter: brightness(0) invert(1);></i> Pengelolaan RPS</span>
+                                <span>
+                                    <img src="{{ asset('images/pengelolaan1.png') }}" alt="Rps" width="20"
+                                        height="20" style="margin-right: 8px; filter: brightness(0) invert(1);">
+                                    Pengelolaan RPS
+                                </span>
                                 <i class="bi bi-chevron-down dropdown-icon"></i>
                             </a>
                             <div class="dropdown-submenu">
                                 <a href="{{ route('gkm.monitoring-rps.index') }}"
                                     class="nav-item {{ request()->routeIs('gkm.monitoring-rps.index') ? 'active' : '' }}">
-                                    <i class="bi bi-eye"></i>Monitoring RPS
+                                    <i class="bi bi-eye menu-icon"></i>
+                                    <span class="menu-text">Monitoring RPS</span>
                                 </a>
                                 <a href="{{ route('gkm.monitoring-rps.history') }}"
                                     class="nav-item {{ request()->routeIs('gkm.monitoring-rps.ceklist') || request()->routeIs('gkm.monitoring-rps.history') ? 'active' : '' }}">
-                                    <i class="bi bi-clock-history"></i> History Reminder RPS
+                                    <i class="bi bi-clock-history menu-icon"></i>
+                                    <span class="menu-text">History Reminder RPS</span>
                                 </a>
                             </div>
                         </div>
@@ -578,49 +587,34 @@
                             <a href="javascript:void(0)"
                                 class="nav-item {{ request()->routeIs('gkm.monitoring-perkuliahan.*') ? 'active' : '' }}"
                                 onclick="toggleDropdown(this)">
-                                <span><img src="{{ asset('images/pengelolaan1.png') }}"
-         alt="Perkuliahan"
-         width="23"
-         height="23"
-         style="margin-right:15px;"
-         filter: brightness(0) invert(1);></i> Pengelolaan Perkuliahan</span>
+                                <span>
+                                    <img src="{{ asset('images/pengelolaan1.png') }}" alt="Perkuliahan" width="20"
+                                        height="20" style="margin-right: 8px; filter: brightness(0) invert(1);">
+                                    Pengelolaan Perkuliahan
+                                </span>
                                 <i class="bi bi-chevron-down dropdown-icon"></i>
                             </a>
                             <div class="dropdown-submenu">
                                 <a href="{{ route('gkm.monitoring-perkuliahan.index') }}"
                                     class="nav-item {{ request()->routeIs('gkm.monitoring-perkuliahan.index') ? 'active' : '' }}">
-                                    <i class="bi bi-eye"></i> Monitoring Perkuliahan
+                                    <i class="bi bi-eye menu-icon"></i>
+                                    <span class="menu-text">Monitoring Perkuliahan</span>
                                 </a>
                                 <a href="{{ route('gkm.monitoring-perkuliahan.history') }}"
                                     class="nav-item {{ request()->routeIs('gkm.monitoring-perkuliahan.history') ? 'active' : '' }}">
-                                    <span><i class="bi bi-send"></i> History Reminder Upload Materi</span>
+                                    <i class="bi bi-send menu-icon"></i>
+                                    <span class="menu-text">History Reminder Upload Materi</span>
                                 </a>
                             </div>
                         </div>
 
-                        {{-- <!-- Pengelolaan Kuesioner -->
-                        <div class="nav-dropdown {{ request()->routeIs('gkm.monitoring-kuesioner.*') ? 'open' : '' }}">
-                            <a href="javascript:void(0)"
-                                class="nav-item {{ request()->routeIs('gkm.monitoring-kuesioner.*') ? 'active' : '' }}"
-                                onclick="toggleDropdown(this)">
-                                <span><i class="bi bi-list-check"></i> Pengelolaan Kuesioner</span>
-                                <i class="bi bi-chevron-down dropdown-icon"></i>
-                            </a>
-                            <div class="dropdown-submenu">
-                                <a href="{{ route('gkm.monitoring-kuesioner.index') }}"
-                                    class="nav-item {{ request()->routeIs('gkm.monitoring-kuesioner.*') ? 'active' : '' }}">
-                                    <span><i class="bi bi-clipboard-data"></i> Monitoring Kuesioner</span>
-                                </a>
-                            </div>
-                        </div> --}}
                         <a href="{{ route('gkm.monitoring-kuesioner.index') }}"
                             class="nav-item {{ request()->routeIs('gkm.monitoring-kuesioner.*') ? 'active' : '' }}">
-                            <span><img src="{{ asset('images/pengelolaan1.png') }}"
-         alt="Kuesioner"
-         width="23"
-         height="23"
-         style="margin-right:15px;"
-         filter: brightness(0) invert(1);></i> Pengelolaan Kuesioner
+                            <span>
+                                <img src="{{ asset('images/pengelolaan1.png') }}" alt="Kuesioner" width="20"
+                                    height="20" style="margin-right: 8px; filter: brightness(0) invert(1);">
+                                Pengelolaan Kuesioner
+                            </span>
                         </a>
 
                         <!-- Pelaporan -->
@@ -635,11 +629,13 @@
                             <div class="dropdown-submenu">
                                 <a href="{{ route('gkm.laporan-artefak.index') }}"
                                     class="nav-item {{ request()->routeIs('gkm.laporan-artefak.*') ? 'active' : '' }}">
-                                    <i class="bi bi-file-earmark-text"></i> Laporan Bulanan
+                                    <i class="bi bi-file-earmark-text menu-icon"></i>
+                                    <span class="menu-text">Laporan Bulanan</span>
                                 </a>
                                 <a href="{{ route('gkm.laporan-kuesioner.index') }}"
                                     class="nav-item {{ request()->routeIs('gkm.laporan-kuesioner.*') ? 'active' : '' }}">
-                                    <i class="bi bi-file-earmark-text"></i> Laporan Kuesioner Bulanan
+                                    <i class="bi bi-file-earmark-text menu-icon"></i>
+                                    <span class="menu-text">Laporan Kuesioner Bulanan</span>
                                 </a>
                             </div>
                         </div>
@@ -712,11 +708,13 @@
                             <div class="dropdown-submenu">
                                 <a href="{{ route('gjm.buat-ppt.index') }}"
                                     class="nav-item {{ request()->routeIs('gjm.buat-ppt.*') ? 'active' : '' }}">
-                                    <span><i class="bi bi-file-earmark-plus"></i> Buat PPT</span>
+                                    <i class="bi bi-file-earmark-plus menu-icon"></i>
+                                    <span class="menu-text">Buat PPT</span>
                                 </a>
                                 <a href="{{ route('gjm.buat-ppt.archive') }}"
                                     class="nav-item {{ request()->routeIs('gjm.buat-ppt.archive') ? 'active' : '' }}">
-                                    <span><i class="bi bi-archive"></i> Arsip PPT</span>
+                                    <i class="bi bi-archive menu-icon"></i>
+                                    <span class="menu-text">Arsip PPT</span>
                                 </a>
                             </div>
                         </div>
