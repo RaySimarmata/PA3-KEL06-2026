@@ -50,37 +50,40 @@ private function getPeriodeAktif()
     {
         $user = auth()->user();
 
-        $query = KuesioneUpload::with(['user', 'user.prodi'])
-            ->whereHas('user', function ($q) use ($user) {
-                $q->where('prodi_id', $user->prodi_id);
-            });
+    $kuesionersQuery = KuesioneUpload::with(['user', 'user.prodi'])
+        ->whereHas('user', function ($q) use ($user) {
+            $q->where('prodi_id', $user->prodi_id);
+        })
+        ->orderBy('created_at', 'desc');
 
-        $kuesioners = $query
-            ->orderBy('created_at', 'desc')
-            ->paginate(10)
-            ->withQueryString();
+    // =========================
+    // PAGINATION
+    // =========================
+    $perPage = 10;
+    $kuesioners = $kuesionersQuery->paginate($perPage);
 
-        $kuesioners->getCollection()->transform(function ($k) {
-            // Pastikan nama_matakuliah terisi
-            if (empty($k->nama_matakuliah) && !empty($k->kode_matakuliah)) {
-                // Coba cari dengan berbagai variasi
-                $matkul = \App\Models\Matakuliah::where('kode_mk', $k->kode_matakuliah)
-                    ->orWhere('kode_mk', 'LIKE', '%' . $k->kode_matakuliah . '%')
-                    ->first();
-                
-                if ($matkul) {
-                    $k->nama_matakuliah = $matkul->nama_mk;
-                } else {
-                    // Jika tidak ada di tabel matakuliah, coba ambil dari API atau sumber lain
-                    // Log untuk debugging
-                    \Log::info('Matakuliah tidak ditemukan', [
-                        'kode_mk' => $k->kode_matakuliah,
-                        'kuesioner_id' => $k->id
-                    ]);
-                }
+    // Map untuk melengkapi nama matakuliah
+    $kuesioners->getCollection()->transform(function ($k) {
+        // Pastikan nama_matakuliah terisi
+        if (empty($k->nama_matakuliah) && !empty($k->kode_matakuliah)) {
+            // Coba cari dengan berbagai variasi
+            $matkul = \App\Models\Matakuliah::where('kode_mk', $k->kode_matakuliah)
+                ->orWhere('kode_mk', 'LIKE', '%' . $k->kode_matakuliah . '%')
+                ->first();
+            
+            if ($matkul) {
+                $k->nama_matakuliah = $matkul->nama_mk;
+            } else {
+                // Jika tidak ada di tabel matakuliah, coba ambil dari API atau sumber lain
+                // Log untuk debugging
+                \Log::info('Matakuliah tidak ditemukan', [
+                    'kode_mk' => $k->kode_matakuliah,
+                    'kuesioner_id' => $k->id
+                ]);
             }
-            return $k;
-        });
+        }
+        return $k;
+    });
 
     $laporanBulanan = KuesioneUpload::whereYear('created_at', date('Y'))
         ->whereMonth('created_at', date('m'))
@@ -405,9 +408,23 @@ $semester = $request->semester ?? $semesterAktif;
         }
     }
 
+    // =========================
+    // PAGINATION
+    // =========================
+    $perPage = 10;
+    $currentPage = $request->input('page', 1);
+
+    $pagination = new \Illuminate\Pagination\LengthAwarePaginator(
+        $list->forPage($currentPage, $perPage),
+        $list->count(),
+        $perPage,
+        $currentPage,
+        ['path' => $request->url(), 'query' => $request->query()]
+    );
+
     return view('gkm.monitoring-kuesioner.create-api', [
     'list' => $list,
-    'ta' => $ta,
+    'pagination' => $pagination,
     'ta' => $ta,
     'semester' => $semester,
     'tingkat' => $tingkat,
@@ -474,8 +491,24 @@ public function listKuesioner(Request $request)
         ]);
     }
 
+    // =========================
+    // PAGINATION
+    // =========================
+    $perPage = 10;
+    $currentPage = $request->input('page', 1);
+
+    $listCollection = collect($list);
+    $pagination = new \Illuminate\Pagination\LengthAwarePaginator(
+        $listCollection->forPage($currentPage, $perPage),
+        $listCollection->count(),
+        $perPage,
+        $currentPage,
+        ['path' => $request->url(), 'query' => $request->query()]
+    );
+
     return view('gkm.monitoring-kuesioner.list-kuesioner', [
         'list' => $list,
+        'pagination' => $pagination,
         'kode_mk' => $kodeMk,
         'ta' => $ta
     ]);
