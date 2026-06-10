@@ -11,38 +11,7 @@
         </div>
     @endif
 
-    <!-- Quick Access Cards -->
-    <div class="row mb-4">
-        <div class="col-md-6 mb-3">
-            <div class="filter-card h-100">
-                <div class="text-center">
-                    <div style="width: 60px; height: 60px; background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%); border-radius: 12px; display: flex; align-items: center; justify-content: center; margin: 0 auto 1rem;">
-                        <i class="bi bi-calendar-check" style="font-size: 28px; color: white;"></i>
-                    </div>
-                    <h6 class="mb-2" style="font-weight: 600; color: #333;">Pengaturan Jadwal Reminder</h6>
-                    <p class="text-muted mb-3" style="font-size: 0.875rem;">Atur jadwal pengiriman email reminder otomatis ke dosen</p>
-                    <a href="{{ route('gkm.reminder-agent.jadwal') }}" class="btn btn-primary">
-                        <i class="bi bi-calendar-check"></i> Atur Jadwal
-                    </a>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-md-6 mb-3">
-            <div class="filter-card h-100">
-                <div class="text-center">
-                    <div style="width: 60px; height: 60px; background: linear-gradient(135deg, #28a745 0%, #20c997 100%); border-radius: 12px; display: flex; align-items: center; justify-content: center; margin: 0 auto 1rem;">
-                        <i class="bi bi-envelope-open" style="font-size: 28px; color: white;"></i>
-                    </div>
-                    <h6 class="mb-2" style="font-weight: 600; color: #333;">Log Pengiriman Email</h6>
-                    <p class="text-muted mb-3" style="font-size: 0.875rem;">Lihat riwayat pengiriman email reminder</p>
-                    <a href="{{ route('gkm.reminder-agent.log') }}" class="btn btn-success">
-                        <i class="bi bi-list-ul"></i> Lihat Log
-                    </a>
-                </div>
-            </div>
-        </div>
-    </div>
+    
 
     <!-- Jadwal Reminder Table -->
     <div class="monitoring-card">

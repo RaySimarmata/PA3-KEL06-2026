@@ -28,9 +28,9 @@
                 <p class="text-muted mb-0 small">Pilih dosen yang akan dikirim reminder</p>
             </div>
             <div class="d-flex gap-2">
-                <a href="{{ route('gkm.monitoring-rps.history') }}" class="btn btn-outline-primary btn-sm">
+                {{-- <a href="{{ route('gkm.monitoring-rps.history') }}" class="btn btn-outline-primary btn-sm">
                     <i class="bi bi-clock-history"></i> History Reminder
-                </a>
+                </a> --}}
                 <a href="{{ route('gkm.monitoring-rps.index') }}" class="btn btn-secondary btn-sm">
                     <i class="bi bi-arrow-left"></i> Kembali
                 </a>

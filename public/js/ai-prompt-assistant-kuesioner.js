@@ -84,7 +84,7 @@ document.addEventListener('DOMContentLoaded', function () {
             <strong>🤖 Selamat datang di AI Assistant Laporan Kuesioner Kepuasan Mahasiswa!</strong><br><br>
             Saya adalah asisten khusus untuk membantu Anda membuat laporan kuesioner kepuasan mahasiswa.
         </div>
-        
+
         <p><strong>✅ Saya dapat membantu Anda dengan:</strong></p>
         <ul>
             <li>📋 Pembuatan laporan kuesioner kepuasan mahasiswa</li>
@@ -93,13 +93,13 @@ document.addEventListener('DOMContentLoaded', function () {
             <li>✏️ Perbaikan dan revisi draft laporan</li>
             <li>❓ Pertanyaan terkait kuesioner dan survei kepuasan</li>
         </ul>
-        
+
         <div style="background: #fef3c7; border-left: 4px solid #f59e0b; padding: 12px; border-radius: 8px; margin: 12px 0;">
             <strong>⚠️ PENTING!</strong><br>
             Saya HANYA bisa membantu dengan topik yang berkaitan dengan LAPORAN KUESIONER KEPUASAN MAHASISWA.<br>
             Pertanyaan di luar konteks ini (seperti siapa, kabar, ganteng, hewan, game, dll) akan otomatis ditolak.
         </div>
-        
+
         <p><strong>💡 Contoh instruksi yang tepat:</strong></p>
         <ul>
             <li>"Buat laporan kuesioner untuk periode ini"</li>
@@ -107,7 +107,7 @@ document.addEventListener('DOMContentLoaded', function () {
             <li>"Tampilkan hasil kuesioner per tingkat"</li>
             <li>"Ubah bagian ringkasan eksekutif"</li>
         </ul>
-        
+
         <p><strong>🚫 Contoh yang akan ditolak:</strong></p>
         <ul>
             <li>"Siapa kamu?" / "Apa kabar?"</li>
@@ -115,7 +115,7 @@ document.addEventListener('DOMContentLoaded', function () {
             <li>"Gimana cara main game?"</li>
             <li>"Resep masakan enak"</li>
         </ul>
-        
+
         <p>Silakan mulai dengan mengisi informasi laporan (periode, judul) lalu klik <strong>"Buat Laporan Draft"</strong> terlebih dahulu.</p>`);
 
     // Attachment button click handler
@@ -449,6 +449,27 @@ document.addEventListener('DOMContentLoaded', function () {
 
             if (periode) formData.append('periode', periode);
             if (templateId) formData.append('template_id', templateId);
+
+            // Extract tipe_laporan from periode value (format: "ID-UTS" or "ID-UAS")
+            let tipeLaporan = 'UTS';
+            if (periode && periode.includes('-')) {
+                const parts = periode.split('-');
+                if (parts.length === 2 && (parts[1] === 'UTS' || parts[1] === 'UAS')) {
+                    tipeLaporan = parts[1];
+                }
+            }
+            formData.append('tipe_laporan', tipeLaporan);
+
+            // DEBUG: Log what's being sent
+            console.log('[AI Prompt Debug]', {
+                prompt: message,
+                periode: periode,
+                tipe_laporan: tipeLaporan,
+                template_id: templateId,
+                message_length: message.length,
+                has_allowed_keywords: allowedKeywords.some(kw => message.toLowerCase().includes(kw)),
+                has_rejected_keywords: rejectedKeywords.some(kw => message.toLowerCase().includes(kw))
+            });
 
             // Call AI service
             const response = await fetch('/gkm/laporan-kuesioner/ai-prompt', {

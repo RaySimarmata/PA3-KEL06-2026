@@ -231,6 +231,21 @@ class LaporanKuesioneService
         return null;
     }
 
+    private function getMatakuliahGroupKey(array $kuesioner): string
+    {
+        $kode = trim(strtoupper($kuesioner['kode_matakuliah'] ?? ''));
+        if ($kode !== '') {
+            return "KODE::{$kode}";
+        }
+
+        $nama = trim(mb_strtolower($kuesioner['nama_matakuliah'] ?? ''));
+        if ($nama !== '') {
+            return "NAMA::{$nama}";
+        }
+
+        return 'UNKNOWN';
+    }
+
     /**
      * RAG STEP 3: Build Context
      * Build context untuk AI dari data yang sudah diagregasi
@@ -271,7 +286,22 @@ class LaporanKuesioneService
         $context .= "DETAIL PER TINGKAT:\n\n";
         foreach ($kuesioneByTingkat as $tingkat => $kuesioneList) {
             $context .= "TINGKAT {$tingkat}:\n";
-            $context .= "Total Matakuliah: " . count($kuesioneList) . "\n\n";
+
+            $matakuliahGroups = [];
+            foreach ($kuesioneList as $k) {
+                $groupKey = $this->getMatakuliahGroupKey($k);
+                if (!isset($matakuliahGroups[$groupKey])) {
+                    $matakuliahGroups[$groupKey] = [
+                        'kode_matakuliah' => $k['kode_matakuliah'] ?? '-',
+                        'nama_matakuliah' => $k['nama_matakuliah'] ?? '-',
+                        'entries' => [],
+                    ];
+                }
+                $matakuliahGroups[$groupKey]['entries'][] = $k;
+            }
+
+            $totalMatakuliah = count($matakuliahGroups);
+            $context .= "Total Matakuliah: {$totalMatakuliah}\n\n";
 
             // Calculate rata-rata index kepuasan untuk tingkat ini
             $totalIndex = 0;
@@ -285,47 +315,76 @@ class LaporanKuesioneService
             $context .= "| Kode Matakuliah | Nama Matakuliah | Dosen Pengampu | Indeks Kepuasan |\n";
             $context .= "|-----------------|-----------------|----------------|------------------|\n";
 
-            foreach ($kuesioneList as $kuesioner) {
-                $kodeMk = $kuesioner['kode_matakuliah'] ?? '-';
-                $namaMk = $kuesioner['nama_matakuliah'] ?? '-';
-                $dosenPengampu = $kuesioner['dosen_pengampu'] ?? '-';
-                $indexKepuasan = $kuesioner['index_kepuasan'] ?? 0;
+            foreach ($matakuliahGroups as $group) {
+                $dosenSet = [];
+                $totalMatakuliahIndex = 0;
+                $entryCount = 0;
+                foreach ($group['entries'] as $entry) {
+                    $dosen = trim($entry['dosen_pengampu'] ?? '');
+                    if ($dosen !== '' && !in_array($dosen, $dosenSet, true)) {
+                        $dosenSet[] = $dosen;
+                    }
+                    $totalMatakuliahIndex += $entry['index_kepuasan'] ?? 0;
+                    $entryCount++;
+                }
 
-                $context .= "| {$kodeMk} | {$namaMk} | {$dosenPengampu} | {$indexKepuasan} |\n";
+                $kodeMk = $group['kode_matakuliah'];
+                $namaMk = $group['nama_matakuliah'];
+                $dosenPengampu = !empty($dosenSet) ? implode(', ', $dosenSet) : '-';
+                $avgIndexPerMatakuliah = $entryCount > 0 ? round($totalMatakuliahIndex / $entryCount, 10) : 0;
+
+                $context .= "| {$kodeMk} | {$namaMk} | {$dosenPengampu} | {$avgIndexPerMatakuliah} |\n";
             }
 
             $context .= "\nMasukan/Saran untuk Tingkat {$tingkat}:\n";
             $context .= "| Kode Matakuliah | Nama Matakuliah | Dosen Pengampu | Masukan/Saran |\n";
             $context .= "|-----------------|-----------------|----------------|---------------|\n";
-            foreach ($kuesioneList as $idx => $kuesioner) {
-                $kodeMk = $kuesioner['kode_matakuliah'] ?? '-';
-                $namaMk = $kuesioner['nama_matakuliah'] ?? '-';
-                $dosenPengampu = $kuesioner['dosen_pengampu'] ?? '-';
-                // Gunakan rekomendasi dari AI Analysis Report sebagai Masukan/Saran
-                $rekomendasiArr = $kuesioner['rekomendasi'] ?? [];
-                if (!empty($rekomendasiArr)) {
-                    // Deduplikasi: hapus item yang identik (case-insensitive)
-                    $seen = [];
-                    $uniqueReks = [];
-                    foreach ($rekomendasiArr as $rek) {
-                        $rek = trim($rek);
-                        $key = strtolower($rek);
-                        if ($rek !== '' && !in_array($key, $seen)) {
-                            $seen[] = $key;
-                            // Singkatkan teks sebelum dikirim ke AI
-                            $uniqueReks[] = $this->shortenRekomendasi($rek);
+
+            foreach ($matakuliahGroups as $group) {
+                $dosenSet = [];
+                $rekomendasiSeen = [];
+                $rekomendasiTexts = [];
+                foreach ($group['entries'] as $entry) {
+                    $dosen = trim($entry['dosen_pengampu'] ?? '');
+                    if ($dosen !== '' && !in_array($dosen, $dosenSet, true)) {
+                        $dosenSet[] = $dosen;
+                    }
+
+                    $rekomendasiArr = $entry['rekomendasi'] ?? [];
+                    if (!empty($rekomendasiArr) && is_array($rekomendasiArr)) {
+                        foreach ($rekomendasiArr as $rek) {
+                            $rek = trim($rek);
+                            $key = mb_strtolower($rek);
+                            if ($rek !== '' && !in_array($key, $rekomendasiSeen, true)) {
+                                $rekomendasiSeen[] = $key;
+                                $rekomendasiTexts[] = $this->shortenRekomendasi($rek);
+                            }
+                        }
+                    } else {
+                        $ringkasan = trim($entry['ringkasan'] ?? '');
+                        if ($ringkasan !== '') {
+                            $key = mb_strtolower($ringkasan);
+                            if (!in_array($key, $rekomendasiSeen, true)) {
+                                $rekomendasiSeen[] = $key;
+                                $rekomendasiTexts[] = $this->shortenRekomendasi($ringkasan);
+                            }
                         }
                     }
-                    // Format sebagai daftar bernomor (tanpa pipe agar tidak merusak tabel markdown)
+                }
+
+                $kodeMk = $group['kode_matakuliah'];
+                $namaMk = $group['nama_matakuliah'];
+                $dosenPengampu = !empty($dosenSet) ? implode(', ', $dosenSet) : '-';
+                if (!empty($rekomendasiTexts)) {
                     $numbered = [];
-                    foreach ($uniqueReks as $i => $rek) {
+                    foreach ($rekomendasiTexts as $i => $rek) {
                         $numbered[] = ($i + 1) . '. ' . $rek;
                     }
                     $rekomendasiText = implode(' ', $numbered);
                 } else {
-                    // Fallback ke ringkasan jika rekomendasi kosong
-                    $rekomendasiText = $kuesioner['ringkasan'] ?? '-';
+                    $rekomendasiText = '-';
                 }
+
                 $context .= "| {$kodeMk} | {$namaMk} | {$dosenPengampu} | {$rekomendasiText} |\n";
             }
             $context .= "\n";
@@ -354,15 +413,30 @@ class LaporanKuesioneService
      * RAG STEP 4: Augment Prompt with Template
      * Augment prompt dengan template structure
      */
-    public function augmentPromptWithTemplate($template, $context, $periode)
+    public function augmentPromptWithTemplate($template, $context, $periode, $tipeLaporan = 'UTS')
     {
         Log::info("=== RAG STEP 4: Augmenting Prompt with Template ===");
 
-        $periodeObj = Carbon::createFromFormat('Y-m', $periode);
-        $bulan = $periodeObj->locale('id')->translatedFormat('F');
-        $tahun = $periodeObj->year;
+        // Parse periode - if it's the new format (ID-TYPE), extract just for logging
+        $bulan = 'Periode Laporan';
+        $tahun = date('Y');
 
-        $prompt = "Anda adalah AI Agent yang bertugas membuat laporan bulanan kuesioner mahasiswa.\n\n";
+        if (strpos($periode, '-') === false) {
+            // Old format Y-m
+            try {
+                $periodeObj = Carbon::createFromFormat('Y-m', $periode);
+                $bulan = $periodeObj->locale('id')->translatedFormat('F');
+                $tahun = $periodeObj->year;
+            } catch (\Exception $e) {
+                // Keep defaults
+            }
+        }
+
+        $tipeLabel = $tipeLaporan === 'UTS' ? 'Ujian Tengah Semester' : 'Ujian Akhir Semester';
+
+        $prompt = "Anda adalah AI Agent yang bertugas membuat laporan kuesioner kepuasan mahasiswa.\n\n";
+        $prompt .= "JENIS LAPORAN: {$tipeLabel} ({$tipeLaporan})\n";
+        $prompt .= "Buat laporan yang spesifik untuk " . strtolower($tipeLabel) . ".\n\n";
 
         if ($template && $template->contoh_konten) {
             $prompt .= "TEMPLATE LAPORAN:\n";
@@ -375,9 +449,9 @@ class LaporanKuesioneService
         $prompt .= $context . "\n\n";
 
         $prompt .= "TUGAS ANDA:\n";
-        $prompt .= "Buat laporan bulanan komprehensif untuk periode {$bulan} {$tahun} dengan struktur:\n\n";
+        $prompt .= "Buat laporan {$tipeLaporan} komprehensif untuk periode {$bulan} {$tahun} dengan struktur:\n\n";
         $prompt .= "1. RINGKASAN EKSEKUTIF\n";
-        $prompt .= "   - Overview singkat tentang kepuasan mahasiswa bulan ini\n";
+        $prompt .= "   - Overview singkat tentang kepuasan mahasiswa untuk {$tipeLabel}\n";
         $prompt .= "   - Highlight utama (positif dan negatif)\n";
         $prompt .= "   - Trend dibanding periode sebelumnya (jika ada data)\n\n";
 
@@ -406,7 +480,8 @@ class LaporanKuesioneService
         $prompt .= '  "metadata": {' . "\n";
         $prompt .= '    "periode": "' . $periode . '",' . "\n";
         $prompt .= '    "bulan": "' . $bulan . '",' . "\n";
-        $prompt .= '    "tahun": ' . $tahun . "\n";
+        $prompt .= '    "tahun": ' . $tahun . ',' . "\n";
+        $prompt .= '    "tipe_laporan": "' . $tipeLaporan . '"' . "\n";
         $prompt .= '  },' . "\n";
         $prompt .= '  "ringkasan_eksekutif": {' . "\n";
         $prompt .= '    "overview": "...",' . "\n";
@@ -435,6 +510,7 @@ class LaporanKuesioneService
         $prompt .= "3. Insight harus spesifik dan actionable\n";
         $prompt .= "4. Rekomendasi harus realistis dan terukur\n";
         $prompt .= "5. Bahasa Indonesia formal dan profesional\n";
+        $prompt .= "6. Laporan ini untuk {$tipeLabel}, jadi sesuaikan konteks dan wording-nya\n";
 
         return $prompt;
     }
@@ -443,13 +519,14 @@ class LaporanKuesioneService
      * RAG STEP 5: Generate dengan AI
      * Call AI untuk generate laporan
      */
-    public function generateLaporan($periode, $prodiId = null, $templateId = null)
+    public function generateLaporan($periode, $prodiId = null, $templateId = null, $tipeLaporan = 'UTS')
     {
         try {
             Log::info("=== Starting Laporan Generation ===", [
                 'periode' => $periode,
                 'prodi_id' => $prodiId,
-                'template_id' => $templateId
+                'template_id' => $templateId,
+                'tipe_laporan' => $tipeLaporan
             ]);
 
             // Step 1: Collect Data
@@ -472,7 +549,7 @@ class LaporanKuesioneService
             $template = $templateId ? TemplateLaporan::find($templateId) : null;
 
             // Step 4: Augment Prompt
-            $augmentedPrompt = $this->augmentPromptWithTemplate($template, $context, $periode);
+            $augmentedPrompt = $this->augmentPromptWithTemplate($template, $context, $periode, $tipeLaporan);
 
             // Step 5: Generate with AI
             Log::info("=== RAG STEP 5: Generating with AI ===");
@@ -483,7 +560,7 @@ class LaporanKuesioneService
             $messages = [
                 [
                     'role' => 'system',
-                    'content' => 'Anda adalah AI Agent ahli dalam membuat laporan analisis kuesioner akademik. Tugas Anda adalah menganalisis data kuesioner dan membuat laporan bulanan yang komprehensif, profesional, dan actionable dalam format JSON.'
+                    'content' => 'Anda adalah AI Agent ahli dalam membuat laporan analisis kuesioner akademik. Tugas Anda adalah menganalisis data kuesioner dan membuat laporan ' . $tipeLaporan . ' (Ujian Tengah/Akhir Semester) yang komprehensif, profesional, dan actionable dalam format JSON.'
                 ],
                 [
                     'role' => 'user',
@@ -539,6 +616,9 @@ class LaporanKuesioneService
                 'index_kepuasan_rata_rata' => $aggregatedData['index_kepuasan_rata_rata'],
                 'persen_kepuasan_rata_rata' => $aggregatedData['persen_kepuasan_rata_rata'],
             ];
+
+            // Add tipe_laporan to hasil
+            $hasilLaporan['tipe_laporan'] = $tipeLaporan;
 
             Log::info("=== Laporan Generation Completed ===");
 

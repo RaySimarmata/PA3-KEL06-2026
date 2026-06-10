@@ -58,10 +58,15 @@
 
     <!-- Header Card -->
     <div class="filter-card mb-4">
-        <div class="d-flex align-items-start gap-3">
+        <div class="d-flex align-items-start justify-content-between gap-3">
             <div>
                 <h5 class="mb-1" style="font-weight: 600; color: #333;">Pengiriman Laporan</h5>
                 <p class="text-muted mb-0" style="font-size: 0.875rem;">Kelola dan kirim pesan pengingat kepada penerima terkait laporan.</p>
+            </div>
+            <div>
+                <a href="{{ route('gkm.kirim-laporan.history') }}" class="btn btn-outline-primary">
+                    <i class="bi bi-clock-history"></i> Riwayat Pengiriman
+                </a>
             </div>
         </div>
     </div>
@@ -140,7 +145,7 @@
                     <div id="pilihLaporanSection" style="display: none;">
                         <div class="monitoring-card" style="border-left: 4px solid #5B9BD5;">
                             <div style="padding: 1rem;">
-                                <h6 class="mb-3" style="font-weight: 600; color: #333;">Laporan Kuesioner Bulanan</h6>
+                                <h6 class="mb-3" style="font-weight: 600; color: #333;">Laporan Kuesioner</h6>
                                 <div class="table-responsive">
                                     <table class="table table-monitoring mb-0">
                                         <thead>

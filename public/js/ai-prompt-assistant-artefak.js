@@ -80,7 +80,7 @@ document.addEventListener('DOMContentLoaded', function () {
             <strong>🤖 Selamat datang di AI Assistant Laporan Bulanan (Artefak RPS & Materi)!</strong><br><br>
             Saya siap membantu Anda membuat dan merevisi laporan bulanan monitoring RPS dan Materi perkuliahan.
         </div>
-        
+
         <p><strong>✅ Saya dapat membantu Anda dengan:</strong></p>
         <ul>
             <li>📋 Pembuatan laporan artefak RPS dan Materi</li>
@@ -89,7 +89,7 @@ document.addEventListener('DOMContentLoaded', function () {
             <li>✏️ <strong>Perbaikan dan revisi draft laporan</strong> (ubah bagian tertentu, tambah konten, hapus bagian)</li>
             <li>❓ Pertanyaan terkait RPS dan Materi perkuliahan</li>
         </ul>
-        
+
         <div style="background: #dbeafe; border-left: 4px solid #2563eb; padding: 12px; border-radius: 8px; margin: 12px 0;">
             <strong>🔄 FITUR REVISI LAPORAN!</strong><br>
             Setelah draft laporan dibuat, Anda dapat langsung chat dengan AI untuk melakukan perbaikan:<br>
@@ -98,7 +98,7 @@ document.addEventListener('DOMContentLoaded', function () {
             • "Tambah rekomendasi tentang monitoring berkala"<br>
             • "Hapus bagian hambatan yang tidak relevan"
         </div>
-        
+
         <p><strong>💡 Contoh instruksi yang tepat:</strong></p>
         <ul>
             <li>"Buat laporan artefak untuk periode ini"</li>
@@ -107,7 +107,7 @@ document.addEventListener('DOMContentLoaded', function () {
             <li>"Tambah tabel rekomendasi di bagian akhir"</li>
             <li>"Ubah statistik pada ringkasan eksekutif"</li>
         </ul>
-        
+
         <div style="background: #dcfce7; border-left: 4px solid #16a34a; padding: 12px; border-radius: 8px; margin: 12px 0;">
             <strong>✨ CARA MENGGUNAKAN:</strong><br>
             1. Isi informasi laporan (periode, judul)<br>
@@ -115,7 +115,7 @@ document.addEventListener('DOMContentLoaded', function () {
             3. Setelah draft dibuat, chat dengan AI untuk instruksi atau perbaikan<br>
             4. AI akan merespons sesuai permintaan Anda
         </div>
-        
+
         <p><em>Catatan: AI assistant ini difokuskan untuk membantu pembuatan laporan artefak. Pertanyaan di luar konteks laporan mungkin tidak dapat dijawab.</em></p>`);
 
     // Attachment button click handler
@@ -375,10 +375,21 @@ document.addEventListener('DOMContentLoaded', function () {
             }
         }
 
-        // JIKA ADA KONTEKS LAPORAN YANG VALID, LANGSUNG IZINKAN (bypass validasi off-topic)
-        if (hasLaporanContext) {
+        // SPECIAL CHECK: Apakah ini permintaan "Buatkan Laporan Bulanan" yang jelas?
+        const explicitLaporanKeywords = ['buatkan laporan', 'buat laporan', 'generate laporan', 'buatkan laporan bulanan', 'buat laporan bulanan', 'generate laporan bulanan'];
+        let isExplicitLaporanRequest = false;
+        for (const keyword of explicitLaporanKeywords) {
+            if (messageLower.includes(keyword)) {
+                isExplicitLaporanRequest = true;
+                console.log('✅ EXPLICIT Laporan Bulanan request detected:', keyword);
+                break;
+            }
+        }
+
+        // JIKA ADA KONTEKS LAPORAN YANG VALID ATAU INI EXPLICIT LAPORAN REQUEST, LANGSUNG IZINKAN
+        if (hasLaporanContext || isExplicitLaporanRequest) {
             // Langsung proceed ke AI, skip validasi off-topic
-            console.log('✅ BYPASSING off-topic validation - Valid laporan context found');
+            console.log('✅ BYPASSING off-topic validation - Valid laporan context or explicit request found');
         } else {
             // Cek apakah ada keyword yang JELAS di luar topik
             let hasClearlyOffTopicKeyword = false;

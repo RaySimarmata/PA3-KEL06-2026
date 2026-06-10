@@ -22,9 +22,17 @@ use App\Models\JadwalDosen;
 use App\Models\Dosenn;
 use App\Models\LogEmail;
 use App\Services\WhatsAppService;
+use Illuminate\Validation\ValidationException;
 
 class MonitoringPerkuliahanController extends Controller
 {
+    protected $whatsappService;
+
+    public function __construct(WhatsAppService $whatsappService)
+    {
+        $this->whatsappService = $whatsappService;
+    }
+
     /**
      * Generate dynamic tahun ajaran list based on current year
      * Auto-updates every 5 years
@@ -33,7 +41,7 @@ class MonitoringPerkuliahanController extends Controller
     {
         $currentYear = (int) date('Y');
         $baseYear = floor($currentYear / 5) * 5;
-        
+
         $tahunList = [];
         for ($i = 0; $i <= 5; $i++) {
             $year = $baseYear + $i;
@@ -42,14 +50,14 @@ class MonitoringPerkuliahanController extends Controller
                 'nm_thn_ajaran' => (string) $year
             ];
         }
-        
+
         Log::info('MonitoringPerkuliahan - Generated dynamic tahun ajaran', [
             'current_year' => $currentYear,
             'base_year' => $baseYear,
             'range' => $baseYear . ' - ' . ($baseYear + 5),
             'years_generated' => array_column($tahunList, 'id_thn_ajaran')
         ]);
-        
+
         return $tahunList;
     }
 
@@ -75,11 +83,11 @@ $selectedTahunAjaran = $request->input(
         $selectedTingkat = $request->input('tingkat', '');
         $periode = \App\Models\PeriodeAkademik::where('is_active', true)->first();
         $startDate = $periode ? \Carbon\Carbon::parse($periode->start_date) : null;
-        
+
         // Check if filter is applied
         $filterApplied = !empty($selectedSemester)
               && !empty($selectedTahunAjaran);
-        
+
         // Fallback: if no active periode, use a default start date based on semester and tahun ajaran
         if (!$startDate && $filterApplied) {
             // For semester 1 (Ganjil), start in August
@@ -98,7 +106,7 @@ $selectedTahunAjaran = $request->input(
             try {
                 // Set execution time limit to prevent timeout
                 set_time_limit(120); // 2 minutes max
-                
+
                 $apiService = new ExternalAPIService;
 
                 // Map prodi_id
@@ -133,10 +141,10 @@ $selectedTahunAjaran = $request->input(
                     // Limit data processing to prevent timeout
                     $maxMatkul = 100; // Increase limit untuk lebih banyak matkul
                     $processedCount = 0;
-                    
+
                     // 🔥 STRATEGY 1: Coba ambil dari Database dulu (lebih cepat dan reliable)
                     $matkulDosenMap = [];
-                    
+
                     Log::info('MonitoringPerkuliahan - Mulai mapping dari Database', [
                         'semester' => $selectedSemester,
                         'tahun_ajaran' => $selectedTahunAjaran,
@@ -192,7 +200,7 @@ $selectedTahunAjaran = $request->input(
                     // 🔥 STRATEGY 2: Jika masih kosong, fallback ke API
                     if (empty($matkulDosenMap)) {
                         Log::warning('MonitoringPerkuliahan - Database kosong, fallback ke API');
-                        
+
                         // Get dosen list dari API
                         $dosenList = Cache::remember("dosen_prodi_{$prodiId}", 900, function () use ($apiService) {
                             return $apiService->getFilteredDosen();
@@ -271,7 +279,7 @@ $selectedTahunAjaran = $request->input(
                             ]);
                             break;
                         }
-                        
+
                         $kuliahId = $matkul['kuliah_id'] ?? null;
                         $kodeMk = $matkul['kode_mk'] ?? '-';
                         $namaMk = $matkul['nama_matkul'] ?? '-';
@@ -286,7 +294,7 @@ $selectedTahunAjaran = $request->input(
                         if (! empty($selectedTingkat) && $tingkatMk != $selectedTingkat) {
                             continue;
                         }
-                        
+
                         // Increment processed count
                         $processedCount++;
 
@@ -295,7 +303,7 @@ $selectedTahunAjaran = $request->input(
                         if (isset($matkulDosenMap[$kodeMk]) && ! empty($matkulDosenMap[$kodeMk])) {
                             // 🔥 Extract nama saja untuk display
                             $dosenPengampu = implode(', ', array_column($matkulDosenMap[$kodeMk], 'nama'));
-                            
+
                             Log::info('MonitoringPerkuliahan - Dosen found', [
                                 'kode_mk' => $kodeMk,
                                 'dosen' => $dosenPengampu
@@ -375,7 +383,7 @@ $selectedTahunAjaran = $request->input(
                                 Log::warning("Failed to get monitoring for matkul {$kodeMk}: " . $e->getMessage());
                             }
                         }
-                        
+
                         // ================= PRAKTIKUM =================
                         $weeksPraktikum = array_fill(0, 16, null);
 
@@ -486,7 +494,7 @@ $selectedTahunAjaran = $request->input(
                         $materiPraktikum[] = $mkPraktikumData;
                     }
                 }
-                
+
                 // 🔥 SAVE SNAPSHOT TO DATABASE (seperti RPS)
                 if (!empty($materiTeori) || !empty($materiPraktikum)) {
                     $this->savePerkuliahanSnapshot(
@@ -655,7 +663,7 @@ public function exportPdf(Request $request)
         if ($mode === 'uts') {
             $checkRange = range(1, 7);
         } elseif ($mode === 'uas') {
-            $checkRange = range(1, 15);
+            $checkRange = range(8, 15);
         } elseif ($mode === 'force') {
             $checkRange = range(1, 16);
         } else {
@@ -671,9 +679,9 @@ public function exportPdf(Request $request)
             }
 
             if ($currentWeek === 8) {
-                $checkRange = range(1, 7);
+                $checkRange = range(8, 15);
             } elseif ($currentWeek === 16) {
-                $checkRange = range(1, 15);
+                $checkRange = range(8, 15);
             } else {
                 $checkRange = [];
             }
@@ -1437,62 +1445,81 @@ private function savePerkuliahanComplianceSnapshot(
 
                         // Send WhatsApp if phone available
                         if (!empty($nomorTelepon)) {
-                            $pesanWa = "*{$request->subjek}*\n\n" . $request->pesan;
+                            $pesanWa = "*{$subject}*\n\n" . $request->pesan;
 
                             try {
-                                $this->whatsappService->sendMessage($nomorTelepon, $pesanWa);
+                                if ($this->whatsappService) {
+                                    $this->whatsappService->sendMessage($nomorTelepon, $pesanWa);
 
-                                // Log WA as email-log entry for traceability
-                                LogEmail::create([
-                                    'reminder_id' => null,
-                                    'penerima_email' => $email ?? $nomorTelepon,
-                                    'subjek' => $request->subjek,
-                                    'isi_email' => $request->pesan,
-                                    'status_pengiriman' => 'success',
-                                    'tanggal_pengiriman' => now(),
-                                    'percobaan_kirim' => 1,
-                                ]);
-                            } catch (\Exception $e) {
+                                    // Log WA as email-log entry for traceability
+                                    LogEmail::create([
+                                        'reminder_id' => null,
+                                        'penerima_email' => $email ?? $nomorTelepon,
+                                        'subjek' => $subject,
+                                        'isi_email' => $request->pesan,
+                                        'status_pengiriman' => 'success',
+                                        'tanggal_pengiriman' => now(),
+                                        'percobaan_kirim' => 1,
+                                    ]);
+                                }
+                            } catch (\Exception $waEx) {
                                 Log::warning('Failed to send WA reminder', [
                                     'pegawai_id' => $dosen->pegawai_id,
                                     'nomor' => $nomorTelepon,
-                                    'error' => $e->getMessage(),
+                                    'error' => $waEx->getMessage(),
                                 ]);
                             }
                         }
 
-                        // Update snapshot reminder status for this dosen
-                        \App\Models\PerkuliahanMonitoringSnapshot::where('pegawai_id', $dosen->pegawai_id)
-                            ->where('status_upload', 'BELUM UPLOAD')
-                            ->update([
-                                'reminder_sent' => true,
-                                'updated_at' => now()
+                    // Update snapshot reminder status for this dosen
+                    try {
+                            \App\Models\PerkuliahanMonitoringSnapshot::where('pegawai_id', $dosen->pegawai_id)
+                                ->where('status_upload', 'BELUM UPLOAD')
+                                ->update([
+                                    'reminder_sent' => true,
+                                    'updated_at' => now()
+                                ]);
+                        } catch (\Exception $updateEx) {
+                            Log::warning('Failed to update snapshot', [
+                                'pegawai_id' => $dosen->pegawai_id,
+                                'error' => $updateEx->getMessage(),
                             ]);
+                        }
 
-                        $successCount++;
-                    } catch (\Exception $e) {
-                        $errors[] = "Gagal kirim ke {$dosen->nama}: " . $e->getMessage();
+                            if (!empty($email) || !empty($nomorTelepon)) {
+                                $successCount++;
+                        }
+                    } catch (\Exception $loopEx) {
+                        $errors[] = "Gagal kirim ke {$dosen->nama}: " . $loopEx->getMessage();
                         Log::error('Failed to send materi reminder', [
                             'pegawai_id' => $dosen->pegawai_id,
                             'email' => $email ?? 'N/A',
                             'nomor' => $nomorTelepon ?? 'N/A',
-                            'error' => $e->getMessage(),
-                        ]);
-
-                        // Log failed attempt
-                        LogEmail::create([
-                            'reminder_id' => null,
-                            'penerima_email' => $email ?? $nomorTelepon ?? null,
-                            'subjek' => $request->subjek,
-                            'isi_email' => $request->pesan,
-                            'status_pengiriman' => 'failed',
-                            'pesan_error' => $e->getMessage(),
-                            'tanggal_pengiriman' => now(),
-                            'percobaan_kirim' => 1,
+                            'error' => $loopEx->getMessage(),
                         ]);
                     }
                 }
 
+                // Return JSON for AJAX requests
+                if ($request->wantsJson() || $request->ajax()) {
+                    if ($successCount > 0) {
+                        return response()->json([
+                            'success' => true,
+                            'message' => "Berhasil mengirim reminder ke {$successCount} dosen",
+                            'count' => $successCount,
+                            'errors' => $errors,
+                        ], 200);
+                    } else {
+                        return response()->json([
+                            'success' => false,
+                            'message' => 'Gagal mengirim semua reminder: ' . implode(', ', $errors),
+                            'errors' => $errors,
+                            'count' => $successCount,
+                        ], 400);
+                    }
+                }
+
+                // Traditional redirect response for non-AJAX requests
                 if ($successCount > 0) {
                     $message = "Berhasil mengirim reminder ke {$successCount} dosen";
                     if (!empty($errors)) {
@@ -1506,6 +1533,13 @@ private function savePerkuliahanComplianceSnapshot(
                 Log::error('Failed to send materi reminder', [
                     'error' => $e->getMessage(),
                 ]);
+
+                if ($request->wantsJson() || $request->ajax()) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Gagal mengirim reminder: ' . $e->getMessage(),
+                    ], 500);
+                }
 
                 return redirect()->back()->with('error', 'Gagal mengirim reminder: ' . $e->getMessage());
             }
@@ -1544,7 +1578,7 @@ private function savePerkuliahanComplianceSnapshot(
     {
         try {
             $dosenIds = $request->input('dosen_ids', []);
-            
+
             if (empty($dosenIds)) {
                 return response()->json([
                     'success' => false,
@@ -1553,7 +1587,7 @@ private function savePerkuliahanComplianceSnapshot(
             }
 
             $dosenList = \App\Models\Dosenn::whereIn('pegawai_id', $dosenIds)->get();
-            
+
             $message = "Yth. Bapak/Ibu Dosen,\n\n";
             $message .= "Kami mengingatkan untuk segera melakukan upload materi perkuliahan di sistem CIS.\n\n";
             $message .= "Berdasarkan monitoring sistem untuk SEMUA SEMESTER (Ganjil & Genap) dan SEMUA TINGKAT (1-4), ";
@@ -1654,7 +1688,7 @@ private function savePerkuliahanComplianceSnapshot(
     {
         try {
             $dosenIds = $request->input('dosen_ids', []);
-            
+
             if (empty($dosenIds)) {
                 return response()->json([
                     'success' => false,
@@ -1663,7 +1697,7 @@ private function savePerkuliahanComplianceSnapshot(
             }
 
             $dosenList = \App\Models\Dosen::whereIn('id', $dosenIds)->get();
-            
+
             $message = "Yth. Bapak/Ibu Kepala Program Studi,\n\n";
             $message .= "Kami mengingatkan untuk segera melakukan review soal ujian yang telah disubmit oleh dosen.\n\n";
             $message .= "Kegiatan review meliputi:\n";

@@ -23,7 +23,7 @@
             </div>
         </div>
 
-        <!-- Summary Cards -->
+        {{-- <!-- Summary Cards -->
         <div class="row mb-4">
             <div class="col-md-4">
                 <div class="stats-card" style="border-left: 4px solid #28a745;">
@@ -43,7 +43,7 @@
                     <div class="stats-label">Total Email</div>
                 </div>
             </div>
-        </div>
+        </div> --}}
 
         <div class="monitoring-card">
             <div class="monitoring-header">

@@ -34,24 +34,18 @@
                         <label class="filter-label">Periode</label>
                         <select name="periode" class="form-select">
                             <option value="">Semua Periode</option>
-                            <option value="genap_2025" {{ request('periode') == 'genap_2025' ? 'selected' : '' }}>Genap
-                                2025/2026</option>
-                            <option value="ganjil_2025" {{ request('periode') == 'ganjil_2025' ? 'selected' : '' }}>Ganjil
-                                2025/2026</option>
+                            @foreach($periodeOptions as $periode)
+                                <option value="{{ $periode }}" {{ request('periode') == $periode ? 'selected' : '' }}>{{ $periode }}</option>
+                            @endforeach
                         </select>
                     </div>
 
                     <div class="col-md-4">
-                        <label class="filter-label">Status</label>
-                        <select name="status" class="form-select">
-                            <option value="">Semua Status</option>
-                            <option value="uploaded" {{ request('status') == 'uploaded' ? 'selected' : '' }}>Uploaded
-                            </option>
-                            <option value="processing" {{ request('status') == 'processing' ? 'selected' : '' }}>Processing
-                            </option>
-                            <option value="completed" {{ request('status') == 'completed' ? 'selected' : '' }}>Completed
-                            </option>
-                            <option value="error" {{ request('error') == 'error' ? 'selected' : '' }}>Error</option>
+                        <label class="filter-label">Jenis Kuesioner</label>
+                        <select name="jenis_kuesioner" class="form-select">
+                            <option value="">Semua Jenis</option>
+                            <option value="UTS" {{ request('jenis_kuesioner') == 'UTS' ? 'selected' : '' }}>UTS</option>
+                            <option value="UAS" {{ request('jenis_kuesioner') == 'UAS' ? 'selected' : '' }}>UAS</option>
                         </select>
                     </div>
 
@@ -88,15 +82,15 @@
                         <tr>
                             <th style="width: 3%;">No</th>
                             <th style="width: 18%;">Nama File</th>
-                            <th style="width: 10%;">Periode</th>
-                            <th style="width: 15%;">Matakuliah</th>
-                            <th style="width: 8%;">Kode</th>
-                            <th style="width: 5%;" class="text-center">Tkt</th>
+                            <th style="width: 10%;">Tahun Ajaran</th>
+                            {{-- <th style="width: 15%;">Matakuliah</th>
+                            <th style="width: 8%;">Kode</th> --}}
+                            {{-- <th style="width: 5%;" class="text-center">Tkt</th> --}}
                             <th style="width: 6%;" class="text-center">Jenis</th>
                             <th style="width: 5%;" class="text-center">Resp.</th>
                             <th style="width: 6%;" class="text-center">Index</th>
-                            <th style="width: 8%;" class="text-center">Status</th>
-                            <th style="width: 10%;">Tanggal</th>
+                            {{-- <th style="width: 8%;" class="text-center">Status</th> --}}
+                            <th style="width: 10%;">Tanggal Analisis</th>
                             <th style="width: 12%;" class="text-center">Aksi</th>
                         </tr>
                     </thead>
@@ -142,7 +136,7 @@
                                 <td>
                                     <span class="badge-gkm info">{{ $k->periode }}</span>
                                 </td>
-                                <td>
+                                {{-- <td>
                                     @if ($k->nama_matakuliah)
                                         {{ $k->nama_matakuliah }}
                                     @else
@@ -155,10 +149,10 @@
                                         {{ $matkul->nama_mk ?? '-' }}
                                     @endif
                                 </td>
-                                <td class="code-mk">{{ $k->kode_matakuliah ?? '-' }}</td>
-                                <td class="text-center">
+                                <td class="code-mk">{{ $k->kode_matakuliah ?? '-' }}</td> --}}
+                                {{-- <td class="text-center">
                                     <span class="badge-gkm primary">{{ $k->tingkat ?? '-' }}</span>
-                                </td>
+                                </td> --}}
 
                                 {{-- JENIS KUESIONER --}}
                                 <td class="text-center">
@@ -193,7 +187,7 @@
                                     @endif
                                 </td>
 
-                                {{-- STATUS --}}
+                                {{-- STATUS
                                 <td class="text-center">
                                     @switch($k->status)
                                         @case('uploaded')
@@ -212,7 +206,7 @@
                                             <span class="badge-gkm danger">Error</span>
                                         @break
                                     @endswitch
-                                </td>
+                                </td> --}}
 
                                 <td class="text-secondary" style="font-size: 0.85rem;">
                                     {{ $k->created_at->format('d/m/Y H:i') }}
@@ -263,6 +257,12 @@
                             @endforelse
                         </tbody>
             </table>
+
+            {{-- @if($kuesioners->hasPages())
+                <div class="pagination-wrapper mt-3">
+                    {{ $kuesioners->links() }}
+                </div>
+            @endif --}}
         </div>
     </div>
 

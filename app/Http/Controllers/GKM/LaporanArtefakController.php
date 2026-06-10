@@ -92,7 +92,7 @@ class LaporanArtefakController extends Controller
 
             $user = Auth::user();
             $periode = $request->periode;
-            
+
             $periodeObj = Carbon::createFromFormat('Y-m', $periode);
             $bulan = $periodeObj->locale('id')->translatedFormat('F');
             $tahun = $periodeObj->year;
@@ -164,7 +164,7 @@ class LaporanArtefakController extends Controller
 
     /**
      * AI Prompt Assistant - Process user prompt + file for Laporan Artefak
-     * Supports: 
+     * Supports:
      * - Auto-generate laporan lengkap
      * - Iteration/Revision on existing draft
      * - Contextual responses
@@ -179,12 +179,60 @@ class LaporanArtefakController extends Controller
                 'conversation_history' => 'nullable|array',
                 'template_id' => 'nullable|exists:template_laporan,id',
                 'periode' => 'nullable|string',
+                'judul_laporan' => 'nullable|string|max:255',
                 'laporan_id' => 'nullable|exists:laporan_gkm,id',
             ]);
 
             $userPrompt = $request->input('prompt');
             $promptLower = strtolower($userPrompt);
             $laporanId = $request->input('laporan_id');
+            $judulLaporan = $request->input('judul_laporan');
+            $templateId = $request->input('template_id');
+            $periode = $request->input('periode');
+
+            $explicitKeywords = ['buatkan laporan', 'buat laporan', 'generate laporan', 'buatkan laporan bulanan', 'buat laporan bulanan', 'generate laporan bulanan', 'buatkan', 'laporan artefak'];
+            $isExplicitLaporanRequest = false;
+            foreach ($explicitKeywords as $keyword) {
+                if (strpos($promptLower, $keyword) !== false) {
+                    $isExplicitLaporanRequest = true;
+                    break;
+                }
+            }
+
+            if (!$laporanId && $isExplicitLaporanRequest && !empty($judulLaporan) && !empty($periode)) {
+                $existing = LaporanGKM::where('periode', $periode)
+                    ->where('user_id', Auth::id())
+                    ->where('jenis_laporan', 'artefak')
+                    ->where('status', 'pending')
+                    ->first();
+
+                if ($existing) {
+                    $laporanId = $existing->id;
+                } else {
+                    $periodeObj = Carbon::createFromFormat('Y-m', $periode);
+                    $bulan = $periodeObj->locale('id')->translatedFormat('F');
+                    $tahun = $periodeObj->year;
+
+                    $laporan = LaporanGKM::create([
+                        'periode' => $periode,
+                        'bulan' => $bulan,
+                        'tahun' => $tahun,
+                        'user_id' => Auth::id(),
+                        'template_id' => $templateId,
+                        'jenis_laporan' => 'artefak',
+                        'judul_laporan' => $judulLaporan,
+                        'status' => 'pending',
+                    ]);
+
+                    $laporanId = $laporan->id;
+                    Log::info('Auto-created draft Laporan Artefak from first AI prompt', [
+                        'laporan_id' => $laporanId,
+                        'prompt' => $userPrompt,
+                        'periode' => $periode,
+                        'judul_laporan' => $judulLaporan,
+                    ]);
+                }
+            }
 
             // ================================================================
             // VALIDASI KONTEKS LAPORAN BULANAN (ARTEFAK) - BACKEND (SIMPLIFIED)
@@ -233,7 +281,7 @@ class LaporanArtefakController extends Controller
 
             // Keywords yang mengindikasikan permintaan revisi/perbaikan
             $revisionKeywords = [
-                'perbaiki', 'ubah', 'edit', 'revisi', 'revisikan', 'ganti', 
+                'perbaiki', 'ubah', 'edit', 'revisi', 'revisikan', 'ganti',
                 'tambah', 'hapus', 'update', 'perbaharui', 'koreksi', 'betulkan',
                 'memperbaiki', 'mengubah', 'menambah', 'menghapus', 'mengupdate',
                 'tolong perbaiki', 'tolong ubah', 'tolong revisi', 'revisi bagian',
@@ -243,7 +291,7 @@ class LaporanArtefakController extends Controller
             $hasFiles = $request->hasFile('file_referensi') && count($request->file('file_referensi')) > 0;
             $hasOCRImages = $request->hasFile('ocr_images') && count($request->file('ocr_images')) > 0;
             $hasAnyFiles = $hasFiles || $hasOCRImages;
-            
+
             // Cek apakah user sudah punya draft laporan (lebih permisif jika sudah ada draft)
             $hasDraftLaporan = $request->filled('laporan_id') || $request->filled('ai_preview_data');
 
@@ -262,6 +310,43 @@ class LaporanArtefakController extends Controller
                 if (strpos($promptLower, $keyword) !== false) {
                     $hasLaporanContext = true;
                     break;
+                }
+            }
+
+            // Jika belum ada laporan_id tetapi prompt sudah terkait konteks laporan dan periode/judul lengkap,
+            // buat draft otomatis agar balasan pertama tersimpan di database.
+            if (!$laporanId && $hasLaporanContext && !empty($judulLaporan) && !empty($periode)) {
+                $existing = LaporanGKM::where('periode', $periode)
+                    ->where('user_id', Auth::id())
+                    ->where('jenis_laporan', 'artefak')
+                    ->where('status', 'pending')
+                    ->first();
+
+                if ($existing) {
+                    $laporanId = $existing->id;
+                } else {
+                    $periodeObj = Carbon::createFromFormat('Y-m', $periode);
+                    $bulan = $periodeObj->locale('id')->translatedFormat('F');
+                    $tahun = $periodeObj->year;
+
+                    $laporan = LaporanGKM::create([
+                        'periode' => $periode,
+                        'bulan' => $bulan,
+                        'tahun' => $tahun,
+                        'user_id' => Auth::id(),
+                        'template_id' => $templateId,
+                        'jenis_laporan' => 'artefak',
+                        'judul_laporan' => $judulLaporan,
+                        'status' => 'pending',
+                    ]);
+
+                    $laporanId = $laporan->id;
+                    Log::info('Auto-created draft Laporan Artefak from AI prompt based on context', [
+                        'laporan_id' => $laporanId,
+                        'prompt' => $userPrompt,
+                        'periode' => $periode,
+                        'judul_laporan' => $judulLaporan,
+                    ]);
                 }
             }
 
@@ -295,7 +380,7 @@ class LaporanArtefakController extends Controller
                         'user_id' => Auth::id(),
                         'ip' => $request->ip()
                     ]);
-                    
+
                     return response()->json([
                         'success' => true,
                         'response' => "Maaf, pertanyaan Anda di luar konteks pembuatan **Laporan Bulanan (RPS dan Materi)**.\n\n" .
@@ -325,7 +410,7 @@ class LaporanArtefakController extends Controller
                     'length' => strlen($userPrompt),
                     'user_id' => Auth::id()
                 ]);
-                
+
                 return response()->json([
                     'success' => true,
                     'response' => "Maaf, instruksi Anda terlalu singkat.\n\n" .
@@ -384,14 +469,24 @@ class LaporanArtefakController extends Controller
                 'is_revision_request' => $isRevisionRequest,
             ];
 
-            // Check cache first (skip cache jika revision request)
+            // Check if this is an EXPLICIT Laporan request - if yes, SKIP CACHE to use new instructions
+            $isExplicitLaporanRequest = false;
+            $explicitKeywords = ['buatkan laporan', 'buat laporan', 'generate laporan', 'buatkan laporan bulanan', 'buat laporan bulanan', 'generate laporan bulanan', 'buatkan', 'laporan artefak'];
+            foreach ($explicitKeywords as $keyword) {
+                if (strpos(strtolower($userPrompt), $keyword) !== false) {
+                    $isExplicitLaporanRequest = true;
+                    break;
+                }
+            }
+
+            // Check cache first (skip cache jika revision request ATAU explicit laporan request dengan instruksi baru)
             $cacheService = app(\App\Services\AICacheService::class);
             $cachedResponse = null;
-            
-            if (!$isRevisionRequest) {
+
+            if (!$isRevisionRequest && !$isExplicitLaporanRequest) {
                 $cachedResponse = $cacheService->getCachedResponse($userPrompt, $cacheContext);
             }
-            
+
             if ($cachedResponse) {
                 Log::info('AI Prompt Artefak: Using cached response', [
                     'cache_id' => $cachedResponse['cache_id'],
@@ -412,20 +507,43 @@ class LaporanArtefakController extends Controller
                 ]);
             }
 
+            // Initialize systemContext FIRST before using it
+            $systemContext = "Anda adalah AI Assistant untuk Gugus Kendali Mutu (GKM) Institut Teknologi Del.\n\n";
+            $systemContext .= "Tugas Anda: Membantu membuat LAPORAN ARTEFAK BULANAN berdasarkan data monitoring RPS dan Materi yang diupload dan instruksi user.\n\n";
+
+            $systemContext .= "⚠️ PENTING TENTANG DATA:\n";
+            $systemContext .= "- Jika data monitoring dari database tersedia, GUNAKAN data tersebut untuk statistik spesifik\n";
+            $systemContext .= "- Jika data monitoring TIDAK tersedia, TETAP buat laporan lengkap dengan struktur yang benar\n";
+            $systemContext .= "- JANGAN PERNAH mengatakan 'data tidak tersedia, tidak bisa membuat laporan'\n";
+            $systemContext .= "- SELALU LENGKAPI SEMUA 4 BAGIAN laporan meskipun tanpa data spesifik\n";
+            $systemContext .= "- Gunakan analisis umum, perkiraan profesional, atau data historis jika data periode ini tidak ada\n";
+            $systemContext .= "- PENTING: Output HARUS LENGKAP, detail, dan substantif (minimum 100 kata per bagian)\n\n";
+
             // Ambil data RPS dan Materi dari database jika tidak ada file upload
             $databaseContext = '';
+            $rpsMateriTable  = '';
             if (!$request->hasFile('file_referensi') || $request->file('file_referensi') === null) {
                 $databaseContext = $this->getArtefakDataFromDatabase($periode);
+                $rpsMateriTable  = $this->buildRpsMateriTableForAI($periode);
                 Log::info('Using database context for Artefak AI', [
                     'periode' => $periode,
-                    'context_length' => strlen($databaseContext)
+                    'context_length' => strlen($databaseContext),
+                    'rps_materi_table_length' => strlen($rpsMateriTable),
                 ]);
+
+                // Tambahkan database context ke system context
+                if (!empty($databaseContext)) {
+                    $systemContext .= "\n\n=== DATA MONITORING DARI DATABASE ===\n";
+                    $systemContext .= $databaseContext . "\n\n";
+                    $systemContext .= "PENTING: Gunakan data monitoring di atas untuk membuat laporan yang akurat dan detail!\n";
+                    $systemContext .= "Sebutkan statistik spesifik (berapa MK sudah upload RPS, berapa belum, persentase, dll).\n\n";
+                }
             }
 
             // =========================================================================
             // DETEKSI APAKAH INI PERMINTAAN REVISI ATAU AUTO-GENERATE
             // =========================================================================
-            
+
             // Trigger keywords untuk auto-generate (buat laporan baru dari awal)
             $autoGenerateKeywords = [
                 'buat laporan',
@@ -466,127 +584,10 @@ class LaporanArtefakController extends Controller
                 ]);
             }
 
-            if ($shouldAutoGenerate) {
-                try {
-                    Log::info('Auto-generate laporan artefak triggered', [
-                        'prompt' => $userPrompt,
-                        'periode' => $periode,
-                        'template_id' => $templateId,
-                    ]);
-
-                    if (empty($periode)) {
-                        $periode = $request->input('periode', date('Y-m'));
-                        Log::info('No periode provided in auto-generate, using fallback', ['periode' => $periode]);
-                    }
-
-                    $laporan = LaporanGKM::where('periode', $periode)
-                        ->where('jenis_laporan', 'artefak')
-                        ->where('user_id', Auth::id())
-                        ->where('status', '!=', 'completed')
-                        ->latest()
-                        ->first();
-
-                    if (!$laporan) {
-                        $periodeObj = Carbon::createFromFormat('Y-m', $periode);
-                        
-                        $laporan = LaporanGKM::create([
-                            'user_id' => Auth::id(),
-                            'periode' => $periode,
-                            'bulan' => $periodeObj->month,
-                            'tahun' => $periodeObj->year,
-                            'jenis_laporan' => 'artefak',
-                            'judul_laporan' => 'Laporan Monitoring Artefak Perkuliahan ' . $periodeObj->format('F Y'),
-                            'template_id' => $templateId,
-                            'status' => 'pending',
-                        ]);
-
-                        Log::info('Created new laporan artefak for auto-generation', [
-                            'laporan_id' => $laporan->id,
-                        ]);
-                    }
-
-                    $generatedLaporan = $this->laporanService->generateLaporan($laporan->id);
-                    $downloadUrl = route('gkm.laporan-artefak.download', ['id' => $generatedLaporan->id]);
-                    
-                    $aiResponse = "✅ **LAPORAN ARTEFAK BERHASIL DIBUAT!**\n\n";
-                    $aiResponse .= "Saya telah membuat laporan monitoring artefak perkuliahan lengkap untuk periode **{$periode}** menggunakan data dari sistem monitoring.\n\n";
-                    
-                    $aiResponse .= "## 📊 Ringkasan Data\n\n";
-                    $aiResponse .= "- **Total Matakuliah**: {$generatedLaporan->total_rps}\n";
-                    $aiResponse .= "- **RPS Sudah Upload**: " . ($generatedLaporan->total_rps > 0 ? round(($generatedLaporan->total_rps / $generatedLaporan->total_rps) * 100, 1) : 0) . "%\n";
-                    $aiResponse .= "- **Materi Sudah Upload**: " . ($generatedLaporan->total_materi > 0 ? round(($generatedLaporan->total_materi / $generatedLaporan->total_materi) * 100, 1) : 0) . "%\n\n";
-                    
-                    $aiResponse .= "## 📄 File Laporan\n\n";
-                    $aiResponse .= "Laporan Word (.docx) telah dibuat dengan lengkap meliputi:\n";
-                    $aiResponse .= "- ✅ Tabel RPS dan status upload\n";
-                    $aiResponse .= "- ✅ Tabel Materi (Week 1-16)\n";
-                    $aiResponse .= "- ✅ Hasil pemeriksaan dan analisis ketercapaian\n";
-                    $aiResponse .= "- ✅ Tabel hambatan dan saran pemecahan masalah\n";
-                    $aiResponse .= "- ✅ Tindak lanjut dan kesimpulan\n\n";
-                    
-                    $aiResponse .= "📥 **[Download Laporan Word]({$downloadUrl})**\n\n";
-                    $aiResponse .= "Anda dapat mendownload file Word dan langsung menggunakannya atau melakukan penyesuaian sesuai kebutuhan.\n\n";
-                    $aiResponse .= "Jika Anda membutuhkan perubahan atau penyesuaian pada laporan, silakan beritahu saya! Contoh:\n";
-                    $aiResponse .= "- \"Perbaiki bagian kesimpulan\"\n";
-                    $aiResponse .= "- \"Tambah rekomendasi tentang monitoring berkala\"\n";
-                    $aiResponse .= "- \"Ubah data pada tabel RPS\"\n";
-
-                    $cacheService->cacheResponse(
-                        $userPrompt,
-                        $cacheContext,
-                        $aiResponse,
-                        'LaporanArtefakService',
-                        'auto-generate',
-                        null
-                    );
-
-                    try {
-                        $evaluationService = app(\App\Services\AIEvaluationService::class);
-                        $evaluationService->createAIResponseTest([
-                            'test_name' => 'Laporan Artefak Auto - ' . date('Y-m-d H:i:s'),
-                            'feature' => 'artefak',
-                            'query' => $userPrompt,
-                            'expected_response' => null,
-                            'actual_response' => $aiResponse,
-                        ]);
-                        
-                        Log::info('AI Evaluation test created', [
-                            'feature' => 'artefak_auto',
-                            'prompt_length' => strlen($userPrompt),
-                            'response_length' => strlen($aiResponse),
-                        ]);
-                    } catch (\Exception $e) {
-                        Log::warning('Failed to create AI evaluation test', [
-                            'error' => $e->getMessage(),
-                            'feature' => 'artefak_auto'
-                        ]);
-                    }
-
-                    Log::info('Auto-generated laporan artefak successfully', [
-                        'laporan_id' => $generatedLaporan->id,
-                        'file_word' => $generatedLaporan->file_word,
-                    ]);
-
-                    return response()->json([
-                        'success' => true,
-                        'response' => $aiResponse,
-                        'model_info' => 'LaporanArtefakService (Auto-Generate)',
-                        'cached' => false,
-                        'auto_generated' => true,
-                        'laporan_id' => $generatedLaporan->id,
-                        'download_url' => $downloadUrl,
-                    ]);
-
-                } catch (\Exception $e) {
-                    Log::error('Auto-generate laporan artefak failed', [
-                        'error' => $e->getMessage(),
-                        'trace' => $e->getTraceAsString(),
-                    ]);
-
-                    $shouldAutoGenerate = false;
-                    Log::info('Falling back to regular AI chat after auto-generate failure');
-                }
-            }
+            // CATATAN: Auto-generate feature DISABLED untuk memungkinkan AI preview + revision workflow
+            // Sekarang semua permintaan "Buat Laporan" akan menggunakan AI chat untuk generate preview
+            // User bisa revisi preview, lalu klik tombol "Generate Laporan Word" untuk membuat file Word
+            $shouldAutoGenerate = false;
 
             // =========================================================================
             // REGULAR AI CHAT (Termasuk untuk REVISI/PERBAIKAN LAPORAN)
@@ -595,9 +596,120 @@ class LaporanArtefakController extends Controller
             $templateStructure = $this->extractTemplateStructure($templateId);
 
             // System context untuk laporan artefak (dengan instruksi revisi)
-            $systemContext = "Anda adalah AI Assistant untuk Gugus Kendali Mutu (GKM) Institut Teknologi Del.\n\n";
-            $systemContext .= "Tugas Anda: Membantu membuat LAPORAN ARTEFAK BULANAN berdasarkan data monitoring RPS dan Materi yang diupload dan instruksi user.\n\n";
-            
+            // NOTE: $systemContext sudah diinisialisasi di atas, sekarang tambahkan instruksi spesifik
+            $systemContext .= "🚨🚨🚨 INSTRUKSI PRIORITAS TERTINGGI - BACA INI DULU! 🚨🚨🚨\n";
+            $systemContext .= "Jika user mengatakan SALAH SATU dari ini: 'Buatkan Laporan Bulanan', 'Buat Laporan Bulanan', 'Buatkan Laporan', 'Buat Laporan', 'Generate Laporan', 'Buatkan laporan', 'Buat laporan', 'Generate laporan', atau apapun yang jelas MEMINTA UNTUK MEMBUAT LAPORAN ARTEFAK:\n";
+            $systemContext .= "ANDA HARUS LANGSUNG MEMBUAT LAPORAN ARTEFAK LENGKAP TANPA MENOLAK APAPUN!\n";
+            $systemContext .= "TIDAK BOLEH MENGATAKAN 'di luar konteks' ATAU 'tidak bisa membantu'!\n";
+            $systemContext .= "LANGSUNG BUAT LAPORAN ARTEFAK DENGAN STRUKTUR LENGKAP!\n\n";
+
+            $systemContext .= "🚫🚫🚫 LARANGAN KERAS - SANGAT PENTING! 🚫🚫🚫\n";
+            $systemContext .= "ANDA DILARANG KERAS menampilkan teks placeholder seperti {{PROGRAM_KERJA}}, {{PELAKSANAAN}}, {{HAMBATAN_PENJELASAN}}, {{HASIL_PEMERIKSAAN}}, {{KESIMPULAN_PENUTUP}}, atau {{APAPUN}} dalam output Anda!\n";
+            $systemContext .= "Jika Anda melihat teks {{...}} dalam draft laporan sebelumnya atau dalam instruksi user, JANGAN SALIN placeholder tersebut!\n";
+            $systemContext .= "GANTI SEMUA placeholder {{...}} dengan KONTEN NYATA yang substantif!\n";
+            $systemContext .= "Contoh SALAH: '## BAB 2 PROGRAM KERJA\n{{PROGRAM_KERJA}}'\n";
+            $systemContext .= "Contoh BENAR: '## BAB 2 PROGRAM KERJA\nProgram kerja monitoring RPS dan Materi perkuliahan semester ini meliputi...'\n\n";
+
+            $systemContext .= "=== STRUKTUR WAJIB LAPORAN (SESUAI TEMPLATE) ===\n";
+            $systemContext .= "Anda HARUS menghasilkan laporan LENGKAP dengan SEMUA BAB berikut (gunakan markdown heading ##):\n\n";
+            $systemContext .= "## BAB 1 PENDAHULUAN\n";
+            $systemContext .= "### 1.1 Latar Belakang\n";
+            $systemContext .= "[Tulis paragraf latar belakang, bukan placeholder]\n";
+            $systemContext .= "### 1.2 Dasar Acuan\n";
+            $systemContext .= "[Tulis dasar hukum/acuan]\n";
+            $systemContext .= "### 1.3 Tujuan\n";
+            $systemContext .= "[Tulis tujuan monitoring]\n";
+            $systemContext .= "### 1.4 Sasaran\n";
+            $systemContext .= "[Tulis sasaran]\n";
+            $systemContext .= "### 1.5 Waktu Pelaksanaan\n";
+            $systemContext .= "[Tulis waktu monitoring]\n";
+            $systemContext .= "### 1.6 Ruang Lingkup\n";
+            $systemContext .= "[Tulis cakupan monitoring]\n";
+            $systemContext .= "### 1.7 Instrumen Pengukuran\n";
+            $systemContext .= "[Tulis instrumen/metode yang digunakan]\n\n";
+            $systemContext .= "## BAB 2 PROGRAM KERJA\n";
+            $systemContext .= "[Tulis program kerja tim GKM untuk monitoring artefak periode ini - JANGAN TULIS {{PROGRAM_KERJA}}]\n";
+            $systemContext .= "Contoh isi: '1. Pemeriksaan kelengkapan RPS di CIS\\n2. Pemeriksaan materi perkuliahan Week 1-16\\n3. Konfirmasi kelengkapan artefak kepada dosen\\n4. Pelaporan hasil monitoring ke Prodi'\n\n";
+            $systemContext .= "## BAB 3 PELAKSANAAN\n";
+            $systemContext .= "[Tulis narasi pelaksanaan kegiatan monitoring - JANGAN TULIS {{PELAKSANAAN}}]\n";
+            $systemContext .= "Contoh isi: 'Monitoring dilaksanakan oleh tim GKM dengan melakukan pengecekan satu per satu pada sistem CIS. Dosen yang belum lengkap dihubungi melalui email dan WhatsApp.'\n\n";
+            $systemContext .= "## BAB 4 HAMBATAN DAN PEMECAHAN MASALAH\n";
+            $systemContext .= "[Tulis hambatan yang ditemui dan solusinya - JANGAN TULIS {{HAMBATAN_PENJELASAN}}]\n";
+            $systemContext .= "Contoh isi: 'Beberapa kendala yang dihadapi:\\n1. Keterlambatan Unggah Dokumen: Beberapa dosen belum mengunggah RPS tepat waktu.\\n2. Kurangnya Respons Dosen: Tidak semua dosen merespons konfirmasi dengan cepat.'\n\n";
+            $systemContext .= "## BAB 5 EVALUASI\n";
+            $systemContext .= "[Tulis hasil pemeriksaan lengkap berdasarkan TABEL_RPS dan TABEL_MATERI - JANGAN TULIS {{HASIL_PEMERIKSAAN}} - minimum 2-3 paragraf]\n";
+            $systemContext .= "Bagian ini WAJIB berisi data NYATA dari TABEL_RPS dan TABEL_MATERI:\n";
+            $systemContext .= "- Sebutkan total MK yang diperiksa, berapa yang sudah upload RPS (dengan persentase)\n";
+            $systemContext .= "- Sebutkan nama-nama MK yang BELUM upload RPS beserta dosen pengampunya\n";
+            $systemContext .= "- Sebutkan kelengkapan materi per MK (berapa minggu sudah diupload dari 16 minggu)\n";
+            $systemContext .= "- Sebutkan nama-nama MK yang materinya BELUM lengkap\n";
+            $systemContext .= "- Temuan-temuan penting berdasarkan data tabel\n\n";
+
+            $systemContext .= "## ANALISIS KETERCAPAIAN\n";
+            $systemContext .= "[Tulis analisis berdasarkan statistik dari TABEL_RPS dan TABEL_MATERI - minimum 1-2 paragraf]\n";
+            $systemContext .= "Bagian ini WAJIB berisi:\n";
+            $systemContext .= "- Jumlah MK yang sudah/belum upload RPS (gunakan angka, BUKAN persentase 0% jika semua sudah upload)\n";
+            $systemContext .= "- Jumlah MK yang sudah/belum lengkap materi (gunakan angka, BUKAN persentase 0% jika semua sudah lengkap)\n";
+            $systemContext .= "- Jika semua MK sudah memenuhi: nyatakan 'seluruh X mata kuliah telah memenuhi target' tanpa menyebut 0%\n";
+            $systemContext .= "- Jika ada yang belum: sebutkan berapa MK belum upload/belum lengkap beserta nama MK-nya\n";
+            $systemContext .= "- Bandingkan dengan target (semua MK harus lengkap) dan simpulkan status ketercapaian\n\n";
+
+            $systemContext .= "## TINDAK LANJUT\n";
+            $systemContext .= "[Tulis rekomendasi tindak lanjut - minimum 1-2 paragraf]\n";
+            $systemContext .= "Bagian ini WAJIB berisi:\n";
+            $systemContext .= "- Rekomendasi untuk dosen yang belum upload\n";
+            $systemContext .= "- Saran koordinasi dengan prodi/tim GKM\n";
+            $systemContext .= "- Rencana monitoring di periode berikutnya\n";
+            $systemContext .= "- Langkah-langkah perbaikan yang perlu dilakukan\n\n";
+
+            $systemContext .= "## BAB 6 PENUTUP\n";
+            $systemContext .= "[Tulis kesimpulan penutup - JANGAN TULIS {{KESIMPULAN_PENUTUP}} - minimum 1 paragraf]\n";
+            $systemContext .= "Bagian ini WAJIB berisi:\n";
+            $systemContext .= "- Ringkasan keseluruhan hasil monitoring\n";
+            $systemContext .= "- Apresiasi kepada dosen yang sudah melengkapi artefak\n";
+            $systemContext .= "- Harapan untuk peningkatan di periode mendatang\n\n";
+
+            $systemContext .= "⚠️ PENTING - FORMAT OUTPUT:\n";
+            $systemContext .= "1. Gunakan markdown heading level 2 (##) untuk setiap BAB, dan heading level 3 (###) untuk sub-bagian\n";
+            $systemContext .= "2. Tulis dengan Bahasa Indonesia formal dan profesional\n";
+            $systemContext .= "3. Setiap bagian HARUS substantif (minimal 100 kata per bagian)\n";
+            $systemContext .= "4. Gunakan data konkret dari database yang tersedia\n";
+            $systemContext .= "5. JANGAN gunakan heading level 1 (#), hanya gunakan level 2 (##) dan 3 (###)\n";
+            $systemContext .= "6. Setiap heading HARUS diikuti dengan konten yang lengkap dan detail\n";
+            $systemContext .= "7. JANGAN PERNAH MENGHILANGKAN ATAU MELEWATKAN BAGIAN MANAPUN\n";
+            $systemContext .= "8. SELALU LENGKAPI SEMUA 5 BAGIAN: BAB 1 PENDAHULUAN (dengan 7 sub-bagian), BAB 5, ANALISIS KETERCAPAIAN, TINDAK LANJUT, BAB 6 PENUTUP\n";
+            $systemContext .= "9. Jika data spesifik tidak tersedia, gunakan data umum atau estimasi profesional\n";
+            $systemContext .= "10. PENTING: Konten HARUS LENGKAP dan TIDAK BOLEH TERPOTONG!\n\n";
+
+            $systemContext .= "=== CONTOH FORMAT OUTPUT ===\n";
+            $systemContext .= "## BAB 1 PENDAHULUAN\n\n";
+            $systemContext .= "### 1.1 Latar Belakang\n";
+            $systemContext .= "Monitoring RPS dan materi perkuliahan merupakan kegiatan penjaminan mutu yang dilakukan secara berkala untuk memastikan kelengkapan dan kualitas artefak akademik...\n\n";
+            $systemContext .= "### 1.2 Dasar Acuan\n";
+            $systemContext .= "Kegiatan monitoring dilakukan berdasarkan...\n\n";
+            $systemContext .= "### 1.3 Tujuan\n";
+            $systemContext .= "Tujuan dari monitoring ini adalah...\n\n";
+            $systemContext .= "### 1.4 Sasaran\n";
+            $systemContext .= "Sasaran monitoring mencakup...\n\n";
+            $systemContext .= "### 1.5 Waktu Pelaksanaan\n";
+            $systemContext .= "Monitoring dilaksanakan pada periode " . ($periode ?? 'yang dipilih') . " sebagai bagian dari program kerja semester ini...\n\n";
+            $systemContext .= "### 1.6 Ruang Lingkup\n";
+            $systemContext .= "Ruang lingkup monitoring meliputi...\n\n";
+            $systemContext .= "### 1.7 Instrumen Pengukuran\n";
+            $systemContext .= "Instrumen yang digunakan dalam monitoring ini adalah...\n\n";
+            $systemContext .= "## BAB 5 EVALUASI\n\n";
+            $systemContext .= "Berdasarkan hasil monitoring artefak perkuliahan pada semester [SEMESTER] tahun akademik [TAHUN], telah dilakukan pemeriksaan kelengkapan RPS dan materi perkuliahan untuk seluruh mata kuliah di Program Studi D4 Teknik Rekayasa Perangkat Lunak...\n\n";
+            $systemContext .= "[lanjutkan dengan detail hasil pemeriksaan - minimum 2-3 paragraf]\n\n";
+            $systemContext .= "## ANALISIS KETERCAPAIAN\n\n";
+            $systemContext .= "Target ketercapaian upload artefak perkuliahan untuk semester ini adalah...\n\n";
+            $systemContext .= "[lanjutkan dengan analisis - minimum 1-2 paragraf]\n\n";
+            $systemContext .= "## TINDAK LANJUT\n\n";
+            $systemContext .= "Berdasarkan hasil evaluasi dan analisis di atas, GKM merekomendasikan beberapa tindak lanjut...\n\n";
+            $systemContext .= "[lanjutkan dengan rekomendasi - minimum 1-2 paragraf]\n\n";
+            $systemContext .= "## BAB 6 PENUTUP\n\n";
+            $systemContext .= "Kegiatan monitoring artefak perkuliahan telah berjalan dengan baik...\n\n";
+            $systemContext .= "[lanjutkan dengan kesimpulan - minimum 1 paragraf]\n\n";
+
             $systemContext .= "=== BATASAN KONTEKS YANG SANGAT KETAT ===\n";
             $systemContext .= "ANDA HANYA BOLEH MEMBANTU DENGAN:\n";
             $systemContext .= "1. Pembuatan laporan artefak RPS dan Materi\n";
@@ -605,7 +717,7 @@ class LaporanArtefakController extends Controller
             $systemContext .= "3. Format dan struktur laporan artefak\n";
             $systemContext .= "4. Perbaikan dan revisi draft laporan artefak\n";
             $systemContext .= "5. Pertanyaan terkait RPS, Materi perkuliahan, dan artefak akademik\n\n";
-            
+
             $systemContext .= "⚠️⚠️⚠️ ANDA TIDAK BOLEH DAN HARUS MENOLAK: ⚠️⚠️⚠️\n";
             $systemContext .= "- Pertanyaan tentang SIAPA (identitas, nama orang, tokoh, dll)\n";
             $systemContext .= "- Pertanyaan tentang PENAMPILAN (ganteng, cantik, tampan, cakep)\n";
@@ -617,27 +729,27 @@ class LaporanArtefakController extends Controller
             $systemContext .= "- Membahas topik pribadi, hiburan, atau hal-hal di luar akademik\n";
             $systemContext .= "- Small talk, chitchat, atau obrolan santai\n";
             $systemContext .= "- Pertanyaan 'apa kabar', 'hello', 'kenalan', dll\n\n";
-            
+
             $systemContext .= "🚨 WAJIB: JIKA USER BERTANYA DI LUAR KONTEKS 🚨\n";
             $systemContext .= "Anda HARUS LANGSUNG menolak dengan respons PERSIS ini:\n\n";
             $systemContext .= "\"Maaf, permintaan Anda di luar konteks pembuatan Laporan Bulanan. Saya hanya dapat membantu dengan pembuatan laporan monitoring RPS dan Materi perkuliahan. Silakan ajukan pertanyaan terkait laporan bulanan.\"\n\n";
             $systemContext .= "JANGAN TAMBAHKAN penjelasan lain. JANGAN JAWAB pertanyaan user. LANGSUNG TOLAK!\n\n";
-            
+
             $systemContext .= "=== INSTRUKSI KHUSUS UNTUK PERBAIKAN/REVISI LAPORAN ===\n";
             $systemContext .= "Jika user meminta PERBAIKAN, UBAHAN, atau REVISI pada draft laporan yang sudah ada:\n";
             $systemContext .= "1. Lihat draft laporan yang sudah ada (akan diberikan di bawah)\n";
-            $systemContext .= "2. Identifikasi bagian yang diminta untuk diubah (contoh: 'perbaiki BAB 1', 'ubah tabel RPS', 'tambah rekomendasi')\n";
+            $systemContext .= "2. Identifikasi bagian yang diminta untuk diubah (contoh: 'perbaiki BAB 5', 'ubah analisis ketercapaian', 'tambah rekomendasi')\n";
             $systemContext .= "3. HANYA ubah bagian yang diminta, PERTAHANKAN semua bagian lain\n";
             $systemContext .= "4. JANGAN buat ulang seluruh laporan dari awal\n";
             $systemContext .= "5. Jika user minta 'tambah di bawah ini', tambahkan konten baru di akhir bagian yang relevan\n";
             $systemContext .= "6. Jika user minta 'hapus bagian X', hapus bagian tersebut\n";
             $systemContext .= "7. Setelah selesai, tampilkan SELURUH draft laporan yang sudah diperbaiki\n\n";
-            
+
             $systemContext .= "=== FORMAT RESPONS UNTUK PERMINTAAN REVISI ===\n";
             $systemContext .= "Jika Anda melakukan revisi/perbaikan, awali respons dengan:\n";
             $systemContext .= "\"✅ **Laporan telah diperbaiki sesuai permintaan!**\n\n\"\n";
             $systemContext .= "Kemudian tampilkan seluruh draft laporan yang sudah diperbaiki.\n\n";
-            
+
             $systemContext .= "PENTING - CONVERSATION CONTEXT:\n";
             $systemContext .= "- Ini mungkin percakapan lanjutan. Jika user meminta perubahan atau perbaikan, modifikasi konten yang sudah ada.\n";
             $systemContext .= "- Jika user mengatakan 'ubah bagian X', 'perbaiki Y', atau 'tambahkan Z', lakukan perubahan pada draft sebelumnya.\n";
@@ -645,41 +757,18 @@ class LaporanArtefakController extends Controller
             $systemContext .= "- Jika ini permintaan pertama, buat draft lengkap. Jika permintaan lanjutan, fokus pada perubahan yang diminta.\n";
             $systemContext .= "- SELALU PERIKSA: Apakah pertanyaan user masih dalam konteks laporan artefak? Jika tidak, tolak dengan sopan.\n\n";
 
-            if ($templateStructure) {
-                $systemContext .= "STRUKTUR TEMPLATE YANG HARUS DIIKUTI:\n";
-                $systemContext .= $templateStructure . "\n\n";
-                $systemContext .= "PENTING: Anda HARUS mengikuti struktur template di atas dengan KETAT. Gunakan markdown heading level 1 (#) untuk setiap bagian utama sesuai template.\n";
-                $systemContext .= "Jangan menambah atau mengurangi bagian dari template. Isi setiap bagian dengan konten yang relevan berdasarkan dokumen yang diupload.\n\n";
-            } else {
-                $systemContext .= "PENTING: Gunakan STRUKTUR WAJIB berikut dengan markdown heading level 1 (#):\n\n";
-                $systemContext .= "# RINGKASAN EKSEKUTIF\n";
-                $systemContext .= "[Ringkasan singkat laporan dan temuan utama]\n\n";
-                $systemContext .= "# PENDAHULUAN\n";
-                $systemContext .= "[Latar belakang dan tujuan laporan artefak]\n\n";
-                $systemContext .= "# METODOLOGI\n";
-                $systemContext .= "[Metode pengumpulan dan analisis data artefak]\n\n";
-                $systemContext .= "# TEMUAN UTAMA\n";
-                $systemContext .= "[Hasil analisis artefak dan dokumen]\n\n";
-                $systemContext .= "# ANALISIS KUALITAS\n";
-                $systemContext .= "[Evaluasi kualitas artefak berdasarkan standar]\n\n";
-                $systemContext .= "# REKOMENDASI\n";
-                $systemContext .= "[Saran perbaikan dan tindak lanjut]\n\n";
-                $systemContext .= "# KESIMPULAN\n";
-                $systemContext .= "[Kesimpulan dan ringkasan rekomendasi]\n\n";
-            }
-
             $systemContext .= "Fokus EKSKLUSIF pada analisis artefak akademik seperti RPS, silabus, materi kuliah, dan dokumen pembelajaran.\n";
             $systemContext .= "Gunakan Bahasa Indonesia formal dan profesional. Setiap bagian harus berisi konten yang substantif dan relevan.\n";
             $systemContext .= "INGAT: Tolak dengan sopan setiap permintaan yang tidak terkait dengan laporan artefak RPS dan Materi!\n\n";
-            
-            $systemContext .= "=== FORMAT DATA DALAM LAPORAN ===\n";
-            $systemContext .= "1. **Penggabungan Matakuliah**: Jika ada matakuliah dengan kode yang sama tetapi dosen berbeda, GABUNGKAN dalam satu baris dengan nama dosen dipisahkan koma.\n";
-            $systemContext .= "   Contoh: Dosen A, Dosen B, Dosen C (BUKAN baris terpisah)\n\n";
-            $systemContext .= "2. **Format Status Upload**: Gunakan angka:\n";
-            $systemContext .= "   - '1' untuk sudah upload\n";
-            $systemContext .= "   - '0' untuk belum upload\n";
-            $systemContext .= "   - Format header: 'RPS (0=Tidak, 1=Ya)'\n\n";
-            $systemContext .= "3. **Tabel yang Rapi**: Pastikan tabel mudah dibaca dengan kolom yang jelas\n\n";
+
+            $systemContext .= "🎯 INSTRUKSI FINAL - SEBELUM ANDA MULAI MEMBUAT LAPORAN:\n";
+            $systemContext .= "1. Pastikan output mencakup SEMUA 4 BAGIAN yang diwajibkan\n";
+            $systemContext .= "2. Setiap bagian harus detail, substantif, dan profesional\n";
+            $systemContext .= "3. Gunakan markdown ## untuk heading (bukan # atau ###)\n";
+            $systemContext .= "4. Jika user minta 'buatkan laporan', OUTPUT HARUS LENGKAP DALAM SATU RESPONS\n";
+            $systemContext .= "5. JANGAN POTONG atau SINGKAT output - SELALU LENGKAPI SEMUA KONTEN\n";
+            $systemContext .= "6. Setiap paragraf minimal 3-4 kalimat, setiap bagian minimal 100 kata\n";
+            $systemContext .= "7. Output HARUS profesional, formal, dan siap untuk dicetak sebagai dokumen resmi\n\n";
 
             // Extract file content if uploaded
             $filesContext = [];
@@ -801,7 +890,7 @@ class LaporanArtefakController extends Controller
                 $currentMessage .= "===== DRAFT LAPORAN YANG SUDAH ADA =====\n\n";
                 $currentMessage .= $existingDraft . "\n\n";
                 $currentMessage .= "===== END DRAFT YANG SUDAH ADA =====\n\n";
-                
+
                 if ($isRevisionRequest) {
                     $currentMessage .= "⚠️ PERHATIAN PENTING ⚠️\n";
                     $currentMessage .= "User meminta PERBAIKIAN/REVISI pada draft laporan di atas.\n";
@@ -825,6 +914,20 @@ class LaporanArtefakController extends Controller
                 $currentMessage .= "===== DATA RPS DAN MATERI DARI DATABASE =====\n\n";
                 $currentMessage .= $databaseContext . "\n\n";
                 $currentMessage .= "===== END DATA DATABASE =====\n\n";
+            }
+
+            // Inject tabel RPS dan Materi terstruktur sebagai sumber data untuk BAB 5 & Analisis
+            if (!empty($rpsMateriTable)) {
+                $currentMessage .= "===== TABEL_RPS DAN TABEL_MATERI (SUMBER DATA WAJIB) =====\n\n";
+                $currentMessage .= $rpsMateriTable . "\n\n";
+                $currentMessage .= "===== END TABEL_RPS / TABEL_MATERI =====\n\n";
+                $currentMessage .= "⚠️ INSTRUKSI PENTING UNTUK BAB 5 EVALUASI DAN ANALISIS KETERCAPAIAN:\n";
+                $currentMessage .= "Gunakan data TABEL_RPS dan TABEL_MATERI di atas sebagai SUMBER DATA UTAMA.\n";
+                $currentMessage .= "- Pada bagian '## BAB 5 EVALUASI' (Hasil Pemeriksaan): sebutkan secara spesifik MK mana yang sudah/belum upload RPS dan berapa minggu materi yang sudah/belum diupload per MK.\n";
+                $currentMessage .= "- Pada bagian '## ANALISIS KETERCAPAIAN': gunakan jumlah MK (bukan persentase 0%) — sebutkan berapa MK belum lengkap. Jika semua sudah lengkap, cukup nyatakan 'seluruh MK telah memenuhi target'. JANGAN menulis '0%' dalam narasi.\n";
+                $currentMessage .= "- JANGAN membuat statistik atau nama MK secara generik — gunakan data NYATA dari tabel di atas.\n";
+                $currentMessage .= "- Jika ada MK yang belum upload, sebutkan nama dan dosen pengampunya.\n";
+                $currentMessage .= "- Jika semua MK sudah lengkap, tidak perlu menyebut angka persentase — cukup pernyataan positif.\n\n";
             }
 
             // Process uploaded documents
@@ -861,33 +964,50 @@ class LaporanArtefakController extends Controller
                 $currentMessage .= "Instruksi dari user: " . $userPrompt . "\n\n";
                 $currentMessage .= "Catatan: Draft laporan sudah ada di atas. Jika user tidak meminta perubahan, Anda bisa memberikan respons berdasarkan instruksi tersebut.\n\n";
             }
-            
-            $currentMessage .= "⚠️ PERINGATAN KERAS: Periksa terlebih dahulu apakah instruksi user di atas terkait dengan LAPORAN ARTEFAK RPS DAN MATERI.\n\n";
-            $currentMessage .= "Jika instruksi di atas TIDAK terkait dengan:\n";
-            $currentMessage .= "- Pembuatan laporan artefak\n";
-            $currentMessage .= "- Analisis RPS dan Materi\n";
-            $currentMessage .= "- Format/struktur laporan\n";
-            $currentMessage .= "- Perbaikan draft laporan\n\n";
-            $currentMessage .= "Maka Anda WAJIB menolak dengan respons: \"Maaf, permintaan Anda di luar konteks pembuatan Laporan Bulanan. Saya hanya dapat membantu dengan pembuatan laporan monitoring RPS dan Materi perkuliahan. Silakan ajukan pertanyaan terkait laporan bulanan.\"\n\n";
-            $currentMessage .= "JANGAN JAWAB pertanyaan tentang: siapa, kenalan, cuaca, berita, resep, musik, film, game, olahraga, hewan, fitness, atau topik pribadi lainnya!\n\n";
 
-            if ($templateStructure) {
-                $currentMessage .= "PENTING: Anda HARUS menghasilkan draft laporan artefak yang mengikuti STRUKTUR TEMPLATE yang telah diberikan di system context.\n\n";
-                $currentMessage .= "Gunakan semua dokumen artefak yang saya upload sebagai sumber data dan informasi untuk mengisi setiap bagian template.\n\n";
-                $currentMessage .= "Setiap bagian harus berisi minimal 2-3 paragraf dengan konten yang substantif dan relevan berdasarkan analisis artefak.\n";
-            } else {
-                $currentMessage .= "PENTING: Anda HARUS menghasilkan SEMUA 7 bagian berikut dengan konten yang substantif:\n\n";
-                $currentMessage .= "1. # RINGKASAN EKSEKUTIF\n";
-                $currentMessage .= "2. # PENDAHULUAN\n";
-                $currentMessage .= "3. # METODOLOGI\n";
-                $currentMessage .= "4. # TEMUAN UTAMA\n";
-                $currentMessage .= "5. # ANALISIS KUALITAS\n";
-                $currentMessage .= "6. # REKOMENDASI\n";
-                $currentMessage .= "7. # KESIMPULAN\n\n";
-                $currentMessage .= "Jangan skip bagian manapun. Setiap bagian harus berisi minimal 2-3 paragraf dengan analisis yang mendalam.\n";
+            $currentMessage .= "⚠️⚠️⚠️ INSTRUKSI SANGAT PENTING - BACA INI DENGAN TELITI! ⚠️⚠️⚠️\n\n";
+            $currentMessage .= "🚫 LARANGAN KERAS: JANGAN PERNAH menampilkan teks {{PROGRAM_KERJA}}, {{PELAKSANAAN}}, {{HAMBATAN_PENJELASAN}}, {{HASIL_PEMERIKSAAN}}, {{KESIMPULAN_PENUTUP}}, atau placeholder {{...}} APAPUN dalam output Anda!\n";
+            $currentMessage .= "Jika ada placeholder {{...}} dalam draft atau dalam dokumen referensi, GANTI dengan konten nyata yang substantif!\n\n";
+
+            // Check if this is a clear "Buatkan Laporan Bulanan" request
+            $isExplicitLaporanRequest = false;
+            $explicitKeywords = ['buatkan laporan', 'buat laporan', 'generate laporan', 'buatkan laporan bulanan', 'buat laporan bulanan', 'generate laporan bulanan', 'buatkan', 'laporan artefak'];
+            foreach ($explicitKeywords as $keyword) {
+                if (strpos(strtolower($userPrompt), $keyword) !== false) {
+                    $isExplicitLaporanRequest = true;
+                    break;
+                }
             }
 
-            $currentMessage .= "Fokus pada evaluasi kualitas artefak akademik dan berikan rekomendasi perbaikan yang konkret.\n";
+            if ($isExplicitLaporanRequest) {
+                $currentMessage .= "✅✅✅ INI ADALAH PERMINTAAN UNTUK MEMBUAT LAPORAN! ✅✅✅\n";
+                $currentMessage .= "User ingin membuat Laporan Bulanan (Artefak RPS dan Materi).\n";
+                $currentMessage .= "ANDA HARUS MEMBUAT LAPORAN ARTEFAK LENGKAP TANPA MENOLAK!\n";
+                $currentMessage .= "JANGAN MENGATAKAN 'di luar konteks' ATAU 'tidak bisa membantu'!\n";
+                $currentMessage .= "LANGSUNG LANJUTKAN DENGAN MEMBUAT DRAFT LAPORAN ARTEFAK!\n\n";
+                $currentMessage .= "INGAT: Gunakan struktur yang SUDAH DIBERIKAN di system context:\n";
+                $currentMessage .= "- ## BAB 2 PROGRAM KERJA (isi dengan program kerja monitoring, BUKAN {{PROGRAM_KERJA}})\n";
+                $currentMessage .= "- ## BAB 3 PELAKSANAAN (isi dengan narasi pelaksanaan, BUKAN {{PELAKSANAAN}})\n";
+                $currentMessage .= "- ## BAB 4 HAMBATAN DAN PEMECAHAN MASALAH (isi dengan hambatan, BUKAN {{HAMBATAN_PENJELASAN}})\n";
+                $currentMessage .= "- ## BAB 5 EVALUASI (isi dengan hasil pemeriksaan, BUKAN {{HASIL_PEMERIKSAAN}})\n";
+                $currentMessage .= "- ## BAB 6 PENUTUP (isi dengan kesimpulan, BUKAN {{KESIMPULAN_PENUTUP}})\n\n";
+            } else {
+                $currentMessage .= "Periksa terlebih dahulu apakah instruksi user di atas terkait dengan LAPORAN ARTEFAK RPS DAN MATERI.\n\n";
+            }
+
+            $currentMessage .= "Jika instruksi user JELAS ingin membuat laporan atau mengeluarkan pertanyaan tentang RPS, Materi, artefak akademik:\n";
+            $currentMessage .= "→ LANGSUNG LANJUTKAN dan JANGAN MENOLAK!\n\n";
+
+            $currentMessage .= "HANYA tolak jika user bertanya tentang:\n";
+            $currentMessage .= "- Siapa/identitas pribadi\n";
+            $currentMessage .= "- Hewan/binatang/olahraga/fitness\n";
+            $currentMessage .= "- Resep/masakan/film/game/musik\n";
+            $currentMessage .= "- Topik pribadi/chatting santai\n";
+            $currentMessage .= "- Pertanyaan sama sekali tidak relevan dengan laporan\n\n";
+
+            $currentMessage .= "PENTING: Konten yang Anda buat di sini AKAN LANGSUNG MASUK ke laporan Word!\n";
+            $currentMessage .= "Pastikan konten berkualitas tinggi, detail, dan sesuai dengan data monitoring yang ada.\n";
+            $currentMessage .= "Gunakan semua data RPS dan Materi yang tersedia untuk membuat analisis yang komprehensif.\n\n";
 
             $messages[] = [
                 'role' => 'user',
@@ -895,7 +1015,7 @@ class LaporanArtefakController extends Controller
             ];
 
             $aiResult = $aiService->generateChat($messages, [
-                'max_tokens' => 8192,
+                'max_tokens' => 16000,
                 'temperature' => 0.7
             ]);
 
@@ -936,7 +1056,9 @@ class LaporanArtefakController extends Controller
 
             $aiResponse = $aiResult['text'];
 
-            // Simpan response ke database jika ada laporan_id
+            // Simpan response ke database jika ada laporan_id - SETIAP RESPONSE DISIMPAN KE DB
+            $dbSyncSuccess = false;
+            $syncTimestamp = null;
             if ($laporanId) {
                 try {
                     $laporan = LaporanGKM::find($laporanId);
@@ -945,15 +1067,21 @@ class LaporanArtefakController extends Controller
                         $laporan->update([
                             'ai_preview_draft' => $aiResponse,
                             'ai_sections' => $sections,
+                            'ai_preview_updated_at' => now(),
+                            'ai_preview_used_for_generation' => false,
                             'status' => 'preview_ready',
                         ]);
-                        Log::info('Updated draft laporan after AI response', [
+                        $dbSyncSuccess = true;
+                        $syncTimestamp = now();
+                        Log::info('✅ Synced AI response to database (Laporan Artefak)', [
                             'laporan_id' => $laporanId,
+                            'response_length' => strlen($aiResponse),
+                            'sections_count' => count($sections),
                             'is_revision' => $isRevisionRequest
                         ]);
                     }
                 } catch (\Exception $e) {
-                    Log::warning('Failed to update laporan with AI response', [
+                    Log::warning('⚠️ Failed to sync AI response to database', [
                         'laporan_id' => $laporanId,
                         'error' => $e->getMessage()
                     ]);
@@ -987,7 +1115,7 @@ class LaporanArtefakController extends Controller
                     'expected_response' => null,
                     'actual_response' => $aiResponse,
                 ]);
-                
+
                 Log::info('AI Evaluation test created', [
                     'feature' => 'artefak_chat',
                     'prompt_length' => strlen($userPrompt),
@@ -1015,12 +1143,76 @@ class LaporanArtefakController extends Controller
                 'cached' => false
             ]);
 
+            // Jika ini adalah balasan pertama (belum ada draft sebelumnya), tampilkan
+            // skeleton/template placeholder ke UI saja. Full AI response tetap disimpan di DB.
+            $isFirstResponse = empty($existingDraft);
+
+            $uiSkeleton = "BAB 1 PENDAHULUAN\n\n" .
+                "1.1  Latar Belakang \n{{LATAR_BELAKANG}}\n\n" .
+                "1.2 Dasar Acuan \n{{DASAR_ACUAN}}\n\n" .
+                "1.3 Tujuan\n{{TUJUAN}}\n\n" .
+                "1.4 Sasaran\n{{SASARAN}}\n\n" .
+                "1.5 Waktu pelaksanaan \n{{WAKTU_PELAKSANAAN}}\n\n" .
+                "1.6 Ruang Lingkup \n{{RUANG}}\n\n" .
+                "1.7 Instrumen Pengukuran {{INSTRUMEN_PENGUKURAN}}\n\n\n" .
+                "BAB 2 PROGRAM KERJA {{PROGRAM_KERJA}}\n\n" .
+                "BAB 3 PELAKSANAAN \n{{PELAKSANAAN}} \n\n" .
+                "BAB 4 HAMBATAN DAN PEMECAHAN MASALAH \n{{HAMBATAN_PENJELASAN}}\n\n" .
+                "BAB 5 EVALUASI\nHasil Pemeriksaan\n{{HASIL_PEMERIKSAAN}}\n\n" .
+                "Analisis Ketercapaian\n{{ANALISIS_KETERCAPAIAN}}\n\n" .
+                "Tindak Lanjut\n{{TINDAK_LANJUT}}\n\n" .
+                "BAB 6 Penutup \n{{KESIMPULAN_PENUTUP}}";
+
+            // If this is the first response and we have parsed sections from this AI reply or DB,
+            // replace placeholders with actual section content so UI shows filled fields.
+            $filledSkeleton = $uiSkeleton;
+            $resolvedSections = [];
+            if (!empty($sections) && is_array($sections)) {
+                $resolvedSections = $sections;
+            } elseif (isset($laporan) && !empty($laporan->ai_sections) && is_array($laporan->ai_sections)) {
+                $resolvedSections = $laporan->ai_sections;
+            }
+
+            if ($isFirstResponse && !empty($resolvedSections)) {
+                $placeholderMap = [
+                    '{{LATAR_BELAKANG}}' => $resolvedSections['latar_belakang'] ?? '',
+                    '{{DASAR_ACUAN}}' => $resolvedSections['dasar_acuan'] ?? '',
+                    '{{TUJUAN}}' => $resolvedSections['tujuan'] ?? '',
+                    '{{SASARAN}}' => $resolvedSections['sasaran'] ?? '',
+                    '{{WAKTU_PELAKSANAAN}}' => $resolvedSections['waktu_pelaksanaan'] ?? '',
+                    '{{RUANG}}' => $resolvedSections['ruang'] ?? $resolvedSections['ruang_lingkup'] ?? '',
+                    '{{INSTRUMEN_PENGUKURAN}}' => $resolvedSections['instrumen_pengukuran'] ?? '',
+                    '{{PROGRAM_KERJA}}' => $resolvedSections['program_kerja'] ?? '',
+                    '{{PELAKSANAAN}}' => $resolvedSections['pelaksanaan'] ?? '',
+                    '{{HAMBATAN_PENJELASAN}}' => $resolvedSections['hambatan_penjelasan'] ?? $resolvedSections['hambatan_dan_pemecahan_masalah'] ?? $resolvedSections['hambatan'] ?? '',
+                    '{{HASIL_PEMERIKSAAN}}' => $resolvedSections['hasil_pemeriksaan'] ?? $resolvedSections['evaluasi'] ?? '',
+                    '{{ANALISIS_KETERCAPAIAN}}' => $resolvedSections['analisis_ketercapaian'] ?? '',
+                    '{{TINDAK_LANJUT}}' => $resolvedSections['tindak_lanjut'] ?? '',
+                    '{{KESIMPULAN_PENUTUP}}' => $resolvedSections['kesimpulan_penutup'] ?? $resolvedSections['penutup'] ?? $resolvedSections['kesimpulan'] ?? '',
+                ];
+
+                foreach ($placeholderMap as $ph => $val) {
+                    if ($val !== '') {
+                        $filledSkeleton = str_replace($ph, $val, $filledSkeleton);
+                    }
+                }
+            }
+
+            $uiResponse = $isFirstResponse ? $filledSkeleton : $aiResponse;
+
             return response()->json([
                 'success' => true,
-                'response' => $aiResponse,
+                'laporan_id' => $laporanId,
+                'response' => $uiResponse,
+                'ai_sections' => $sections,
                 'model_info' => $aiResult['provider'] . ' (' . $aiResult['model'] . ')',
                 'cached' => false,
                 'is_revision' => $isRevisionRequest,
+                'sync_status' => [
+                    'success' => $dbSyncSuccess,
+                    'timestamp' => $syncTimestamp,
+                    'message' => $dbSyncSuccess ? 'Data tersinkronisasi ke database' : 'Gagal sinkronisasi ke database'
+                ]
             ]);
 
         } catch (\Exception $e) {
@@ -1040,31 +1232,145 @@ class LaporanArtefakController extends Controller
     }
 
     /**
-     * Parse markdown sections from AI response
+     * API endpoint untuk mendapatkan data laporan terbaru dari database
+     * Digunakan untuk memastikan UI dan database synchronized
      */
+    public function apiGet(Request $request)
+    {
+        try {
+            $laporanId = $request->query('laporan_id');
+
+            if (!$laporanId) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'laporan_id parameter required'
+                ], 400);
+            }
+
+            $laporan = LaporanGKM::select(
+                'id',
+                'ai_preview_draft',
+                'ai_sections',
+                'ai_preview_updated_at',
+                'ai_preview_used_for_generation',
+                'status'
+            )->findOrFail($laporanId);
+
+            $user = Auth::user();
+            $hasAccess = $laporan->user_id == $user->id || in_array($user->role, ['GKM', 'GJM']);
+
+            if (!$hasAccess) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Unauthorized access'
+                ], 403);
+            }
+
+            return response()->json([
+                'success' => true,
+                'laporan_id' => $laporan->id,
+                'ai_preview_draft' => $laporan->ai_preview_draft,
+                'ai_sections' => $laporan->ai_sections,
+                'ai_preview_updated_at' => $laporan->ai_preview_updated_at,
+                'ai_preview_used_for_generation' => $laporan->ai_preview_used_for_generation,
+                'status' => $laporan->status,
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Failed to fetch laporan data', [
+                'error' => $e->getMessage(),
+                'laporan_id' => $request->query('laporan_id'),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal mengambil data laporan'
+            ], 500);
+        }
+    }
+
     private function parseMarkdownSections($text)
     {
         $sections = [];
-        $lines = explode("\n", $text);
+
+        $lines = preg_split('/\r\n|\r|\n/', $text);
+        if (!$lines) {
+            return $sections;
+        }
+
         $currentSection = null;
-        $currentContent = [];
+        $knownHeadings = [
+            'latar belakang',
+            'dasar acuan',
+            'tujuan',
+            'sasaran',
+            'waktu pelaksanaan',
+            'ruang lingkup',
+            'instrumen pengukuran',
+            'program kerja',
+            'pelaksanaan',
+            'hambatan dan pemecahan masalah',
+            'hambatan dan solusi',
+            'hambatan',
+            'hasil pemeriksaan',
+            'evaluasi',
+            'analisis ketercapaian',
+            'tindak lanjut',
+            'penutup',
+            'kesimpulan penutup',
+            'kesimpulan',
+        ];
 
         foreach ($lines as $line) {
-            if (preg_match('/^# (.+)$/', $line, $matches)) {
+            $trimmed = trim(preg_replace('/\s+/', ' ', $line));
+            if ($trimmed === '') {
                 if ($currentSection) {
-                    $sections[$this->sectionTitleToKey($currentSection)] = trim(implode("\n", $currentContent));
+                    $currentSection['content'] .= "\n";
                 }
-                $currentSection = trim($matches[1]);
-                $currentContent = [];
+                continue;
+            }
+
+            $title = null;
+            $lineContent = null;
+
+            if (preg_match('/^#{1,3}\s*(.+)$/', $trimmed, $match)) {
+                $title = trim($match[1]);
+            } elseif (preg_match('/^(?:BAB\s*\d+(?:[\._]\d+)*|\d+(?:[\._]\d+)*)(?:\s+|\.)+(.+)$/i', $trimmed, $match)) {
+                $title = trim($match[1]);
             } else {
-                if ($currentSection) {
-                    $currentContent[] = $line;
+                foreach ($knownHeadings as $heading) {
+                    if (preg_match('/^' . preg_quote($heading, '/') . '(?:\s*[:\-]?\s*|)(.*)$/i', $trimmed, $match)) {
+                        $title = ucfirst($heading);
+                        $lineContent = trim($match[1]);
+                        break;
+                    }
                 }
+            }
+
+            if ($title !== null) {
+                // strip inline placeholder tokens from title if AI returned a placeholder on the same line
+                $title = trim(preg_replace('/\{\{[^}]+\}\}/', '', $title));
+                if ($currentSection) {
+                    $sections[$this->sectionTitleToKey($currentSection['title'])] = trim($currentSection['content']);
+                }
+                $lineContent = $lineContent ? trim($lineContent) : '';
+                if (preg_match('/^\{\{[^}]+\}\}$/', $lineContent)) {
+                    $lineContent = '';
+                }
+                $currentSection = [
+                    'title' => $title,
+                    'content' => $lineContent
+                ];
+                continue;
+            }
+
+            if ($currentSection) {
+                $currentSection['content'] .= ($currentSection['content'] === '' ? '' : "\n") . $trimmed;
             }
         }
 
         if ($currentSection) {
-            $sections[$this->sectionTitleToKey($currentSection)] = trim(implode("\n", $currentContent));
+            $sections[$this->sectionTitleToKey($currentSection['title'])] = trim($currentSection['content']);
         }
 
         return $sections;
@@ -1085,7 +1391,7 @@ class LaporanArtefakController extends Controller
             $laporanId = $request->input('laporan_id');
             $aiPreviewDraft = $request->input('ai_preview_draft');
             $aiSectionsJson = $request->input('ai_sections', '[]');
-            
+
             $sections = [];
             try {
                 $sectionsArray = json_decode($aiSectionsJson, true);
@@ -1105,7 +1411,7 @@ class LaporanArtefakController extends Controller
             }
 
             $laporan = LaporanGKM::findOrFail($laporanId);
-            
+
             $laporan->update([
                 'ai_preview_draft' => $aiPreviewDraft,
                 'ai_sections' => $sections,
@@ -1132,7 +1438,7 @@ class LaporanArtefakController extends Controller
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);
-            
+
             return response()->json([
                 'success' => false,
                 'message' => 'Terjadi kesalahan: ' . $e->getMessage()
@@ -1145,10 +1451,30 @@ class LaporanArtefakController extends Controller
      */
     private function sectionTitleToKey($title)
     {
-        $key = strtolower(trim($title));
+        $key = trim($title);
+        $key = preg_replace('/\{\{[^}]+\}\}/', '', $key);
+        // Remove leading BAB / numbering labels: BAB 1, 1.1, 1.2, etc.
+        $key = preg_replace('/^(?:BAB\s*)?\d+(?:[\._]\d+)*\s*/i', '', $key);
+        $key = strtolower(trim($key));
         $key = preg_replace('/[^a-z0-9]+/', '_', $key);
         $key = trim($key, '_');
-        return $key;
+
+        // Normalize common aliases to canonical keys
+        $aliases = [
+            'evaluasi'                       => 'hasil_pemeriksaan',
+            'bab_5_evaluasi'                 => 'hasil_pemeriksaan',
+            'hasil_pemeriksaan'              => 'hasil_pemeriksaan',
+            'hambatan_dan_pemecahan_masalah' => 'hambatan_penjelasan',
+            'hambatan_dan_solusi'            => 'hambatan_penjelasan',
+            'hambatan'                       => 'hambatan_penjelasan',
+            'kesimpulan_penutup'             => 'kesimpulan_penutup',
+            'kesimpulan'                     => 'kesimpulan_penutup',
+            'penutup'                        => 'kesimpulan_penutup',
+            'bab_6_penutup'                  => 'kesimpulan_penutup',
+            'ruang_lingkup'                  => 'ruang',
+        ];
+
+        return $aliases[$key] ?? $key;
     }
 
     /**
@@ -1267,7 +1593,7 @@ class LaporanArtefakController extends Controller
         $user = Auth::user();
         $hasAccess = $laporan->user_id == $user->id ||
                      in_array($user->role, ['GKM', 'GJM']);
-        
+
         if (!$hasAccess) {
             abort(403, 'Unauthorized access');
         }
@@ -1286,7 +1612,7 @@ class LaporanArtefakController extends Controller
             $user = Auth::user();
             $hasAccess = $laporan->user_id == $user->id ||
                          in_array($user->role, ['GKM', 'GJM']);
-            
+
             if (!$hasAccess) {
                 abort(403, 'Unauthorized access');
             }
@@ -1351,7 +1677,7 @@ class LaporanArtefakController extends Controller
         $user = Auth::user();
         $hasAccess = $laporan->user_id == $user->id ||
                      in_array($user->role, ['GKM', 'GJM']);
-        
+
         if (!$hasAccess) {
             abort(403, 'Unauthorized access');
         }
@@ -1371,6 +1697,7 @@ class LaporanArtefakController extends Controller
 
     /**
      * Generate Word document from AI preview
+     * PENTING: Gunakan versi terbaru dari database bukan dari request
      */
     public function generateWordDocument(Request $request)
     {
@@ -1381,13 +1708,13 @@ class LaporanArtefakController extends Controller
             ]);
 
             $laporanId = $request->input('laporan_id');
-            $aiPreviewData = $request->input('ai_preview_data');
+            $aiPreviewDataFromUI = $request->input('ai_preview_data');
 
             $laporan = LaporanGKM::findOrFail($laporanId);
 
             $user = Auth::user();
             $hasAccess = $laporan->user_id == $user->id || in_array($user->role, ['GKM', 'GJM']);
-            
+
             if (!$hasAccess) {
                 return response()->json([
                     'success' => false,
@@ -1395,11 +1722,39 @@ class LaporanArtefakController extends Controller
                 ], 403);
             }
 
+            // 🔑 PENTING: AMBIL VERSI TERBARU DARI DATABASE, BUKAN DARI UI
+            // Ini memastikan laporan yang di-download sama dengan yang ditampilkan di chat
+            $aiPreviewData = $laporan->ai_preview_draft ?? $aiPreviewDataFromUI;
+            
             Log::info('Generate Word from AI preview', [
                 'laporan_id' => $laporanId,
+                'preview_from_db' => !empty($laporan->ai_preview_draft),
                 'preview_length' => strlen($aiPreviewData),
+                'is_latest_version' => ($laporan->ai_preview_draft === $aiPreviewDataFromUI),
             ]);
 
+            // Jika ada versi terbaru di database yang berbeda dari UI, gunakan versi database
+            if ($laporan->ai_preview_draft && $laporan->ai_preview_draft !== $aiPreviewDataFromUI) {
+                Log::warning('⚠️ Using newer version from database instead of UI', [
+                    'laporan_id' => $laporanId,
+                    'db_version_length' => strlen($laporan->ai_preview_draft),
+                    'ui_version_length' => strlen($aiPreviewDataFromUI),
+                ]);
+            }
+
+            // Parse sections dari versi terbaru
+            $sections = $this->parseMarkdownSections($aiPreviewData);
+            
+            // Update laporan dengan preview terbaru dan mark bahwa sudah di-generate
+            $laporan->update([
+                'ai_preview_draft' => $aiPreviewData,
+                'ai_sections' => $sections,
+                'ai_preview_updated_at' => now(),
+                'ai_preview_used_for_generation' => true,
+                'status' => 'preview_ready',
+            ]);
+
+            // Generate laporan
             $generatedLaporan = $this->laporanService->generateLaporan($laporanId);
 
             if (!$generatedLaporan->file_word || !file_exists(storage_path('app/' . $generatedLaporan->file_word))) {
@@ -1409,9 +1764,11 @@ class LaporanArtefakController extends Controller
             $filePath = storage_path('app/' . $generatedLaporan->file_word);
             $fileName = 'Laporan_Artefak_' . $generatedLaporan->periode . '_' . time() . '.docx';
 
-            Log::info('Word document generated successfully from AI preview', [
+            Log::info('✅ Word document generated successfully from AI preview', [
                 'laporan_id' => $laporanId,
                 'file_path' => $generatedLaporan->file_word,
+                'sections_count' => count($sections),
+                'marked_as_generated' => true,
             ]);
 
             return response()->download($filePath, $fileName, [
@@ -1419,7 +1776,7 @@ class LaporanArtefakController extends Controller
             ]);
 
         } catch (\Exception $e) {
-            Log::error('Generate Word from AI preview failed', [
+            Log::error('❌ Generate Word from AI preview failed', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
                 'laporan_id' => $request->input('laporan_id'),
@@ -1625,6 +1982,186 @@ class LaporanArtefakController extends Controller
     }
 
     /**
+     * Build structured RPS and Materi tables from RpsMonitoringSnapshot & PerkuliahanMonitoringSnapshot
+     * untuk digunakan sebagai konteks AI dalam BAB 5 EVALUASI dan ANALISIS KETERCAPAIAN
+     */
+    private function buildRpsMateriTableForAI($periode = null): string
+    {
+        try {
+            $user = Auth::user();
+            $prodiKode = $user->prodi->kode_prodi ?? 'TRPL';
+            $prodiIdMap = ['TRPL' => 4, 'TI' => 1, 'NM' => 3];
+            $prodiId = $prodiIdMap[$prodiKode] ?? 4;
+            $prodiNama = $user->prodi->nama_prodi ?? 'D4 TRPL';
+
+            if ($periode) {
+                $year  = (int) substr($periode, 0, 4);
+                $month = (int) substr($periode, 5, 2);
+                $semester     = $month <= 6 ? 2 : 1;
+                $tahunAjaran  = $semester === 1 ? "$year/" . ($year + 1) : ($year - 1) . "/$year";
+            } else {
+                $periodeAktif = \App\Models\PeriodeAkademik::where('is_active', true)->first();
+                if ($periodeAktif) {
+                    $semester    = $periodeAktif->semester;
+                    $tahunAjaran = $periodeAktif->tahun_ajaran;
+                } else {
+                    $m = (int) date('n'); $y = (int) date('Y');
+                    $semester    = $m <= 6 ? 2 : 1;
+                    $tahunAjaran = $semester === 1 ? "$y/" . ($y + 1) : ($y - 1) . "/$y";
+                }
+            }
+
+            $semesterLabel = $semester === 1 ? 'Ganjil' : 'Genap';
+
+            // ── 1. Tabel RPS dari rps_monitoring_snapshots ──────────────────
+            $rpsData = \App\Models\RpsMonitoringSnapshot::with('dosen')
+                ->orderByRaw("SUBSTRING(kode_mk, 4, 1)")
+                ->orderBy('kode_mk')
+                ->get();
+
+            // ── 2. Tabel Materi dari perkuliahan_monitoring_snapshots ────────
+            $materiData = \App\Models\PerkuliahanMonitoringSnapshot::with('dosen')
+                ->orderByRaw("SUBSTRING(kode_mk, 4, 1)")
+                ->orderBy('kode_mk')
+                ->orderBy('jenis_materi')
+                ->get();
+
+            $totalRPS       = $rpsData->count();
+            $rpsUploaded    = $rpsData->where('status_rps', 'SUDAH UPLOAD')->count();
+            $rpsBelum       = $totalRPS - $rpsUploaded;
+            $rpsPercent     = $totalRPS > 0 ? round(($rpsUploaded / $totalRPS) * 100, 1) : 0;
+
+            $mkUnik         = $materiData->unique('kode_mk');
+            $totalMateri    = $mkUnik->count();
+            $materiUploaded = $materiData->where('status_upload', 'SUDAH UPLOAD')->unique('kode_mk')->count();
+            $materiBelum    = $totalMateri - $materiUploaded;
+            $materiPercent  = $totalMateri > 0 ? round(($materiUploaded / $totalMateri) * 100, 1) : 0;
+
+            $out  = "=== TABEL RPS (TABEL_RPS) ===\n";
+            $out .= "Program Studi: {$prodiNama} | Semester: {$semesterLabel} {$tahunAjaran}\n\n";
+
+            if ($rpsData->isEmpty()) {
+                $out .= "⚠️ Data RPS belum tersedia.\n\n";
+            } else {
+                // Group per kode_mk agar dosen tidak duplikat
+                $grouped = [];
+                foreach ($rpsData as $item) {
+                    $kode   = $item->kode_mk ?? '-';
+                    $tingkat = strlen($kode) >= 4 ? substr($kode, 3, 1) : '-';
+                    if (!isset($grouped[$kode])) {
+                        $grouped[$kode] = [
+                            'tingkat'     => $tingkat,
+                            'kode_mk'     => $kode,
+                            'nama_matkul' => $item->nama_matkul ?? '-',
+                            'dosen'       => [],
+                            'status_rps'  => $item->status_rps ?? 'BELUM UPLOAD',
+                        ];
+                    }
+                    $dosenNama = $item->dosen->inisial_nama ?? $item->dosen->nama ?? (string) $item->pegawai_id;
+                    if ($dosenNama && !in_array($dosenNama, $grouped[$kode]['dosen'])) {
+                        $grouped[$kode]['dosen'][] = $dosenNama;
+                    }
+                    // Jika salah satu row sudah upload, tandai sudah
+                    if ($item->status_rps === 'SUDAH UPLOAD') {
+                        $grouped[$kode]['status_rps'] = 'SUDAH UPLOAD';
+                    }
+                }
+
+                $out .= "| Tingkat | Kode MK | Nama Matakuliah | Dosen Pengampu | Status RPS |\n";
+                $out .= "|---------|---------|-----------------|----------------|------------|\n";
+                foreach ($grouped as $row) {
+                    $dosenStr  = implode(', ', $row['dosen']) ?: '-';
+                    $statusStr = $row['status_rps'] === 'SUDAH UPLOAD' ? '✅ Sudah Upload' : '❌ Belum Upload';
+                    $out .= "| {$row['tingkat']} | {$row['kode_mk']} | {$row['nama_matkul']} | {$dosenStr} | {$statusStr} |\n";
+                }
+                $out .= "\n";
+                // Tampilkan persentase hanya jika > 0, fokus pada jumlah MK yang belum
+                if ($rpsBelum > 0) {
+                    $out .= "**Ringkasan RPS:** Total {$totalRPS} MK | Sudah Upload: {$rpsUploaded} MK | Belum Upload: {$rpsBelum} MK\n\n";
+                } else {
+                    $out .= "**Ringkasan RPS:** Total {$totalRPS} MK | Semua sudah upload RPS ✅\n\n";
+                }
+            }
+
+            $out .= "=== TABEL MATERI (TABEL_MATERI) ===\n\n";
+
+            if ($materiData->isEmpty()) {
+                $out .= "⚠️ Data Materi belum tersedia.\n\n";
+            } else {
+                // Susun per kode_mk → teori & praktikum per minggu
+                $materiGrouped = [];
+                foreach ($materiData as $item) {
+                    $kode    = $item->kode_mk ?? '-';
+                    $jenis   = strtolower($item->jenis_materi ?? 'teori');
+                    $minggu  = (int) ($item->minggu_ke ?? 0);
+                    $status  = $item->status_upload ?? 'BELUM UPLOAD';
+
+                    if (!isset($materiGrouped[$kode])) {
+                        $materiGrouped[$kode] = [
+                            'nama_matkul' => $item->nama_matkul ?? '-',
+                            'dosen'       => [],
+                            'teori'       => [],
+                            'praktikum'   => [],
+                        ];
+                    }
+                    $dosenNama = $item->dosen->inisial_nama ?? $item->dosen->nama ?? (string) $item->pegawai_id;
+                    if ($dosenNama && !in_array($dosenNama, $materiGrouped[$kode]['dosen'])) {
+                        $materiGrouped[$kode]['dosen'][] = $dosenNama;
+                    }
+                    if (str_contains($jenis, 'prakt')) {
+                        $materiGrouped[$kode]['praktikum'][$minggu] = $status;
+                    } else {
+                        $materiGrouped[$kode]['teori'][$minggu] = $status;
+                    }
+                }
+
+                // Buat ringkasan per MK: berapa minggu teori/praktikum sudah upload
+                $out .= "| Kode MK | Nama Matakuliah | Dosen | Teori Upload (W1-16) | Praktikum Upload (W1-16) | Status |\n";
+                $out .= "|---------|-----------------|-------|---------------------|--------------------------|--------|\n";
+
+                $mkBelumMateri = []; // tidak digunakan untuk output, hanya untuk hitung $materiBelum
+                foreach ($materiGrouped as $kode => $data) {
+                    $dosenStr = implode(', ', $data['dosen']) ?: '-';
+                    $teoriUpload = count(array_filter($data['teori'], fn($s) => $s === 'SUDAH UPLOAD'));
+                    $praktUpload = count(array_filter($data['praktikum'], fn($s) => $s === 'SUDAH UPLOAD'));
+                    $teoriTotal  = 16;
+                    $praktTotal  = count($data['praktikum']) > 0 ? 16 : 0;
+
+                    $teoriStr = "{$teoriUpload}/{$teoriTotal}";
+                    $praktStr = $praktTotal > 0 ? "{$praktUpload}/{$praktTotal}" : '-';
+
+                    $statusMateri = ($teoriUpload === $teoriTotal && ($praktTotal === 0 || $praktUpload === $praktTotal))
+                        ? '✅ Lengkap' : '⚠️ Belum Lengkap';
+
+                    $out .= "| {$kode} | {$data['nama_matkul']} | {$dosenStr} | {$teoriStr} | {$praktStr} | {$statusMateri} |\n";
+                }
+
+                $out .= "\n";
+                // Tampilkan persentase hanya jika > 0, fokus pada jumlah MK yang belum
+                if ($materiBelum > 0) {
+                    $out .= "**Ringkasan Materi:** Total {$totalMateri} MK | Sudah Lengkap: {$materiUploaded} MK | Belum Lengkap: {$materiBelum} MK\n\n";
+                } else {
+                    $out .= "**Ringkasan Materi:** Total {$totalMateri} MK | Semua materi sudah lengkap ✅\n\n";
+                }
+            }
+
+            $out .= "=== STATISTIK GABUNGAN UNTUK EVALUASI ===\n";
+            $out .= "- RPS Sudah Upload : {$rpsUploaded} dari {$totalRPS} MK" . ($rpsBelum > 0 ? " ({$rpsBelum} MK belum upload)" : " (semua lengkap ✅)") . "\n";
+            $out .= "- Materi Sudah Lengkap: {$materiUploaded} dari {$totalMateri} MK" . ($materiBelum > 0 ? " ({$materiBelum} MK belum lengkap)" : " (semua lengkap ✅)") . "\n";
+            $out .= "- Target Ketercapaian: seluruh MK harus upload RPS dan materi lengkap (W1-W16)\n";
+            $out .= "- Status RPS    : " . ($rpsBelum === 0 ? "✅ Semua MK sudah upload" : "❌ {$rpsBelum} MK belum upload RPS") . "\n";
+            $out .= "- Status Materi : " . ($materiBelum === 0 ? "✅ Semua MK sudah lengkap" : "❌ {$materiBelum} MK belum lengkap materi") . "\n\n";
+            $out .= "CATATAN UNTUK AI: Saat menulis BAB 5 dan Analisis Ketercapaian, sebutkan berapa MK yang belum lengkap (jika ada), jangan menyebut '0%' — cukup sebut 'semua MK sudah memenuhi' jika tidak ada yang kurang.\n\n";
+
+            return $out;
+
+        } catch (\Exception $e) {
+            Log::error('buildRpsMateriTableForAI failed', ['error' => $e->getMessage()]);
+            return "Data TABEL_RPS dan TABEL_MATERI tidak dapat diambil: " . $e->getMessage() . "\n";
+        }
+    }
+
+    /**
      * Get RPS and Materi data from database for AI context
      */
     private function getArtefakDataFromDatabase($periode = null)
@@ -1632,19 +2169,19 @@ class LaporanArtefakController extends Controller
         try {
             $user = Auth::user();
             $prodiKode = $user->prodi->kode_prodi ?? 'TRPL';
-            
+
             $prodiIdMap = [
                 'TRPL' => 4,
                 'TI'   => 1,
                 'NM'   => 3,
             ];
-            
+
             $prodiId = $prodiIdMap[$prodiKode] ?? 4;
-            
+
             if ($periode) {
                 $year = (int) substr($periode, 0, 4);
                 $month = (int) substr($periode, 5, 2);
-                
+
                 if ($month <= 6) {
                     $semester = 2;
                     $tahunAjaran = ($year - 1) . '/' . $year;
@@ -1669,31 +2206,31 @@ class LaporanArtefakController extends Controller
                     }
                 }
             }
-            
+
             $context = "=== DATA ARTEFAK DARI MONITORING SISTEM ===\n\n";
-            $context .= "Program Studi: " . ($prodiKode === 'TRPL' ? 'Teknik Rekayasa Perangkat Lunak' : 
+            $context .= "Program Studi: " . ($prodiKode === 'TRPL' ? 'Teknik Rekayasa Perangkat Lunak' :
                                             ($prodiKode === 'TI' ? 'Teknologi Informasi' : 'Teknik Elektro')) . "\n";
             $context .= "Semester: " . ($semester == 1 ? 'Ganjil' : 'Genap') . " {$tahunAjaran}\n";
             $context .= "Periode Pelaporan: {$periode}\n\n";
-            
+
             $rpsSnapshots = \DB::table('perkuliahan_monitoring_snapshots')
                 ->where('prodi_id', $prodiId)
                 ->where('semester', $semester)
                 ->where('tahun_ajaran', $tahunAjaran)
                 ->orderBy('created_at', 'desc')
                 ->first();
-            
+
             if ($rpsSnapshots && isset($rpsSnapshots->monitoring_data)) {
-                $monitoringData = is_string($rpsSnapshots->monitoring_data) ? 
-                                 json_decode($rpsSnapshots->monitoring_data, true) : 
+                $monitoringData = is_string($rpsSnapshots->monitoring_data) ?
+                                 json_decode($rpsSnapshots->monitoring_data, true) :
                                  $rpsSnapshots->monitoring_data;
-                
+
                 if (is_array($monitoringData) && !empty($monitoringData)) {
                     $groupedByKode = [];
-                    
+
                     foreach ($monitoringData as $matkul) {
                         $kodeMK = $matkul['kode_matakuliah'] ?? '-';
-                        
+
                         if (!isset($groupedByKode[$kodeMK])) {
                             $groupedByKode[$kodeMK] = [
                                 'kode_matakuliah' => $kodeMK,
@@ -1705,39 +2242,39 @@ class LaporanArtefakController extends Controller
                                 'keterangan' => $matkul['keterangan'] ?? '-',
                             ];
                         }
-                        
+
                         $dosen = $matkul['dosen_pengampu'] ?? '-';
                         if ($dosen !== '-' && !in_array($dosen, $groupedByKode[$kodeMK]['dosen_pengampu'])) {
                             $groupedByKode[$kodeMK]['dosen_pengampu'][] = $dosen;
                         }
-                        
-                        if (isset($matkul['status_upload_rps']) && 
+
+                        if (isset($matkul['status_upload_rps']) &&
                             (str_contains(strtolower($matkul['status_upload_rps']), 'upload') || $matkul['status_upload_rps'] === '1')) {
                             $groupedByKode[$kodeMK]['status_upload_rps'] = 'Sudah Upload';
                         }
-                        
-                        if (isset($matkul['status_materi']) && 
+
+                        if (isset($matkul['status_materi']) &&
                             (str_contains(strtolower($matkul['status_materi']), 'upload') || $matkul['status_materi'] === '1')) {
                             $groupedByKode[$kodeMK]['status_materi'] = 'Sudah Upload';
                         }
                     }
-                    
+
                     $context .= "## STATUS UPLOAD RPS DAN MATERI\n\n";
                     $context .= "| Kode | Nama Matakuliah | Dosen Pengampu | Status RPS | Status Materi | Minggu Ke | Keterangan |\n";
                     $context .= "|------|----------------|----------------|------------|---------------|-----------|------------|\n";
-                    
+
                     $totalMK = 0;
                     $rpsUploaded = 0;
                     $materiUploaded = 0;
-                    
+
                     foreach ($groupedByKode as $matkul) {
                         $totalMK++;
                         $kodeMK = $matkul['kode_matakuliah'];
                         $namaMK = $matkul['nama_matakuliah'];
-                        
-                        $dosen = !empty($matkul['dosen_pengampu']) ? 
+
+                        $dosen = !empty($matkul['dosen_pengampu']) ?
                                 implode(', ', $matkul['dosen_pengampu']) : '-';
-                        
+
                         $statusRPS = $matkul['status_upload_rps'];
                         if ($statusRPS === '0' || $statusRPS === 0 || strtolower($statusRPS) === 'belum upload') {
                             $statusRPS = '0';
@@ -1752,7 +2289,7 @@ class LaporanArtefakController extends Controller
                                 $statusRPS = '0';
                             }
                         }
-                        
+
                         $statusMateri = $matkul['status_materi'];
                         if ($statusMateri === '0' || $statusMateri === 0 || strtolower($statusMateri) === 'belum upload') {
                             $statusMateri = '0';
@@ -1767,13 +2304,13 @@ class LaporanArtefakController extends Controller
                                 $statusMateri = '0';
                             }
                         }
-                        
+
                         $mingguKe = $matkul['minggu_ke'];
                         $keterangan = $matkul['keterangan'];
-                        
+
                         $context .= "| {$kodeMK} | {$namaMK} | {$dosen} | {$statusRPS} | {$statusMateri} | {$mingguKe} | {$keterangan} |\n";
                     }
-                    
+
                     $context .= "\n";
                     $context .= "### RINGKASAN STATISTIK\n\n";
                     $context .= "- Total Matakuliah: {$totalMK}\n";
@@ -1786,17 +2323,17 @@ class LaporanArtefakController extends Controller
                 $context .= "⚠️ Data monitoring RPS dan Materi untuk periode ini belum tersedia di sistem.\n";
                 $context .= "Silakan gunakan data umum atau upload file referensi untuk analisis yang lebih mendalam.\n\n";
             }
-            
+
             $context .= "=== END DATA ARTEFAK ===\n";
-            
+
             return $context;
-            
+
         } catch (\Exception $e) {
             Log::error('Failed to get artefak data from database', [
                 'error' => $e->getMessage(),
                 'periode' => $periode
             ]);
-            
+
             return "Data artefak dari database tidak dapat diambil. Silakan upload file referensi untuk analisis.\n";
         }
     }

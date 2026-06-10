@@ -34,18 +34,19 @@
 
     {{-- FILTER --}}
     <div class="filter-card mb-4">
-        <form method="GET">
+        <form method="GET" id="filterForm">
             <div class="row g-3 align-items-end">
                 {{-- TA --}}
                 <div class="col-md-2">
                     <label class="filter-label">Tahun Ajaran</label>
-                    <input type="number" name="ta" class="form-control" value="{{ $ta }}" min="2000" max="2100">
+                    <input type="hidden" name="ta" value="{{ $periodeAktif->tahun_ajaran ?? $ta }}">
+                    <input type="text" class="form-control" value="{{ $periodeAktif->tahun_ajaran ?? $ta }}" readonly>
                 </div>
 
                 {{-- SEMESTER --}}
                 <div class="col-md-2">
                     <label class="filter-label">Semester</label>
-                    <select name="semester" class="form-select">
+                    <select name="semester" class="form-select" onchange="this.form.submit()">
                         <option value="1" {{ $semester == 1 ? 'selected' : '' }}>Ganjil</option>
                         <option value="2" {{ $semester == 2 ? 'selected' : '' }}>Genap</option>
                     </select>
@@ -54,7 +55,7 @@
                 {{-- TINGKAT --}}
                 <div class="col-md-2">
                     <label class="filter-label">Tingkat</label>
-                    <select name="tingkat" class="form-select">
+                    <select name="tingkat" class="form-select" onchange="this.form.submit()">
                         <option value="">Semua Tingkat</option>
                         <option value="1" {{ $selectedTingkat == '1' ? 'selected' : '' }}>Tingkat 1</option>
                         <option value="2" {{ $selectedTingkat == '2' ? 'selected' : '' }}>Tingkat 2</option>
@@ -71,9 +72,9 @@
                             <span class="input-group-text bg-white">
                                 <i class="bi bi-search"></i>
                             </span>
-                            <input type="text" name="search" class="form-control" 
+                            <input type="text" name="search" id="searchInput" class="form-control" 
                                    placeholder="Cari nama / kode mata kuliah..." 
-                                   value="{{ request('search') }}">
+                                   value="{{ request('search') }}" oninput="debounceSubmitForm()">
                         </div>
                     </div>
                 </div>
@@ -81,7 +82,7 @@
                 {{-- BUTTON --}}
         <div class="col-md-2">
             <label class="filter-label" style="opacity: 0;">Action</label>
-            <button class="btn btn-primary w-100" type="button" id="btnSearch">
+            <button class="btn btn-primary w-100" type="submit" id="btnSearch">
                 <i class="bi bi-search me-1"></i> Cari
             </button>
         </div>
@@ -179,5 +180,19 @@
     </div>
 
 </div>
+
+<script>
+    let filterTimer;
+
+    function debounceSubmitForm() {
+        clearTimeout(filterTimer);
+        filterTimer = setTimeout(function () {
+            const form = document.getElementById('filterForm');
+            if (form) {
+                form.submit();
+            }
+        }, 500);
+    }
+</script>
 
 @endsection

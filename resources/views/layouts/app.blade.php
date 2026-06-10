@@ -635,15 +635,38 @@
                                 <a href="{{ route('gkm.laporan-kuesioner.index') }}"
                                     class="nav-item {{ request()->routeIs('gkm.laporan-kuesioner.*') ? 'active' : '' }}">
                                     <i class="bi bi-file-earmark-text menu-icon"></i>
-                                    <span class="menu-text">Laporan Kuesioner Bulanan</span>
+                                    <span class="menu-text">Laporan Kuesioner</span>
                                 </a>
                             </div>
                         </div>
 
-                        <a href="{{ route('gkm.reminder-agent.index') }}"
+                        <!-- Reminder Agent -->
+                        <div
+                            class="nav-dropdown {{ request()->routeIs('gkm.reminder-agent.*') ? 'open' : '' }}">
+                            <a href="javascript:void(0)"
+                                class="nav-item {{ request()->routeIs('gkm.reminder-agent.*') ? 'active' : '' }}"
+                                onclick="toggleDropdown(this)">
+                                <span><i class="bi bi-bell"></i> Reminder Agent</span>
+                                <i class="bi bi-chevron-down dropdown-icon"></i>
+                            </a>
+                            <div class="dropdown-submenu">
+                                <a href="{{ route('gkm.reminder-agent.index') }}"
+                                    class="nav-item {{ request()->routeIs('gkm.reminder-agent.index') ? 'active' : '' }}">
+                                    <i class="bi bi-file-earmark-text menu-icon"></i>
+                                    <span class="menu-text">Jadwal Reminder</span>
+                                </a>
+                                <a href="{{ route('gkm.reminder-agent.log') }}"
+                                    class="nav-item {{ request()->routeIs('gkm.reminder-agent.log') ? 'active' : '' }}">
+                                    <i class="bi bi-file-earmark-text menu-icon"></i>
+                                    <span class="menu-text">Log Reminder</span>
+                                </a>
+                            </div>
+                        </div>
+
+                        {{-- <a href="{{ route('gkm.reminder-agent.index') }}"
                             class="nav-item {{ request()->routeIs('gkm.reminder-agent.*') ? 'active' : '' }}">
                             <span><i class="bi bi-bell"></i> Reminder Agent</span>
-                        </a>
+                        </a> --}}
                         <a href="{{ route('gkm.kirim-laporan.index') }}"
                             class="nav-item {{ request()->routeIs('gkm.kirim-laporan.*') ? 'active' : '' }}">
                             <span><i class="bi bi-send"></i> Kirim Laporan</span>
@@ -658,24 +681,41 @@
                             <a href="javascript:void(0)"
                                 class="nav-item {{ request()->routeIs('gjm.buat-laporan.*') ? 'active' : '' }}"
                                 onclick="toggleDropdown(this)">
-                                <span><i class="bi bi-file-earmark-text"></i> Pelaporan</span>
+                                <span><img src="{{ asset('images/pengelolaan1.png') }}"
+         alt="Kuesioner"
+         width="23"
+         height="23"
+         style="margin-right:15px;"
+         filter: brightness(0) invert(1);> Pelaporan</span>
                                 <i class="bi bi-chevron-down dropdown-icon"></i>
                             </a>
                             <div class="dropdown-submenu">
                                 <a href="{{ route('gjm.buat-laporan.triwulan.index') }}"
                                     class="nav-item {{ request()->routeIs('gjm.buat-laporan.triwulan.*') ? 'active' : '' }}">
-                                    <i class="bi bi-calendar3 menu-icon"></i>
-                                    <span class="menu-text">Buat Laporan Triwulan</span>
+                                    <span><img src="{{ asset('images/pengelolaan1.png') }}"
+         alt="Kuesioner"
+         width="23"
+         height="23"
+         style="margin-right:15px;"
+         filter: brightness(0) invert(1);></i> Buat Laporan Triwulan</span>
                                 </a>
                                 <a href="{{ route('gjm.buat-laporan.semester.index') }}"
                                     class="nav-item {{ request()->routeIs('gjm.buat-laporan.semester.*') ? 'active' : '' }}">
-                                    <i class="bi bi-file-earmark-plus menu-icon"></i>
-                                    <span class="menu-text">Buat Laporan Semester</span>
+                                    <span><img src="{{ asset('images/pengelolaan1.png') }}"
+         alt="Kuesioner"
+         width="23"
+         height="23"
+         style="margin-right:15px;"
+         filter: brightness(0) invert(1);></i> Buat Laporan Semester</span>
                                 </a>
                                 <a href="{{ route('gjm.buat-laporan.vmts.index') }}"
                                     class="nav-item {{ request()->routeIs('gjm.buat-laporan.vmts.*') ? 'active' : '' }}">
-                                    <i class="bi bi-file-earmark-text menu-icon"></i>
-                                    <span class="menu-text">Buat Laporan VMTS</span>
+                                    <span><img src="{{ asset('images/pengelolaan1.png') }}"
+         alt="Kuesioner"
+         width="23"
+         height="23"
+         style="margin-right:15px;"
+         filter: brightness(0) invert(1);></i> Buat Laporan VMTS</span>
                                 </a>
                             </div>
                         </div>
@@ -772,7 +812,16 @@
     <script>
         function toggleDropdown(element) {
             const dropdown = element.closest('.nav-dropdown');
-            dropdown.classList.toggle('open');
+            if (!dropdown) return;
+
+            const isOpen = dropdown.classList.contains('open');
+            document.querySelectorAll('.sidebar .nav-dropdown.open').forEach(el => {
+                if (el !== dropdown) {
+                    el.classList.remove('open');
+                }
+            });
+
+            dropdown.classList.toggle('open', !isOpen);
         }
 
         function toggleTopbarDropdown(element) {

@@ -7,6 +7,8 @@ use Illuminate\Http\Request;
 use App\Services\AIAgentService;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Log;
+use App\Models\KirimLaporanHistory;
+use App\Models\LaporanBulanan;
 
 class KirimLaporanController extends Controller
 {
@@ -108,6 +110,19 @@ class KirimLaporanController extends Controller
         }
     }
 
+    public function history(Request $request)
+    {
+        $sort = $request->get('sort', 'desc');
+        $sort = in_array($sort, ['asc', 'desc']) ? $sort : 'desc';
+
+        $history = KirimLaporanHistory::where('user_id', auth()->id())
+            ->orderBy('created_at', $sort)
+            ->paginate(15)
+            ->appends(['sort' => $sort]);
+
+        return view('gkm.kirim-laporan.history', compact('history'));
+    }
+
     public function send(Request $request)
     {
         try {
@@ -141,14 +156,16 @@ class KirimLaporanController extends Controller
 
             // Get laporan files if selected
             $laporanFiles = [];
+            $laporanIds = [];
             if ($request->has('laporan_ids') && !empty($request->laporan_ids)) {
-                $laporanList = \App\Models\LaporanBulanan::whereIn('id', $request->laporan_ids)->get();
-                
+                $laporanIds = $request->laporan_ids;
+                $laporanList = LaporanBulanan::whereIn('id', $laporanIds)->get();
+
                 foreach ($laporanList as $laporan) {
                     // Prioritas: PDF dulu, kalau tidak ada baru Word
                     $filePath = null;
                     $fileName = null;
-                    
+
                     if ($laporan->file_pdf && \Storage::exists($laporan->file_pdf)) {
                         $filePath = $laporan->file_pdf;
                         $fileName = 'Laporan_' . str_replace(' ', '_', $laporan->bulan . '_' . $laporan->tahun) . '.pdf';
@@ -156,7 +173,7 @@ class KirimLaporanController extends Controller
                         $filePath = $laporan->file_word;
                         $fileName = 'Laporan_' . str_replace(' ', '_', $laporan->bulan . '_' . $laporan->tahun) . '.docx';
                     }
-                    
+
                     if ($filePath) {
                         $fullPath = storage_path('app/' . $filePath);
                         if (file_exists($fullPath)) {
@@ -170,24 +187,36 @@ class KirimLaporanController extends Controller
                         }
                     }
                 }
-                
-                if (empty($laporanFiles) && !empty($request->laporan_ids)) {
-                    Log::warning('Tidak ada file laporan yang valid ditemukan untuk IDs: ' . json_encode($request->laporan_ids));
+
+                if (empty($laporanFiles) && !empty($laporanIds)) {
+                    Log::warning('Tidak ada file laporan yang valid ditemukan untuk IDs: ' . json_encode($laporanIds));
                 }
             }
 
+            $attachmentNames = [];
+            if ($request->hasFile('attachments')) {
+                foreach ($request->file('attachments') as $file) {
+                    $attachmentNames[] = $file->getClientOriginalName();
+                }
+            }
+
+            foreach ($laporanFiles as $laporanFile) {
+                $attachmentNames[] = $laporanFile['name'];
+            }
+
+            $recipientStatuses = [];
             $sentCount = 0;
+
             foreach ($recipients as $recipient) {
                 try {
                     Mail::raw($message, function ($mail) use ($recipient, $cc, $subject, $request, $laporanFiles) {
                         $mail->to($recipient)
                              ->subject($subject);
-                        
+
                         if (!empty($cc)) {
                             $mail->cc($cc);
                         }
 
-                        // Attach external files
                         if ($request->hasFile('attachments')) {
                             foreach ($request->file('attachments') as $file) {
                                 $mail->attach($file->getRealPath(), [
@@ -196,8 +225,7 @@ class KirimLaporanController extends Controller
                                 ]);
                             }
                         }
-                        
-                        // Attach laporan files
+
                         foreach ($laporanFiles as $laporanFile) {
                             $mail->attach($laporanFile['path'], [
                                 'as' => $laporanFile['name'],
@@ -205,11 +233,42 @@ class KirimLaporanController extends Controller
                             ]);
                         }
                     });
+
                     $sentCount++;
+                    $recipientStatuses[] = [
+                        'email' => $recipient,
+                        'status' => 'success',
+                    ];
                 } catch (\Exception $e) {
                     Log::error("Failed to send email to {$recipient}: " . $e->getMessage());
+                    $recipientStatuses[] = [
+                        'email' => $recipient,
+                        'status' => 'failed',
+                        'error' => $e->getMessage(),
+                    ];
                 }
             }
+
+            $failedCount = count($recipients) - $sentCount;
+            $status = $sentCount === count($recipients)
+                ? 'success'
+                : ($sentCount > 0 ? 'partial' : 'failed');
+
+            $history = KirimLaporanHistory::create([
+                'user_id' => auth()->id(),
+                'recipients' => implode(', ', $recipients),
+                'cc' => !empty($cc) ? implode(', ', $cc) : null,
+                'subject' => $subject,
+                'message' => $message,
+                'laporan_ids' => !empty($laporanIds) ? $laporanIds : null,
+                'attachment_names' => !empty($attachmentNames) ? $attachmentNames : null,
+                'recipient_statuses' => $recipientStatuses,
+                'sent_count' => $sentCount,
+                'recipient_count' => count($recipients),
+                'failed_count' => $failedCount,
+                'status' => $status,
+                'error_message' => $failedCount > 0 ? 'Sebagian atau semua penerima gagal dikirim' : null,
+            ]);
 
             if ($sentCount === 0) {
                 throw new \Exception('Tidak ada email yang berhasil dikirim. Periksa konfigurasi email di .env');
@@ -220,7 +279,9 @@ class KirimLaporanController extends Controller
                 $attachmentInfo .= count($request->file('attachments')) . ' file eksternal';
             }
             if (!empty($laporanFiles)) {
-                if ($attachmentInfo) $attachmentInfo .= ' dan ';
+                if ($attachmentInfo) {
+                    $attachmentInfo .= ' dan ';
+                }
                 $attachmentInfo .= count($laporanFiles) . ' laporan';
             }
 

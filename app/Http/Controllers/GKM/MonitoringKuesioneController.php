@@ -46,21 +46,37 @@ private function getPeriodeAktif()
     ];
 }
 
-    public function index()
-{
-    $user = auth()->user();
+    public function index(Request $request)
+    {
+        $user = auth()->user();
 
-    $kuesionersQuery = KuesioneUpload::with(['user', 'user.prodi'])
-        ->whereHas('user', function ($q) use ($user) {
-            $q->where('prodi_id', $user->prodi_id);
-        })
-        ->orderBy('created_at', 'desc');
+        $kuesionersQuery = KuesioneUpload::with(['user', 'user.prodi'])
+            ->whereHas('user', function ($q) use ($user) {
+                $q->where('prodi_id', $user->prodi_id);
+            });
 
-    // =========================
-    // PAGINATION
-    // =========================
-    $perPage = 10;
-    $kuesioners = $kuesionersQuery->paginate($perPage);
+        if ($request->filled('periode')) {
+            $kuesionersQuery->where('periode', $request->periode);
+        }
+
+        if ($request->filled('jenis_kuesioner')) {
+            $kuesionersQuery->where('jenis_kuesioner', $request->jenis_kuesioner);
+        }
+
+        $kuesionersQuery->orderBy('created_at', 'desc');
+
+        $periodeOptions = KuesioneUpload::whereHas('user', function ($q) use ($user) {
+                $q->where('prodi_id', $user->prodi_id);
+            })
+            ->distinct()
+            ->orderBy('periode')
+            ->pluck('periode');
+
+        // =========================
+        // PAGINATION
+        // =========================
+        $perPage = 10;
+        $kuesioners = $kuesionersQuery->paginate($perPage);
 
     // Map untuk melengkapi nama matakuliah
     $kuesioners->getCollection()->transform(function ($k) {
@@ -98,7 +114,7 @@ private function getPeriodeAktif()
         })
         ->count();
 
-    return view('gkm.monitoring-kuesioner.index', compact('kuesioners', 'laporanBulanan', 'laporanTahunan'));
+    return view('gkm.monitoring-kuesioner.index', compact('kuesioners', 'laporanBulanan', 'laporanTahunan', 'periodeOptions'));
 }
 
     public function create(Request $request)
