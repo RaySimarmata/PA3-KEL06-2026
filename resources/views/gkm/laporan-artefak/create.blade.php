@@ -7,8 +7,8 @@
     <meta name="cache-version" content="1.2.0-{{ time() }}">
     <style>
         /* ===============================================================
-                   AI PROMPT ASSISTANT — ARTEFAK
-                   =============================================================== */
+                                   AI PROMPT ASSISTANT — ARTEFAK
+                                   =============================================================== */
 
         /* Button hover effect - icon turns white */
         .btn-template-link:hover i {
@@ -517,7 +517,9 @@
                 const div = document.createElement('div');
                 div.className = 'msg-ai';
                 let generateButtonHTML = '';
-                if (sections && sections.length > 0) {
+                // Show button if we have a response (not just if sections are detected)
+                // This allows users to generate even if markdown parsing didn't capture sections
+                if (aiResponse && aiResponse.trim().length > 100) {
                     generateButtonHTML = `
                         <div style="margin-top: 1rem; border-top: 1px solid #e5e7eb; padding-top: 1rem;">
                             <button type="button" class="btn-generate-word-inline" onclick="generateWordFromChat()">
@@ -545,10 +547,11 @@
                 const sections = [];
                 let currentSection = null;
                 lines.forEach(function(line) {
-                    if (line.match(/^# /)) {
+                    // Match h1, h2, and h3 headings (# , ## , ### )
+                    if (line.match(/^#{1,3}\s/)) {
                         if (currentSection) sections.push(currentSection);
                         currentSection = {
-                            title: line.replace(/^# /, ''),
+                            title: line.replace(/^#{1,3}\s/, ''),
                             content: ''
                         };
                     } else if (currentSection) {
@@ -630,12 +633,6 @@
                 const prompt = promptInput.value.trim();
                 const laporanId = document.getElementById('laporan_id').value;
 
-                if (!laporanId) {
-                    alert('Silakan klik "Buat Laporan Draft" terlebih dahulu untuk membuat laporan.');
-                    document.getElementById('btn-create-draft').focus();
-                    return;
-                }
-
                 if (!prompt) {
                     appendAIMessage(`
                         <div style="background:#fff3cd;border-left:4px solid #ffc107;padding:12px;border-radius:4px;">
@@ -648,15 +645,15 @@
                     return;
                 }
 
-                if (prompt.length < 5) {
+                if (!laporanId) {
                     appendAIMessage(`
-                        <div style="background:#fee2e2;border-left:4px solid #dc2626;padding:12px;border-radius:4px;">
-                            <p style="color:#dc2626;margin:0;font-weight:600;">
-                                <i class="bi bi-exclamation-triangle-fill"></i> Instruksi terlalu singkat! Berikan instruksi yang lebih jelas.
+                        <div style="background:#fff3cd;border-left:4px solid #ffc107;padding:12px;border-radius:4px;">
+                            <p style="color:#856404;margin:0;font-weight:600;">
+                                <i class="bi bi-info-circle-fill"></i> Silakan klik tombol "Buat Laporan Draft" terlebih dahulu
                             </p>
                         </div>
                     `);
-                    promptInput.focus();
+                    document.getElementById('btn-create-draft').focus();
                     return;
                 }
 

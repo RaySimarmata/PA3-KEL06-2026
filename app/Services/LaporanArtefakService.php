@@ -28,7 +28,6 @@ class LaporanArtefakService
         DocumentStructureService $structureService,
         AdvancedChunkingService $advancedChunkingService
     ) {
-        // Use centralized LLM configuration from config/services.php
         $this->apiKey = config('services.llm.api_key');
         $this->baseUrl = config('services.llm.base_url');
         $this->model = config('services.llm.model');
@@ -37,10 +36,6 @@ class LaporanArtefakService
         $this->structureService = $structureService;
         $this->advancedChunkingService = $advancedChunkingService;
     }
-
-    // =========================================================================
-    // MAIN ENTRY POINT
-    // =========================================================================
 
     /**
      * Generate laporan artefak (dengan placeholder-based template jika ada template)
@@ -59,16 +54,42 @@ class LaporanArtefakService
         try {
             $laporan->update(['status' => 'processing']);
 
+            Log::info('Starting Word generation process', [
+                'laporan_id' => $laporanId,
+                'has_ai_preview_draft' => !empty($laporan->ai_preview_draft),
+                'ai_preview_length' => !empty($laporan->ai_preview_draft) ? strlen($laporan->ai_preview_draft) : 0,
+                'has_ai_sections' => !empty($laporan->ai_sections),
+                'ai_sections_count' => is_array($laporan->ai_sections) ? count($laporan->ai_sections) : 0,
+            ]);
+
             // 1. Kumpulkan data artefak dari DB
             $dataArtefak = $this->collectArtefakData($laporan);
 
-            // 2. Generate narasi AI
-            $narasiAI = $this->generateNarasiWithAI($dataArtefak);
+            // 2. Generate narasi AI atau ekstrak dari preview
+            if (!empty($laporan->ai_preview_draft)) {
+                Log::info('Using AI preview draft from user chat', [
+                    'laporan_id' => $laporanId,
+                    'draft_length' => strlen($laporan->ai_preview_draft),
+                    'has_sections' => !empty($laporan->ai_sections)
+                ]);
+
+                $narasiAI = $this->extractNarasiFromAIPreview($laporan->ai_preview_draft, $laporan->ai_sections);
+            } else {
+                Log::warning('No AI preview draft found, generating new narasi', [
+                    'laporan_id' => $laporanId,
+                    'reason' => 'ai_preview_draft is empty'
+                ]);
+
+                $narasiAI = $this->generateNarasiWithAI($dataArtefak);
+            }
+
+            // Pastikan semua field yang dibutuhkan ada
+            $narasiAI = $this->ensureCompleteNarasi($narasiAI, $dataArtefak);
 
             // 3. Tentukan metode: template-based atau full-AI
             if ($laporan->template_id) {
                 $wordPath = $this->generateFromTemplate($laporan, $dataArtefak, $narasiAI);
-                $content = $narasiAI['hasil_pemeriksaan'] . "\n\n" . $narasiAI['analisis_ketercapaian'];
+                $content = $this->buildFallbackContent($dataArtefak, $narasiAI);
             } else {
                 $content = $this->buildFallbackContent($dataArtefak, $narasiAI);
                 $wordPath = $this->createWordDocument($content, $laporan);
@@ -99,9 +120,70 @@ class LaporanArtefakService
         }
     }
 
-    // =========================================================================
-    // STEP 1 — COLLECT DATA
-    // =========================================================================
+    /**
+     * Pastikan semua field narasi tersedia (jika kosong, isi dengan default)
+     */
+    protected function ensureCompleteNarasi($narasiAI, $dataArtefak)
+    {
+        $defaults = [
+            'latar_belakang' => "Program Studi {$dataArtefak['prodi']} melaksanakan monitoring artefak perkuliahan pada semester {$dataArtefak['semester']} Tahun Akademik {$dataArtefak['tahun_ajaran']}. Kegiatan ini bertujuan untuk memastikan ketersediaan dan kelengkapan dokumen RPS dan materi perkuliahan sebagai bagian dari penjaminan mutu internal.",
+
+            'dasar_acuan' => "1. Standar Nasional Pendidikan Tinggi (Permenristekdikti No. 44 Tahun 2015)\n2. Standar Mutu Program Studi {$dataArtefak['prodi']}\n3. Kalender Akademik Semester {$dataArtefak['semester']} TA {$dataArtefak['tahun_ajaran']}",
+
+            'tujuan' => "1. Memeriksa kelengkapan dokumen RPS yang diunggah oleh dosen pengampu\n2. Memeriksa kelengkapan materi perkuliahan (teori dan praktikum) per minggu\n3. Memberikan rekomendasi perbaikan untuk peningkatan kepatuhan dosen",
+
+            'sasaran' => "Seluruh dosen pengampu mata kuliah di lingkungan Program Studi {$dataArtefak['prodi']} semester {$dataArtefak['semester']} TA {$dataArtefak['tahun_ajaran']}.",
+
+            'waktu_pelaksanaan' => "Kegiatan monitoring dilaksanakan pada minggu pertama perkuliahan semester {$dataArtefak['semester']} TA {$dataArtefak['tahun_ajaran']}.",
+
+            'ruang' => "Monitoring dilaksanakan secara daring melalui sistem informasi akademik (CIS) dan secara luring melalui koordinasi dengan dosen pengampu.",
+
+            'instrumen_pengukuran' => "1. Ceklist kelengkapan RPS\n2. Ceklist kelengkapan materi perkuliahan per minggu\n3. Form laporan monitoring GKM",
+
+            'hasil_pemeriksaan' => $narasiAI['hasil_pemeriksaan'] ?? "Berdasarkan hasil pemeriksaan, dari {$dataArtefak['total_rps']} mata kuliah, sebanyak {$dataArtefak['rps_uploaded']} mata kuliah ({$dataArtefak['rps_percentage']}%) telah mengunggah RPS. Untuk kelengkapan materi perkuliahan, dari {$dataArtefak['total_materi']} mata kuliah, sebanyak {$dataArtefak['materi_uploaded']} mata kuliah ({$dataArtefak['materi_percentage']}%) telah mengunggah materi lengkap per minggu.",
+
+            'analisis_ketercapaian' => $narasiAI['analisis_ketercapaian'] ?? "Tingkat kepatuhan dosen dalam mengunggah RPS mencapai {$dataArtefak['rps_percentage']}%, sedangkan untuk kelengkapan materi mencapai {$dataArtefak['materi_percentage']}%. Capaian ini menunjukkan bahwa masih terdapat ruang peningkatan, terutama pada kelengkapan materi perkuliahan.",
+
+            'tindak_lanjut' => $narasiAI['tindak_lanjut'] ?? "1. Mengirimkan reminder kepada dosen yang belum mengunggah RPS\n2. Koordinasi dengan Ketua Program Studi untuk memberikan teguran tertulis\n3. Menjadwalkan monitoring ulang pada pertengahan semester\n4. Memberikan insentif bagi dosen dengan kepatuhan 100%",
+
+            'program_kerja' => "1. Pemeriksaan kelengkapan RPS di CIS\n2. Pemeriksaan materi perkuliahan Week 1-16\n3. Konfirmasi kelengkapan artefak kepada dosen\n4. Pelaporan hasil monitoring ke Prodi",
+
+            'pelaksanaan' => "Monitoring dilaksanakan oleh tim GKM dengan melakukan pengecekan satu per satu pada sistem CIS. Dosen yang belum lengkap dihubungi melalui email dan WhatsApp.",
+
+            // HAMBATAN_PENJELASAN tanpa tanda ** (bold markdown)
+            'hambatan_penjelasan' => "Beberapa kendala yang dihadapi:\n\n" .
+                   "1. Keterlambatan Unggah Dokumen: Beberapa dosen belum mengunggah RPS dan materi perkuliahan tepat waktu sesuai jadwal yang ditentukan.\n\n" .
+                   "2. Kurangnya Respons Dosen: Tidak semua dosen merespons konfirmasi kelengkapan artefak melalui email atau WhatsApp dengan cepat.\n\n" .
+                   "3. Kelengkapan Materi Praktikum: Untuk mata kuliah praktikum, kelengkapan modul dan jobsheet masih rendah dibandingkan teori.\n\n" .
+                   "4. Keterbatasan Waktu Tim GKM: Waktu tim GKM terbatas karena harus mengecek satu per satu mata kuliah secara manual.\n\n" .
+                   "5. Sosialisasi Kurang Maksimal: Beberapa dosen mengaku belum mendapatkan informasi tentang batas waktu unggah artefak.",
+
+            'tabel_hambatan' => [
+                [
+                    'program_kerja' => 'Pemeriksaan RPS dan artefak perkuliahan minggu ke-1',
+                    'catatan' => 'Dilaksanakan sesuai jadwal pada minggu pertama perkuliahan',
+                    'hambatan' => 'Beberapa dosen belum mengunggah RPS tepat waktu',
+                    'saran' => 'Mengirimkan reminder H-7 sebelum batas unggah'
+                ],
+                [
+                    'program_kerja' => 'Konfirmasi kelengkapan artefak kepada dosen pengampu',
+                    'catatan' => 'Dilaksanakan melalui email dan grup WhatsApp dosen',
+                    'hambatan' => 'Tidak semua dosen merespons konfirmasi dengan cepat',
+                    'saran' => 'Koordinasi melalui Ketua Program Studi untuk peneguran langsung'
+                ],
+                [
+                    'program_kerja' => 'Pemeriksaan materi perkuliahan per minggu',
+                    'catatan' => 'Dilaksanakan secara berkala setiap akhir minggu',
+                    'hambatan' => 'Materi praktikum banyak yang belum lengkap',
+                    'saran' => 'Dilakukan pendampingan khusus untuk dosen praktikum'
+                ],
+            ],
+
+            'kesimpulan_penutup' => $narasiAI['kesimpulan_penutup'] ?? "Monitoring artefak perkuliahan semester {$dataArtefak['semester']} TA {$dataArtefak['tahun_ajaran']} telah dilaksanakan. Secara umum, kepatuhan dosen dalam mengunggah RPS cukup baik, namun masih perlu peningkatan pada kelengkapan materi per minggu. Rekomendasi tindak lanjut akan dilaksanakan oleh tim GKM untuk periode berikutnya.",
+        ];
+
+        return array_merge($defaults, $narasiAI);
+    }
 
     protected function collectArtefakData($laporan)
     {
@@ -115,18 +197,16 @@ class LaporanArtefakService
             ? $tahun . '/' . ($tahun + 1)
             : ($tahun - 1) . '/' . $tahun;
 
-        // Ambil SEMUA data dari snapshot — tanpa filter prodi/semester/tahun
         $rpsData = RpsMonitoringSnapshot::with('dosen')
-            ->orderByRaw("SUBSTRING(kode_mk, 4, 1)") // urutkan per tingkat
+            ->orderByRaw("SUBSTRING(kode_mk, 4, 1)")
             ->orderBy('kode_mk')
             ->get();
 
         $materiData = PerkuliahanMonitoringSnapshot::with('dosen')
-            ->orderByRaw("SUBSTRING(kode_mk, 4, 1)") // urutkan per tingkat
+            ->orderByRaw("SUBSTRING(kode_mk, 4, 1)")
             ->orderBy('kode_mk')
-            ->orderBy('jenis_materi') // Teori dulu, Praktikum kemudian
+            ->orderBy('jenis_materi')
             ->get();
-
 
         Log::info('collectArtefakData (ALL data)', [
             'rps_found' => $rpsData->count(),
@@ -158,14 +238,62 @@ class LaporanArtefakService
         ];
     }
 
+    protected function extractNarasiFromAIPreview($aiPreviewDraft, $aiSections)
+    {
+        Log::info('Extracting narasi from AI preview draft', [
+            'draft_length' => strlen($aiPreviewDraft),
+            'has_sections' => !empty($aiSections),
+            'sections_count' => is_array($aiSections) ? count($aiSections) : 0
+        ]);
 
-    // =========================================================================
-    // STEP 2 — GENERATE NARASI AI
-    // =========================================================================
+        $extracted = [];
+
+        if (is_array($aiSections) && !empty($aiSections)) {
+            Log::info('Using parsed ai_sections from database', [
+                'sections_count' => count($aiSections),
+                'sections_keys' => array_keys($aiSections)
+            ]);
+
+            foreach ($aiSections as $key => $content) {
+                $keyLower = strtolower($key);
+
+                if (str_contains($keyLower, 'latar belakang') || str_contains($keyLower, '1.1')) {
+                    $extracted['latar_belakang'] = $content;
+                } elseif (str_contains($keyLower, 'dasar acuan') || str_contains($keyLower, '1.2')) {
+                    $extracted['dasar_acuan'] = $content;
+                } elseif (str_contains($keyLower, 'tujuan') || str_contains($keyLower, '1.3')) {
+                    $extracted['tujuan'] = $content;
+                } elseif (str_contains($keyLower, 'sasaran') || str_contains($keyLower, '1.4')) {
+                    $extracted['sasaran'] = $content;
+                } elseif (str_contains($keyLower, 'waktu') || str_contains($keyLower, '1.5')) {
+                    $extracted['waktu_pelaksanaan'] = $content;
+                } elseif (str_contains($keyLower, 'ruang lingkup') || str_contains($keyLower, 'ruang') || str_contains($keyLower, '1.6')) {
+                    $extracted['ruang'] = $content;
+                } elseif (str_contains($keyLower, 'instrumen') || str_contains($keyLower, '1.7')) {
+                    $extracted['instrumen_pengukuran'] = $content;
+                } elseif (str_contains($keyLower, 'program kerja') || str_contains($keyLower, 'bab 2')) {
+                    $extracted['program_kerja'] = $content;
+                } elseif (str_contains($keyLower, 'pelaksanaan') || str_contains($keyLower, 'bab 3')) {
+                    $extracted['pelaksanaan'] = $content;
+                } elseif ((str_contains($keyLower, 'hambatan') || str_contains($keyLower, 'kendala')) && (str_contains($keyLower, 'bab 4') || str_contains($keyLower, 'penjelasan'))) {
+                    $extracted['hambatan_penjelasan'] = $content;
+                } elseif (str_contains($keyLower, 'hasil') && str_contains($keyLower, 'pemeriksaan')) {
+                    $extracted['hasil_pemeriksaan'] = $content;
+                } elseif (str_contains($keyLower, 'analisis') && str_contains($keyLower, 'ketercapaian')) {
+                    $extracted['analisis_ketercapaian'] = $content;
+                } elseif (str_contains($keyLower, 'tindak lanjut')) {
+                    $extracted['tindak_lanjut'] = $content;
+                } elseif (str_contains($keyLower, 'kesimpulan') || str_contains($keyLower, 'penutup')) {
+                    $extracted['kesimpulan_penutup'] = $content;
+                }
+            }
+        }
+
+        return $extracted;
+    }
 
     protected function generateNarasiWithAI($dataArtefak)
     {
-        // Buat daftar MK yang belum upload untuk konteks AI
         $mkBelumUploadRPS = $dataArtefak['rps_details']
             ->where('status_rps', 'BELUM UPLOAD')
             ->map(fn($i) => ($i->nama_matkul ?? '-') . ' (' . ($i->dosen->inisial_nama ?? $i->pegawai_id) . ')')
@@ -197,49 +325,16 @@ class LaporanArtefakService
         $prompt .= '  "hasil_pemeriksaan": "narasi 2-3 paragraf hasil pemeriksaan",' . "\n";
         $prompt .= '  "analisis_ketercapaian": "narasi 1-2 paragraf analisis ketercapaian target",' . "\n";
         $prompt .= '  "tindak_lanjut": "narasi 1-2 paragraf rekomendasi tindak lanjut",' . "\n";
-        $prompt .= '  "tabel_hambatan": [' . "\n";
-        $prompt .= '    {' . "\n";
-        $prompt .= '      "program_kerja": "Nama program kerja (misal: Pemeriksaan RPS)",' . "\n";
-        $prompt .= '      "catatan": "Catatan singkat pelaksanaan",' . "\n";
-        $prompt .= '      "hambatan": "Hambatan yang ditemukan",' . "\n";
-        $prompt .= '      "saran": "Saran atau pemecahan masalah"' . "\n";
-        $prompt .= '    }' . "\n";
-        $prompt .= '  ],' . "\n";
         $prompt .= '  "kesimpulan_penutup": "narasi 1 paragraf penutup"' . "\n";
         $prompt .= "}\n";
-        $prompt .= "PENTING:\n";
-        $prompt .= "- tabel_hambatan HARUS berupa array dengan minimal 2 baris (satu per program kerja)\n";
-        $prompt .= "- Gunakan data MK yang belum upload sebagai dasar hambatan\n";
-        $prompt .= "- Hanya JSON valid, tanpa teks tambahan\n";
 
         $raw = $this->callAI([
             'role' => 'system',
             'content' => 'Anda adalah AI Agent GKM ahli laporan akademik. Balas HANYA JSON valid.',
         ], $prompt, 2500);
 
-        $defaults = [
-            'hasil_pemeriksaan' => 'Pemeriksaan artefak perkuliahan telah dilaksanakan.',
-            'analisis_ketercapaian' => 'Sebagian besar dosen telah memenuhi kewajiban upload.',
-            'tindak_lanjut' => 'GKM merekomendasikan koordinasi lebih awal.',
-            'tabel_hambatan' => [
-                [
-                    'program_kerja' => 'Pemeriksaan RPS dan artefak perkuliahan minggu ke 1',
-                    'catatan' => 'Dilaksanakan sesuai jadwal',
-                    'hambatan' => 'Beberapa dosen belum mengunggah RPS tepat waktu',
-                    'saran' => 'Mengirimkan reminder lebih awal sebelum batas unggah',
-                ],
-                [
-                    'program_kerja' => 'Konfirmasi kelengkapan artefak kepada dosen pengampu',
-                    'catatan' => 'Dilaksanakan melalui email dan grup WhatsApp',
-                    'hambatan' => 'Tidak semua dosen merespons konfirmasi dengan cepat',
-                    'saran' => 'Koordinasi melalui Ketua Program Studi untuk peneguran langsung',
-                ],
-            ],
-            'kesimpulan_penutup' => 'Monitoring berjalan lancar dan menjadi bahan evaluasi.',
-        ];
-
         if (!$raw) {
-            return $defaults;
+            return [];
         }
 
         $clean = trim($raw);
@@ -252,25 +347,12 @@ class LaporanArtefakService
         }
 
         $result = json_decode($clean, true);
-        if (!$result) {
-            return $defaults;
-        }
-
-        // Pastikan tabel_hambatan adalah array (fallback jika AI kirim string)
-        if (isset($result['tabel_hambatan']) && !is_array($result['tabel_hambatan'])) {
-            $result['tabel_hambatan'] = $defaults['tabel_hambatan'];
-        }
-
-        return array_merge($defaults, $result);
+        return $result ?: [];
     }
 
-    // =========================================================================
-    // STEP 3 — PLACEHOLDER MAP
-    // =========================================================================
-
     /**
-     * Buat mapping placeholder → nilai aktual.
-     * Format placeholder di template Word: {{NAMA_PLACEHOLDER}}
+     * Build placeholder map - mendukung placeholder yang sudah diubah di template
+     * {{PROGRAM_KERJA}}, {{PELAKSANAAN}}, {{HAMBATAN_PENJELASAN}}
      */
     protected function buildPlaceholderMap($dataArtefak, $laporan, $narasiAI)
     {
@@ -278,50 +360,226 @@ class LaporanArtefakService
         $namaKetua = $laporan->user->name ?? 'Ketua GKM D4 TRPL';
         $tanggalLaporan = $now->translatedFormat('d F Y');
 
-        // Tentukan rentang bulan program kerja dari periode
         $periodeObj = Carbon::createFromFormat('Y-m', $laporan->periode);
         $rentangBulan = $periodeObj->locale('id')->translatedFormat('F') . ' s/d ' .
             $periodeObj->addMonths(1)->locale('id')->translatedFormat('F Y');
 
-        $tabelRPS = $this->buildTabelRPS($dataArtefak);
-        $tabelMateri = $this->buildTabelMateri($dataArtefak);
+        // TABEL_HAMBATAN tidak diisi sebagai teks biasa karena akan diinjeksikan
+        // sebagai tabel Word yang rapi melalui injectHambatanTable().
 
-        return [
-            '{{SEMESTER}}' => $dataArtefak['semester'],
-            '{{TAHUN_AJARAN}}' => $dataArtefak['tahun_ajaran'],
-            '{{NAMA_PRODI}}' => $dataArtefak['prodi'],
-            '{{TANGGAL_LAPORAN}}' => 'Sitoluama, ' . $tanggalLaporan,
-            '{{NAMA_KETUA_GKM}}' => $namaKetua,
-            '{{RENTANG_BULAN_PROGRAM_KERJA}}' => $rentangBulan,
-            '{{TANGGAL_REMINDER}}' => $tanggalLaporan,
-            '{{TANGGAL_PEMERIKSAAN}}' => $tanggalLaporan,
-            '{{TOTAL_MK}}' => (string) $dataArtefak['total_rps'],
-            '{{TOTAL_RPS_UPLOAD}}' => (string) $dataArtefak['rps_uploaded'],
-            '{{TOTAL_RPS_KURIKULUM_UPLOAD}}' => (string) $dataArtefak['rps_uploaded'],
-            '{{STATISTIK_RPS_PERSEN}}' => $dataArtefak['rps_percentage'] . '%',
-            '{{STATISTIK_MATERI_PERSEN}}' => $dataArtefak['materi_percentage'] . '%',
-            '{{HASIL_PEMERIKSAAN}}' => $narasiAI['hasil_pemeriksaan'],
-            '{{ANALISIS_KETERCAPAIAN}}' => $narasiAI['analisis_ketercapaian'],
-            '{{TINDAK_LANJUT}}' => $narasiAI['tindak_lanjut'],
-            '{{KESIMPULAN_PENUTUP}}' => $narasiAI['kesimpulan_penutup'],
+        // Mapping nilai untuk setiap placeholder
+        $values = [
+            // Data statis
+            'SEMESTER' => $dataArtefak['semester'],
+            'TAHUN_AJARAN' => $dataArtefak['tahun_ajaran'],
+            'NAMA_PRODI' => $dataArtefak['prodi'],
+            'TANGGAL_LAPORAN' => 'Sitoluama, ' . $tanggalLaporan,
+            'NAMA_KETUA_GKM' => $namaKetua,
+            'RENTANG_BULAN_PROGRAM_KERJA' => $rentangBulan,
+            'TANGGAL_REMINDER' => $tanggalLaporan,
+            'TANGGAL_PEMERIKSAAN' => $tanggalLaporan,
+            'TOTAL_MK' => (string) $dataArtefak['total_rps'],
+            'TOTAL_RPS_UPLOAD' => (string) $dataArtefak['rps_uploaded'],
+            'TOTAL_RPS_KURIKULUM_UPLOAD' => (string) $dataArtefak['rps_uploaded'],
+            'STATISTIK_RPS_PERSEN' => $dataArtefak['rps_percentage'] . '%',
+            'STATISTIK_MATERI_PERSEN' => $dataArtefak['materi_percentage'] . '%',
+
+            // BAB 1 PENDAHULUAN
+            'LATAR_BELAKANG' => $narasiAI['latar_belakang'] ?? '',
+            'DASAR_ACUAN' => $narasiAI['dasar_acuan'] ?? '',
+            'TUJUAN' => $narasiAI['tujuan'] ?? '',
+            'SASARAN' => $narasiAI['sasaran'] ?? '',
+            'WAKTU_PELAKSANAAN' => $narasiAI['waktu_pelaksanaan'] ?? '',
+            'RUANG' => $narasiAI['ruang'] ?? '',
+            'RUANG_LINGKUP' => $narasiAI['ruang'] ?? '',
+            'INSTRUMEN_PENGUKURAN' => $narasiAI['instrumen_pengukuran'] ?? '',
+
+            // BAB 2 PROGRAM KERJA - sesuai perubahan template
+            'PROGRAM_KERJA' => $narasiAI['program_kerja'] ?? $this->getDefaultProgramKerja(),
+
+            // BAB 3 PELAKSANAAN - sesuai perubahan template
+            'PELAKSANAAN' => $narasiAI['pelaksanaan'] ?? $this->getDefaultPelaksanaan(),
+
+            // BAB 4 HAMBATAN PENJELASAN - sesuai perubahan template (tanpa **)
+            'HAMBATAN_PENJELASAN' => $narasiAI['hambatan_penjelasan'] ?? $this->getDefaultHambatanPenjelasan(),
+
+            // BAB 5-6
+            'HASIL_PEMERIKSAAN' => $narasiAI['hasil_pemeriksaan'] ?? '',
+            'ANALISIS_KETERCAPAIAN' => $narasiAI['analisis_ketercapaian'] ?? '',
+            'TINDAK_LANJUT' => $narasiAI['tindak_lanjut'] ?? '',
+            'KESIMPULAN_PENUTUP' => $narasiAI['kesimpulan_penutup'] ?? '',
         ];
+
+        // Buat array final dengan format {{PLACEHOLDER}} => value
+        $finalMap = [];
+        foreach ($values as $key => $value) {
+            // Format standar {{PLACEHOLDER}}
+            $finalMap['{{' . $key . '}}'] = $value;
+
+            // Format dengan spasi {{ PLACEHOLDER }} - untuk mengatasi spasi di template
+            $finalMap['{{ ' . $key . ' }}'] = $value;
+
+            // Format dengan spasi di dalam {{ HAMBATAN_PENJELASAN }}
+            if ($key === 'HAMBATAN_PENJELASAN') {
+                $finalMap['{{ HAMBATAN_PENJELASAN}}'] = $value;
+                $finalMap['{{HAMBATAN_PENJELASAN }}'] = $value;
+                $finalMap['{{ HAMBATAN_PENJELASAN }}'] = $value;
+            }
+        }
+
+        Log::info('Placeholder map built', [
+            'total_placeholders' => count($finalMap),
+            'key_placeholders' => array_keys($values)
+        ]);
+
+        return $finalMap;
     }
 
-    // =========================================================================
-    // STEP 4 — BUILD TABLES
-    // =========================================================================
+    /**
+     * Build tabel hambatan dalam format teks yang rapi untuk placeholder {{TABEL_HAMBATAN}}
+     */
+    protected function buildTabelHambatanText($rows)
+    {
+        if (!is_array($rows) || empty($rows)) {
+            $rows = [
+                [
+                    'program_kerja' => 'Pemeriksaan RPS dan artefak perkuliahan minggu ke-1',
+                    'catatan' => 'Dilaksanakan sesuai jadwal pada minggu pertama perkuliahan',
+                    'hambatan' => 'Beberapa dosen belum mengunggah RPS tepat waktu',
+                    'saran' => 'Mengirimkan reminder H-7 sebelum batas unggah'
+                ],
+                [
+                    'program_kerja' => 'Konfirmasi kelengkapan artefak kepada dosen pengampu',
+                    'catatan' => 'Dilaksanakan melalui email dan grup WhatsApp dosen',
+                    'hambatan' => 'Tidak semua dosen merespons konfirmasi dengan cepat',
+                    'saran' => 'Koordinasi melalui Ketua Program Studi untuk peneguran langsung'
+                ],
+                [
+                    'program_kerja' => 'Pemeriksaan materi perkuliahan per minggu',
+                    'catatan' => 'Dilaksanakan secara berkala setiap akhir minggu',
+                    'hambatan' => 'Materi praktikum banyak yang belum lengkap',
+                    'saran' => 'Dilakukan pendampingan khusus untuk dosen praktikum'
+                ],
+            ];
+        }
+
+        $lines = [];
+        $lines[] = "+----+------------------------------------------+------------------------------------------+------------------------------------------+----------------------------------------------------+";
+        $lines[] = "| No | Program Kerja                            | Catatan                                  | Hambatan                                 | Saran atau Pemecahan Masalah                       |";
+        $lines[] = "+----+------------------------------------------+------------------------------------------+------------------------------------------+----------------------------------------------------+";
+
+        foreach ($rows as $i => $row) {
+            $no = ($i + 1) . '.';
+            $programKerja = $row['program_kerja'] ?? '-';
+            $catatan = $row['catatan'] ?? '-';
+            $hambatan = $row['hambatan'] ?? '-';
+            $saran = $row['saran'] ?? '-';
+
+            $lines[] = sprintf("| %-2s | %-40s | %-40s | %-40s | %-50s |",
+                $no,
+                substr($programKerja, 0, 40),
+                substr($catatan, 0, 40),
+                substr($hambatan, 0, 40),
+                substr($saran, 0, 50)
+            );
+            $lines[] = "+----+------------------------------------------+------------------------------------------+------------------------------------------+----------------------------------------------------+";
+        }
+
+        return implode("\n", $lines);
+    }
+
+    /**
+     * Inject tabel hambatan sebagai OOXML table yang rapi
+     */
+    protected function injectHambatanTable(\PhpOffice\PhpWord\TemplateProcessor $tp, $rows)
+    {
+        $headers = ['No.', 'Program Kerja', 'Catatan', 'Hambatan', 'Saran atau Pemecahan Masalah'];
+        $widths = [700, 2600, 2200, 2500, 1500];
+
+        $dataRows = [];
+        if (is_array($rows) && !empty($rows)) {
+            foreach ($rows as $i => $row) {
+                $dataRows[] = [
+                    (string) ($i + 1) . '.',
+                    $row['program_kerja'] ?? '-',
+                    $row['catatan'] ?? '-',
+                    $row['hambatan'] ?? '-',
+                    $row['saran'] ?? '-',
+                ];
+            }
+        } else {
+            $dataRows = [
+                ['1.', 'Pemeriksaan RPS dan artefak perkuliahan minggu ke-1', 'Dilaksanakan sesuai jadwal pada minggu pertama perkuliahan', 'Beberapa dosen belum mengunggah RPS tepat waktu', 'Mengirimkan reminder H-7 sebelum batas unggah'],
+                ['2.', 'Konfirmasi kelengkapan artefak kepada dosen pengampu', 'Dilaksanakan melalui email dan grup WhatsApp dosen', 'Tidak semua dosen merespons konfirmasi dengan cepat', 'Koordinasi melalui Ketua Program Studi untuk peneguran langsung'],
+                ['3.', 'Pemeriksaan materi perkuliahan per minggu', 'Dilaksanakan secara berkala setiap akhir minggu', 'Materi praktikum banyak yang belum lengkap', 'Dilakukan pendampingan khusus untuk dosen praktikum'],
+            ];
+        }
+
+        $xml = $this->buildWordTableXML($headers, $dataRows, $widths);
+
+        $placeholders = ['TABEL_HAMBATAN', 'tabel_hambatan', 'TabelHambatan'];
+        foreach ($placeholders as $ph) {
+            try {
+                $this->replaceWithTable($tp, $ph, $xml);
+                Log::info("Hambatan table injected with placeholder: {$ph}");
+                return;
+            } catch (\Exception $e) {
+                // Lanjut ke placeholder berikutnya
+            }
+        }
+
+        Log::warning('Hambatan table injection failed for all placeholder formats');
+    }
+
+    /**
+     * Default values untuk BAB 2 PROGRAM KERJA
+     */
+    protected function getDefaultProgramKerja()
+    {
+        return "1. Pemeriksaan kelengkapan dokumen RPS seluruh mata kuliah di sistem CIS\n" .
+               "2. Pemeriksaan kelengkapan materi perkuliahan (teori dan praktikum) per minggu (Week 1-16)\n" .
+               "3. Konfirmasi kelengkapan artefak kepada dosen pengampu melalui email dan WhatsApp\n" .
+               "4. Pelaporan hasil monitoring kepada Ketua Program Studi\n" .
+               "5. Tindak lanjut berupa reminder dan pembinaan kepada dosen yang belum lengkap";
+    }
+
+    /**
+     * Default values untuk BAB 3 PELAKSANAAN
+     */
+    protected function getDefaultPelaksanaan()
+    {
+        return "Pelaksanaan monitoring artefak perkuliahan dilakukan oleh tim GKM dengan prosedur sebagai berikut:\n\n" .
+               "1. Tim GKM mengakses sistem CIS untuk memeriksa kelengkapan RPS setiap mata kuliah\n" .
+               "2. Data RPS yang sudah/belum diupload dicatat dan direkap per program studi\n" .
+               "3. Pemeriksaan materi perkuliahan dilakukan per minggu (Week 1 s.d Week 16)\n" .
+               "4. Untuk mata kuliah praktikum, pemeriksaan difokuskan pada modul dan jobsheet praktikum\n" .
+               "5. Dosen yang belum melengkapi artefak dihubungi melalui email dan WhatsApp\n" .
+               "6. Hasil monitoring direkap dan dilaporkan ke Ketua Program Studi untuk ditindaklanjuti";
+    }
+
+    /**
+     * Default values untuk BAB 4 HAMBATAN (tanpa format bold **)
+     */
+    protected function getDefaultHambatanPenjelasan()
+    {
+        return "Beberapa kendala yang dihadapi:\n\n" .
+               "1. Keterlambatan Unggah Dokumen: Beberapa dosen belum mengunggah RPS dan materi perkuliahan tepat waktu sesuai jadwal yang ditentukan.\n\n" .
+               "2. Kurangnya Respons Dosen: Tidak semua dosen merespons konfirmasi kelengkapan artefak melalui email atau WhatsApp dengan cepat.\n\n" .
+               "3. Kelengkapan Materi Praktikum: Untuk mata kuliah praktikum, kelengkapan modul dan jobsheet masih rendah dibandingkan teori.\n\n" .
+               "4. Keterbatasan Waktu Tim GKM: Waktu tim GKM terbatas karena harus mengecek satu per satu mata kuliah secara manual.\n\n" .
+               "5. Sosialisasi Kurang Maksimal: Beberapa dosen mengaku belum mendapatkan informasi tentang batas waktu unggah artefak.";
+    }
 
     protected function buildTabelRPS($dataArtefak)
     {
         $rows = "Tingkat\tKode MK\tNama MK\tInisial Dosen\tRPS (0=Tidak, 1=Ya)\n";
         $rows .= str_repeat("-", 80) . "\n";
 
-        // Group by kode_mk untuk menggabungkan dosen
         $grouped = [];
         foreach ($dataArtefak['rps_details'] as $item) {
             $kodeMK = $item->kode_mk ?? '-';
             $tingkat = $item->raw_data['tingkat'] ?? $item->raw_data['semester'] ?? '-';
-            
+
             if (!isset($grouped[$kodeMK])) {
                 $grouped[$kodeMK] = [
                     'tingkat' => $tingkat,
@@ -331,7 +589,7 @@ class LaporanArtefakService
                     'status_rps' => $item->status_rps,
                 ];
             }
-            
+
             $inisial = $item->dosen->inisial_nama ?? (string) $item->pegawai_id;
             if (!in_array($inisial, $grouped[$kodeMK]['dosen'])) {
                 $grouped[$kodeMK]['dosen'][] = $inisial;
@@ -339,12 +597,8 @@ class LaporanArtefakService
         }
 
         foreach ($grouped as $item) {
-            // Kembalikan ke format 0 dan 1
             $rps = ($item['status_rps'] === 'SUDAH UPLOAD') ? '1' : '0';
-            
-            // Gabungkan nama dosen dengan koma
             $dosenGabung = implode(', ', $item['dosen']);
-
             $rows .= implode("\t", [
                 $item['tingkat'],
                 $item['kode_mk'],
@@ -379,35 +633,6 @@ class LaporanArtefakService
         return $rows;
     }
 
-    /**
-     * Format array baris hambatan dari AI menjadi teks plain untuk placeholder {{TABEL_HAMBATAN}}.
-     * Setiap baris berisi: No | Program Kerja | Catatan | Hambatan | Saran
-     */
-    protected function buildTabelHambatan($rows)
-    {
-        if (!is_array($rows) || empty($rows)) {
-            return '-';
-        }
-
-        $lines = [];
-        $lines[] = "No.\tProgram Kerja\tCatatan\tHambatan\tSaran atau Pemecahan Masalah";
-        $lines[] = str_repeat("-", 100);
-
-        foreach ($rows as $i => $row) {
-            $no = ($i + 1) . '.';
-            $programKerja = $row['program_kerja'] ?? '-';
-            $catatan = $row['catatan'] ?? '-';
-            $hambatan = $row['hambatan'] ?? '-';
-            $saran = $row['saran'] ?? '-';
-
-            $lines[] = implode("\t", [$no, $programKerja, $catatan, $hambatan, $saran]);
-        }
-
-        return implode("\n", $lines);
-    }
-
-
-
     protected function generateFromTemplate($laporan, $dataArtefak, $narasiAI)
     {
         $template = TemplateLaporan::find($laporan->template_id);
@@ -433,64 +658,174 @@ class LaporanArtefakService
             return $this->createWordDocument($this->buildFallbackContent($dataArtefak, $narasiAI), $laporan);
         }
 
-        // Preprocess: konversi {{PLACEHOLDER}} → ${PLACEHOLDER} di raw XML
-        // agar TemplateProcessor::fixBrokenMacros() berjalan benar (default delimiters)
+        Log::info('Using template for Word generation', [
+            'template_path' => $templateFilePath,
+            'template_id' => $laporan->template_id,
+        ]);
+
         $preprocessedPath = $this->preprocessTemplate($templateFilePath);
+        $tp = new \PhpOffice\PhpWord\TemplateProcessor($preprocessedPath);
 
-        try {
-            $tp = new \PhpOffice\PhpWord\TemplateProcessor($preprocessedPath);
-            // Gunakan default delimiters ${ } — sudah diconvert saat preprocess
+        $map = $this->buildPlaceholderMap($dataArtefak, $laporan, $narasiAI);
 
-            // 1. Replace placeholder teks biasa
-            $map = $this->buildPlaceholderMap($dataArtefak, $laporan, $narasiAI);
-            foreach ($map as $placeholder => $value) {
-                $key = trim($placeholder, '{}');
+        $replacedCount = 0;
+        $failedPlaceholders = [];
+
+        foreach ($map as $placeholder => $value) {
+            $key = trim($placeholder, '{}');
+            $key = trim($key);
+            try {
                 $tp->setValue($key, htmlspecialchars((string) $value, ENT_XML1, 'UTF-8'));
-            }
-
-            // 2. Inject tabel RPS (OOXML) — cukup {{TABEL_RPS}} di template
-            $this->injectRPSTable($tp, $dataArtefak);
-
-            // 3. Inject tabel Materi (OOXML) — cukup {{TABEL_MATERI}} di template
-            $this->injectMateriTable($tp, $dataArtefak);
-
-            // 4. Inject tabel Hambatan (OOXML, diisi AI) — cukup {{TABEL_HAMBATAN}} di template
-            $this->injectHambatanTable($tp, $narasiAI['tabel_hambatan']);
-
-            // Simpan
-            $fileName = 'laporan_artefak_' . $laporan->periode . '_' . time() . '.docx';
-            $filePath = 'laporan_artefak/' . $fileName;
-            $fullPath = storage_path('app/' . $filePath);
-
-            if (!file_exists(dirname($fullPath))) {
-                mkdir(dirname($fullPath), 0755, true);
-            }
-
-            $tp->saveAs($fullPath);
-
-            Log::info('Template-based Word document created', ['file_path' => $filePath]);
-            return $filePath;
-
-        } finally {
-            // Hapus file temp hasil preprocessing
-            if (isset($preprocessedPath) && file_exists($preprocessedPath)) {
-                @unlink($preprocessedPath);
+                $replacedCount++;
+            } catch (\Exception $e) {
+                $failedPlaceholders[] = $key;
+                Log::warning('Failed to replace placeholder', [
+                    'placeholder' => $key,
+                    'error' => $e->getMessage()
+                ]);
             }
         }
+
+        Log::info('Placeholder replacement summary', [
+            'total_placeholders' => count($map),
+            'replaced_count' => $replacedCount,
+            'failed_count' => count($failedPlaceholders),
+        ]);
+
+        try {
+            $this->injectRPSTable($tp, $dataArtefak);
+        } catch (\Exception $e) {
+            Log::warning('RPS table injection failed', ['error' => $e->getMessage()]);
+        }
+
+        try {
+            $this->injectMateriTable($tp, $dataArtefak);
+        } catch (\Exception $e) {
+            Log::warning('Materi table injection failed', ['error' => $e->getMessage()]);
+        }
+
+        // Inject tabel hambatan
+        try {
+            $this->injectHambatanTable($tp, $narasiAI['tabel_hambatan'] ?? []);
+        } catch (\Exception $e) {
+            Log::warning('Hambatan table injection failed', ['error' => $e->getMessage()]);
+        }
+
+        $tmpOut = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'lap_out_' . uniqid() . '.docx';
+        $tp->saveAs($tmpOut);
+
+        $this->cleanupGeneratedDocPlaceholders($tmpOut, $map);
+
+        $fileName = 'laporan_artefak_' . $laporan->periode . '_' . time() . '.docx';
+        $destRel = 'laporan_artefak/' . $fileName;
+        $destFull = storage_path('app/' . $destRel);
+
+        if (!file_exists(dirname($destFull))) {
+            mkdir(dirname($destFull), 0755, true);
+        }
+
+        copy($tmpOut, $destFull);
+        unlink($tmpOut);
+        unlink($preprocessedPath);
+
+        return $destRel;
     }
 
-    /**
-     * Preprocess template docx: konversi {{PLACEHOLDER}} → ${PLACEHOLDER}
-     * di raw XML, termasuk menangani placeholder yang terpecah antar XML run
-     * (misalnya {{NAMA_ → <xml> → PRODI}} akibat spell-check Word).
-     */
+    protected function convertDoubleBracePlaceholders(string $xml): string
+    {
+        $xml = $this->mergeRunsInParagraphs($xml);
+
+        $xml = preg_replace_callback(
+            '/\{\{([^}]*(?:\}(?!\})[^}]*)*)\}\}/s',
+            function ($m) {
+                $content = $m[1];
+                $cleaned = preg_replace('/<[^>]*>/', '', $content);
+                $cleaned = preg_replace('/[\s\x{00A0}\p{Z}]+/u', '_', $cleaned);
+                $cleaned = preg_replace('/[^\p{L}\p{N}_]+/u', '_', $cleaned);
+                $cleaned = preg_replace('/_+/', '_', $cleaned);
+                $cleaned = trim($cleaned, '_');
+                $cleaned = strtoupper($cleaned);
+
+                if (preg_match('/^[A-Z0-9_]+$/', $cleaned)) {
+                    return '${' . $cleaned . '}';
+                }
+                return $m[0];
+            },
+            $xml
+        );
+
+        $xml = preg_replace_callback(
+            '/\$\s*\{\s*([A-Za-z0-9_]+)\s*\}/s',
+            function ($m) {
+                return '${' . strtoupper($m[1]) . '}';
+            },
+            $xml
+        );
+
+        return $xml;
+    }
+
+    protected function normalizePlaceholderName(string $content): ?string
+    {
+        $cleaned = preg_replace('/<[^>]*>/', '', $content);
+        $cleaned = preg_replace('/[\s\x{00A0}\p{Z}]+/u', '_', $cleaned);
+        $cleaned = preg_replace('/[^\p{L}\p{N}_]+/u', '_', $cleaned);
+        $cleaned = preg_replace('/_+/', '_', $cleaned);
+        $cleaned = trim($cleaned, '_');
+        $cleaned = strtoupper($cleaned);
+
+        return preg_match('/^[A-Z0-9_]+$/', $cleaned) ? $cleaned : null;
+    }
+
+    protected function cleanupGeneratedDocPlaceholders(string $docxPath, array $map): void
+    {
+        $zip = new \ZipArchive();
+        if ($zip->open($docxPath) !== true) {
+            return;
+        }
+
+        $placeholders = [];
+        foreach ($map as $placeholder => $value) {
+            $key = trim($placeholder, '{}');
+            $placeholders[$key] = htmlspecialchars((string) $value, ENT_XML1, 'UTF-8');
+        }
+
+        for ($i = 0; $i < $zip->numFiles; $i++) {
+            $name = $zip->getNameIndex($i);
+            if (!preg_match('/\.xml$/i', $name)) {
+                continue;
+            }
+            $content = $zip->getFromName($name);
+            if ($content === false) {
+                continue;
+            }
+
+            $fixed = $this->convertDoubleBracePlaceholders($content);
+
+            foreach ($placeholders as $key => $value) {
+                $fixed = str_replace(['{{' . $key . '}}', '${' . $key . '}'], $value, $fixed);
+            }
+
+            $fixed = preg_replace('/\{\{\s*[A-Z0-9_]+\s*\}\}/i', '', $fixed);
+            $fixed = preg_replace('/\$\{\s*[A-Z0-9_]+\s*\}/i', '', $fixed);
+
+            if ($fixed !== $content) {
+                $zip->addFromString($name, $fixed);
+            }
+        }
+
+        $zip->close();
+    }
+
     protected function preprocessTemplate(string $sourcePath): string
     {
-        $tmpPath = storage_path('app/tmp_tpl_' . uniqid() . '.docx');
+        $tmpPath = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'tpl_' . uniqid() . '.docx';
+
         copy($sourcePath, $tmpPath);
 
         $zip = new \ZipArchive();
         if ($zip->open($tmpPath) !== true) {
+            unlink($tmpPath);
             throw new \RuntimeException('Cannot open template docx for preprocessing');
         }
 
@@ -504,8 +839,12 @@ class LaporanArtefakService
             $converted = $this->convertDoubleBracePlaceholders($content);
 
             if ($converted !== $content) {
-                $zip->addFromString($name, $converted);
-                Log::debug("preprocessTemplate: converted in {$name}");
+                libxml_use_internal_errors(true);
+                $valid = @simplexml_load_string($converted);
+                if ($valid !== false) {
+                    $zip->addFromString($name, $converted);
+                }
+                libxml_clear_errors();
             }
         }
 
@@ -513,75 +852,125 @@ class LaporanArtefakService
         return $tmpPath;
     }
 
-    /**
-     * Konversi {{PLACEHOLDER}} → ${PLACEHOLDER} di raw OOXML.
-     * Menangani dua kasus:
-     *   1. Placeholder utuh dalam satu run: {{NAMA_PRODI}}
-     *   2. Placeholder terpecah antar run oleh XML tags Word:
-     *      {{NAMA_ + <w:proofErr.../> + PRODI}}
-     */
-    protected function convertDoubleBracePlaceholders(string $xml): string
+    protected function mergeRunsInParagraphs(string $xml): string
     {
-        // Pass 1: match {{...}} yang mungkin mengandung XML tags di tengah.
-        // Regex ini mengizinkan XML element di antara {{ dan }} lalu strip tags-nya.
-        $xml = preg_replace_callback(
-            '/\{\{((?:[^{}]|<[^>]*>)*?)\}\}/s',
-            function ($m) {
-                // Hapus semua XML tags dari konten placeholder
-                $key = preg_replace('/<[^>]+>/', '', $m[1]);
-                $key = preg_replace('/\s+/', '', $key); // buang whitespace
-                if (preg_match('/^[A-Z0-9_]+$/', $key)) {
-                    return '${' . $key . '}';
+        return preg_replace_callback(
+            '/<w:p[ >].*?<\/w:p>/s',
+            function ($matches) {
+                $paragraph = $matches[0];
+                if (!preg_match_all('/<w:r(?:\s[^>]*)?>.*?<\/w:r>/s', $paragraph, $runMatches)) {
+                    return $paragraph;
                 }
-                return $m[0]; // bukan placeholder valid, biarkan
+
+                $runs = $runMatches[0];
+                $texts = [];
+                foreach ($runs as $run) {
+                    preg_match_all('/<w:t[^>]*>(.*?)<\/w:t>/s', $run, $textMatches);
+                    $texts[] = implode('', $textMatches[1]);
+                }
+
+                $origCombined = implode('', $texts);
+                $origTexts = $texts;
+
+                preg_match_all('/\{\{([^}]*(?:\}(?!\})[^}]*)*)\}\}/s', $origCombined, $matches, PREG_OFFSET_CAPTURE);
+                if (empty($matches[0])) {
+                    return $paragraph;
+                }
+
+                $tokens = [];
+                foreach ($matches[0] as $match) {
+                    $placeholderName = $this->normalizePlaceholderName($match[0]);
+                    if ($placeholderName !== null) {
+                        $tokens[] = [
+                            'token' => '${' . $placeholderName . '}',
+                            'start' => $match[1],
+                            'length' => mb_strlen($match[0], 'UTF-8'),
+                        ];
+                    }
+                }
+
+                if (empty($tokens)) {
+                    return $paragraph;
+                }
+
+                foreach ($tokens as $tokenData) {
+                    $token = $tokenData['token'];
+                    $tokenName = substr($token, 2, -1);
+                    $origPattern = '/\{\{?\s*' . preg_quote($tokenName, '/') . '\s*\}?\}/';
+                    if (!preg_match($origPattern, $origCombined, $match, PREG_OFFSET_CAPTURE)) {
+                        continue;
+                    }
+
+                    $tokenStart = $match[0][1];
+                    $origTokenLen = mb_strlen($match[0][0], 'UTF-8');
+                    $cumulative = 0;
+                    $startRun = -1;
+                    $endRun = -1;
+
+                    foreach ($origTexts as $index => $text) {
+                        $runStart = $cumulative;
+                        $runEnd = $cumulative + mb_strlen($text, 'UTF-8');
+
+                        if ($startRun === -1 && $tokenStart < $runEnd && $tokenStart >= $runStart) {
+                            $startRun = $index;
+                        }
+                        if ($startRun !== -1 && ($tokenStart + $origTokenLen) <= $runEnd) {
+                            $endRun = $index;
+                            break;
+                        }
+
+                        $cumulative = $runEnd;
+                    }
+
+                    if ($startRun === -1 || $endRun === -1) {
+                        continue;
+                    }
+
+                    $runs[$startRun] = preg_replace(
+                        '/<w:t[^>]*>.*?<\/w:t>/s',
+                        '<w:t xml:space="preserve">' . $token . '</w:t>',
+                        $runs[$startRun],
+                        1
+                    );
+                    $runs[$startRun] = preg_replace(
+                        '/(<w:t[^>]*>.*?<\/w:t>)(?:.*?<w:t[^>]*>.*?<\/w:t>)+/s',
+                        '$1',
+                        $runs[$startRun]
+                    );
+
+                    for ($i = $startRun + 1; $i <= $endRun; $i++) {
+                        $runs[$i] = preg_replace('/<w:t[^>]*>.*?<\/w:t>/s', '<w:t></w:t>', $runs[$i]);
+                    }
+
+                    $origTexts[$startRun] = $token;
+                    for ($i = $startRun + 1; $i <= $endRun; $i++) {
+                        $origTexts[$i] = '';
+                    }
+                    $origCombined = implode('', $origTexts);
+                }
+
+                $fixedParagraph = $paragraph;
+                foreach ($runs as $index => $fixedRun) {
+                    $fixedParagraph = str_replace($runMatches[0][$index], $fixedRun, $fixedParagraph);
+                }
+
+                return $fixedParagraph;
             },
             $xml
         );
-
-        // Pass 2: fix ${PLACEHOLDER} yang masih terpecah antar run
-        // (sama seperti PhpWord fixBrokenMacros tapi untuk format ${})
-        $xml = preg_replace_callback(
-            '/\$[^{<]*(?:<[^>]*>[^{<]*)*\{[^}<]*(?:<[^>]*>[^}<]*)*\}/',
-            function ($m) {
-                $stripped = strip_tags($m[0]);
-                if (preg_match('/^\$\{([A-Z0-9_]+)\}$/', $stripped)) {
-                    return $stripped;
-                }
-                return $m[0];
-            },
-            $xml
-        );
-
-        return $xml;
     }
 
-
-    // =========================================================================
-    // TABLE OOXML INJECTION
-    // Cukup tulis {{TABEL_RPS}}, {{TABEL_MATERI}}, {{TABEL_HAMBATAN}}
-    // satu kali di paragraf template Word.
-    // Sistem akan replace paragraf itu dengan tabel Word sungguhan.
-    // =========================================================================
-
-
-    /**
-     * Inject tabel RPS ke posisi {{TABEL_RPS}} di template.
-     * Data diambil dari rps_monitoring_snapshots.
-     */
     protected function injectRPSTable(\PhpOffice\PhpWord\TemplateProcessor $tp, $dataArtefak)
     {
         $headers = ['Tingkat', 'Kode Mata Kuliah', 'Nama Mata Kuliah', 'Inisial Dosen Pengampu', 'RPS (0=Tidak, 1=Yes)'];
         $widths = [800, 1800, 3000, 2200, 1400];
 
-        // Group by kode_mk untuk menggabungkan dosen
         $grouped = [];
         foreach ($dataArtefak['rps_details'] as $item) {
             $kodeMk  = $item->kode_mk ?? '';
             $tingkat = strlen($kodeMk) >= 4 ? substr($kodeMk, 3, 1) : '-';
-            
+
             if (!isset($grouped[$kodeMk])) {
-                $rawData     = is_array($item->raw_data) ? $item->raw_data : [];
-                
                 $grouped[$kodeMk] = [
                     'tingkat' => $tingkat,
                     'kode_mk' => $kodeMk,
@@ -590,14 +979,8 @@ class LaporanArtefakService
                     'status_rps' => $item->status_rps,
                 ];
             }
-            
-            // Ambil nama dosen
-            $rawData     = is_array($item->raw_data) ? $item->raw_data : [];
-            $dosenNama   = $rawData['dosen_pengampu']
-                        ?? $item->dosen->nama
-                        ?? $item->dosen->inisial_nama
-                        ?? (string) $item->pegawai_id;
-            
+
+            $dosenNama = $item->dosen->nama ?? $item->dosen->inisial_nama ?? (string) $item->pegawai_id;
             if (!in_array($dosenNama, $grouped[$kodeMk]['dosen'])) {
                 $grouped[$kodeMk]['dosen'][] = $dosenNama;
             }
@@ -605,14 +988,10 @@ class LaporanArtefakService
 
         $dataRows = [];
         $lastTingkat = '';
-        
-        foreach ($grouped as $item) {
-            // Kembalikan ke format 0 dan 1
-            $rps = ($item['status_rps'] === 'SUDAH UPLOAD') ? '1' : '0';
-            
-            // Gabungkan nama dosen dengan koma
-            $dosenGabung = implode(', ', $item['dosen']);
 
+        foreach ($grouped as $item) {
+            $rps = ($item['status_rps'] === 'SUDAH UPLOAD') ? '1' : '0';
+            $dosenGabung = implode(', ', $item['dosen']);
             $dataRows[] = [
                 $item['tingkat'] !== $lastTingkat ? $item['tingkat'] : '',
                 $item['kode_mk'],
@@ -623,7 +1002,6 @@ class LaporanArtefakService
             $lastTingkat = $item['tingkat'];
         }
 
-        // Baris jumlah
         $dataRows[] = [
             'Jumlah',
             (string) $dataArtefak['total_rps'],
@@ -633,64 +1011,48 @@ class LaporanArtefakService
         ];
 
         $xml = $this->buildWordTableXML($headers, $dataRows, $widths);
-        $this->replaceWithTable($tp, 'TABEL_RPS', $xml);
 
-        Log::info('RPS table injected (grouped by kode_mk)', ['rows' => count($dataRows)]);
+        $placeholders = ['TABEL_RPS', 'tabel_rps', 'TabelRPS'];
+        foreach ($placeholders as $ph) {
+            try {
+                $this->replaceWithTable($tp, $ph, $xml);
+                Log::info("RPS table injected with placeholder: {$ph}");
+                return;
+            } catch (\Exception $e) {
+                // Lanjut ke placeholder berikutnya
+            }
+        }
     }
 
-    /**
-     * Inject tabel Materi ke posisi {{TABEL_MATERI}} di template.
-     * Format: header 2 baris merged — Semester | Kode MK | Nama MK | Dosen | Week 1..16 (Teori + Praktikum)
-     * Week diisi dari DB (status_upload dari raw_data['weeks']).
-     * 
-     * PERBAIKAN: 
-     * - Ukuran kolom dikurangi agar semua 16 minggu muat dalam satu halaman
-     * - Ditambahkan landscape orientation untuk memaksimalkan lebar tabel
-     * - Ini memastikan Week 1 sampai Week 16 SEMUA terlihat di hasil generate
-     */
     protected function injectMateriTable(\PhpOffice\PhpWord\TemplateProcessor $tp, $dataArtefak)
     {
         $xml = $this->buildMateriTableXML($dataArtefak);
-        $this->replaceWithTable($tp, 'TABEL_MATERI', $xml);
-        Log::info('Materi table (week 1-16) injected with landscape orientation - ALL weeks should be visible');
+
+        $placeholders = ['TABEL_MATERI', 'tabel_materi', 'TabelMateri'];
+        foreach ($placeholders as $ph) {
+            try {
+                $this->replaceWithTable($tp, $ph, $xml);
+                Log::info("Materi table injected with placeholder: {$ph}");
+                return;
+            } catch (\Exception $e) {
+                // Lanjut ke placeholder berikutnya
+            }
+        }
     }
 
-    /**
-     * Build OOXML tabel Materi dengan merged header Week 1–16.
-     *
-     * Struktur:
-     *   Row 1: Tingkat | Kode MK | Nama MK | Dosen | [Week 1 colspan=2] | [Week 2 colspan=2] | ... | [Week 16 colspan=2]
-     *   Row 2: (vmerge) | (vmerge) | (vmerge) | (vmerge) | Teori | Praktikum | Teori | Praktikum | ... (×16)
-     *   Data : nilai dari DB / kosong
-     * 
-     * OPTIMASI ULTRA (Week 16 P MUAT SEMPURNA):
-     * - Header "Semester" → "Tingkat" (isi: 1, 2, 3, 4)
-     * - Kolom tetap: Tingkat (400), Kode MK (750), Nama MK (1400), Dosen (1000)
-     * - Kolom week: Teori (300), Praktikum (300) per week
-     * - Total: 3550 + (600 × 16) = 13,150 twip → muat sempurna di landscape!
-     * - Sisa margin: 16,838 - 13,150 = 3,688 twip (sangat cukup!)
-     * - Section properties landscape memastikan Week 1-16 SEMUA terlihat tanpa terpotong
-     */
     protected function buildMateriTableXML($dataArtefak): string
     {
-        // Ukuran kolom dalam twip - ULTRA OPTIMAL untuk memuat Week 1-16 LENGKAP
-        // Total lebar maksimal Word landscape ~16,800 twip
-        $wTingkat = 400;       // kolom "Tingkat" (hanya angka 1-4) - dikurangi dari 450
-        $wKodeMK = 750;        // dikurangi dari 800
-        $wNamaMK = 1400;       // dikurangi dari 1500
-        $wDosen = 1000;        // dikurangi dari 1100
-        $wTeori = 300;         // dikurangi dari 320 agar Week 16 P tidak terpotong
-        $wPraktikum = 300;     // dikurangi dari 320 agar Week 16 P tidak terpotong
+        $wTingkat = 400;
+        $wKodeMK = 750;
+        $wNamaMK = 1400;
+        $wDosen = 1000;
+        $wTeori = 300;
+        $wPraktikum = 300;
         $totalWeeks = 16;
 
-        // Warna header
-        $fillHeader = 'D9E1F2'; // biru muda
-        $fillSubHdr = 'EBF0FA'; // sedikit lebih muda
-        $fillJumlah = 'F2F2F2'; // abu-abu untuk baris jumlah
+        $fillHeader = 'D9E1F2';
+        $fillSubHdr = 'EBF0FA';
 
-        // =====================================================================
-        // Helper inline untuk membangun <w:tc>
-        // =====================================================================
         $makeCell = function (string $text, int $width, bool $bold = false, string $fill = 'auto', int $gridSpan = 1, bool $vMergeStart = false, bool $vMergeCont = false, string $align = 'center') use ($fillHeader): string {
             $safe = htmlspecialchars($text, ENT_XML1, 'UTF-8');
 
@@ -705,7 +1067,6 @@ class LaporanArtefakService
                 $tcPr .= '<w:vMerge/>';
             }
             $tcPr .= '<w:shd w:val="clear" w:color="auto" w:fill="' . $fill . '"/>';
-            $tcPr .= '<w:tcMar><w:top w:w="60" w:type="dxa"/><w:bottom w:w="60" w:type="dxa"/></w:tcMar>';
             $tcPr .= '</w:tcPr>';
 
             $boldTag = $bold ? '<w:b/>' : '';
@@ -716,28 +1077,20 @@ class LaporanArtefakService
             return '<w:tc>' . $tcPr . $para . '</w:tc>';
         };
 
-        // =====================================================================
-        // tblPr — lebar total = 4 kolom tetap + 16×2 kolom week
-        // Total: 400 + 750 + 1400 + 1000 + (300 + 300) × 16 = 13,150 twip (muat sempurna!)
-        // =====================================================================
         $totalWidth = $wTingkat + $wKodeMK + $wNamaMK + $wDosen
             + ($wTeori + $wPraktikum) * $totalWeeks;
 
         $xml = '<w:tbl>';
         $xml .= '<w:tblPr>';
-        $xml .= '<w:tblStyle w:val="TableGrid"/>';
         $xml .= '<w:tblW w:w="' . $totalWidth . '" w:type="dxa"/>';
         $xml .= '<w:tblBorders>';
         foreach (['top', 'left', 'bottom', 'right', 'insideH', 'insideV'] as $s) {
             $xml .= '<w:' . $s . ' w:val="single" w:sz="4" w:space="0" w:color="000000"/>';
         }
         $xml .= '</w:tblBorders>';
-        $xml .= '<w:tblLook w:val="04A0" w:firstRow="1" w:lastRow="0" w:firstColumn="1" w:lastColumn="0" w:noHBand="0" w:noVBand="1"/>';
         $xml .= '</w:tblPr>';
 
-        // =====================================================================
-        // HEADER ROW 1 — 4 kolom tetap (vMerge restart) + Week 1..16 (colspan 2)
-        // =====================================================================
+        // Header Row 1
         $xml .= '<w:tr>';
         $xml .= $makeCell('Tingkat', $wTingkat, true, $fillHeader, 1, true, false);
         $xml .= $makeCell('Kode Mata Kuliah', $wKodeMK, true, $fillHeader, 1, true, false);
@@ -748,184 +1101,103 @@ class LaporanArtefakService
         }
         $xml .= '</w:tr>';
 
-        // =====================================================================
-        // HEADER ROW 2 — 4 kolom kosong (vMerge cont) + Teori|Praktikum ×16
-        // =====================================================================
+        // Header Row 2
         $xml .= '<w:tr>';
-        $xml .= $makeCell('', $wTingkat,  false, $fillHeader, 1, false, true);
-        $xml .= $makeCell('', $wKodeMK,   false, $fillHeader, 1, false, true);
-        $xml .= $makeCell('', $wNamaMK,   false, $fillHeader, 1, false, true);
-        $xml .= $makeCell('', $wDosen,    false, $fillHeader, 1, false, true);
+        $xml .= $makeCell('', $wTingkat, false, $fillHeader, 1, false, true);
+        $xml .= $makeCell('', $wKodeMK, false, $fillHeader, 1, false, true);
+        $xml .= $makeCell('', $wNamaMK, false, $fillHeader, 1, false, true);
+        $xml .= $makeCell('', $wDosen, false, $fillHeader, 1, false, true);
         for ($w = 1; $w <= $totalWeeks; $w++) {
-            // Sub-header dikosongkan agar kolom muat — isi tetap 0/1 di data row
-            $xml .= $makeCell('T', $wTeori,    true, $fillSubHdr);
-            $xml .= $makeCell('P', $wPraktikum,true, $fillSubHdr);
+            $xml .= $makeCell('T', $wTeori, true, $fillSubHdr);
+            $xml .= $makeCell('P', $wPraktikum, true, $fillSubHdr);
         }
         $xml .= '</w:tr>';
 
-
-        // =====================================================================
-        // DATA ROWS — kelompokkan per MK (kode_mk unik), Week 1 diisi dari DB
-        // =====================================================================
-
-        // Kelompokkan per kode_mk — isi weeks[0..15] dari raw_data
+        // Data Rows
         $mkMap = [];
         foreach ($dataArtefak['materi_details'] as $item) {
             $kodeMk  = $item->kode_mk ?? '-';
-            $tingkat = $item->tingkat
-                    ?? (strlen($kodeMk) >= 4 ? substr($kodeMk, 3, 1) : '-');
-
+            $tingkat = $item->tingkat ?? (strlen($kodeMk) >= 4 ? substr($kodeMk, 3, 1) : '-');
             $key = $kodeMk . '|' . $tingkat;
 
             if (!isset($mkMap[$key])) {
-                $rawAny    = is_array($item->raw_data) ? $item->raw_data : [];
-                $dosenNama = $rawAny['dosen']
-                          ?? $rawAny['dosen_pengampu']
-                          ?? $item->dosen->nama
-                          ?? $item->dosen->inisial_nama
-                          ?? (string) $item->pegawai_id;
-
                 $mkMap[$key] = [
-                    'tingkat'     => $tingkat,
-                    'kode_mk'     => $kodeMk,
-                    'nama_mk'     => $item->nama_matkul ?? '-',
-                    'dosen'       => $dosenNama,
-                    'teori_weeks' => array_fill(0, 16, ''),  // W1-W16 teori
-                    'prak_weeks'  => array_fill(0, 16, ''),  // W1-W16 praktikum
+                    'tingkat' => $tingkat,
+                    'kode_mk' => $kodeMk,
+                    'nama_mk' => $item->nama_matkul ?? '-',
+                    'dosen' => $item->dosen->nama ?? $item->dosen->inisial_nama ?? '-',
+                    'teori_weeks' => array_fill(0, 16, ''),
+                    'prak_weeks' => array_fill(0, 16, ''),
                 ];
             }
 
-            // Ambil array weeks[0..15] dari raw_data
             $rawData = is_array($item->raw_data) ? $item->raw_data : [];
-            $weeks   = $rawData['weeks'] ?? [];
+            $weeks = $rawData['weeks'] ?? [];
 
             if ($item->jenis_materi === 'Materi Teori') {
-                // Isi data teori untuk Week 1-16
                 for ($idx = 0; $idx < 16; $idx++) {
                     if (isset($weeks[$idx])) {
                         $val = $weeks[$idx];
-                        // Konversi: 1 → '1', 0 → '0', null/empty → '0'
                         $mkMap[$key]['teori_weeks'][$idx] = (is_null($val) || $val === '') ? '0' : (string) $val;
-                    } else {
-                        // Jika week ini tidak ada di data API, default ke '0' (belum upload)
-                        $mkMap[$key]['teori_weeks'][$idx] = '0';
                     }
                 }
             } elseif ($item->jenis_materi === 'Materi Praktikum') {
-                // Isi data praktikum untuk Week 1-16
                 for ($idx = 0; $idx < 16; $idx++) {
                     if (isset($weeks[$idx])) {
-                        // Konversi: 1 → '1', 0 → '0', null/empty → '0'
                         $val = $weeks[$idx];
                         $mkMap[$key]['prak_weeks'][$idx] = (is_null($val) || $val === '') ? '0' : (string) $val;
-                    } else {
-                        // Jika week ini tidak ada di data API, default ke '0' (belum upload)
-                        $mkMap[$key]['prak_weeks'][$idx] = '0';
                     }
                 }
             }
         }
 
-
-
-        // Urutkan per tingkat lalu kode_mk
         uasort($mkMap, function ($a, $b) {
             $t = strcmp($a['tingkat'], $b['tingkat']);
             return $t !== 0 ? $t : strcmp($a['kode_mk'], $b['kode_mk']);
         });
-        
-        // Log untuk memverifikasi data Week 16
-        $sampleMk = array_values($mkMap)[0] ?? null;
-        if ($sampleMk) {
-            Log::info('Materi table - Week data verification', [
-                'sample_kode_mk' => $sampleMk['kode_mk'],
-                'teori_week_16' => $sampleMk['teori_weeks'][15] ?? 'N/A',
-                'prak_week_16' => $sampleMk['prak_weeks'][15] ?? 'N/A',
-                'total_mk' => count($mkMap)
-            ]);
-        }
 
         $lastTingkat = '';
         foreach ($mkMap as $row) {
             $tingkat = $row['tingkat'];
             $xml .= '<w:tr>';
-            // Hanya tampilkan angka tingkat (1, 2, 3, 4) tanpa kata "Tingkat"
             $xml .= $makeCell($tingkat !== $lastTingkat ? $tingkat : '', $wTingkat, false, 'auto', 1, false, false, 'center');
             $xml .= $makeCell($row['kode_mk'], $wKodeMK, false, 'auto', 1, false, false, 'center');
             $xml .= $makeCell($row['nama_mk'], $wNamaMK, false, 'auto', 1, false, false, 'left');
-            $xml .= $makeCell($row['dosen'],   $wDosen,  false, 'auto', 1, false, false, 'center');
-            // Week 1-16: teori & praktikum dari raw_data['weeks']
+            $xml .= $makeCell($row['dosen'], $wDosen, false, 'auto', 1, false, false, 'center');
             for ($w = 0; $w < $totalWeeks; $w++) {
-                $t = $row['teori_weeks'][$w] ?? '';
-                $p = $row['prak_weeks'][$w]  ?? '';
-                $xml .= $makeCell($t, $wTeori,    false, 'auto', 1, false, false, 'center');
-                $xml .= $makeCell($p, $wPraktikum,false, 'auto', 1, false, false, 'center');
+                $xml .= $makeCell($row['teori_weeks'][$w] ?? '', $wTeori, false, 'auto', 1, false, false, 'center');
+                $xml .= $makeCell($row['prak_weeks'][$w] ?? '', $wPraktikum, false, 'auto', 1, false, false, 'center');
             }
             $xml .= '</w:tr>';
             $lastTingkat = $tingkat;
         }
 
-
         $xml .= '</w:tbl>';
-        
-        // Tambahkan section break untuk landscape orientation
-        // Ini akan membuat tabel materi berada di halaman landscape terpisah
-        $xml .= '<w:p><w:pPr><w:sectPr>';
-        $xml .= '<w:pgSz w:w="16838" w:h="11906" w:orient="landscape"/>'; // Landscape: W=16838 (11.69"), H=11906 (8.27")
-        $xml .= '<w:pgMar w:top="720" w:right="720" w:bottom="720" w:left="720" w:header="720" w:footer="720" w:gutter="0"/>';
-        $xml .= '</w:sectPr></w:pPr></w:p>';
-        
+
         return $xml;
     }
 
-
     /**
-     * Inject tabel Hambatan ke posisi {{TABEL_HAMBATAN}} di template.
-     * Data dari AI (array of rows).
-     */
-    protected function injectHambatanTable(\PhpOffice\PhpWord\TemplateProcessor $tp, $rows)
-    {
-        $headers = ['No.', 'Program Kerja', 'Catatan', 'Hambatan', 'Saran atau Pemecahan Masalah'];
-        $widths = [600, 2400, 1800, 2400, 2400];
-
-        $dataRows = [];
-        if (is_array($rows)) {
-            foreach ($rows as $i => $row) {
-                $dataRows[] = [
-                    (string) ($i + 1) . '.',
-                    $row['program_kerja'] ?? '-',
-                    $row['catatan'] ?? '-',
-                    $row['hambatan'] ?? '-',
-                    $row['saran'] ?? '-',
-                ];
-            }
-        }
-
-        if (empty($dataRows)) {
-            $dataRows[] = ['1.', '-', '-', '-', '-'];
-            $dataRows[] = ['2.', '-', '-', '-', '-'];
-        }
-
-        $xml = $this->buildWordTableXML($headers, $dataRows, $widths);
-        $this->replaceWithTable($tp, 'TABEL_HAMBATAN', $xml);
-
-        Log::info('Hambatan table injected', ['rows' => count($dataRows)]);
-    }
-
-    /**
-     * Build OOXML tabel Word dari header + baris data.
-     *
-     * @param array $headers  Label kolom header
-     * @param array $dataRows Array of arrays (setiap sub-array = 1 baris)
-     * @param array $widths   Lebar tiap kolom dalam twip (1 cm ≈ 567 twip)
+     * Build Word table XML dengan styling yang lebih baik
      */
     protected function buildWordTableXML(array $headers, array $dataRows, array $widths): string
     {
         $totalWidth = array_sum($widths);
+        $maxWidth = 9000;
+        if ($totalWidth > $maxWidth) {
+            $ratio = $maxWidth / $totalWidth;
+            foreach ($widths as &$w) {
+                $w = max(700, (int) round($w * $ratio));
+            }
+            unset($w);
+            $totalWidth = array_sum($widths);
+        }
 
         $xml = '<w:tbl>';
         $xml .= '<w:tblPr>';
+        $xml .= '<w:tblStyle w:val="TableGrid"/>';
         $xml .= '<w:tblW w:w="' . $totalWidth . '" w:type="dxa"/>';
+        $xml .= '<w:tblLayout w:type="fixed"/>';
         $xml .= '<w:tblBorders>';
         foreach (['top', 'left', 'bottom', 'right', 'insideH', 'insideV'] as $side) {
             $xml .= '<w:' . $side . ' w:val="single" w:sz="4" w:space="0" w:color="000000"/>';
@@ -934,64 +1206,78 @@ class LaporanArtefakService
         $xml .= '<w:tblLook w:val="04A0" w:firstRow="1" w:lastRow="0" w:firstColumn="1" w:lastColumn="0" w:noHBand="0" w:noVBand="1"/>';
         $xml .= '</w:tblPr>';
 
-        // Header row
+        // Header row dengan background biru dan teks putih
         $xml .= '<w:tr>';
         foreach ($headers as $idx => $header) {
             $w = $widths[$idx] ?? 1800;
             $safe = htmlspecialchars($header, ENT_XML1, 'UTF-8');
             $xml .= '<w:tc>';
-            $xml .= '<w:tcPr><w:tcW w:w="' . $w . '" w:type="dxa"/>';
-            $xml .= '<w:shd w:val="clear" w:color="auto" w:fill="D9E1F2"/></w:tcPr>';
+            $xml .= '<w:tcPr>';
+            $xml .= '<w:tcW w:w="' . $w . '" w:type="dxa"/>';
+            $xml .= '<w:shd w:val="clear" w:color="auto" w:fill="4F81BD"/>';
+            $xml .= '<w:tcMar>';
+            $xml .= '<w:top w:w="80" w:type="dxa"/>';
+            $xml .= '<w:bottom w:w="80" w:type="dxa"/>';
+            $xml .= '<w:left w:w="80" w:type="dxa"/>';
+            $xml .= '<w:right w:w="80" w:type="dxa"/>';
+            $xml .= '</w:tcMar>';
+            $xml .= '</w:tcPr>';
             $xml .= '<w:p><w:pPr><w:jc w:val="center"/></w:pPr>';
-            $xml .= '<w:r><w:rPr><w:b/><w:sz w:val="20"/></w:rPr><w:t xml:space="preserve">' . $safe . '</w:t></w:r>';
+            $xml .= '<w:r><w:rPr><w:b/><w:color w:val="FFFFFF"/><w:sz w:val="20"/></w:rPr>';
+            $xml .= '<w:t xml:space="preserve">' . $safe . '</w:t></w:r>';
             $xml .= '</w:p></w:tc>';
         }
         $xml .= '</w:tr>';
 
-        // Data rows
+        // Data rows dengan alternating background
+        $rowIndex = 0;
         foreach ($dataRows as $row) {
             $isLastRow = ($row === end($dataRows));
+            $fillColor = ($rowIndex % 2 == 0) ? 'FFFFFF' : 'D3DFEE';
             $xml .= '<w:tr>';
             foreach ($row as $idx => $cell) {
                 $w = $widths[$idx] ?? 1800;
                 $safe = htmlspecialchars((string) $cell, ENT_XML1, 'UTF-8');
                 $bold = $isLastRow ? '<w:b/>' : '';
-                $fill = $isLastRow ? 'F2F2F2' : 'auto';
                 $xml .= '<w:tc>';
-                $xml .= '<w:tcPr><w:tcW w:w="' . $w . '" w:type="dxa"/>';
-                $xml .= '<w:shd w:val="clear" w:color="auto" w:fill="' . $fill . '"/></w:tcPr>';
-                $xml .= '<w:p><w:pPr><w:jc w:val="center"/></w:pPr>';
-                $xml .= '<w:r><w:rPr>' . $bold . '<w:sz w:val="20"/></w:rPr><w:t xml:space="preserve">' . $safe . '</w:t></w:r>';
+                $xml .= '<w:tcPr>';
+                $xml .= '<w:tcW w:w="' . $w . '" w:type="dxa"/>';
+                $xml .= '<w:shd w:val="clear" w:color="auto" w:fill="' . $fillColor . '"/>';
+                $xml .= '<w:tcMar>';
+                $xml .= '<w:top w:w="60" w:type="dxa"/>';
+                $xml .= '<w:bottom w:w="60" w:type="dxa"/>';
+                $xml .= '<w:left w:w="80" w:type="dxa"/>';
+                $xml .= '<w:right w:w="80" w:type="dxa"/>';
+                $xml .= '</w:tcMar>';
+                $xml .= '</w:tcPr>';
+                $xml .= '<w:p><w:pPr><w:jc w:val="left"/></w:pPr>';
+                $xml .= '<w:r><w:rPr>' . $bold . '<w:sz w:val="18"/></w:rPr>';
+                $xml .= '<w:t xml:space="preserve">' . $safe . '</w:t></w:r>';
                 $xml .= '</w:p></w:tc>';
             }
             $xml .= '</w:tr>';
+            $rowIndex++;
         }
 
         $xml .= '</w:tbl>';
         return $xml;
     }
 
-    /**
-     * Replace placeholder paragraph dengan tabel OOXML di TemplateProcessor.
-     * Mencoba replaceXmlBlock (PhpWord >= 0.18), fallback ke setValue jika gagal.
-     */
     protected function replaceWithTable(\PhpOffice\PhpWord\TemplateProcessor $tp, string $placeholder, string $tableXml)
     {
         try {
-            // replaceXmlBlock mengganti seluruh <w:p>...</w:p> yang mengandung placeholder
-            $tp->replaceXmlBlock($placeholder, $tableXml, 'w:p');
+            if (method_exists($tp, 'replaceXmlBlock')) {
+                $tp->replaceXmlBlock($placeholder, $tableXml, 'w:p');
+            } else {
+                $tp->setValue($placeholder, '[Tabel tidak dapat dirender]');
+            }
         } catch (\Exception $e) {
-            Log::warning("replaceXmlBlock({$placeholder}) failed, fallback to setValue", [
+            Log::warning("replaceWithTable({$placeholder}) failed", [
                 'error' => $e->getMessage()
             ]);
-            // Fallback: set sebagai teks jika replaceXmlBlock tidak tersedia
-            $tp->setValue($placeholder, '[Tabel tidak dapat dirender]');
+            $tp->setValue($placeholder, '[Tabel ' . $placeholder . ' tidak dapat dirender]');
         }
     }
-
-    // =========================================================================
-    // FALLBACK — Full-AI content (jika tidak ada template)
-    // =========================================================================
 
     protected function buildFallbackContent($dataArtefak, $narasiAI)
     {
@@ -1001,41 +1287,54 @@ class LaporanArtefakService
         $lines[] = "Program Studi: {$dataArtefak['prodi']}";
         $lines[] = "";
         $lines[] = "BAB 1 PENDAHULUAN";
-        $lines[] = "Program Studi {$dataArtefak['prodi']} melakukan monitoring artefak perkuliahan semester {$dataArtefak['semester']} TA {$dataArtefak['tahun_ajaran']}.";
+        $lines[] = $narasiAI['latar_belakang'] ?? '';
+        $lines[] = "";
+        $lines[] = "1.2 Dasar Acuan";
+        $lines[] = $narasiAI['dasar_acuan'] ?? '';
+        $lines[] = "";
+        $lines[] = "1.3 Tujuan";
+        $lines[] = $narasiAI['tujuan'] ?? '';
+        $lines[] = "";
+        $lines[] = "1.4 Sasaran";
+        $lines[] = $narasiAI['sasaran'] ?? '';
+        $lines[] = "";
+        $lines[] = "1.5 Waktu Pelaksanaan";
+        $lines[] = $narasiAI['waktu_pelaksanaan'] ?? '';
+        $lines[] = "";
+        $lines[] = "1.6 Ruang Lingkup";
+        $lines[] = $narasiAI['ruang'] ?? '';
+        $lines[] = "";
+        $lines[] = "1.7 Instrumen Pengukuran";
+        $lines[] = $narasiAI['instrumen_pengukuran'] ?? '';
         $lines[] = "";
         $lines[] = "BAB 2 PROGRAM KERJA";
-        $lines[] = "1. Pemeriksaan RPS dan artefak perkuliahan week 1 di CIS.";
-        $lines[] = "2. Konfirmasi kelengkapan artefak kepada dosen pengampu.";
+        $lines[] = $narasiAI['program_kerja'] ?? $this->getDefaultProgramKerja();
+        $lines[] = "";
+        $lines[] = "BAB 3 PELAKSANAAN";
+        $lines[] = $narasiAI['pelaksanaan'] ?? $this->getDefaultPelaksanaan();
+        $lines[] = "";
+        $lines[] = "BAB 4 HAMBATAN";
+        $lines[] = $narasiAI['hambatan_penjelasan'] ?? $this->getDefaultHambatanPenjelasan();
         $lines[] = "";
         $lines[] = "BAB 5 EVALUASI";
         $lines[] = "Total Mata Kuliah : {$dataArtefak['total_rps']}";
         $lines[] = "RPS Sudah Upload  : {$dataArtefak['rps_uploaded']} ({$dataArtefak['rps_percentage']}%)";
         $lines[] = "Materi Sudah Upload: {$dataArtefak['materi_uploaded']} ({$dataArtefak['materi_percentage']}%)";
         $lines[] = "";
-        $lines[] = "TABEL RPS:";
-        $lines[] = $this->buildTabelRPS($dataArtefak);
-        $lines[] = "";
-        $lines[] = "TABEL MATERI:";
-        $lines[] = $this->buildTabelMateri($dataArtefak);
-        $lines[] = "";
         $lines[] = "Hasil Pemeriksaan";
-        $lines[] = $narasiAI['hasil_pemeriksaan'];
+        $lines[] = $narasiAI['hasil_pemeriksaan'] ?? '';
         $lines[] = "";
         $lines[] = "Analisis Ketercapaian";
-        $lines[] = $narasiAI['analisis_ketercapaian'];
+        $lines[] = $narasiAI['analisis_ketercapaian'] ?? '';
         $lines[] = "";
         $lines[] = "Tindak Lanjut";
-        $lines[] = $narasiAI['tindak_lanjut'];
+        $lines[] = $narasiAI['tindak_lanjut'] ?? '';
         $lines[] = "";
         $lines[] = "BAB 6 PENUTUP";
-        $lines[] = $narasiAI['kesimpulan_penutup'];
+        $lines[] = $narasiAI['kesimpulan_penutup'] ?? '';
 
         return implode("\n", $lines);
     }
-
-    // =========================================================================
-    // WORD DOCUMENT (fallback non-template)
-    // =========================================================================
 
     protected function createWordDocument($content, $laporan)
     {
@@ -1083,10 +1382,6 @@ class LaporanArtefakService
         return $filePath;
     }
 
-    // =========================================================================
-    // AI CALL
-    // =========================================================================
-
     protected function callAI($systemMessage, $userPrompt, $maxTokens = 2000)
     {
         try {
@@ -1094,14 +1389,14 @@ class LaporanArtefakService
                 'Authorization' => 'Bearer ' . $this->apiKey,
                 'Content-Type' => 'application/json',
             ])->timeout(120)->post($this->baseUrl . '/chat/completions', [
-                        'model' => $this->model,
-                        'messages' => [
-                            $systemMessage,
-                            ['role' => 'user', 'content' => $userPrompt],
-                        ],
-                        'max_tokens' => $maxTokens,
-                        'temperature' => 0.7,
-                    ]);
+                'model' => $this->model,
+                'messages' => [
+                    $systemMessage,
+                    ['role' => 'user', 'content' => $userPrompt],
+                ],
+                'max_tokens' => $maxTokens,
+                'temperature' => 0.7,
+            ]);
 
             if (!$response->successful()) {
                 Log::error('AI call failed', ['status' => $response->status(), 'body' => $response->body()]);
@@ -1117,10 +1412,6 @@ class LaporanArtefakService
         }
     }
 
-    // =========================================================================
-    // TEMPLATE VECTOR DB (dipakai oleh LaporanArtefakController)
-    // =========================================================================
-
     public function processTemplateToVectorDB($templateId)
     {
         Log::info('Processing template to vector DB', ['template_id' => $templateId]);
@@ -1130,7 +1421,6 @@ class LaporanArtefakService
             throw new \Exception('Template not found or no file attached');
         }
 
-        // Extract text
         $extraction = $this->textExtractionService->extractFromFile($template->file_path);
         if (!$extraction['success']) {
             throw new \Exception('Failed to extract text: ' . ($extraction['metadata']['error'] ?? 'Unknown'));
@@ -1139,7 +1429,6 @@ class LaporanArtefakService
         $text = $this->textExtractionService->cleanText($extraction['text']);
         $structure = $this->structureService->extractStructure($text);
 
-        // Chunk
         $chunks = $this->advancedChunkingService->chunkWithMetadata($text, [
             'template_id' => $templateId,
             'template_name' => $template->nama_template,
@@ -1148,7 +1437,6 @@ class LaporanArtefakService
             'structure' => json_encode($structure),
         ], 'template');
 
-        // Delete old chunks
         DocumentChunk::where('template_id', $templateId)->delete();
 
         $embeddingService = app(EmbeddingService::class);
@@ -1190,5 +1478,51 @@ class LaporanArtefakService
             'template_id' => $templateId,
             'chunks_indexed' => $indexed,
         ];
+    }
+
+    public function getPlaceholderHints($laporanId = null)
+    {
+        $hints = [
+            '{{LATAR_BELAKANG}}' => 'BAB 1.1 Latar Belakang - Narasi konteks dan alasan monitoring',
+            '{{DASAR_ACUAN}}' => 'BAB 1.2 Dasar Acuan - Regulasi dan kebijakan yang mendasari',
+            '{{TUJUAN}}' => 'BAB 1.3 Tujuan - Tujuan dilaksanakannya monitoring',
+            '{{SASARAN}}' => 'BAB 1.4 Sasaran - Target sasaran monitoring',
+            '{{WAKTU_PELAKSANAAN}}' => 'BAB 1.5 Waktu Pelaksanaan - Jadwal pelaksanaan monitoring',
+            '{{RUANG}}' => 'BAB 1.6 Ruang Lingkup - Batasan dan cakupan monitoring',
+            '{{INSTRUMEN_PENGUKURAN}}' => 'BAB 1.7 Instrumen Pengukuran - Alat ukur yang digunakan',
+            '{{PROGRAM_KERJA}}' => 'BAB 2 Program Kerja - Daftar program yang dilaksanakan',
+            '{{PELAKSANAAN}}' => 'BAB 3 Pelaksanaan - Narasi pelaksanaan monitoring',
+            '{{HAMBATAN_PENJELASAN}}' => 'BAB 4 Hambatan - Kendala yang dihadapi (tanpa format bold)',
+            '{{HASIL_PEMERIKSAAN}}' => 'BAB 5 Hasil Pemeriksaan - Temuan hasil monitoring',
+            '{{ANALISIS_KETERCAPAIAN}}' => 'BAB 5 Analisis Ketercapaian - Analisis capaian target',
+            '{{TINDAK_LANJUT}}' => 'BAB 5 Tindak Lanjut - Rekomendasi tindak lanjut',
+            '{{KESIMPULAN_PENUTUP}}' => 'BAB 6 Kesimpulan - Kesimpulan penutup laporan',
+            '{{TABEL_RPS}}' => 'Tabel RPS per mata kuliah',
+            '{{TABEL_MATERI}}' => 'Tabel Kelengkapan Materi per Minggu (1-16)',
+            '{{TABEL_HAMBATAN}}' => 'Tabel Hambatan dan Saran Perbaikan (format tabel rapi)',
+            '{{SEMESTER}}' => 'Semester saat ini (Ganjil/Genap)',
+            '{{TAHUN_AJARAN}}' => 'Tahun Akademik (contoh: 2024/2025)',
+            '{{NAMA_PRODI}}' => 'Nama Program Studi',
+            '{{TANGGAL_LAPORAN}}' => 'Tanggal pembuatan laporan',
+            '{{NAMA_KETUA_GKM}}' => 'Nama Ketua GKM',
+            '{{TOTAL_MK}}' => 'Total jumlah mata kuliah',
+            '{{TOTAL_RPS_UPLOAD}}' => 'Jumlah RPS yang sudah diupload',
+            '{{STATISTIK_RPS_PERSEN}}' => 'Persentase upload RPS',
+            '{{STATISTIK_MATERI_PERSEN}}' => 'Persentase kelengkapan materi',
+        ];
+
+        if ($laporanId) {
+            try {
+                $laporan = LaporanGKM::find($laporanId);
+                if ($laporan && !empty($laporan->ai_preview_draft)) {
+                    $excerpt = trim(substr(strip_tags($laporan->ai_preview_draft), 0, 300));
+                    $hints['__AI_PREVIEW_EXCERPT__'] = $excerpt;
+                }
+            } catch (\Exception $e) {
+                Log::warning('getPlaceholderHints failed to load laporan', ['laporan_id' => $laporanId, 'error' => $e->getMessage()]);
+            }
+        }
+
+        return $hints;
     }
 }
