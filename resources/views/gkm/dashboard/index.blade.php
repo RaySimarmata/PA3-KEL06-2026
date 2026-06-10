@@ -251,7 +251,7 @@
         <div class="content-card mb-4">
             <div class="d-flex justify-content-between align-items-center mb-4">
                 <h6 class="mb-0 font-semibold">Analytics Monitoring</h6>
-                <span class="badge bg-primary">Analitik</span>
+                
             </div>
 
             <!-- Filter -->
@@ -324,16 +324,39 @@
 
             <!-- Charts Row -->
             <div class="row mb-4">
-                <div class="col-lg-8 mb-3">
-                    <div class="stats-card">
-                        <h6 class="fw-semibold mb-3">Kepatuhan per Tingkat</h6>
-                        <canvas id="chartTingkat" height="120"></canvas>
-                    </div>
+                <div class="col-lg-6 mb-3">
+                    <div class="stats-card h-100">
+                        <div class="d-flex flex-column flex-sm-row align-items-sm-center justify-content-between mb-3 gap-3">
+                            <div>
+                                <h6 class="fw-semibold mb-1">Kepatuhan per Mata Kuliah</h6>
+                                <small class="text-muted">Insight: Bar warna hijau = kepatuhan tinggi (≥80%), merah = perlu perhatian (<50%). Hover bar untuk lihat dosen pengampu.</small>
+                            </div>
+                            <div class="d-flex flex-wrap align-items-center gap-2">
+                                <label for="filterTingkatMatakuliah" class="mb-0 text-muted">Filter Tingkat</label>
+                                <select id="filterTingkatMatakuliah" class="form-select form-select-sm">
+                                    <option value="">Semua Tingkat</option>
+                                    @foreach(collect($groupByTingkat ?? [])->keys() as $tingkat)
+                                        <option value="{{ $tingkat }}" {{ $tingkat == 1 ? 'selected' : '' }}>
+                                            {{ $tingkat }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                                <label for="sortOrderMatakuliah" class="mb-0 text-muted">Urutkan</label>
+                                <select id="sortOrderMatakuliah" class="form-select form-select-sm">
+                                    <option value="desc">Tertinggi ke Terendah</option>
+                                    <option value="asc">Terendah ke Tertinggi</option>
+                                </select>
+                            </div>
+                        </div>
+                    <canvas id="chartMatakuliah" height="200"></canvas>
                 </div>
-                <div class="col-lg-4 mb-3">
-                    <div class="stats-card">
-                        <h6 class="fw-semibold mb-3">Distribusi Status</h6>
-                        <canvas id="chartStatus" height="220"></canvas>
+            </div>
+
+                <div class="col-lg-6 mb-3">
+                    <div class="stats-card h-100">
+                        <h6 class="fw-semibold mb-3">Ringkasan per Tingkat</h6>
+                        <small class="text-muted">Rangkuman rata-rata kepatuhan per tingkat berdasarkan data monitoring prodi.</small>
+                        <canvas id="chartTingkat" height="180"></canvas>
                     </div>
                 </div>
             </div>
@@ -410,7 +433,7 @@
 @section('scripts')
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            // Chart Kepatuhan per Tingkat
+            // Chart Ringkasan per Tingkat
             const tingkatData = @json($groupByTingkat ?? collect());
             const tingkatLabels = Object.keys(tingkatData);
             const tingkatValues = Object.values(tingkatData);
@@ -423,9 +446,9 @@
                 new Chart(document.getElementById('chartTingkat'), {
                     type: 'bar',
                     data: {
-                        labels: tingkatLabels,
+                        labels: tingkatLabels.map(label => 'Tingkat ' + label),
                         datasets: [{
-                            label: 'Rata-rata Kepatuhan (%)',
+                            label: 'Ringkasan per Tingkat',
                             data: tingkatValues,
                             backgroundColor: '#0d6efd',
                             borderRadius: 10,
@@ -453,7 +476,7 @@
                             tooltip: {
                                 callbacks: {
                                     label: function(context) {
-                                        return 'Kepatuhan: ' + context.parsed.y + '%';
+                                        return 'Ringkasan: ' + context.parsed.y + '%';
                                     }
                                 }
                             }
@@ -469,58 +492,135 @@
                 ctx.fillText('Tidak ada data untuk ditampilkan', canvas.width / 2, canvas.height / 2);
             }
 
-            // Chart Distribusi Status
-            const statusData = @json($statusDistribution ?? collect());
-            const statusLabels = Object.keys(statusData);
-            const statusValues = Object.values(statusData);
+            // Chart Kepatuhan per Mata Kuliah (Horizontal Bar)
+            const matakuliahDetails = @json($matakuliahDetails ?? collect());
+            const mkDosenMap = @json($dosenPerMatakuliah ?? collect());
 
-            console.log('Status Data:', statusData);
-            console.log('Status Labels:', statusLabels);
-            console.log('Status Values:', statusValues);
+            let matakuliahChart = null;
 
-            // Map warna berdasarkan label status
-            const statusColors = statusLabels.map(label => {
-                if (label === 'BELUM PATUH') return '#dc3545'; // Merah untuk Belum Patuh
-                if (label === 'KURANG PATUH') return '#ffc107'; // Kuning untuk Kurang Patuh
-                if (label === 'PATUH') return '#198754'; // Hijau untuk Patuh
-                return '#0d6efd'; // Biru default
-            });
+            function getBarColor(value) {
+                if (value >= 80) {
+                    return '#28a745';
+                }
 
-            if (statusLabels.length > 0) {
-                new Chart(document.getElementById('chartStatus'), {
-                    type: 'doughnut',
+                if (value < 50) {
+                    return '#dc3545';
+                }
+
+                return '#ffc107';
+            }
+
+            function formatMatakuliahChartData(details) {
+                return {
+                    labels: details.map(item => item.nama_matkul.length > 25 ? item.nama_matkul.substring(0, 23) + '...' : item.nama_matkul),
+                    values: details.map(item => item.avg_kepatuhan),
+                    backgroundColors: details.map(item => getBarColor(item.avg_kepatuhan)),
+                    rawNames: details.map(item => item.nama_matkul),
+                    dosenList: details.map(item => item.dosen.join(', ')),
+                };
+            }
+
+            function renderMatakuliahChart(details) {
+                const chartData = formatMatakuliahChartData(details);
+                const ctxMK = document.getElementById('chartMatakuliah');
+
+                if (matakuliahChart) {
+                    matakuliahChart.data.labels = chartData.labels;
+                    matakuliahChart.data.datasets[0].data = chartData.values;
+                    matakuliahChart.data.datasets[0].backgroundColor = chartData.backgroundColors;
+                    matakuliahChart.update();
+                    return;
+                }
+
+                matakuliahChart = new Chart(ctxMK, {
+                    type: 'bar',
                     data: {
-                        labels: statusLabels,
+                        labels: chartData.labels,
                         datasets: [{
-                            data: statusValues,
-                            backgroundColor: statusColors
+                            label: 'Kepatuhan Upload (%)',
+                            data: chartData.values,
+                            backgroundColor: chartData.backgroundColors,
+                            borderRadius: 8,
+                            borderWidth: 0
                         }]
                     },
                     options: {
+                        indexAxis: 'y',
                         responsive: true,
                         maintainAspectRatio: true,
+                        scales: {
+                            x: {
+                                beginAtZero: true,
+                                max: 100,
+                                ticks: {
+                                    callback: function(value) {
+                                        return value + '%';
+                                    }
+                                }
+                            }
+                        },
                         plugins: {
                             legend: {
-                                position: 'bottom'
+                                display: true
                             },
                             tooltip: {
                                 callbacks: {
                                     label: function(context) {
-                                        return context.label + ': ' + context.parsed + '%';
+                                        const index = context.dataIndex;
+                                        const value = context.parsed.x;
+                                        const dosen = chartData.dosenList[index] || 'N/A';
+                                        return [
+                                            'Kepatuhan: ' + value + '%',
+                                            'Dosen: ' + dosen
+                                        ];
                                     }
                                 }
                             }
                         }
                     }
                 });
-            } else {
-                const canvas = document.getElementById('chartStatus');
-                const ctx = canvas.getContext('2d');
-                ctx.font = '14px Arial';
-                ctx.fillStyle = '#6c757d';
-                ctx.textAlign = 'center';
-                ctx.fillText('Tidak ada data untuk ditampilkan', canvas.width / 2, canvas.height / 2);
             }
+
+            function applyMatakuliahFilter() {
+                const filterElement = document.getElementById('filterTingkatMatakuliah');
+                const sortElement = document.getElementById('sortOrderMatakuliah');
+                const selectedTingkat = filterElement ? filterElement.value : '';
+                const sortOrder = sortElement ? sortElement.value : 'desc';
+
+                let filtered = selectedTingkat ? matakuliahDetails.filter(item => item.tingkat == selectedTingkat) : [...matakuliahDetails];
+                filtered.sort((a, b) => {
+                    return sortOrder === 'asc'
+                        ? a.avg_kepatuhan - b.avg_kepatuhan
+                        : b.avg_kepatuhan - a.avg_kepatuhan;
+                });
+
+                if (filtered.length > 0) {
+                    renderMatakuliahChart(filtered);
+                } else {
+                    if (matakuliahChart) {
+                        matakuliahChart.destroy();
+                        matakuliahChart = null;
+                    }
+                    const canvas = document.getElementById('chartMatakuliah');
+                    const ctx = canvas.getContext('2d');
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    ctx.font = '14px Arial';
+                    ctx.fillStyle = '#6c757d';
+                    ctx.textAlign = 'center';
+                    ctx.fillText('Tidak ada data untuk ditampilkan', canvas.width / 2, canvas.height / 2);
+                }
+            }
+
+            const filterElement = document.getElementById('filterTingkatMatakuliah');
+            const sortElement = document.getElementById('sortOrderMatakuliah');
+            if (filterElement) {
+                filterElement.addEventListener('change', applyMatakuliahFilter);
+            }
+            if (sortElement) {
+                sortElement.addEventListener('change', applyMatakuliahFilter);
+            }
+
+            applyMatakuliahFilter();
 
             // Chart Trend Kepatuhan
             const trendData = @json($trendSemester ?? collect());

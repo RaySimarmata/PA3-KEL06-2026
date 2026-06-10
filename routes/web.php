@@ -316,6 +316,7 @@ Route::middleware('auth')->group(function () {
         // Kirim Laporan
         Route::prefix('kirim-laporan')->name('kirim-laporan.')->group(function () {
             Route::get('/', [KirimLaporanController::class, 'index'])->name('index');
+            Route::get('/history', [KirimLaporanController::class, 'history'])->name('history');
             Route::post('/generate', [KirimLaporanController::class, 'generateMessage'])->name('generate');
             Route::post('/send', [KirimLaporanController::class, 'send'])->name('send');
         });

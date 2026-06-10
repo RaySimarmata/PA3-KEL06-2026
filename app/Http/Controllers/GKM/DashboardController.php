@@ -159,6 +159,29 @@ class DashboardController extends Controller
                 return round($items->avg('persentase_kepatuhan') ?? 0, 2);
             });
 
+            $kepuasanQuery = HasilAnalisisMongo::query();
+            if (!empty($prodiKode)) {
+                $kepuasanQuery->where('prodi.kode', $prodiKode);
+            }
+            if (!empty($semester)) {
+                $kepuasanQuery->where('semester', (int) $semester);
+            }
+            if (!empty($tahun)) {
+                $kepuasanQuery->where('tahun', (string) $tahun);
+            }
+            $kepuasanDetails = $kepuasanQuery->get();
+            $avgKepuasanPerTingkat = $kepuasanDetails->groupBy('tingkat')->map(function ($items) {
+                return round($items->avg(function ($item) {
+                    if (isset($item->persentase_kepuasan)) {
+                        return $item->persentase_kepuasan;
+                    }
+                    if (isset($item->index_kepuasan)) {
+                        return ($item->index_kepuasan / 4) * 100;
+                    }
+                    return 0;
+                }) ?? 0, 2);
+            })->sortKeys();
+
             // Group by semester only (Semester 1 and Semester 2)
             $trendSemester = $details->groupBy('semester')->map(function ($items, $key) {
                 return round($items->avg('persentase_kepatuhan') ?? 0, 2);
@@ -174,6 +197,7 @@ class DashboardController extends Controller
                     'kode_mk' => $items->first()->kode_mk,
                     'nama_matkul' => $items->first()->nama_matkul,
                     'dosen' => $items->first()->nama_dosen,
+                    'tingkat' => $items->first()->tingkat,
                     'avg_kepatuhan' => round($items->avg('persentase_kepatuhan') ?? 0, 2),
                     'total_upload' => $items->sum('jumlah_upload'),
                     'total_belum_upload' => $items->sum('jumlah_belum_upload'),
@@ -183,6 +207,27 @@ class DashboardController extends Controller
 
             $topCourses = $courseGroups->sortByDesc('avg_kepatuhan')->take(5)->values();
             $bottomCourses = $courseGroups->sortBy('avg_kepatuhan')->take(5)->values();
+
+            $matakuliahDetails = $courseGroups->map(function ($course) {
+                return [
+                    'nama_matkul' => $course['nama_matkul'],
+                    'avg_kepatuhan' => $course['avg_kepatuhan'],
+                    'dosen' => is_array($course['dosen']) ? $course['dosen'] : [$course['dosen']],
+                    'tingkat' => $course['tingkat'],
+                ];
+            })->values();
+
+            // Group by Mata Kuliah for horizontal bar chart
+            $groupByMatakuliah = $matakuliahDetails->mapWithKeys(function ($course) {
+                return [$course['nama_matkul'] => $course['avg_kepatuhan']];
+            })->sortByDesc(function ($val) {
+                return $val;
+            });
+
+            // Map dosen per mata kuliah
+            $dosenPerMatakuliah = $matakuliahDetails->mapWithKeys(function ($course) {
+                return [$course['nama_matkul'] => $course['dosen']];
+            });
 
             $listTahun = PerkuliahanMonitoringDetail::select('tahun_ajaran')
                 ->distinct()
@@ -197,6 +242,10 @@ class DashboardController extends Controller
             return compact(
                 'analyticsStats',
                 'groupByTingkat',
+                'avgKepuasanPerTingkat',
+                'groupByMatakuliah',
+                'dosenPerMatakuliah',
+                'matakuliahDetails',
                 'trendSemester',
                 'statusDistribution',
                 'topCourses',
@@ -407,6 +456,7 @@ class DashboardController extends Controller
                     'kode_mk' => $items->first()->kode_mk,
                     'nama_matkul' => $items->first()->nama_matkul,
                     'dosen' => $items->first()->nama_dosen,
+                    'tingkat' => $items->first()->tingkat,
                     'avg_kepatuhan' => round($items->avg('persentase_kepatuhan') ?? 0, 2),
                     'total_upload' => $items->sum('jumlah_upload'),
                     'total_belum_upload' => $items->sum('jumlah_belum_upload'),
@@ -416,6 +466,27 @@ class DashboardController extends Controller
 
             $topCourses = $courseGroups->sortByDesc('avg_kepatuhan')->take(5)->values();
             $bottomCourses = $courseGroups->sortBy('avg_kepatuhan')->take(5)->values();
+
+            $matakuliahDetails = $courseGroups->map(function ($course) {
+                return [
+                    'nama_matkul' => $course['nama_matkul'],
+                    'avg_kepatuhan' => $course['avg_kepatuhan'],
+                    'dosen' => is_array($course['dosen']) ? $course['dosen'] : [$course['dosen']],
+                    'tingkat' => $course['tingkat'],
+                ];
+            })->values();
+
+            // Group by Mata Kuliah for horizontal bar chart
+            $groupByMatakuliah = $matakuliahDetails->mapWithKeys(function ($course) {
+                return [$course['nama_matkul'] => $course['avg_kepatuhan']];
+            })->sortByDesc(function ($val) {
+                return $val;
+            });
+
+            // Map dosen per mata kuliah
+            $dosenPerMatakuliah = $matakuliahDetails->mapWithKeys(function ($course) {
+                return [$course['nama_matkul'] => $course['dosen']];
+            });
 
             $listTahun = PerkuliahanMonitoringDetail::select('tahun_ajaran')
                 ->distinct()
@@ -431,6 +502,9 @@ class DashboardController extends Controller
                 'details',
                 'stats',
                 'groupByTingkat',
+                'groupByMatakuliah',
+                'dosenPerMatakuliah',
+                'matakuliahDetails',
                 'trendSemester',
                 'statusDistribution',
                 'topCourses',

@@ -46,17 +46,21 @@ private function getPeriodeAktif()
     ];
 }
 
-    public function index()
-{
-    $user = auth()->user();
+    public function index(Request $request)
+    {
+        $user = auth()->user();
 
-    $kuesioners = KuesioneUpload::with(['user', 'user.prodi'])
-        ->whereHas('user', function ($q) use ($user) {
-            $q->where('prodi_id', $user->prodi_id);
-        })
-        ->orderBy('created_at', 'desc')
-        ->get()
-        ->map(function ($k) {
+        $query = KuesioneUpload::with(['user', 'user.prodi'])
+            ->whereHas('user', function ($q) use ($user) {
+                $q->where('prodi_id', $user->prodi_id);
+            });
+
+        $kuesioners = $query
+            ->orderBy('created_at', 'desc')
+            ->paginate(10)
+            ->withQueryString();
+
+        $kuesioners->getCollection()->transform(function ($k) {
             // Pastikan nama_matakuliah terisi
             if (empty($k->nama_matakuliah) && !empty($k->kode_matakuliah)) {
                 // Coba cari dengan berbagai variasi

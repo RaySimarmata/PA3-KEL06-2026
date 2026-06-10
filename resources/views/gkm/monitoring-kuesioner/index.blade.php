@@ -110,10 +110,12 @@
                     elseif ($index >= 3.0) $badgeColor = 'info';
                     elseif ($index >= 2.5) $badgeColor = 'warning';
                     elseif ($index) $badgeColor = 'danger';
+
+                    $rowNumber = ($kuesioners->firstItem() ?? 0) + $i;
                 @endphp
 
                 <tr>
-                    <td class="text-center">{{ $i + 1 }}</td>
+                    <td class="text-center">{{ $rowNumber }}</td>
 
                     <td>
                         <strong style="color: #333;">{{ Str::limit($k->nama_file, 50) }}</strong>
@@ -247,6 +249,12 @@
                 </tbody>
 
             </table>
+
+            @if($kuesioners->hasPages())
+                <div class="pagination-wrapper mt-3">
+                    {{ $kuesioners->links() }}
+                </div>
+            @endif
         </div>
     </div>
 

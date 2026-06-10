@@ -635,7 +635,7 @@
                                 <a href="{{ route('gkm.laporan-kuesioner.index') }}"
                                     class="nav-item {{ request()->routeIs('gkm.laporan-kuesioner.*') ? 'active' : '' }}">
                                     <i class="bi bi-file-earmark-text menu-icon"></i>
-                                    <span class="menu-text">Laporan Kuesioner Bulanan</span>
+                                    <span class="menu-text">Laporan Kuesioner</span>
                                 </a>
                             </div>
                         </div>
