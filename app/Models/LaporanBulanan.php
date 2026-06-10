@@ -16,6 +16,7 @@ class LaporanBulanan extends Model
         'bulan',
         'tahun',
         'user_id',
+        'periode_akademik_id',
         'template_id',
         'judul_laporan',
         'total_kuesioner',
@@ -29,6 +30,7 @@ class LaporanBulanan extends Model
         'file_word',
         'file_pdf',
         'status',
+        'tipe_laporan',
         'error_message',
     ];
 
@@ -62,6 +64,14 @@ class LaporanBulanan extends Model
     public function template()
     {
         return $this->belongsTo(TemplateLaporan::class, 'template_id');
+    }
+
+    /**
+     * Relasi ke Periode Akademik
+     */
+    public function periodeAkademik()
+    {
+        return $this->belongsTo(PeriodeAkademik::class, 'periode_akademik_id');
     }
 
     /**

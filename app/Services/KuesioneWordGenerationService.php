@@ -553,34 +553,108 @@ class KuesioneWordGenerationService
         return 1; // Default to tingkat 1
     }
 
+    private function groupMatakuliahUploads($kuesioneData)
+    {
+        $groups = [];
+
+        foreach ($kuesioneData as $kuesioner) {
+            $kodeMk = trim((string) ($kuesioner->kode_matakuliah ?? ''));
+            $namaMk = trim((string) ($kuesioner->nama_matakuliah ?? ''));
+            $groupKey = $kodeMk !== '' ? 'KODE::' . strtoupper($kodeMk) : 'NAMA::' . mb_strtolower($namaMk);
+
+            if (!isset($groups[$groupKey])) {
+                $groups[$groupKey] = [
+                    'kode_matakuliah' => $kodeMk !== '' ? $kodeMk : ($namaMk !== '' ? '-' : '-'),
+                    'nama_matakuliah' => $namaMk !== '' ? $namaMk : '-',
+                    'dosen' => [],
+                    'indices' => [],
+                    'rekomendasi' => [],
+                    'rekomendasi_keys' => [],
+                    'area_perbaikan' => [],
+                    'area_perbaikan_keys' => [],
+                    'ringkasan' => '',
+                ];
+            }
+
+            if (!empty($kuesioner->dosen_pengampu)) {
+                $dosen = trim($kuesioner->dosen_pengampu);
+                if ($dosen !== '' && !in_array($dosen, $groups[$groupKey]['dosen'], true)) {
+                    $groups[$groupKey]['dosen'][] = $dosen;
+                }
+            }
+
+            if (is_numeric($kuesioner->index_kepuasan)) {
+                $groups[$groupKey]['indices'][] = (float) $kuesioner->index_kepuasan;
+            }
+
+            $analisis = [];
+            if (!empty($kuesioner->hasil_analisis)) {
+                $analisis = is_string($kuesioner->hasil_analisis)
+                    ? json_decode($kuesioner->hasil_analisis, true)
+                    : $kuesioner->hasil_analisis;
+            }
+
+            if (isset($analisis['rekomendasi']) && is_array($analisis['rekomendasi'])) {
+                foreach ($analisis['rekomendasi'] as $item) {
+                    $item = trim((string) $item);
+                    $key = mb_strtolower($item);
+                    if ($item !== '' && !in_array($key, $groups[$groupKey]['rekomendasi_keys'], true)) {
+                        $groups[$groupKey]['rekomendasi_keys'][] = $key;
+                        $groups[$groupKey]['rekomendasi'][] = $item;
+                    }
+                }
+            }
+
+            if (isset($analisis['area_perbaikan']) && is_array($analisis['area_perbaikan'])) {
+                foreach ($analisis['area_perbaikan'] as $item) {
+                    $item = trim((string) $item);
+                    $key = mb_strtolower($item);
+                    if ($item !== '' && !in_array($key, $groups[$groupKey]['area_perbaikan_keys'], true)) {
+                        $groups[$groupKey]['area_perbaikan_keys'][] = $key;
+                        $groups[$groupKey]['area_perbaikan'][] = $item;
+                    }
+                }
+            }
+
+            if (empty($groups[$groupKey]['ringkasan']) && isset($analisis['ringkasan']) && trim((string) $analisis['ringkasan']) !== '') {
+                $groups[$groupKey]['ringkasan'] = trim((string) $analisis['ringkasan']);
+            }
+        }
+
+        return $groups;
+    }
+
     /**
      * Generate Hasil Kuesioner Table from KuesioneUpload models
      */
     private function generateHasilKuesioneTableFromUploads($kuesioneData, $tingkat)
     {
         $tingkatRoman = $this->numberToRoman($tingkat);
+        $groups = $this->groupMatakuliahUploads($kuesioneData);
 
-        $text = "\nPada tingkat {$tingkatRoman} terdapat " . $kuesioneData->count() . " matakuliah dengan detail sebagai berikut:\n\n";
+        $text = "\nPada tingkat {$tingkatRoman} terdapat " . count($groups) . " matakuliah dengan detail sebagai berikut:\n\n";
         $text .= "Tabel " . (($tingkat * 2) - 1) . ". Matakuliah Mahasiswa Tingkat {$tingkatRoman}\n\n";
         $text .= "| Kode Matakuliah | Nama Matakuliah | Dosen Pengampu | Indeks Kepuasan |\n";
         $text .= "|-----------------|-----------------|----------------|------------------|\n";
 
-        $totalIndex = 0;
-        foreach ($kuesioneData as $kuesioner) {
-            $kodeMk = $kuesioner->kode_matakuliah ?? '-';
-            $namaMk = $kuesioner->nama_matakuliah ?? '-';
-            $dosen = $kuesioner->dosen_pengampu ?? '-';
-            $index = $kuesioner->index_kepuasan ?? 0;
+        $sumAllIndices = 0;
+        $countAllIndices = 0;
 
-            $totalIndex += $index;
+        foreach ($groups as $group) {
+            $kodeMk = $group['kode_matakuliah'] ?: '-';
+            $namaMk = $group['nama_matakuliah'] ?: '-';
+            $dosen = !empty($group['dosen']) ? implode(', ', $group['dosen']) : '-';
 
-            $text .= "| {$kodeMk} | {$namaMk} | {$dosen} | {$index} |\n";
+            $groupIndexCount = count($group['indices']);
+            $groupAvgIndex = $groupIndexCount > 0 ? round(array_sum($group['indices']) / $groupIndexCount, 5) : 0;
+
+            $sumAllIndices += array_sum($group['indices']);
+            $countAllIndices += $groupIndexCount;
+
+            $text .= "| {$kodeMk} | {$namaMk} | {$dosen} | {$groupAvgIndex} |\n";
         }
 
-        // Calculate average
-        $count = $kuesioneData->count();
-        $avgIndex = $count > 0 ? round($totalIndex / $count, 5) : 0;
-
+        $avgIndex = $countAllIndices > 0 ? round($sumAllIndices / $countAllIndices, 5) : 0;
         $text .= "\nRata Indeks Kepuasan: {$avgIndex}\n\n";
 
         return $text;
@@ -592,45 +666,41 @@ class KuesioneWordGenerationService
     private function generateMasukanSaranTableFromUploads($kuesioneData, $tingkat)
     {
         $tingkatRoman = $this->numberToRoman($tingkat);
+        $groups = $this->groupMatakuliahUploads($kuesioneData);
 
         $text = "Adapun masukan/saran untuk perbaikan mata kuliah ini dapat dilihat pada Tabel " . ($tingkat * 2) . ":\n\n";
         $text .= "Tabel " . ($tingkat * 2) . ". Masukan/saran setiap Matakuliah\n\n";
         $text .= "| Kode Matakuliah | Nama Matakuliah | Dosen Pengampu | Masukan/Saran |\n";
         $text .= "|-----------------|-----------------|----------------|---------------|\n";
 
-        foreach ($kuesioneData as $kuesioner) {
-            $kodeMk = $kuesioner->kode_matakuliah ?? '-';
-            $namaMk = $kuesioner->nama_matakuliah ?? '-';
-            $dosen = $kuesioner->dosen_pengampu ?? '-';
+        foreach ($groups as $group) {
+            $kodeMk = $group['kode_matakuliah'] ?: '-';
+            $namaMk = $group['nama_matakuliah'] ?: '-';
+            $dosen = !empty($group['dosen']) ? implode(', ', $group['dosen']) : '-';
 
-            // Extract masukan/saran from hasil_analisis
-            $masukanSaran = '-';
-            if (!empty($kuesioner->hasil_analisis)) {
-                $analisis = is_string($kuesioner->hasil_analisis)
-                    ? json_decode($kuesioner->hasil_analisis, true)
-                    : $kuesioner->hasil_analisis;
+            $rekomendasi = [];
+            foreach ($group['rekomendasi'] as $item) {
+                $rekomendasi[] = $item;
+            }
 
-                if (isset($analisis['rekomendasi']) && is_array($analisis['rekomendasi'])) {
-                    $masukanSaran = implode('; ', array_slice($analisis['rekomendasi'], 0, 2));
-                } elseif (isset($analisis['area_perbaikan']) && is_array($analisis['area_perbaikan'])) {
-                    $masukanSaran = implode('; ', array_slice($analisis['area_perbaikan'], 0, 2));
-                } elseif (isset($analisis['ringkasan'])) {
-                    $masukanSaran = $analisis['ringkasan'];
+            if (empty($rekomendasi)) {
+                foreach ($group['area_perbaikan'] as $item) {
+                    $rekomendasi[] = $item;
                 }
             }
 
-            // Jika masih kosong, gunakan default berdasarkan index_kepuasan
-            if ($masukanSaran === '-' || empty(trim($masukanSaran))) {
-                if ($kuesioner->index_kepuasan >= 3.5) {
-                    $masukanSaran = 'Kepuasan mahasiswa dalam kategori sangat baik.';
-                } elseif ($kuesioner->index_kepuasan >= 3.0) {
-                    $masukanSaran = 'Kepuasan mahasiswa dalam kategori baik.';
-                } else {
-                    $masukanSaran = 'Perlu peningkatan kualitas pembelajaran.';
-                }
+            if (empty($rekomendasi) && !empty($group['ringkasan'])) {
+                $rekomendasi[] = $group['ringkasan'];
             }
 
-            $text .= "| {$kodeMk} | {$namaMk} | {$dosen} | {$masukanSaran} |\n";
+            if (empty($rekomendasi)) {
+                $rekomendasi[] = 'Perlu peningkatan kualitas pembelajaran.';
+            }
+
+            $rekomendasi = array_unique($rekomendasi);
+            $rekomendasiText = implode('; ', array_slice($rekomendasi, 0, 3));
+
+            $text .= "| {$kodeMk} | {$namaMk} | {$dosen} | {$rekomendasiText} |\n";
         }
 
         $text .= "\n";

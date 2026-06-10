@@ -7,8 +7,8 @@
     <meta name="cache-version" content="1.2.0-{{ time() }}">
     <style>
         /* ===============================================================
-                                                           AI PROMPT ASSISTANT — KUESIONER
-                                                           =============================================================== */
+                                                                       AI PROMPT ASSISTANT — KUESIONER
+                                                                       =============================================================== */
 
         /* Button hover effect - icon turns white */
         .btn-template-link:hover i {
@@ -339,6 +339,7 @@
                     @csrf
                     <input type="hidden" name="tipe_laporan" value="kuesioner">
                     <input type="hidden" id="laporan_id" name="laporan_id" value="">
+                    <input type="hidden" id="tipe_laporan_value" name="tipe_laporan_value" value="">
                     <input type="hidden" id="ai_preview_data" name="ai_preview_data" value="">
 
                     <!-- ===== INFORMASI LAPORAN ===== -->
@@ -351,16 +352,53 @@
                         <div style="padding: 1.5rem;">
                             <div class="row">
                                 <div class="col-md-6 mb-4">
-                                    <label class="filter-label">Periode Laporan <span class="text-danger">*</span></label>
+                                    <label class="filter-label">Periode Akademik <span class="text-danger">*</span></label>
                                     <select class="form-select" name="periode" id="periode" required>
                                         <option value="">-- Pilih Periode --</option>
+                                        @php
+                                            $lastTahun = null;
+                                        @endphp
                                         @foreach ($periodes as $p)
+                                            @php
+                                                $currentTahun = $p['periode_akademik_id'];
+                                                if ($lastTahun !== $currentTahun) {
+                                                    if ($lastTahun !== null) {
+                                                        echo '</optgroup>';
+                                                    }
+                                                    $periodeObj = \App\Models\PeriodeAkademik::find($currentTahun);
+                                                    if ($periodeObj) {
+                                                        $tahunAjaranFormatted = $periodeObj->tahun_ajaran;
+                                                        if (
+                                                            strlen($tahunAjaranFormatted) === 4 &&
+                                                            is_numeric($tahunAjaranFormatted)
+                                                        ) {
+                                                            $tahunStart = substr($tahunAjaranFormatted, 2, 2);
+                                                            $tahunEnd = $tahunStart + 1;
+                                                            $tahunAjaranFormatted = $tahunStart . '/' . $tahunEnd;
+                                                        }
+                                                        echo '<optgroup label="' .
+                                                            $periodeObj->semester_label .
+                                                            ' ' .
+                                                            $tahunAjaranFormatted .
+                                                            ' (' .
+                                                            $periodeObj->tahun_ajaran .
+                                                            ')">';
+                                                    }
+                                                    $lastTahun = $currentTahun;
+                                                }
+                                            @endphp
                                             <option value="{{ $p['value'] }}"
                                                 {{ old('periode') == $p['value'] ? 'selected' : '' }}>
-                                                {{ $p['label'] }}
+                                                {{ $p['tipe_laporan'] }} - {{ $p['label'] }}
                                             </option>
                                         @endforeach
+                                        @if ($lastTahun !== null)
+                                            </optgroup>
+                                        @endif
                                     </select>
+                                    <small class="text-muted d-block mt-2" style="font-size: 0.8rem;">
+                                        <i class="bi bi-info-circle"></i> Pilih periode akademik dan jenis laporan (UTS/UAS)
+                                    </small>
                                 </div>
 
                                 <div class="col-md-6 mb-4">
@@ -581,6 +619,15 @@
                     return;
                 }
 
+                // Parse periode value to extract tipe_laporan (format: ID-UTS or ID-UAS)
+                let tipeLaporan = 'UTS';
+                if (periode.includes('-')) {
+                    const parts = periode.split('-');
+                    if (parts.length === 2 && (parts[1] === 'UTS' || parts[1] === 'UAS')) {
+                        tipeLaporan = parts[1];
+                    }
+                }
+
                 this.disabled = true;
                 const originalText = this.innerHTML;
                 this.innerHTML =
@@ -590,6 +637,7 @@
                     const formData = new FormData();
                     formData.append('_token', '{{ csrf_token() }}');
                     formData.append('periode', periode);
+                    formData.append('tipe_laporan', tipeLaporan);
                     formData.append('judul_laporan', judul);
 
                     const template = document.getElementById('template_id').value;
@@ -605,8 +653,20 @@
 
                     const data = await response.json();
 
+                    console.log('[Create Draft Response]', data);
+                    console.log('[Response Data Fields]', {
+                        id: data?.data?.id,
+                        tipe_laporan: data?.data?.tipe_laporan,
+                        periode: data?.data?.periode,
+                        judul: data?.data?.judul
+                    });
+
                     if (data.success && data.data && data.data.id) {
+                        // Define tipeLaporanDisplay FIRST before using it
+                        const tipeLaporanDisplay = data.data.tipe_laporan || 'UTS';
+
                         document.getElementById('laporan_id').value = data.data.id;
+                        document.getElementById('tipe_laporan_value').value = tipeLaporanDisplay;
                         document.getElementById('periode').disabled = true;
                         document.getElementById('judul_laporan').disabled = true;
                         document.getElementById('template_id').disabled = true;
@@ -615,8 +675,11 @@
                         this.classList.add('btn-success');
                         this.classList.remove('btn-primary');
 
+                        console.log('[Display Tipe Laporan]', tipeLaporanDisplay);
+
                         appendAIMessage(
-                            '<strong>✅ Laporan draft berhasil dibuat!</strong><br>Sekarang Anda bisa mulai chat dengan AI. Ketik instruksi Anda.'
+                            '<strong>✅ Laporan draft berhasil dibuat! (' + tipeLaporanDisplay +
+                            ')</strong><br>Sekarang Anda bisa mulai chat dengan AI. Ketik instruksi Anda.'
                         );
                         promptInput.focus();
                     } else {

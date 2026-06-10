@@ -57,7 +57,7 @@ class LaporanKuesioneController extends Controller
                 if (empty($item->periode) || !preg_match('/^\d{4}-\d{2}$/', $item->periode)) {
                     return null; // Skip invalid entries
                 }
-                
+
                 return (object)[
                     'periode' => $item->periode,
                     'bulan' => Carbon::createFromFormat('Y-m', $item->periode)->locale('id')->translatedFormat('F'),
@@ -86,8 +86,42 @@ class LaporanKuesioneController extends Controller
             ->orderBy('nama_template')
             ->get();
 
-        // Get current periode
+        // Get all active academic periods with both UTS and UAS options
+        $periodeAkademik = \App\Models\PeriodeAkademik::orderBy('tahun_ajaran', 'desc')
+            ->orderBy('semester', 'desc')
+            ->get();
+
+        // Build periode options with UTS/UAS
+        $periodes = [];
+        foreach ($periodeAkademik as $periode) {
+            $tahunAjaranFormatted = $periode->tahun_ajaran;
+            // Convert tahun_ajaran format if needed (e.g., "2026" -> "25/26")
+            if (strlen($tahunAjaranFormatted) === 4 && is_numeric($tahunAjaranFormatted)) {
+                $tahunStart = substr($tahunAjaranFormatted, 2, 2);
+                $tahunEnd = $tahunStart + 1;
+                $tahunAjaranFormatted = $tahunStart . '/' . $tahunEnd;
+            }
+
+            // UTS option
+            $periodes[] = [
+                'value' => $periode->id . '-UTS',
+                'label' => 'UTS ' . $periode->semester_label . ' ' . $tahunAjaranFormatted . ' (' . $periode->tahun_ajaran . ')',
+                'periode_akademik_id' => $periode->id,
+                'tipe_laporan' => 'UTS',
+            ];
+
+            // UAS option
+            $periodes[] = [
+                'value' => $periode->id . '-UAS',
+                'label' => 'UAS ' . $periode->semester_label . ' ' . $tahunAjaranFormatted . ' (' . $periode->tahun_ajaran . ')',
+                'periode_akademik_id' => $periode->id,
+                'tipe_laporan' => 'UAS',
+            ];
+        }
+
+        // Get current active periode
         $periodeAktif = \App\Models\PeriodeAkademik::where('is_active', true)->first();
+        $currentPeriode = $periodeAktif ? $periodeAktif->id . '-UTS' : null;
 
         $currentMonth = (int) date('n');
         $currentYear = (int) date('Y');
@@ -105,28 +139,13 @@ class LaporanKuesioneController extends Controller
             }
         }
 
-        $currentPeriode = $currentYear . '-' . str_pad($currentMonth, 2, '0', STR_PAD_LEFT);
-
-        // Generate periode options (January of current year up to current month)
-        $periodes = [];
-        $startMonth = 1; // January
-        $endMonth = $currentMonth; // Current month
-
-        for ($month = $endMonth; $month >= $startMonth; $month--) {
-            $date = Carbon::create($currentYear, $month, 1);
-            $periodes[] = [
-                'value' => $date->format('Y-m'),
-                'label' => $date->locale('id')->translatedFormat('F Y'),
-                'is_current' => $date->format('Y-m') === $currentPeriode
-            ];
-        }
-
         return view('gkm.laporan-kuesioner.create', compact(
             'templates',
             'currentPeriode',
             'semester',
             'tahunAjaran',
-            'periodes'
+            'periodes',
+            'periodeAkademik'
         ));
     }
 
@@ -317,20 +336,52 @@ class LaporanKuesioneController extends Controller
         try {
             $request->validate([
                 'judul_laporan' => 'required|string|max:255',
-                'periode' => 'required|string|regex:/^\d{4}-\d{2}$/',
+                'periode' => 'required|string',
+                'tipe_laporan' => 'required|in:UTS,UAS',
                 'template_id' => 'nullable|exists:template_laporan,id',
             ]);
 
             $user = Auth::user();
             $periode = $request->periode;
+            $tipeLaporan = $request->tipe_laporan;
 
-            // Parse periode
-            $periodeObj = Carbon::createFromFormat('Y-m', $periode);
-            $bulan = $periodeObj->locale('id')->translatedFormat('F'); // Month name in Indonesian
-            $tahun = $periodeObj->year;
+            // Extract periode_akademik_id from periode value (format: ID-UTS or ID-UAS)
+            $periodeAkademikId = null;
+            if (strpos($periode, '-') !== false) {
+                list($periodeAkademikId, $extractedTipe) = explode('-', $periode);
+                // Use the tipe_laporan from request for consistency
+            }
 
-            // Check if draft already exists for this user + periode
-            $existing = LaporanBulanan::where('periode', $periode)
+            // If we have periode_akademik_id, fetch the periode data
+            $periodeAkademik = null;
+            if ($periodeAkademikId) {
+                $periodeAkademik = \App\Models\PeriodeAkademik::find($periodeAkademikId);
+                if (!$periodeAkademik) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Periode akademik tidak ditemukan',
+                    ], 422);
+                }
+            } else {
+                // Fallback: try to parse old format
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Format periode tidak valid',
+                ], 422);
+            }
+
+            // Generate periode string for display
+            $tahunAjaranFormatted = $periodeAkademik->tahun_ajaran;
+            if (strlen($tahunAjaranFormatted) === 4 && is_numeric($tahunAjaranFormatted)) {
+                $tahunStart = substr($tahunAjaranFormatted, 2, 2);
+                $tahunEnd = $tahunStart + 1;
+                $tahunAjaranFormatted = $tahunStart . '/' . $tahunEnd;
+            }
+            $periodeDisplay = $tipeLaporan . ' ' . $periodeAkademik->semester_label . ' ' . $tahunAjaranFormatted;
+
+            // Check if draft already exists for this user + periode + tipe_laporan
+            $existing = LaporanBulanan::where('periode_akademik_id', $periodeAkademikId)
+                ->where('tipe_laporan', $tipeLaporan)
                 ->where('user_id', $user->id)
                 ->where('status', 'pending')
                 ->first();
@@ -343,17 +394,19 @@ class LaporanKuesioneController extends Controller
                     'data' => [
                         'id' => $existing->id,
                         'judul' => $existing->judul_laporan,
-                        'periode' => $periode,
+                        'periode' => $periodeDisplay,
                     ],
                 ]);
             }
 
             // Create new draft
             $laporan = LaporanBulanan::create([
-                'periode' => $periode,
-                'bulan' => $bulan,
-                'tahun' => $tahun,
+                'periode' => $periodeDisplay,
+                'bulan' => $periodeDisplay,
+                'tahun' => (int)$periodeAkademik->tahun_ajaran,
                 'user_id' => $user->id,
+                'periode_akademik_id' => $periodeAkademikId,
+                'tipe_laporan' => $tipeLaporan,
                 'template_id' => $request->template_id,
                 'judul_laporan' => $request->judul_laporan,
                 'status' => 'pending',
@@ -362,7 +415,8 @@ class LaporanKuesioneController extends Controller
             Log::info('Draft Laporan Kuesioner created', [
                 'laporan_id' => $laporan->id,
                 'user_id' => $user->id,
-                'periode' => $periode,
+                'periode_akademik_id' => $periodeAkademikId,
+                'tipe_laporan' => $tipeLaporan,
             ]);
 
             return response()->json([
@@ -371,7 +425,8 @@ class LaporanKuesioneController extends Controller
                 'data' => [
                     'id' => $laporan->id,
                     'judul' => $laporan->judul_laporan,
-                    'periode' => $periode,
+                    'periode' => $periodeDisplay,
+                    'tipe_laporan' => $tipeLaporan,
                 ],
             ]);
 
@@ -420,7 +475,7 @@ class LaporanKuesioneController extends Controller
 
             // === DAFTAR KEYWORD YANG DI IZINKAN (WAJIB ADA SALAH SATU) ===
             $allowedKeywords = [
-                'laporan', 'report', 'kuesioner', 'questionnaire', 'survey', 
+                'laporan', 'report', 'kuesioner', 'questionnaire', 'survey',
                 'kepuasan', 'satisfaction', 'mahasiswa', 'student',
                 'buat', 'buatkan', 'bikin', 'generate', 'create', 'buatlah',
                 'ubah', 'perbaiki', 'edit', 'revisi', 'update', 'ganti', 'tambah', 'hapus',
@@ -444,12 +499,12 @@ class LaporanKuesioneController extends Controller
                 'olahraga', 'sport', 'fitness', 'gym', 'danbel', 'dumbell', 'barbel',
                 'barbell', 'lari', 'jogging', 'renang', 'sepak bola', 'bola', 'badminton',
                 'film', 'movie', 'game', 'permainan', 'musik', 'lagu', 'song', 'drama',
-                'sinetron', 'yt', 'youtube', 'tiktok', 'instagram', 'resep', 'masak', 
-                'memasak', 'makanan', 'minuman', 'masakan', 'berita', 'news', 'politik', 
-                'politic', 'pemilu', 'presiden', 'kecelakaan', 'joke', 'lelucon', 'cerita', 
-                'story', 'pantun', 'puisi', 'poem', 'dongeng', 'ngobrol', 'chat', 'mengobrol', 
-                'nge-chat', 'obrolan', 'canda', 'guyon', 'cuaca', 'weather', 'ramalan', 
-                'zodiac', 'horoskop', 'shio', 'tutorial', 'cara membuat', 'cara memasak', 
+                'sinetron', 'yt', 'youtube', 'tiktok', 'instagram', 'resep', 'masak',
+                'memasak', 'makanan', 'minuman', 'masakan', 'berita', 'news', 'politik',
+                'politic', 'pemilu', 'presiden', 'kecelakaan', 'joke', 'lelucon', 'cerita',
+                'story', 'pantun', 'puisi', 'poem', 'dongeng', 'ngobrol', 'chat', 'mengobrol',
+                'nge-chat', 'obrolan', 'canda', 'guyon', 'cuaca', 'weather', 'ramalan',
+                'zodiac', 'horoskop', 'shio', 'tutorial', 'cara membuat', 'cara memasak',
                 'DIY', 'kerajinan',
             ];
 
@@ -484,12 +539,27 @@ class LaporanKuesioneController extends Controller
 
             // Cek apakah ada keyword yang diizinkan
             $hasAllowedKeyword = false;
+            $foundAllowedKeyword = null;
             foreach ($allowedKeywords as $keyword) {
                 if (strpos($promptLower, $keyword) !== false) {
                     $hasAllowedKeyword = true;
+                    $foundAllowedKeyword = $keyword;
                     break;
                 }
             }
+
+            // DEBUG LOGGING
+            Log::info('AI Prompt Kuesioner - Keyword Validation', [
+                'prompt' => $userPrompt,
+                'prompt_lower' => $promptLower,
+                'has_rejected_keyword' => $hasRejectedKeyword,
+                'found_rejected_keyword' => $foundRejectedKeyword,
+                'has_allowed_keyword' => $hasAllowedKeyword,
+                'found_allowed_keyword' => $foundAllowedKeyword,
+                'will_reject' => $hasRejectedKeyword && !$hasAllowedKeyword,
+                'periode' => $periode,
+                'tipe_laporan' => $tipeLaporan
+            ]);
 
             // Cek pola pertanyaan singkat yang mencurigakan
             $isSuspiciousShort = false;
@@ -504,13 +574,13 @@ class LaporanKuesioneController extends Controller
 
             // Jika ada keyword terlarang DAN tidak ada keyword yang diizinkan → TOLAK
             if ($hasRejectedKeyword && !$hasAllowedKeyword) {
-                Log::info('AI Prompt Kuesioner rejected: User prompt contains rejected keyword without allowed context', [
+                Log::warning('AI Prompt Kuesioner rejected: Rejected keyword without allowed context', [
                     'prompt' => $userPrompt,
                     'found_keyword' => $foundRejectedKeyword,
-                    'user_id' => Auth::id(),
-                    'ip' => $request->ip()
+                    'has_allowed' => $hasAllowedKeyword,
+                    'has_rejected' => $hasRejectedKeyword
                 ]);
-                
+
                 return response()->json([
                     'success' => true,
                     'response' => "Maaf, permintaan Anda di luar konteks pembuatan **Laporan Kuesioner Kepuasan Mahasiswa**.\n\n" .
@@ -533,7 +603,7 @@ class LaporanKuesioneController extends Controller
                     'prompt' => $userPrompt,
                     'user_id' => Auth::id()
                 ]);
-                
+
                 return response()->json([
                     'success' => true,
                     'response' => "Maaf, permintaan Anda di luar konteks pembuatan **Laporan Kuesioner Kepuasan Mahasiswa**.\n\n" .
@@ -552,7 +622,7 @@ class LaporanKuesioneController extends Controller
                     'length' => strlen($userPrompt),
                     'user_id' => Auth::id()
                 ]);
-                
+
                 return response()->json([
                     'success' => true,
                     'response' => "Maaf, instruksi Anda terlalu singkat dan tidak jelas.\n\n" .
@@ -576,7 +646,17 @@ class LaporanKuesioneController extends Controller
 
             $conversationHistory = $request->input('conversation_history', []);
             $templateId = $request->input('template_id');
-            $periode = $request->input('periode');
+            $periode = $request->input('periode', null);
+            $tipeLaporan = $request->input('tipe_laporan', 'UTS');
+
+            // Ensure periode is not null
+            if (!$periode || empty(trim($periode))) {
+                Log::warning('AI Prompt Kuesioner: periode not provided', [
+                    'user_id' => Auth::id(),
+                    'prompt' => $userPrompt
+                ]);
+                $periode = null; // Will be handled in getKuesioneDataFromDatabase
+            }
 
             // Build context for caching
             $cacheContext = [
@@ -584,6 +664,7 @@ class LaporanKuesioneController extends Controller
                 'type' => 'laporan_bulanan',
                 'template_id' => $templateId,
                 'periode' => $periode,
+                'tipe_laporan' => $tipeLaporan,
                 'has_files' => $request->hasFile('file_referensi'),
                 'file_count' => $request->hasFile('file_referensi') ? count($request->file('file_referensi')) : 0,
             ];
@@ -592,15 +673,17 @@ class LaporanKuesioneController extends Controller
             // Cache dinonaktifkan untuk Laporan Kuesioner agar selalu fresh & akurat
             Log::info('AI Prompt Kuesioner: Cache DISABLED - Always generating fresh response', [
                 'periode' => $periode,
+                'tipe_laporan' => $tipeLaporan,
                 'prompt_length' => strlen($userPrompt)
             ]);
 
             // Ambil data Kuesioner Kepuasan Mahasiswa dari database jika tidak ada file upload
             $databaseContext = '';
             if (!$request->hasFile('file_referensi') || $request->file('file_referensi') === null) {
-                $databaseContext = $this->getKuesioneDataFromDatabase($periode);
+                $databaseContext = $this->getKuesioneDataFromDatabase($periode, null, $tipeLaporan);
                 Log::info('Using database context for Kuesioner AI', [
                     'periode' => $periode,
+                    'tipe_laporan' => $tipeLaporan,
                     'context_length' => strlen($databaseContext)
                 ]);
             }
@@ -638,32 +721,41 @@ class LaporanKuesioneController extends Controller
                     Log::info('Auto-generate laporan kuesioner triggered', [
                         'prompt' => $userPrompt,
                         'periode' => $periode,
+                        'tipe_laporan' => $tipeLaporan,
                         'template_id' => $templateId,
                     ]);
 
                     // Create laporan record if doesn't exist
                     $laporan = LaporanBulanan::where('periode', $periode)
+                        ->where('tipe_laporan', $tipeLaporan)
                         ->where('user_id', Auth::id())
                         ->where('status', '!=', 'completed')
                         ->latest()
                         ->first();
 
                     if (!$laporan) {
-                        // Create new laporan record
-                        $periodeObj = Carbon::createFromFormat('Y-m', $periode);
+                        // Get periode akademik from periode value (format: ID-UTS or ID-UAS)
+                        $periodeAkademikId = null;
+                        if (strpos($periode, '-') !== false) {
+                            list($periodeAkademikId, $extractedTipe) = explode('-', $periode);
+                        }
 
+                        // Create new laporan record
                         $laporan = LaporanBulanan::create([
                             'user_id' => Auth::id(),
                             'periode' => $periode,
-                            'bulan' => $periodeObj->month,
-                            'tahun' => $periodeObj->year,
-                            'judul_laporan' => 'Laporan Monitoring Kuesioner Kepuasan Mahasiswa ' . $periodeObj->format('F Y'),
+                            'bulan' => $periode,
+                            'tahun' => now()->year,
+                            'periode_akademik_id' => $periodeAkademikId,
+                            'tipe_laporan' => $tipeLaporan,
+                            'judul_laporan' => 'Laporan Monitoring Kuesioner Kepuasan Mahasiswa - ' . $tipeLaporan,
                             'template_id' => $templateId,
                             'status' => 'pending',
                         ]);
 
                         Log::info('Created new laporan kuesioner for auto-generation', [
                             'laporan_id' => $laporan->id,
+                            'tipe_laporan' => $tipeLaporan,
                         ]);
                     }
 
@@ -671,7 +763,7 @@ class LaporanKuesioneController extends Controller
                     $user = Auth::user();
                     $prodiId = $user->prodi_id ?? null;
 
-                    $result = $this->laporanService->generateLaporan($periode, $prodiId, $templateId);
+                    $result = $this->laporanService->generateLaporan($periode, $prodiId, $templateId, $tipeLaporan);
 
                     // Update laporan with generated data
                     $laporan->update([
@@ -693,8 +785,9 @@ class LaporanKuesioneController extends Controller
                     $downloadUrl = route('gkm.laporan-kuesioner.download', ['id' => $laporan->id, 'format' => 'word']);
 
                     // Format response for user
-                    $aiResponse = "✅ **LAPORAN KUESIONER BERHASIL DIBUAT!**\n\n";
-                    $aiResponse .= "Saya telah membuat laporan monitoring kuesioner kepuasan mahasiswa lengkap untuk periode **{$periode}** menggunakan data dari sistem monitoring.\n\n";
+                    $aiResponse = "✅ **LAPORAN KUESIONER BERHASIL DIBUAT (" . $tipeLaporan . ")!**\n\n";
+                    $periodeDisplay = $periode ?? 'Periode Laporan';
+                    $aiResponse .= "Saya telah membuat laporan monitoring kuesioner kepuasan mahasiswa lengkap untuk periode **{$periodeDisplay}** (" . $tipeLaporan . ") menggunakan data dari sistem monitoring.\n\n";
 
                     $aiResponse .= "## 📊 Ringkasan Data\n\n";
                     if (isset($result['aggregated_data'])) {
@@ -751,7 +844,7 @@ class LaporanKuesioneController extends Controller
             // System context for Kuesioner reports
             $systemContext = "Anda adalah AI Assistant untuk Gugus Kendali Mutu (GKM) Institut Teknologi Del.\n\n";
             $systemContext .= "Tugas Anda: Membantu membuat LAPORAN KUESIONER berdasarkan dokumen yang diupload dan instruksi user.\n\n";
-            
+
             $systemContext .= "=== BATASAN KONTEKS YANG SANGAT KETAT ===\n";
             $systemContext .= "ANDA HANYA BOLEH MEMBANTU DENGAN:\n";
             $systemContext .= "1. Pembuatan laporan kuesioner kepuasan mahasiswa\n";
@@ -759,7 +852,7 @@ class LaporanKuesioneController extends Controller
             $systemContext .= "3. Format dan struktur laporan kuesioner\n";
             $systemContext .= "4. Perbaikan dan revisi draft laporan kuesioner\n";
             $systemContext .= "5. Pertanyaan terkait kuesioner kepuasan mahasiswa\n\n";
-            
+
             $systemContext .= "⚠️⚠️⚠️ ANDA TIDAK BOLEH DAN HARUS MENOLAK: ⚠️⚠️⚠️\n";
             $systemContext .= "- Pertanyaan tentang SIAPA (identitas, nama orang, tokoh, dll)\n";
             $systemContext .= "- Pertanyaan tentang PENAMPILAN (ganteng, cantik, tampan, cakep)\n";
@@ -771,12 +864,12 @@ class LaporanKuesioneController extends Controller
             $systemContext .= "- Membahas topik pribadi, hiburan, atau hal-hal di luar akademik\n";
             $systemContext .= "- Small talk, chitchat, atau obrolan santai\n";
             $systemContext .= "- Pertanyaan 'apa kabar', 'hello', 'kenalan', dll\n\n";
-            
+
             $systemContext .= "🚨 WAJIB: JIKA USER BERTANYA DI LUAR KONTEKS 🚨\n";
             $systemContext .= "Anda HARUS LANGSUNG menolak dengan respons PERSIS ini:\n\n";
             $systemContext .= "\"Maaf, permintaan Anda di luar konteks pembuatan Laporan Kuesioner. Saya hanya dapat membantu dengan pembuatan laporan kuesioner kepuasan mahasiswa. Silakan ajukan pertanyaan terkait laporan kuesioner.\"\n\n";
             $systemContext .= "JANGAN TAMBAHKAN penjelasan lain. JANGAN JAWAB pertanyaan user. LANGSUNG TOLAK!\n\n";
-            
+
             $systemContext .= "PENTING - CONVERSATION CONTEXT:\n";
             $systemContext .= "- Ini mungkin percakapan lanjutan. Jika user meminta perubahan atau perbaikan, modifikasi konten yang sudah ada.\n";
             $systemContext .= "- Jika user mengatakan 'ubah bagian X', 'perbaiki Y', atau 'tambahkan Z', lakukan perubahan pada draft sebelumnya.\n";
@@ -961,7 +1054,7 @@ class LaporanKuesioneController extends Controller
             }
 
             $currentMessage .= "Instruksi dari user: " . $userPrompt . "\n\n";
-            
+
             $currentMessage .= "⚠️ PERINGATAN KERAS: Periksa terlebih dahulu apakah instruksi user di atas terkait dengan LAPORAN KUESIONER KEPUASAN MAHASISWA.\n\n";
             $currentMessage .= "Jika instruksi di atas TIDAK terkait dengan:\n";
             $currentMessage .= "- Pembuatan laporan kuesioner\n";
@@ -1170,7 +1263,8 @@ class LaporanKuesioneController extends Controller
             Log::info('Generate Word from AI preview for Kuesioner', [
                 'laporan_id' => $laporanId,
                 'preview_length' => strlen($aiPreviewData),
-                'template_id' => $laporan->template_id
+                'template_id' => $laporan->template_id,
+                'tipe_laporan' => $laporan->tipe_laporan
             ]);
 
             if ($laporan->template_id) {
@@ -1179,7 +1273,8 @@ class LaporanKuesioneController extends Controller
                 $hasilAI = $this->laporanService->generateLaporanWithPlaceholders(
                     $laporan->periode,
                     null,
-                    $laporan->template_id
+                    $laporan->template_id,
+                    $laporan->tipe_laporan
                 );
             } else {
                 Log::info('No template selected, using regular generation');
@@ -1187,7 +1282,8 @@ class LaporanKuesioneController extends Controller
                 $hasilAI = $this->laporanService->generateLaporan(
                     $laporan->periode,
                     null,
-                    null
+                    null,
+                    $laporan->tipe_laporan
                 );
             }
 
@@ -1364,13 +1460,34 @@ class LaporanKuesioneController extends Controller
     /**
      * Get Kuesioner Kepuasan Mahasiswa data from database for AI context
      */
-    private function getKuesioneDataFromDatabase($periode = null)
+    private function getKuesioneDataFromDatabase($periode = null, $prodiId = null, $tipeLaporan = 'UTS')
     {
         try {
             $user = Auth::user();
             $prodiKode = $user->prodi->kode_prodi ?? 'TRPL';
 
-            if ($periode) {
+            $semester = null;
+            $tahunAjaran = null;
+            $periodeLabel = null;
+
+            // Handle new period format: "ID-UTS" or "ID-UAS"
+            if ($periode && strpos($periode, '-') !== false) {
+                $parts = explode('-', $periode);
+                if (count($parts) === 2) {
+                    $periodeAkademikId = (int)$parts[0];
+
+                    // Get from database
+                    $periodeAkademik = \App\Models\PeriodeAkademik::find($periodeAkademikId);
+                    if ($periodeAkademik) {
+                        $semester = $periodeAkademik->semester;
+                        $tahunAjaran = $periodeAkademik->tahun_ajaran;
+                        $semesterLabel = $periodeAkademik->semester_label;
+                        $periodeLabel = "{$parts[1]} {$semesterLabel} {$tahunAjaran}";
+                    }
+                }
+            }
+            // Handle old period format: "Y-m"
+            elseif ($periode && preg_match('/^\d{4}-\d{2}$/', $periode)) {
                 $year  = (int) substr($periode, 0, 4);
                 $month = (int) substr($periode, 5, 2);
 
@@ -1381,11 +1498,16 @@ class LaporanKuesioneController extends Controller
                     $semester    = 1;
                     $tahunAjaran = $year . '/' . ($year + 1);
                 }
-            } else {
+                $periodeLabel = $periode;
+            }
+
+            // If no period info yet, get from active periode
+            if (!$semester || !$tahunAjaran) {
                 $periodeAktif = \App\Models\PeriodeAkademik::where('is_active', true)->first();
                 if ($periodeAktif) {
                     $semester    = $periodeAktif->semester;
                     $tahunAjaran = $periodeAktif->tahun_ajaran;
+                    $periodeLabel = $periodeAktif->semester_label . ' ' . $tahunAjaran;
                 } else {
                     $currentMonth = (int) date('n');
                     $currentYear  = (int) date('Y');
@@ -1396,6 +1518,7 @@ class LaporanKuesioneController extends Controller
                         $semester    = 1;
                         $tahunAjaran = $currentYear . '/' . ($currentYear + 1);
                     }
+                    $periodeLabel = $periode ?? 'Periode Aktif';
                 }
             }
 
@@ -1403,10 +1526,13 @@ class LaporanKuesioneController extends Controller
                         : ($prodiKode === 'TI'   ? 'Teknologi Informasi'
                         :                          'Teknik Elektro');
 
+            $tipeLabel = $tipeLaporan === 'UAS' ? 'Ujian Akhir Semester (UAS)' : 'Ujian Tengah Semester (UTS)';
+
             $context  = "=== DATA KUESIONER KEPUASAN MAHASISWA DARI MONITORING SISTEM ===\n\n";
             $context .= "Program Studi: {$prodiLabel}\n";
             $context .= "Semester: " . ($semester == 1 ? 'Ganjil' : 'Genap') . " {$tahunAjaran}\n";
-            $context .= "Periode Pelaporan: {$periode}\n\n";
+            $context .= "Periode Pelaporan: {$periodeLabel}\n";
+            $context .= "Jenis Laporan: {$tipeLabel}\n\n";
 
             $uploads = KuesioneUpload::query()
                 ->where('semester', $semester)
