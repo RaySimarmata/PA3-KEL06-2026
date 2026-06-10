@@ -418,6 +418,11 @@
                                 </div>
 
                                 <!-- Messages Area -->
+                                <div id="sync-status-indicator" style="display: none; background: #dbeafe; border-bottom: 1px solid #93c5fd; padding: 0.75rem 1.25rem; font-size: 0.85rem; color: #1e40af;">
+                                    <span id="sync-status-icon">📤</span>
+                                    <span id="sync-status-text">Sedang menyinkronisasi ke database...</span>
+                                </div>
+                                
                                 <div class="ai-messages" id="ai-messages"></div>
 
                                 <!-- Typing Indicator -->
@@ -521,7 +526,7 @@
                 // This allows users to generate even if markdown parsing didn't capture sections
                 if (aiResponse && aiResponse.trim().length > 100) {
                     generateButtonHTML = `
-                        <div style="margin-top: 1rem; border-top: 1px solid #e5e7eb; padding-top: 1rem;">
+                        <div style="margin-top: 1rem; border-top: 1px solid #e5e7eb; padding-top: 1rem; display:flex; gap:8px;">
                             <button type="button" class="btn-generate-word-inline" onclick="generateWordFromChat()">
                                 <i class="bi bi-file-earmark-word-fill"></i>
                                 Generate Laporan Word
@@ -529,10 +534,44 @@
                         </div>
                     `;
                 }
+
                 div.innerHTML = `<div class="bubble">${renderMarkdown(aiResponse)}${generateButtonHTML}</div>`;
                 messagesBox.appendChild(div);
                 messagesBox.scrollTop = messagesBox.scrollHeight;
             }
+
+            function fillSkeletonPlaceholders(text, sections) {
+                if (!sections || typeof sections !== 'object') {
+                    return text;
+                }
+
+                const placeholderMap = {
+                    '@{{LATAR_BELAKANG}}': sections.latar_belakang || '',
+                    '@{{DASAR_ACUAN}}': sections.dasar_acuan || '',
+                    '@{{TUJUAN}}': sections.tujuan || '',
+                    '@{{SASARAN}}': sections.sasaran || '',
+                    '@{{WAKTU_PELAKSANAAN}}': sections.waktu_pelaksanaan || '',
+                    '@{{RUANG}}': sections.ruang_lingkup || sections.ruang || '',
+                    '@{{INSTRUMEN_PENGUKURAN}}': sections.instrumen_pengukuran || '',
+                    '@{{PROGRAM_KERJA}}': sections.program_kerja || '',
+                    '@{{PELAKSANAAN}}': sections.pelaksanaan || '',
+                    '@{{HAMBATAN_PENJELASAN}}': sections.hambatan_dan_pemecahan_masalah || sections.hambatan_penjelasan || sections.hambatan || '',
+                    '@{{HASIL_PEMERIKSAAN}}': sections.hasil_pemeriksaan || '',
+                    '@{{ANALISIS_KETERCAPAIAN}}': sections.analisis_ketercapaian || '',
+                    '@{{TINDAK_LANJUT}}': sections.tindak_lanjut || '',
+                    '@{{KESIMPULAN_PENUTUP}}': sections.kesimpulan_penutup || sections.penutup || '',
+                };
+
+                let result = text;
+                Object.entries(placeholderMap).forEach(([placeholder, value]) => {
+                    if (value && typeof value === 'string') {
+                        result = result.split(placeholder).join(value);
+                    }
+                });
+                return result;
+            }
+
+            // (Removed: showFullPreview button/handler) full preview remains available for Word generation
 
             function showTyping() {
                 typingIndicator.classList.add('show');
@@ -631,7 +670,10 @@
             // ASK AI
             btnAskAI.addEventListener('click', async function() {
                 const prompt = promptInput.value.trim();
-                const laporanId = document.getElementById('laporan_id').value;
+                let laporanId = document.getElementById('laporan_id').value;
+                const judulLaporan = document.getElementById('judul_laporan').value.trim();
+                const periode = document.getElementById('periode').value;
+                const template = document.getElementById('template_id').value;
 
                 if (!prompt) {
                     appendAIMessage(`
@@ -645,11 +687,11 @@
                     return;
                 }
 
-                if (!laporanId) {
+                if (!laporanId && (!periode || !judulLaporan)) {
                     appendAIMessage(`
                         <div style="background:#fff3cd;border-left:4px solid #ffc107;padding:12px;border-radius:4px;">
                             <p style="color:#856404;margin:0;font-weight:600;">
-                                <i class="bi bi-info-circle-fill"></i> Silakan klik tombol "Buat Laporan Draft" terlebih dahulu
+                                <i class="bi bi-info-circle-fill"></i> Silakan pilih periode dan isi judul laporan terlebih dahulu, lalu klik "Buat Laporan Draft" atau kirim chat untuk membuat draft otomatis.
                             </p>
                         </div>
                     `);
@@ -667,14 +709,14 @@
                 btnAskAI.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
 
                 try {
-                    const periode = document.getElementById('periode').value;
-                    const template = document.getElementById('template_id').value;
-
                     const formData = new FormData();
                     formData.append('_token', '{{ csrf_token() }}');
                     formData.append('prompt', prompt);
-                    formData.append('laporan_id', laporanId);
+                    if (laporanId) {
+                        formData.append('laporan_id', laporanId);
+                    }
                     if (periode) formData.append('periode', periode);
+                    if (judulLaporan) formData.append('judul_laporan', judulLaporan);
                     if (template) formData.append('template_id', template);
 
                     if (conversationHistory.length > 0) {
@@ -712,7 +754,23 @@
                     const data = await response.json();
 
                     if (data.success) {
-                        const aiResponse = data.response;
+                        let aiResponse = data.response;
+
+                        if (!laporanId && data.laporan_id) {
+                            laporanId = data.laporan_id;
+                            document.getElementById('laporan_id').value = laporanId;
+                            document.getElementById('periode').disabled = true;
+                            document.getElementById('judul_laporan').disabled = true;
+                            document.getElementById('template_id').disabled = true;
+                            document.getElementById('btn-create-draft').innerHTML = '<i class="bi bi-check-circle"></i> Laporan Draft Dibuat';
+                            document.getElementById('btn-create-draft').classList.add('btn-success');
+                            document.getElementById('btn-create-draft').classList.remove('btn-primary');
+
+                            appendAIMessage(
+                                '<div style="background:#d1fae5;border-left:4px solid #10b981;padding:12px;border-radius:4px;margin-bottom:1rem;">' +
+                                '<strong>✅ Draft laporan otomatis dibuat dari instruksi pertama.</strong><br>Silakan lanjutkan chat atau klik Generate Laporan Word jika sudah siap.</div>'
+                            );
+                        }
 
                         conversationHistory.push({
                             role: 'user',
@@ -723,12 +781,24 @@
                             content: aiResponse
                         });
 
-                        const sections = parseMarkdownSections(aiResponse);
+                        const serverSections = data.ai_sections || {};
+                        if (Object.keys(serverSections).length > 0) {
+                            aiResponse = fillSkeletonPlaceholders(aiResponse, serverSections);
+                        }
+
+                        const sections = Object.keys(serverSections).length > 0 ? serverSections : parseMarkdownSections(aiResponse);
                         currentPreviewText = aiResponse;
                         aiPreviewData.value = aiResponse;
 
+                        // 🔄 Tampilkan sync status
+                        showSyncStatus(true, data.sync_status);
+
                         appendAIMessageWithPreview(aiResponse, sections);
-                        saveAIPreviewToDatabase(laporanId, aiResponse, sections);
+                        
+                        // Jika sync berhasil, hapus indicator setelah 2 detik
+                        if (data.sync_status && data.sync_status.success) {
+                            setTimeout(hideSyncStatus, 2000);
+                        }
                     } else {
                         appendAIMessage('<strong>❌ Error:</strong> ' + (data.message ||
                             'Terjadi kesalahan'));
@@ -742,30 +812,41 @@
                 }
             });
 
-            async function saveAIPreviewToDatabase(laporanId, aiResponse, sections) {
-                if (!laporanId) return;
-                try {
-                    const formData = new FormData();
-                    formData.append('_token', '{{ csrf_token() }}');
-                    formData.append('laporan_id', laporanId);
-                    formData.append('ai_preview_draft', aiResponse);
-                    formData.append('ai_sections', JSON.stringify(sections));
-
-                    await fetch('{{ route('gkm.laporan-artefak.save-preview') }}', {
-                        method: 'POST',
-                        body: formData,
-                        headers: {
-                            'Accept': 'application/json'
-                        },
-                    });
-                } catch (error) {
-                    console.error('Error saving AI preview:', error);
+            // Helper functions untuk sync status indicator
+            function showSyncStatus(success = true, syncData = {}) {
+                const indicator = document.getElementById('sync-status-indicator');
+                const icon = document.getElementById('sync-status-icon');
+                const text = document.getElementById('sync-status-text');
+                
+                if (success && syncData && syncData.success) {
+                    icon.textContent = '✅';
+                    text.textContent = 'Data sudah tersinkronisasi ke database';
+                    indicator.style.background = '#dcfce7';
+                    indicator.style.color = '#166534';
+                } else {
+                    icon.textContent = '⚠️';
+                    text.textContent = 'Gagal menyinkronisasi ke database';
+                    indicator.style.background = '#fee2e2';
+                    indicator.style.color = '#991b1b';
                 }
+                
+                indicator.style.display = 'block';
+            }
+
+            function hideSyncStatus() {
+                const indicator = document.getElementById('sync-status-indicator');
+                indicator.style.display = 'none';
+            }
+
+            async function saveAIPreviewToDatabase(laporanId, aiResponse, sections) {
+                // ✅ DEPRECATED: Database sync sudah ditangani di backend melalui aiPrompt response
+                // Fungsi ini tidak perlu lagi dipanggil secara terpisah
+                console.log('✅ Database sync handled in backend aiPrompt endpoint');
             }
 
             window.generateWordFromChat = async function() {
                 const laporanId = document.getElementById('laporan_id').value;
-                const aiPreviewDataValue = document.getElementById('ai_preview_data').value;
+                let aiPreviewDataValue = document.getElementById('ai_preview_data').value;
 
                 if (!laporanId) {
                     alert('Silakan buat laporan draft terlebih dahulu.');
@@ -784,12 +865,36 @@
                         '<span class="spinner-border spinner-border-sm me-2"></span>Generating...';
                 }
 
-                const formData = new FormData();
-                formData.append('_token', '{{ csrf_token() }}');
-                formData.append('laporan_id', laporanId);
-                formData.append('ai_preview_data', aiPreviewDataValue);
-
                 try {
+                    // 🔄 PENTING: Fetch laporan terbaru dari database sebelum generate
+                    // Ini memastikan laporan yang di-download menggunakan versi terbaru dari chat
+                    const laporanCheckResponse = await fetch(
+                        `{{ route('gkm.laporan-artefak.api-get') }}?laporan_id=${laporanId}`,
+                        {
+                            method: 'GET',
+                            headers: {
+                                'Accept': 'application/json',
+                                'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                            }
+                        }
+                    );
+
+                    if (laporanCheckResponse.ok) {
+                        const laporanData = await laporanCheckResponse.json();
+                        if (laporanData.ai_preview_draft && laporanData.ai_preview_draft !== aiPreviewDataValue) {
+                            console.warn('⚠️ Using newer version from database instead of UI');
+                            aiPreviewDataValue = laporanData.ai_preview_draft;
+                            document.getElementById('ai_preview_data').value = aiPreviewDataValue;
+                        }
+                    }
+
+                    showSyncStatus(true, {success: true});
+
+                    const formData = new FormData();
+                    formData.append('_token', '{{ csrf_token() }}');
+                    formData.append('laporan_id', laporanId);
+                    formData.append('ai_preview_data', aiPreviewDataValue);
+
                     const response = await fetch('{{ route('gkm.laporan-artefak.generate-word') }}', {
                         method: 'POST',
                         body: formData,
@@ -820,8 +925,9 @@
                         window.URL.revokeObjectURL(url);
                         document.body.removeChild(a);
                         appendAIMessage(
-                            '<p style="color:#16a34a;"><i class="bi bi-check-circle-fill"></i> <strong>Laporan Word berhasil di-generate!</strong></p>'
+                            '<p style="color:#16a34a;"><i class="bi bi-check-circle-fill"></i> <strong>✅ Laporan Word berhasil di-generate dari versi database terbaru!</strong></p>'
                         );
+                        setTimeout(hideSyncStatus, 3000);
                     } else {
                         const data = await response.json();
                         if (data.success) {
@@ -833,6 +939,7 @@
                         }
                     }
                 } catch (err) {
+                    hideSyncStatus();
                     appendAIMessage(
                         '<p style="color:#dc2626;"><i class="bi bi-x-circle-fill"></i> <strong>Error:</strong> ' +
                         err.message + '</p>');

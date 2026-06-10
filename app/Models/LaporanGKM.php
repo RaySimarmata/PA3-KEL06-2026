@@ -38,12 +38,19 @@ class LaporanGKM extends Model
         'tanggal_validasi',
         'validated_by',
         'generated_at',
+        'ai_preview_draft',
+        'ai_sections',
+        'ai_preview_updated_at',
+        'ai_preview_used_for_generation',
     ];
 
     protected $casts = [
         'tanggal_buat_laporan' => 'datetime',
         'tanggal_validasi' => 'datetime',
         'generated_at' => 'datetime',
+        'ai_sections' => 'array',
+        'ai_preview_updated_at' => 'datetime',
+        'ai_preview_used_for_generation' => 'boolean',
     ];
 
     // Accessors

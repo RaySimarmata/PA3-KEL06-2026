@@ -179,12 +179,60 @@ class LaporanArtefakController extends Controller
                 'conversation_history' => 'nullable|array',
                 'template_id' => 'nullable|exists:template_laporan,id',
                 'periode' => 'nullable|string',
+                'judul_laporan' => 'nullable|string|max:255',
                 'laporan_id' => 'nullable|exists:laporan_gkm,id',
             ]);
 
             $userPrompt = $request->input('prompt');
             $promptLower = strtolower($userPrompt);
             $laporanId = $request->input('laporan_id');
+            $judulLaporan = $request->input('judul_laporan');
+            $templateId = $request->input('template_id');
+            $periode = $request->input('periode');
+
+            $explicitKeywords = ['buatkan laporan', 'buat laporan', 'generate laporan', 'buatkan laporan bulanan', 'buat laporan bulanan', 'generate laporan bulanan', 'buatkan', 'laporan artefak'];
+            $isExplicitLaporanRequest = false;
+            foreach ($explicitKeywords as $keyword) {
+                if (strpos($promptLower, $keyword) !== false) {
+                    $isExplicitLaporanRequest = true;
+                    break;
+                }
+            }
+
+            if (!$laporanId && $isExplicitLaporanRequest && !empty($judulLaporan) && !empty($periode)) {
+                $existing = LaporanGKM::where('periode', $periode)
+                    ->where('user_id', Auth::id())
+                    ->where('jenis_laporan', 'artefak')
+                    ->where('status', 'pending')
+                    ->first();
+
+                if ($existing) {
+                    $laporanId = $existing->id;
+                } else {
+                    $periodeObj = Carbon::createFromFormat('Y-m', $periode);
+                    $bulan = $periodeObj->locale('id')->translatedFormat('F');
+                    $tahun = $periodeObj->year;
+
+                    $laporan = LaporanGKM::create([
+                        'periode' => $periode,
+                        'bulan' => $bulan,
+                        'tahun' => $tahun,
+                        'user_id' => Auth::id(),
+                        'template_id' => $templateId,
+                        'jenis_laporan' => 'artefak',
+                        'judul_laporan' => $judulLaporan,
+                        'status' => 'pending',
+                    ]);
+
+                    $laporanId = $laporan->id;
+                    Log::info('Auto-created draft Laporan Artefak from first AI prompt', [
+                        'laporan_id' => $laporanId,
+                        'prompt' => $userPrompt,
+                        'periode' => $periode,
+                        'judul_laporan' => $judulLaporan,
+                    ]);
+                }
+            }
 
             // ================================================================
             // VALIDASI KONTEKS LAPORAN BULANAN (ARTEFAK) - BACKEND (SIMPLIFIED)
@@ -262,6 +310,43 @@ class LaporanArtefakController extends Controller
                 if (strpos($promptLower, $keyword) !== false) {
                     $hasLaporanContext = true;
                     break;
+                }
+            }
+
+            // Jika belum ada laporan_id tetapi prompt sudah terkait konteks laporan dan periode/judul lengkap,
+            // buat draft otomatis agar balasan pertama tersimpan di database.
+            if (!$laporanId && $hasLaporanContext && !empty($judulLaporan) && !empty($periode)) {
+                $existing = LaporanGKM::where('periode', $periode)
+                    ->where('user_id', Auth::id())
+                    ->where('jenis_laporan', 'artefak')
+                    ->where('status', 'pending')
+                    ->first();
+
+                if ($existing) {
+                    $laporanId = $existing->id;
+                } else {
+                    $periodeObj = Carbon::createFromFormat('Y-m', $periode);
+                    $bulan = $periodeObj->locale('id')->translatedFormat('F');
+                    $tahun = $periodeObj->year;
+
+                    $laporan = LaporanGKM::create([
+                        'periode' => $periode,
+                        'bulan' => $bulan,
+                        'tahun' => $tahun,
+                        'user_id' => Auth::id(),
+                        'template_id' => $templateId,
+                        'jenis_laporan' => 'artefak',
+                        'judul_laporan' => $judulLaporan,
+                        'status' => 'pending',
+                    ]);
+
+                    $laporanId = $laporan->id;
+                    Log::info('Auto-created draft Laporan Artefak from AI prompt based on context', [
+                        'laporan_id' => $laporanId,
+                        'prompt' => $userPrompt,
+                        'periode' => $periode,
+                        'judul_laporan' => $judulLaporan,
+                    ]);
                 }
             }
 
@@ -932,7 +1017,9 @@ class LaporanArtefakController extends Controller
 
             $aiResponse = $aiResult['text'];
 
-            // Simpan response ke database jika ada laporan_id
+            // Simpan response ke database jika ada laporan_id - SETIAP RESPONSE DISIMPAN KE DB
+            $dbSyncSuccess = false;
+            $syncTimestamp = null;
             if ($laporanId) {
                 try {
                     $laporan = LaporanGKM::find($laporanId);
@@ -941,15 +1028,21 @@ class LaporanArtefakController extends Controller
                         $laporan->update([
                             'ai_preview_draft' => $aiResponse,
                             'ai_sections' => $sections,
+                            'ai_preview_updated_at' => now(),
+                            'ai_preview_used_for_generation' => false,
                             'status' => 'preview_ready',
                         ]);
-                        Log::info('Updated draft laporan after AI response', [
+                        $dbSyncSuccess = true;
+                        $syncTimestamp = now();
+                        Log::info('✅ Synced AI response to database (Laporan Artefak)', [
                             'laporan_id' => $laporanId,
+                            'response_length' => strlen($aiResponse),
+                            'sections_count' => count($sections),
                             'is_revision' => $isRevisionRequest
                         ]);
                     }
                 } catch (\Exception $e) {
-                    Log::warning('Failed to update laporan with AI response', [
+                    Log::warning('⚠️ Failed to sync AI response to database', [
                         'laporan_id' => $laporanId,
                         'error' => $e->getMessage()
                     ]);
@@ -1011,12 +1104,76 @@ class LaporanArtefakController extends Controller
                 'cached' => false
             ]);
 
+            // Jika ini adalah balasan pertama (belum ada draft sebelumnya), tampilkan
+            // skeleton/template placeholder ke UI saja. Full AI response tetap disimpan di DB.
+            $isFirstResponse = empty($existingDraft);
+
+            $uiSkeleton = "BAB 1 PENDAHULUAN\n\n" .
+                "1.1  Latar Belakang \n{{LATAR_BELAKANG}}\n\n" .
+                "1.2 Dasar Acuan \n{{DASAR_ACUAN}}\n\n" .
+                "1.3 Tujuan\n{{TUJUAN}}\n\n" .
+                "1.4 Sasaran\n{{SASARAN}}\n\n" .
+                "1.5 Waktu pelaksanaan \n{{WAKTU_PELAKSANAAN}}\n\n" .
+                "1.6 Ruang Lingkup \n{{RUANG}}\n\n" .
+                "1.7 Instrumen Pengukuran {{INSTRUMEN_PENGUKURAN}}\n\n\n" .
+                "BAB 2 PROGRAM KERJA {{PROGRAM_KERJA}}\n\n" .
+                "BAB 3 PELAKSANAAN \n{{PELAKSANAAN}} \n\n" .
+                "BAB 4 HAMBATAN DAN PEMECAHAN MASALAH \n{{HAMBATAN_PENJELASAN}}\n\n" .
+                "BAB 5 EVALUASI\nHasil Pemeriksaan\n{{HASIL_PEMERIKSAAN}}\n\n" .
+                "Analisis Ketercapaian\n{{ANALISIS_KETERCAPAIAN}}\n\n" .
+                "Tindak Lanjut\n{{TINDAK_LANJUT}}\n\n" .
+                "BAB 6 Penutup \n{{KESIMPULAN_PENUTUP}}";
+
+            // If this is the first response and we have parsed sections from this AI reply or DB,
+            // replace placeholders with actual section content so UI shows filled fields.
+            $filledSkeleton = $uiSkeleton;
+            $resolvedSections = [];
+            if (!empty($sections) && is_array($sections)) {
+                $resolvedSections = $sections;
+            } elseif (isset($laporan) && !empty($laporan->ai_sections) && is_array($laporan->ai_sections)) {
+                $resolvedSections = $laporan->ai_sections;
+            }
+
+            if ($isFirstResponse && !empty($resolvedSections)) {
+                $placeholderMap = [
+                    '{{LATAR_BELAKANG}}' => $resolvedSections['latar_belakang'] ?? '',
+                    '{{DASAR_ACUAN}}' => $resolvedSections['dasar_acuan'] ?? '',
+                    '{{TUJUAN}}' => $resolvedSections['tujuan'] ?? '',
+                    '{{SASARAN}}' => $resolvedSections['sasaran'] ?? '',
+                    '{{WAKTU_PELAKSANAAN}}' => $resolvedSections['waktu_pelaksanaan'] ?? '',
+                    '{{RUANG}}' => $resolvedSections['ruang_lingkup'] ?? $resolvedSections['ruang'] ?? '',
+                    '{{INSTRUMEN_PENGUKURAN}}' => $resolvedSections['instrumen_pengukuran'] ?? '',
+                    '{{PROGRAM_KERJA}}' => $resolvedSections['program_kerja'] ?? '',
+                    '{{PELAKSANAAN}}' => $resolvedSections['pelaksanaan'] ?? '',
+                    '{{HAMBATAN_PENJELASAN}}' => $resolvedSections['hambatan_dan_pemecahan_masalah'] ?? $resolvedSections['hambatan_penjelasan'] ?? $resolvedSections['hambatan'] ?? '',
+                    '{{HASIL_PEMERIKSAAN}}' => $resolvedSections['hasil_pemeriksaan'] ?? '',
+                    '{{ANALISIS_KETERCAPAIAN}}' => $resolvedSections['analisis_ketercapaian'] ?? '',
+                    '{{TINDAK_LANJUT}}' => $resolvedSections['tindak_lanjut'] ?? '',
+                    '{{KESIMPULAN_PENUTUP}}' => $resolvedSections['kesimpulan_penutup'] ?? $resolvedSections['penutup'] ?? '',
+                ];
+
+                foreach ($placeholderMap as $ph => $val) {
+                    if ($val !== '') {
+                        $filledSkeleton = str_replace($ph, $val, $filledSkeleton);
+                    }
+                }
+            }
+
+            $uiResponse = $isFirstResponse ? $filledSkeleton : $aiResponse;
+
             return response()->json([
                 'success' => true,
-                'response' => $aiResponse,
+                'laporan_id' => $laporanId,
+                'response' => $uiResponse,
+                'ai_sections' => $sections,
                 'model_info' => $aiResult['provider'] . ' (' . $aiResult['model'] . ')',
                 'cached' => false,
                 'is_revision' => $isRevisionRequest,
+                'sync_status' => [
+                    'success' => $dbSyncSuccess,
+                    'timestamp' => $syncTimestamp,
+                    'message' => $dbSyncSuccess ? 'Data tersinkronisasi ke database' : 'Gagal sinkronisasi ke database'
+                ]
             ]);
 
         } catch (\Exception $e) {
@@ -1036,37 +1193,141 @@ class LaporanArtefakController extends Controller
     }
 
     /**
-     * Parse markdown sections from AI response
+     * API endpoint untuk mendapatkan data laporan terbaru dari database
+     * Digunakan untuk memastikan UI dan database synchronized
      */
+    public function apiGet(Request $request)
+    {
+        try {
+            $laporanId = $request->query('laporan_id');
+
+            if (!$laporanId) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'laporan_id parameter required'
+                ], 400);
+            }
+
+            $laporan = LaporanGKM::select(
+                'id',
+                'ai_preview_draft',
+                'ai_sections',
+                'ai_preview_updated_at',
+                'ai_preview_used_for_generation',
+                'status'
+            )->findOrFail($laporanId);
+
+            $user = Auth::user();
+            $hasAccess = $laporan->user_id == $user->id || in_array($user->role, ['GKM', 'GJM']);
+
+            if (!$hasAccess) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Unauthorized access'
+                ], 403);
+            }
+
+            return response()->json([
+                'success' => true,
+                'laporan_id' => $laporan->id,
+                'ai_preview_draft' => $laporan->ai_preview_draft,
+                'ai_sections' => $laporan->ai_sections,
+                'ai_preview_updated_at' => $laporan->ai_preview_updated_at,
+                'ai_preview_used_for_generation' => $laporan->ai_preview_used_for_generation,
+                'status' => $laporan->status,
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Failed to fetch laporan data', [
+                'error' => $e->getMessage(),
+                'laporan_id' => $request->query('laporan_id'),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal mengambil data laporan'
+            ], 500);
+        }
+    }
+
     private function parseMarkdownSections($text)
     {
         $sections = [];
 
-        // Match headings level 1..3 (e.g. #, ##, ###) and capture titles and their positions
-        $pattern = '/^#{1,3}\s+(.+)$/m';
-        preg_match_all($pattern, $text, $matches, PREG_OFFSET_CAPTURE);
+        $lines = preg_split('/\r\n|\r|\n/', $text);
+        if (!$lines) {
+            return $sections;
+        }
 
-        if (empty($matches[0])) {
-            // Fallback: coba parse heading berformat nomor saja tanpa markdown
-            $fallbackPattern = '/^(?:BAB\s*\d+(?:[\._]\d+)*|\d+(?:[\._]\d+)*)(?:\s+|\.)+(.+)$/mi';
-            preg_match_all($fallbackPattern, $text, $matches, PREG_OFFSET_CAPTURE);
+        $currentSection = null;
+        $knownHeadings = [
+            'latar belakang',
+            'dasar acuan',
+            'tujuan',
+            'sasaran',
+            'waktu pelaksanaan',
+            'ruang lingkup',
+            'instrumen pengukuran',
+            'program kerja',
+            'pelaksanaan',
+            'hambatan dan pemecahan masalah',
+            'hasil pemeriksaan',
+            'analisis ketercapaian',
+            'tindak lanjut',
+            'penutup',
+            'kesimpulan penutup',
+        ];
 
-            if (empty($matches[0])) {
-                return $sections;
+        foreach ($lines as $line) {
+            $trimmed = trim(preg_replace('/\s+/', ' ', $line));
+            if ($trimmed === '') {
+                if ($currentSection) {
+                    $currentSection['content'] .= "\n";
+                }
+                continue;
+            }
+
+            $title = null;
+            $lineContent = null;
+
+            if (preg_match('/^#{1,3}\s*(.+)$/', $trimmed, $match)) {
+                $title = trim($match[1]);
+            } elseif (preg_match('/^(?:BAB\s*\d+(?:[\._]\d+)*|\d+(?:[\._]\d+)*)(?:\s+|\.)+(.+)$/i', $trimmed, $match)) {
+                $title = trim($match[1]);
+            } else {
+                foreach ($knownHeadings as $heading) {
+                    if (preg_match('/^' . preg_quote($heading, '/') . '(?:\s*[:\-]?\s*|)(.*)$/i', $trimmed, $match)) {
+                        $title = ucfirst($heading);
+                        $lineContent = trim($match[1]);
+                        break;
+                    }
+                }
+            }
+
+            if ($title !== null) {
+                // strip inline placeholder tokens from title if AI returned a placeholder on the same line
+                $title = trim(preg_replace('/\{\{[^}]+\}\}/', '', $title));
+                if ($currentSection) {
+                    $sections[$this->sectionTitleToKey($currentSection['title'])] = trim($currentSection['content']);
+                }
+                $lineContent = $lineContent ? trim($lineContent) : '';
+                if (preg_match('/^\{\{[^}]+\}\}$/', $lineContent)) {
+                    $lineContent = '';
+                }
+                $currentSection = [
+                    'title' => $title,
+                    'content' => $lineContent
+                ];
+                continue;
+            }
+
+            if ($currentSection) {
+                $currentSection['content'] .= ($currentSection['content'] === '' ? '' : "\n") . $trimmed;
             }
         }
 
-        $count = count($matches[0]);
-        for ($i = 0; $i < $count; $i++) {
-            $title = trim($matches[1][$i][0]);
-            $startPos = $matches[0][$i][1] + strlen($matches[0][$i][0]);
-            $endPos = ($i < $count - 1) ? $matches[0][$i + 1][1] : strlen($text);
-
-            $content = trim(substr($text, $startPos, $endPos - $startPos));
-            if ($content === '') continue;
-
-            $key = $this->sectionTitleToKey($title);
-            $sections[$key] = $content;
+        if ($currentSection) {
+            $sections[$this->sectionTitleToKey($currentSection['title'])] = trim($currentSection['content']);
         }
 
         return $sections;
@@ -1147,7 +1408,11 @@ class LaporanArtefakController extends Controller
      */
     private function sectionTitleToKey($title)
     {
-        $key = strtolower(trim($title));
+        $key = trim($title);
+        $key = preg_replace('/\{\{[^}]+\}\}/', '', $key);
+        // Remove leading BAB / numbering labels: BAB 1, 1.1, 1.2, etc.
+        $key = preg_replace('/^(?:BAB\s*)?\d+(?:[\._]\d+)*\s*/i', '', $key);
+        $key = strtolower($key);
         $key = preg_replace('/[^a-z0-9]+/', '_', $key);
         $key = trim($key, '_');
         return $key;
@@ -1373,6 +1638,7 @@ class LaporanArtefakController extends Controller
 
     /**
      * Generate Word document from AI preview
+     * PENTING: Gunakan versi terbaru dari database bukan dari request
      */
     public function generateWordDocument(Request $request)
     {
@@ -1383,7 +1649,7 @@ class LaporanArtefakController extends Controller
             ]);
 
             $laporanId = $request->input('laporan_id');
-            $aiPreviewData = $request->input('ai_preview_data');
+            $aiPreviewDataFromUI = $request->input('ai_preview_data');
 
             $laporan = LaporanGKM::findOrFail($laporanId);
 
@@ -1397,19 +1663,39 @@ class LaporanArtefakController extends Controller
                 ], 403);
             }
 
+            // 🔑 PENTING: AMBIL VERSI TERBARU DARI DATABASE, BUKAN DARI UI
+            // Ini memastikan laporan yang di-download sama dengan yang ditampilkan di chat
+            $aiPreviewData = $laporan->ai_preview_draft ?? $aiPreviewDataFromUI;
+            
             Log::info('Generate Word from AI preview', [
                 'laporan_id' => $laporanId,
+                'preview_from_db' => !empty($laporan->ai_preview_draft),
                 'preview_length' => strlen($aiPreviewData),
+                'is_latest_version' => ($laporan->ai_preview_draft === $aiPreviewDataFromUI),
             ]);
 
-            // Simpan preview AI terbaru sebelum generate Word agar template menggunakan konten yang sama
+            // Jika ada versi terbaru di database yang berbeda dari UI, gunakan versi database
+            if ($laporan->ai_preview_draft && $laporan->ai_preview_draft !== $aiPreviewDataFromUI) {
+                Log::warning('⚠️ Using newer version from database instead of UI', [
+                    'laporan_id' => $laporanId,
+                    'db_version_length' => strlen($laporan->ai_preview_draft),
+                    'ui_version_length' => strlen($aiPreviewDataFromUI),
+                ]);
+            }
+
+            // Parse sections dari versi terbaru
             $sections = $this->parseMarkdownSections($aiPreviewData);
+            
+            // Update laporan dengan preview terbaru dan mark bahwa sudah di-generate
             $laporan->update([
                 'ai_preview_draft' => $aiPreviewData,
                 'ai_sections' => $sections,
+                'ai_preview_updated_at' => now(),
+                'ai_preview_used_for_generation' => true,
                 'status' => 'preview_ready',
             ]);
 
+            // Generate laporan
             $generatedLaporan = $this->laporanService->generateLaporan($laporanId);
 
             if (!$generatedLaporan->file_word || !file_exists(storage_path('app/' . $generatedLaporan->file_word))) {
@@ -1419,9 +1705,11 @@ class LaporanArtefakController extends Controller
             $filePath = storage_path('app/' . $generatedLaporan->file_word);
             $fileName = 'Laporan_Artefak_' . $generatedLaporan->periode . '_' . time() . '.docx';
 
-            Log::info('Word document generated successfully from AI preview', [
+            Log::info('✅ Word document generated successfully from AI preview', [
                 'laporan_id' => $laporanId,
                 'file_path' => $generatedLaporan->file_word,
+                'sections_count' => count($sections),
+                'marked_as_generated' => true,
             ]);
 
             return response()->download($filePath, $fileName, [
@@ -1429,7 +1717,7 @@ class LaporanArtefakController extends Controller
             ]);
 
         } catch (\Exception $e) {
-            Log::error('Generate Word from AI preview failed', [
+            Log::error('❌ Generate Word from AI preview failed', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
                 'laporan_id' => $request->input('laporan_id'),

@@ -278,6 +278,7 @@ Route::middleware('auth')->group(function () {
             Route::post('/ai-prompt', [LaporanArtefakController::class, 'aiPrompt'])->name('ai-prompt');
             Route::post('/save-preview', [LaporanArtefakController::class, 'savePreview'])->name('save-preview');
             Route::post('/generate-word', [LaporanArtefakController::class, 'generateWordDocument'])->name('generate-word');
+            Route::get('/api/get', [LaporanArtefakController::class, 'apiGet'])->name('api-get');
 
             // Template Management (MUST BE BEFORE /{id} routes)
             Route::get('/template', [LaporanArtefakController::class, 'templateIndex'])->name('template.index');

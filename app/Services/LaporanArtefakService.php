@@ -665,6 +665,7 @@ class LaporanArtefakService
 
         $preprocessedPath = $this->preprocessTemplate($templateFilePath);
         $tp = new \PhpOffice\PhpWord\TemplateProcessor($preprocessedPath);
+        $tp->setMacroChars('{{', '}}');
 
         $map = $this->buildPlaceholderMap($dataArtefak, $laporan, $narasiAI);
 
@@ -747,7 +748,7 @@ class LaporanArtefakService
                 $cleaned = strtoupper($cleaned);
 
                 if (preg_match('/^[A-Z0-9_]+$/', $cleaned)) {
-                    return '${' . $cleaned . '}';
+                    return '{{' . $cleaned . '}}';
                 }
                 return $m[0];
             },
@@ -757,7 +758,7 @@ class LaporanArtefakService
         $xml = preg_replace_callback(
             '/\$\s*\{\s*([A-Za-z0-9_]+)\s*\}/s',
             function ($m) {
-                return '${' . strtoupper($m[1]) . '}';
+                return '{{' . strtoupper($m[1]) . '}}';
             },
             $xml
         );
@@ -837,6 +838,7 @@ class LaporanArtefakService
             if ($content === false) continue;
 
             $converted = $this->convertDoubleBracePlaceholders($content);
+            $converted = $this->mergeRunsInParagraphs($converted);
 
             if ($converted !== $content) {
                 libxml_use_internal_errors(true);
@@ -882,7 +884,7 @@ class LaporanArtefakService
                     $placeholderName = $this->normalizePlaceholderName($match[0]);
                     if ($placeholderName !== null) {
                         $tokens[] = [
-                            'token' => '${' . $placeholderName . '}',
+                            'token' => '{{' . $placeholderName . '}}',
                             'start' => $match[1],
                             'length' => mb_strlen($match[0], 'UTF-8'),
                         ];
@@ -895,7 +897,7 @@ class LaporanArtefakService
 
                 foreach ($tokens as $tokenData) {
                     $token = $tokenData['token'];
-                    $tokenName = substr($token, 2, -1);
+                    $tokenName = substr($token, 2, -2);
                     $origPattern = '/\{\{?\s*' . preg_quote($tokenName, '/') . '\s*\}?\}/';
                     if (!preg_match($origPattern, $origCombined, $match, PREG_OFFSET_CAPTURE)) {
                         continue;
