@@ -1486,8 +1486,8 @@ private function savePerkuliahanComplianceSnapshot(
                             ]);
                         }
 
-                        if (!empty($email) || !empty($nomorTelepon)) {
-                            $successCount++;
+                            if (!empty($email) || !empty($nomorTelepon)) {
+                                $successCount++;
                         }
                     } catch (\Exception $loopEx) {
                         $errors[] = "Gagal kirim ke {$dosen->nama}: " . $loopEx->getMessage();

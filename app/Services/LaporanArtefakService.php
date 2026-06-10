@@ -121,10 +121,19 @@ class LaporanArtefakService
     }
 
     /**
-     * Pastikan semua field narasi tersedia (jika kosong, isi dengan default)
+     * Pastikan semua field narasi tersedia (jika kosong atau masih berisi placeholder, isi dengan default)
      */
     protected function ensureCompleteNarasi($narasiAI, $dataArtefak)
     {
+        // Filter nilai dari AI yang masih mengandung placeholder {{...}} — tidak terisi
+        $filteredNarasiAI = array_filter($narasiAI, function($value) {
+            if (!is_string($value)) return true;
+            if (trim($value) === '') return false;
+            // Jika HANYA berisi placeholder (atau hampir semua konten adalah placeholder), abaikan
+            if (preg_match('/^\s*\{\{[A-Z_]+\}\}\s*$/', trim($value))) return false;
+            return true;
+        });
+
         $defaults = [
             'latar_belakang' => "Program Studi {$dataArtefak['prodi']} melaksanakan monitoring artefak perkuliahan pada semester {$dataArtefak['semester']} Tahun Akademik {$dataArtefak['tahun_ajaran']}. Kegiatan ini bertujuan untuk memastikan ketersediaan dan kelengkapan dokumen RPS dan materi perkuliahan sebagai bagian dari penjaminan mutu internal.",
 
@@ -140,9 +149,9 @@ class LaporanArtefakService
 
             'instrumen_pengukuran' => "1. Ceklist kelengkapan RPS\n2. Ceklist kelengkapan materi perkuliahan per minggu\n3. Form laporan monitoring GKM",
 
-            'hasil_pemeriksaan' => $narasiAI['hasil_pemeriksaan'] ?? "Berdasarkan hasil pemeriksaan, dari {$dataArtefak['total_rps']} mata kuliah, sebanyak {$dataArtefak['rps_uploaded']} mata kuliah ({$dataArtefak['rps_percentage']}%) telah mengunggah RPS. Untuk kelengkapan materi perkuliahan, dari {$dataArtefak['total_materi']} mata kuliah, sebanyak {$dataArtefak['materi_uploaded']} mata kuliah ({$dataArtefak['materi_percentage']}%) telah mengunggah materi lengkap per minggu.",
+            'hasil_pemeriksaan' => $narasiAI['hasil_pemeriksaan'] ?? $this->buildDefaultHasilPemeriksaan($dataArtefak),
 
-            'analisis_ketercapaian' => $narasiAI['analisis_ketercapaian'] ?? "Tingkat kepatuhan dosen dalam mengunggah RPS mencapai {$dataArtefak['rps_percentage']}%, sedangkan untuk kelengkapan materi mencapai {$dataArtefak['materi_percentage']}%. Capaian ini menunjukkan bahwa masih terdapat ruang peningkatan, terutama pada kelengkapan materi perkuliahan.",
+            'analisis_ketercapaian' => $narasiAI['analisis_ketercapaian'] ?? $this->buildDefaultAnalisisKetercapaian($dataArtefak),
 
             'tindak_lanjut' => $narasiAI['tindak_lanjut'] ?? "1. Mengirimkan reminder kepada dosen yang belum mengunggah RPS\n2. Koordinasi dengan Ketua Program Studi untuk memberikan teguran tertulis\n3. Menjadwalkan monitoring ulang pada pertengahan semester\n4. Memberikan insentif bagi dosen dengan kepatuhan 100%",
 
@@ -182,7 +191,53 @@ class LaporanArtefakService
             'kesimpulan_penutup' => $narasiAI['kesimpulan_penutup'] ?? "Monitoring artefak perkuliahan semester {$dataArtefak['semester']} TA {$dataArtefak['tahun_ajaran']} telah dilaksanakan. Secara umum, kepatuhan dosen dalam mengunggah RPS cukup baik, namun masih perlu peningkatan pada kelengkapan materi per minggu. Rekomendasi tindak lanjut akan dilaksanakan oleh tim GKM untuk periode berikutnya.",
         ];
 
-        return array_merge($defaults, $narasiAI);
+        return array_merge($defaults, $filteredNarasiAI);
+    }
+
+    /**
+     * Default narasi hasil pemeriksaan — hanya gunakan jumlah MK, tanpa nama MK/dosen
+     */
+    protected function buildDefaultHasilPemeriksaan($dataArtefak): string
+    {
+        $total       = $dataArtefak['total_rps'];
+        $rpsUpload   = $dataArtefak['rps_uploaded'];
+        $rpsBelum    = $total - $rpsUpload;
+        $totalMateri = $dataArtefak['total_materi'];
+        $matUpload   = $dataArtefak['materi_uploaded'];
+        $matBelum    = $totalMateri - $matUpload;
+
+        $rpsKet = $rpsBelum > 0
+            ? "{$rpsBelum} mata kuliah belum mengunggah RPS"
+            : "seluruh mata kuliah telah mengunggah RPS";
+
+        $matKet = $matBelum > 0
+            ? "{$matBelum} mata kuliah belum melengkapi materi perkuliahan"
+            : "seluruh mata kuliah telah melengkapi materi perkuliahan";
+
+        return "Berdasarkan hasil pemeriksaan pada semester {$dataArtefak['semester']} TA {$dataArtefak['tahun_ajaran']}, dari {$total} mata kuliah yang dimonitoring, sebanyak {$rpsUpload} mata kuliah telah mengunggah RPS dan {$rpsKet}. Untuk kelengkapan materi perkuliahan, dari {$totalMateri} mata kuliah, sebanyak {$matUpload} mata kuliah telah melengkapi materi per minggu dan {$matKet}.";
+    }
+
+    /**
+     * Default narasi analisis ketercapaian — hanya gunakan jumlah MK, tanpa nama MK/dosen
+     */
+    protected function buildDefaultAnalisisKetercapaian($dataArtefak): string
+    {
+        $rpsBelum    = $dataArtefak['total_rps'] - $dataArtefak['rps_uploaded'];
+        $materiBelum = $dataArtefak['total_materi'] - $dataArtefak['materi_uploaded'];
+
+        if ($rpsBelum === 0 && $materiBelum === 0) {
+            return "Seluruh {$dataArtefak['total_rps']} mata kuliah telah memenuhi target kelengkapan RPS dan materi perkuliahan. Capaian ini menunjukkan tingkat kepatuhan dosen yang sangat baik dalam periode monitoring semester {$dataArtefak['semester']} TA {$dataArtefak['tahun_ajaran']}.";
+        }
+
+        $ket = [];
+        if ($rpsBelum > 0) {
+            $ket[] = "{$rpsBelum} mata kuliah belum mengunggah RPS";
+        }
+        if ($materiBelum > 0) {
+            $ket[] = "{$materiBelum} mata kuliah belum melengkapi materi";
+        }
+
+        return "Berdasarkan hasil monitoring, masih terdapat " . implode(' dan ', $ket) . ". Target ketercapaian seluruh mata kuliah harus memiliki RPS dan materi lengkap belum sepenuhnya terpenuhi. GKM perlu melakukan tindak lanjut untuk mendorong kepatuhan dosen pada periode berikutnya.";
     }
 
     protected function collectArtefakData($laporan)
@@ -247,78 +302,188 @@ class LaporanArtefakService
         ]);
 
         $extracted = [];
+        $sections = [];
 
         if (is_array($aiSections) && !empty($aiSections)) {
             Log::info('Using parsed ai_sections from database', [
                 'sections_count' => count($aiSections),
                 'sections_keys' => array_keys($aiSections)
             ]);
+            $sections = $aiSections;
+        }
 
-            foreach ($aiSections as $key => $content) {
-                $keyLower = strtolower($key);
+        if (!empty($aiPreviewDraft)) {
+            $parsedFromDraft = $this->parseAIPreviewSections($aiPreviewDraft);
+            if (!empty($parsedFromDraft)) {
+                Log::info('Parsed additional sections from raw AI preview draft', [
+                    'parsed_sections' => array_keys($parsedFromDraft)
+                ]);
+                $sections = array_merge($sections, $parsedFromDraft);
+            }
+        }
 
-                if (str_contains($keyLower, 'latar belakang') || str_contains($keyLower, '1.1')) {
-                    $extracted['latar_belakang'] = $content;
-                } elseif (str_contains($keyLower, 'dasar acuan') || str_contains($keyLower, '1.2')) {
-                    $extracted['dasar_acuan'] = $content;
-                } elseif (str_contains($keyLower, 'tujuan') || str_contains($keyLower, '1.3')) {
-                    $extracted['tujuan'] = $content;
-                } elseif (str_contains($keyLower, 'sasaran') || str_contains($keyLower, '1.4')) {
-                    $extracted['sasaran'] = $content;
-                } elseif (str_contains($keyLower, 'waktu') || str_contains($keyLower, '1.5')) {
-                    $extracted['waktu_pelaksanaan'] = $content;
-                } elseif (str_contains($keyLower, 'ruang lingkup') || str_contains($keyLower, 'ruang') || str_contains($keyLower, '1.6')) {
-                    $extracted['ruang'] = $content;
-                } elseif (str_contains($keyLower, 'instrumen') || str_contains($keyLower, '1.7')) {
-                    $extracted['instrumen_pengukuran'] = $content;
-                } elseif (str_contains($keyLower, 'program kerja') || str_contains($keyLower, 'bab 2')) {
-                    $extracted['program_kerja'] = $content;
-                } elseif (str_contains($keyLower, 'pelaksanaan') || str_contains($keyLower, 'bab 3')) {
-                    $extracted['pelaksanaan'] = $content;
-                } elseif ((str_contains($keyLower, 'hambatan') || str_contains($keyLower, 'kendala')) && (str_contains($keyLower, 'bab 4') || str_contains($keyLower, 'penjelasan'))) {
-                    $extracted['hambatan_penjelasan'] = $content;
-                } elseif (str_contains($keyLower, 'hasil') && str_contains($keyLower, 'pemeriksaan')) {
-                    $extracted['hasil_pemeriksaan'] = $content;
-                } elseif (str_contains($keyLower, 'analisis') && str_contains($keyLower, 'ketercapaian')) {
-                    $extracted['analisis_ketercapaian'] = $content;
-                } elseif (str_contains($keyLower, 'tindak lanjut')) {
-                    $extracted['tindak_lanjut'] = $content;
-                } elseif (str_contains($keyLower, 'kesimpulan') || str_contains($keyLower, 'penutup')) {
-                    $extracted['kesimpulan_penutup'] = $content;
-                }
+        foreach ($sections as $key => $content) {
+            $keyLower = strtolower(trim((string) $key));
+            $content = trim((string) $content);
+            if ($content === '') {
+                continue;
+            }
+
+            // Skip konten yang masih mengandung placeholder {{...}} — artinya AI tidak mengisinya
+            if (preg_match('/\{\{[A-Z_]+\}\}/', $content)) {
+                Log::warning('Section content contains unfilled placeholder, skipping', [
+                    'key' => $key,
+                    'content_preview' => substr($content, 0, 100)
+                ]);
+                continue;
+            }
+
+            if (str_contains($keyLower, 'latar') && str_contains($keyLower, 'belakang')) {
+                $extracted['latar_belakang'] = $content;
+            } elseif (str_contains($keyLower, 'dasar')) {
+                $extracted['dasar_acuan'] = $content;
+            } elseif (str_contains($keyLower, 'tujuan')) {
+                $extracted['tujuan'] = $content;
+            } elseif (str_contains($keyLower, 'sasaran')) {
+                $extracted['sasaran'] = $content;
+            } elseif (str_contains($keyLower, 'waktu')) {
+                $extracted['waktu_pelaksanaan'] = $content;
+            } elseif (str_contains($keyLower, 'ruang')) {
+                $extracted['ruang'] = $content;
+            } elseif (str_contains($keyLower, 'instrumen')) {
+                $extracted['instrumen_pengukuran'] = $content;
+            } elseif (str_contains($keyLower, 'program') && str_contains($keyLower, 'kerja')) {
+                $extracted['program_kerja'] = $content;
+            } elseif (str_contains($keyLower, 'pelaksanaan') && !str_contains($keyLower, 'waktu')) {
+                $extracted['pelaksanaan'] = $content;
+            } elseif (str_contains($keyLower, 'hambatan') || str_contains($keyLower, 'kendala') || str_contains($keyLower, 'pemecahan') || str_contains($keyLower, 'masalah')) {
+                $extracted['hambatan_penjelasan'] = $content;
+            } elseif (str_contains($keyLower, 'evaluasi') || (str_contains($keyLower, 'hasil') && str_contains($keyLower, 'pemeriksaan'))) {
+                $extracted['hasil_pemeriksaan'] = $content;
+            } elseif (str_contains($keyLower, 'analisis') && str_contains($keyLower, 'ketercapaian')) {
+                $extracted['analisis_ketercapaian'] = $content;
+            } elseif (str_contains($keyLower, 'tindak') && str_contains($keyLower, 'lanjut')) {
+                $extracted['tindak_lanjut'] = $content;
+            } elseif (str_contains($keyLower, 'kesimpulan') || str_contains($keyLower, 'penutup')) {
+                $extracted['kesimpulan_penutup'] = $content;
             }
         }
 
         return $extracted;
     }
 
+    protected function parseAIPreviewSections(string $text): array
+    {
+        $sections = [];
+        $lines = preg_split('/\r\n|\r|\n/', $text);
+        if (!$lines) {
+            return $sections;
+        }
+
+        $currentSection = null;
+        $knownHeadings = [
+            'latar belakang',
+            'dasar acuan',
+            'tujuan',
+            'sasaran',
+            'waktu pelaksanaan',
+            'ruang lingkup',
+            'instrumen pengukuran',
+            'program kerja',
+            'pelaksanaan',
+            'hambatan dan pemecahan masalah',
+            'hambatan dan solusi',
+            'hambatan',
+            'evaluasi',
+            'hasil pemeriksaan',
+            'analisis ketercapaian',
+            'tindak lanjut',
+            'penutup',
+            'kesimpulan penutup',
+            'kesimpulan',
+        ];
+
+        foreach ($lines as $line) {
+            $trimmed = trim(preg_replace('/\s+/', ' ', $line));
+            if ($trimmed === '') {
+                if ($currentSection) {
+                    $currentSection['content'] .= "\n";
+                }
+                continue;
+            }
+
+            $title = null;
+            $lineContent = null;
+
+            if (preg_match('/^#{1,3}\s*(.+)$/', $trimmed, $match)) {
+                $title = trim($match[1]);
+            } elseif (preg_match('/^(?:BAB\s*\d+(?:[\._]\d+)*|\d+(?:[\._]\d+)*)(?:\s+|\.)+(.+)$/i', $trimmed, $match)) {
+                $title = trim($match[1]);
+            } else {
+                foreach ($knownHeadings as $heading) {
+                    if (preg_match('/^' . preg_quote($heading, '/') . '(?:\s*[:\-]?\s*|)(.*)$/i', $trimmed, $match)) {
+                        $title = ucfirst($heading);
+                        $lineContent = trim($match[1]);
+                        break;
+                    }
+                }
+            }
+
+            if ($title !== null) {
+                $title = trim(preg_replace('/\{\{[^}]+\}\}/', '', $title));
+                if ($currentSection) {
+                    $sections[$this->normalizeAIPreviewSectionKey($currentSection['title'])] = trim($currentSection['content']);
+                }
+                $lineContent = $lineContent ? trim($lineContent) : '';
+                if (preg_match('/^\{\{[^}]+\}\}$/', $lineContent)) {
+                    $lineContent = '';
+                }
+                $currentSection = [
+                    'title' => $title,
+                    'content' => $lineContent
+                ];
+                continue;
+            }
+
+            if ($currentSection) {
+                $currentSection['content'] .= ($currentSection['content'] === '' ? '' : "\n") . $trimmed;
+            }
+        }
+
+        if ($currentSection) {
+            $sections[$this->normalizeAIPreviewSectionKey($currentSection['title'])] = trim($currentSection['content']);
+        }
+
+        return $sections;
+    }
+
+    protected function normalizeAIPreviewSectionKey(string $title): string
+    {
+        $key = trim($title);
+        $key = preg_replace('/\{\{[^}]+\}\}/', '', $key);
+        $key = preg_replace('/^(?:BAB\s*)?\d+(?:[\._]\d+)*\s*/i', '', $key);
+        $key = strtolower($key);
+        $key = preg_replace('/[^a-z0-9]+/', '_', $key);
+        $key = trim($key, '_');
+
+        return $key;
+    }
+
     protected function generateNarasiWithAI($dataArtefak)
     {
-        $mkBelumUploadRPS = $dataArtefak['rps_details']
-            ->where('status_rps', 'BELUM UPLOAD')
-            ->map(fn($i) => ($i->nama_matkul ?? '-') . ' (' . ($i->dosen->inisial_nama ?? $i->pegawai_id) . ')')
-            ->implode(', ');
-
-        $mkBelumUploadMateri = $dataArtefak['materi_details']
-            ->where('status_upload', 'BELUM UPLOAD')
-            ->unique('kode_mk')
-            ->map(fn($i) => ($i->nama_matkul ?? '-') . ' (' . ($i->dosen->inisial_nama ?? $i->pegawai_id) . ')')
-            ->implode(', ');
+        $rpsBelum   = $dataArtefak['total_rps'] - $dataArtefak['rps_uploaded'];
+        $materiBelum = $dataArtefak['total_materi'] - $dataArtefak['materi_uploaded'];
 
         $prompt = "Anda adalah AI Agent GKM yang membuat narasi laporan monitoring artefak perkuliahan.\n\n";
         $prompt .= "DATA:\n";
         $prompt .= "- Semester: {$dataArtefak['semester']} TA {$dataArtefak['tahun_ajaran']}\n";
         $prompt .= "- Prodi: {$dataArtefak['prodi']}\n";
         $prompt .= "- Total MK: {$dataArtefak['total_rps']}\n";
-        $prompt .= "- RPS Upload: {$dataArtefak['rps_uploaded']}/{$dataArtefak['total_rps']} ({$dataArtefak['rps_percentage']}%)\n";
-        $prompt .= "- Materi Upload: {$dataArtefak['materi_uploaded']}/{$dataArtefak['total_materi']} ({$dataArtefak['materi_percentage']}%)\n";
-        if ($mkBelumUploadRPS) {
-            $prompt .= "- MK belum upload RPS: {$mkBelumUploadRPS}\n";
-        }
-        if ($mkBelumUploadMateri) {
-            $prompt .= "- MK belum upload Materi: {$mkBelumUploadMateri}\n";
-        }
+        $prompt .= "- RPS Sudah Upload: {$dataArtefak['rps_uploaded']} MK" . ($rpsBelum > 0 ? ", Belum Upload: {$rpsBelum} MK" : " (semua lengkap)") . "\n";
+        $prompt .= "- Materi Sudah Upload: {$dataArtefak['materi_uploaded']} MK" . ($materiBelum > 0 ? ", Belum Lengkap: {$materiBelum} MK" : " (semua lengkap)") . "\n";
         $prompt .= "\n";
+        $prompt .= "PENTING: Jangan menyebut nama mata kuliah atau nama dosen secara spesifik dalam narasi.\n";
+        $prompt .= "Gunakan angka jumlah MK saja (misal: 'terdapat 3 mata kuliah yang belum...').\n\n";
 
         $prompt .= "Buat JSON dengan field berikut (semua dalam Bahasa Indonesia formal):\n";
         $prompt .= "{\n";
