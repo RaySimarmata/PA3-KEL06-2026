@@ -521,11 +521,14 @@ class LaporanArtefakController extends Controller
 
             // Ambil data RPS dan Materi dari database jika tidak ada file upload
             $databaseContext = '';
+            $rpsMateriTable  = '';
             if (!$request->hasFile('file_referensi') || $request->file('file_referensi') === null) {
                 $databaseContext = $this->getArtefakDataFromDatabase($periode);
+                $rpsMateriTable  = $this->buildRpsMateriTableForAI($periode);
                 Log::info('Using database context for Artefak AI', [
                     'periode' => $periode,
-                    'context_length' => strlen($databaseContext)
+                    'context_length' => strlen($databaseContext),
+                    'rps_materi_table_length' => strlen($rpsMateriTable),
                 ]);
 
                 // Tambahkan database context ke system context
@@ -600,48 +603,67 @@ class LaporanArtefakController extends Controller
             $systemContext .= "TIDAK BOLEH MENGATAKAN 'di luar konteks' ATAU 'tidak bisa membantu'!\n";
             $systemContext .= "LANGSUNG BUAT LAPORAN ARTEFAK DENGAN STRUKTUR LENGKAP!\n\n";
 
+            $systemContext .= "🚫🚫🚫 LARANGAN KERAS - SANGAT PENTING! 🚫🚫🚫\n";
+            $systemContext .= "ANDA DILARANG KERAS menampilkan teks placeholder seperti {{PROGRAM_KERJA}}, {{PELAKSANAAN}}, {{HAMBATAN_PENJELASAN}}, {{HASIL_PEMERIKSAAN}}, {{KESIMPULAN_PENUTUP}}, atau {{APAPUN}} dalam output Anda!\n";
+            $systemContext .= "Jika Anda melihat teks {{...}} dalam draft laporan sebelumnya atau dalam instruksi user, JANGAN SALIN placeholder tersebut!\n";
+            $systemContext .= "GANTI SEMUA placeholder {{...}} dengan KONTEN NYATA yang substantif!\n";
+            $systemContext .= "Contoh SALAH: '## BAB 2 PROGRAM KERJA\n{{PROGRAM_KERJA}}'\n";
+            $systemContext .= "Contoh BENAR: '## BAB 2 PROGRAM KERJA\nProgram kerja monitoring RPS dan Materi perkuliahan semester ini meliputi...'\n\n";
+
             $systemContext .= "=== STRUKTUR WAJIB LAPORAN (SESUAI TEMPLATE) ===\n";
-            $systemContext .= "Anda HARUS menghasilkan laporan dengan struktur berikut (gunakan markdown heading ##):\n\n";
+            $systemContext .= "Anda HARUS menghasilkan laporan LENGKAP dengan SEMUA BAB berikut (gunakan markdown heading ##):\n\n";
             $systemContext .= "## BAB 1 PENDAHULUAN\n";
             $systemContext .= "### 1.1 Latar Belakang\n";
-            $systemContext .= "[Isi dengan penjelasan latar belakang monitoring RPS dan Materi]\n";
+            $systemContext .= "[Tulis paragraf latar belakang, bukan placeholder]\n";
             $systemContext .= "### 1.2 Dasar Acuan\n";
-            $systemContext .= "[Isi dengan dasar hukum/acuan pembuatan laporan]\n";
+            $systemContext .= "[Tulis dasar hukum/acuan]\n";
             $systemContext .= "### 1.3 Tujuan\n";
-            $systemContext .= "[Isi dengan tujuan monitoring]\n";
+            $systemContext .= "[Tulis tujuan monitoring]\n";
             $systemContext .= "### 1.4 Sasaran\n";
-            $systemContext .= "[Isi dengan sasaran yang ingin dicapai]\n";
+            $systemContext .= "[Tulis sasaran]\n";
             $systemContext .= "### 1.5 Waktu Pelaksanaan\n";
-            $systemContext .= "[Isi dengan waktu monitoring periode ini]\n";
+            $systemContext .= "[Tulis waktu monitoring]\n";
             $systemContext .= "### 1.6 Ruang Lingkup\n";
-            $systemContext .= "[Isi dengan cakupan monitoring]\n";
+            $systemContext .= "[Tulis cakupan monitoring]\n";
             $systemContext .= "### 1.7 Instrumen Pengukuran\n";
-            $systemContext .= "[Isi dengan instrumen/metode yang digunakan]\n\n";
+            $systemContext .= "[Tulis instrumen/metode yang digunakan]\n\n";
+            $systemContext .= "## BAB 2 PROGRAM KERJA\n";
+            $systemContext .= "[Tulis program kerja tim GKM untuk monitoring artefak periode ini - JANGAN TULIS {{PROGRAM_KERJA}}]\n";
+            $systemContext .= "Contoh isi: '1. Pemeriksaan kelengkapan RPS di CIS\\n2. Pemeriksaan materi perkuliahan Week 1-16\\n3. Konfirmasi kelengkapan artefak kepada dosen\\n4. Pelaporan hasil monitoring ke Prodi'\n\n";
+            $systemContext .= "## BAB 3 PELAKSANAAN\n";
+            $systemContext .= "[Tulis narasi pelaksanaan kegiatan monitoring - JANGAN TULIS {{PELAKSANAAN}}]\n";
+            $systemContext .= "Contoh isi: 'Monitoring dilaksanakan oleh tim GKM dengan melakukan pengecekan satu per satu pada sistem CIS. Dosen yang belum lengkap dihubungi melalui email dan WhatsApp.'\n\n";
+            $systemContext .= "## BAB 4 HAMBATAN DAN PEMECAHAN MASALAH\n";
+            $systemContext .= "[Tulis hambatan yang ditemui dan solusinya - JANGAN TULIS {{HAMBATAN_PENJELASAN}}]\n";
+            $systemContext .= "Contoh isi: 'Beberapa kendala yang dihadapi:\\n1. Keterlambatan Unggah Dokumen: Beberapa dosen belum mengunggah RPS tepat waktu.\\n2. Kurangnya Respons Dosen: Tidak semua dosen merespons konfirmasi dengan cepat.'\n\n";
             $systemContext .= "## BAB 5 EVALUASI\n";
-            $systemContext .= "[Isi dengan hasil pemeriksaan lengkap - minimum 2-3 paragraf]\n";
-            $systemContext .= "Bagian ini WAJIB berisi:\n";
-            $systemContext .= "- Hasil pemeriksaan RPS dan materi perkuliahan\n";
-            $systemContext .= "- Statistik kelengkapan (berapa persen RPS sudah upload, berapa persen materi sudah upload)\n";
-            $systemContext .= "- Detail matakuliah yang sudah/belum melengkapi artefak\n";
-            $systemContext .= "- Temuan-temuan penting dari pemeriksaan\n\n";
+            $systemContext .= "[Tulis hasil pemeriksaan lengkap berdasarkan TABEL_RPS dan TABEL_MATERI - JANGAN TULIS {{HASIL_PEMERIKSAAN}} - minimum 2-3 paragraf]\n";
+            $systemContext .= "Bagian ini WAJIB berisi data NYATA dari TABEL_RPS dan TABEL_MATERI:\n";
+            $systemContext .= "- Sebutkan total MK yang diperiksa, berapa yang sudah upload RPS (dengan persentase)\n";
+            $systemContext .= "- Sebutkan nama-nama MK yang BELUM upload RPS beserta dosen pengampunya\n";
+            $systemContext .= "- Sebutkan kelengkapan materi per MK (berapa minggu sudah diupload dari 16 minggu)\n";
+            $systemContext .= "- Sebutkan nama-nama MK yang materinya BELUM lengkap\n";
+            $systemContext .= "- Temuan-temuan penting berdasarkan data tabel\n\n";
 
             $systemContext .= "## ANALISIS KETERCAPAIAN\n";
-            $systemContext .= "[Isi dengan analisis ketercapaian target - minimum 1-2 paragraf]\n";
+            $systemContext .= "[Tulis analisis berdasarkan statistik dari TABEL_RPS dan TABEL_MATERI - minimum 1-2 paragraf]\n";
             $systemContext .= "Bagian ini WAJIB berisi:\n";
-            $systemContext .= "- Analisis apakah target ketercapaian upload RPS dan materi sudah terpenuhi\n";
-            $systemContext .= "- Perbandingan dengan periode sebelumnya (jika ada data)\n";
-            $systemContext .= "- Evaluasi kualitas artefak yang diupload\n\n";
+            $systemContext .= "- Jumlah MK yang sudah/belum upload RPS (gunakan angka, BUKAN persentase 0% jika semua sudah upload)\n";
+            $systemContext .= "- Jumlah MK yang sudah/belum lengkap materi (gunakan angka, BUKAN persentase 0% jika semua sudah lengkap)\n";
+            $systemContext .= "- Jika semua MK sudah memenuhi: nyatakan 'seluruh X mata kuliah telah memenuhi target' tanpa menyebut 0%\n";
+            $systemContext .= "- Jika ada yang belum: sebutkan berapa MK belum upload/belum lengkap beserta nama MK-nya\n";
+            $systemContext .= "- Bandingkan dengan target (semua MK harus lengkap) dan simpulkan status ketercapaian\n\n";
 
             $systemContext .= "## TINDAK LANJUT\n";
-            $systemContext .= "[Isi dengan rekomendasi tindak lanjut - minimum 1-2 paragraf]\n";
+            $systemContext .= "[Tulis rekomendasi tindak lanjut - minimum 1-2 paragraf]\n";
             $systemContext .= "Bagian ini WAJIB berisi:\n";
             $systemContext .= "- Rekomendasi untuk dosen yang belum upload\n";
             $systemContext .= "- Saran koordinasi dengan prodi/tim GKM\n";
             $systemContext .= "- Rencana monitoring di periode berikutnya\n";
             $systemContext .= "- Langkah-langkah perbaikan yang perlu dilakukan\n\n";
 
-            $systemContext .= "## BAB 6 PENUTUP (KESIMPULAN)\n";
-            $systemContext .= "[Isi dengan kesimpulan penutup - minimum 1 paragraf]\n";
+            $systemContext .= "## BAB 6 PENUTUP\n";
+            $systemContext .= "[Tulis kesimpulan penutup - JANGAN TULIS {{KESIMPULAN_PENUTUP}} - minimum 1 paragraf]\n";
             $systemContext .= "Bagian ini WAJIB berisi:\n";
             $systemContext .= "- Ringkasan keseluruhan hasil monitoring\n";
             $systemContext .= "- Apresiasi kepada dosen yang sudah melengkapi artefak\n";
@@ -894,6 +916,20 @@ class LaporanArtefakController extends Controller
                 $currentMessage .= "===== END DATA DATABASE =====\n\n";
             }
 
+            // Inject tabel RPS dan Materi terstruktur sebagai sumber data untuk BAB 5 & Analisis
+            if (!empty($rpsMateriTable)) {
+                $currentMessage .= "===== TABEL_RPS DAN TABEL_MATERI (SUMBER DATA WAJIB) =====\n\n";
+                $currentMessage .= $rpsMateriTable . "\n\n";
+                $currentMessage .= "===== END TABEL_RPS / TABEL_MATERI =====\n\n";
+                $currentMessage .= "⚠️ INSTRUKSI PENTING UNTUK BAB 5 EVALUASI DAN ANALISIS KETERCAPAIAN:\n";
+                $currentMessage .= "Gunakan data TABEL_RPS dan TABEL_MATERI di atas sebagai SUMBER DATA UTAMA.\n";
+                $currentMessage .= "- Pada bagian '## BAB 5 EVALUASI' (Hasil Pemeriksaan): sebutkan secara spesifik MK mana yang sudah/belum upload RPS dan berapa minggu materi yang sudah/belum diupload per MK.\n";
+                $currentMessage .= "- Pada bagian '## ANALISIS KETERCAPAIAN': gunakan jumlah MK (bukan persentase 0%) — sebutkan berapa MK belum lengkap. Jika semua sudah lengkap, cukup nyatakan 'seluruh MK telah memenuhi target'. JANGAN menulis '0%' dalam narasi.\n";
+                $currentMessage .= "- JANGAN membuat statistik atau nama MK secara generik — gunakan data NYATA dari tabel di atas.\n";
+                $currentMessage .= "- Jika ada MK yang belum upload, sebutkan nama dan dosen pengampunya.\n";
+                $currentMessage .= "- Jika semua MK sudah lengkap, tidak perlu menyebut angka persentase — cukup pernyataan positif.\n\n";
+            }
+
             // Process uploaded documents
             if (!empty($filesContext)) {
                 $currentMessage .= "Saya telah mengupload beberapa dokumen artefak:\n\n";
@@ -930,6 +966,8 @@ class LaporanArtefakController extends Controller
             }
 
             $currentMessage .= "⚠️⚠️⚠️ INSTRUKSI SANGAT PENTING - BACA INI DENGAN TELITI! ⚠️⚠️⚠️\n\n";
+            $currentMessage .= "🚫 LARANGAN KERAS: JANGAN PERNAH menampilkan teks {{PROGRAM_KERJA}}, {{PELAKSANAAN}}, {{HAMBATAN_PENJELASAN}}, {{HASIL_PEMERIKSAAN}}, {{KESIMPULAN_PENUTUP}}, atau placeholder {{...}} APAPUN dalam output Anda!\n";
+            $currentMessage .= "Jika ada placeholder {{...}} dalam draft atau dalam dokumen referensi, GANTI dengan konten nyata yang substantif!\n\n";
 
             // Check if this is a clear "Buatkan Laporan Bulanan" request
             $isExplicitLaporanRequest = false;
@@ -948,10 +986,11 @@ class LaporanArtefakController extends Controller
                 $currentMessage .= "JANGAN MENGATAKAN 'di luar konteks' ATAU 'tidak bisa membantu'!\n";
                 $currentMessage .= "LANGSUNG LANJUTKAN DENGAN MEMBUAT DRAFT LAPORAN ARTEFAK!\n\n";
                 $currentMessage .= "INGAT: Gunakan struktur yang SUDAH DIBERIKAN di system context:\n";
-                $currentMessage .= "- ## BAB 5 EVALUASI (Hasil Pemeriksaan)\n";
-                $currentMessage .= "- ## ANALISIS KETERCAPAIAN\n";
-                $currentMessage .= "- ## TINDAK LANJUT\n";
-                $currentMessage .= "- ## BAB 6 PENUTUP\n\n";
+                $currentMessage .= "- ## BAB 2 PROGRAM KERJA (isi dengan program kerja monitoring, BUKAN {{PROGRAM_KERJA}})\n";
+                $currentMessage .= "- ## BAB 3 PELAKSANAAN (isi dengan narasi pelaksanaan, BUKAN {{PELAKSANAAN}})\n";
+                $currentMessage .= "- ## BAB 4 HAMBATAN DAN PEMECAHAN MASALAH (isi dengan hambatan, BUKAN {{HAMBATAN_PENJELASAN}})\n";
+                $currentMessage .= "- ## BAB 5 EVALUASI (isi dengan hasil pemeriksaan, BUKAN {{HASIL_PEMERIKSAAN}})\n";
+                $currentMessage .= "- ## BAB 6 PENUTUP (isi dengan kesimpulan, BUKAN {{KESIMPULAN_PENUTUP}})\n\n";
             } else {
                 $currentMessage .= "Periksa terlebih dahulu apakah instruksi user di atas terkait dengan LAPORAN ARTEFAK RPS DAN MATERI.\n\n";
             }
@@ -1141,15 +1180,15 @@ class LaporanArtefakController extends Controller
                     '{{TUJUAN}}' => $resolvedSections['tujuan'] ?? '',
                     '{{SASARAN}}' => $resolvedSections['sasaran'] ?? '',
                     '{{WAKTU_PELAKSANAAN}}' => $resolvedSections['waktu_pelaksanaan'] ?? '',
-                    '{{RUANG}}' => $resolvedSections['ruang_lingkup'] ?? $resolvedSections['ruang'] ?? '',
+                    '{{RUANG}}' => $resolvedSections['ruang'] ?? $resolvedSections['ruang_lingkup'] ?? '',
                     '{{INSTRUMEN_PENGUKURAN}}' => $resolvedSections['instrumen_pengukuran'] ?? '',
                     '{{PROGRAM_KERJA}}' => $resolvedSections['program_kerja'] ?? '',
                     '{{PELAKSANAAN}}' => $resolvedSections['pelaksanaan'] ?? '',
-                    '{{HAMBATAN_PENJELASAN}}' => $resolvedSections['hambatan_dan_pemecahan_masalah'] ?? $resolvedSections['hambatan_penjelasan'] ?? $resolvedSections['hambatan'] ?? '',
-                    '{{HASIL_PEMERIKSAAN}}' => $resolvedSections['hasil_pemeriksaan'] ?? '',
+                    '{{HAMBATAN_PENJELASAN}}' => $resolvedSections['hambatan_penjelasan'] ?? $resolvedSections['hambatan_dan_pemecahan_masalah'] ?? $resolvedSections['hambatan'] ?? '',
+                    '{{HASIL_PEMERIKSAAN}}' => $resolvedSections['hasil_pemeriksaan'] ?? $resolvedSections['evaluasi'] ?? '',
                     '{{ANALISIS_KETERCAPAIAN}}' => $resolvedSections['analisis_ketercapaian'] ?? '',
                     '{{TINDAK_LANJUT}}' => $resolvedSections['tindak_lanjut'] ?? '',
-                    '{{KESIMPULAN_PENUTUP}}' => $resolvedSections['kesimpulan_penutup'] ?? $resolvedSections['penutup'] ?? '',
+                    '{{KESIMPULAN_PENUTUP}}' => $resolvedSections['kesimpulan_penutup'] ?? $resolvedSections['penutup'] ?? $resolvedSections['kesimpulan'] ?? '',
                 ];
 
                 foreach ($placeholderMap as $ph => $val) {
@@ -1271,11 +1310,15 @@ class LaporanArtefakController extends Controller
             'program kerja',
             'pelaksanaan',
             'hambatan dan pemecahan masalah',
+            'hambatan dan solusi',
+            'hambatan',
             'hasil pemeriksaan',
+            'evaluasi',
             'analisis ketercapaian',
             'tindak lanjut',
             'penutup',
             'kesimpulan penutup',
+            'kesimpulan',
         ];
 
         foreach ($lines as $line) {
@@ -1412,10 +1455,26 @@ class LaporanArtefakController extends Controller
         $key = preg_replace('/\{\{[^}]+\}\}/', '', $key);
         // Remove leading BAB / numbering labels: BAB 1, 1.1, 1.2, etc.
         $key = preg_replace('/^(?:BAB\s*)?\d+(?:[\._]\d+)*\s*/i', '', $key);
-        $key = strtolower($key);
+        $key = strtolower(trim($key));
         $key = preg_replace('/[^a-z0-9]+/', '_', $key);
         $key = trim($key, '_');
-        return $key;
+
+        // Normalize common aliases to canonical keys
+        $aliases = [
+            'evaluasi'                       => 'hasil_pemeriksaan',
+            'bab_5_evaluasi'                 => 'hasil_pemeriksaan',
+            'hasil_pemeriksaan'              => 'hasil_pemeriksaan',
+            'hambatan_dan_pemecahan_masalah' => 'hambatan_penjelasan',
+            'hambatan_dan_solusi'            => 'hambatan_penjelasan',
+            'hambatan'                       => 'hambatan_penjelasan',
+            'kesimpulan_penutup'             => 'kesimpulan_penutup',
+            'kesimpulan'                     => 'kesimpulan_penutup',
+            'penutup'                        => 'kesimpulan_penutup',
+            'bab_6_penutup'                  => 'kesimpulan_penutup',
+            'ruang_lingkup'                  => 'ruang',
+        ];
+
+        return $aliases[$key] ?? $key;
     }
 
     /**
@@ -1919,6 +1978,186 @@ class LaporanArtefakController extends Controller
             ]);
 
             return redirect()->back()->with('error', 'Terjadi kesalahan saat download: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Build structured RPS and Materi tables from RpsMonitoringSnapshot & PerkuliahanMonitoringSnapshot
+     * untuk digunakan sebagai konteks AI dalam BAB 5 EVALUASI dan ANALISIS KETERCAPAIAN
+     */
+    private function buildRpsMateriTableForAI($periode = null): string
+    {
+        try {
+            $user = Auth::user();
+            $prodiKode = $user->prodi->kode_prodi ?? 'TRPL';
+            $prodiIdMap = ['TRPL' => 4, 'TI' => 1, 'NM' => 3];
+            $prodiId = $prodiIdMap[$prodiKode] ?? 4;
+            $prodiNama = $user->prodi->nama_prodi ?? 'D4 TRPL';
+
+            if ($periode) {
+                $year  = (int) substr($periode, 0, 4);
+                $month = (int) substr($periode, 5, 2);
+                $semester     = $month <= 6 ? 2 : 1;
+                $tahunAjaran  = $semester === 1 ? "$year/" . ($year + 1) : ($year - 1) . "/$year";
+            } else {
+                $periodeAktif = \App\Models\PeriodeAkademik::where('is_active', true)->first();
+                if ($periodeAktif) {
+                    $semester    = $periodeAktif->semester;
+                    $tahunAjaran = $periodeAktif->tahun_ajaran;
+                } else {
+                    $m = (int) date('n'); $y = (int) date('Y');
+                    $semester    = $m <= 6 ? 2 : 1;
+                    $tahunAjaran = $semester === 1 ? "$y/" . ($y + 1) : ($y - 1) . "/$y";
+                }
+            }
+
+            $semesterLabel = $semester === 1 ? 'Ganjil' : 'Genap';
+
+            // ── 1. Tabel RPS dari rps_monitoring_snapshots ──────────────────
+            $rpsData = \App\Models\RpsMonitoringSnapshot::with('dosen')
+                ->orderByRaw("SUBSTRING(kode_mk, 4, 1)")
+                ->orderBy('kode_mk')
+                ->get();
+
+            // ── 2. Tabel Materi dari perkuliahan_monitoring_snapshots ────────
+            $materiData = \App\Models\PerkuliahanMonitoringSnapshot::with('dosen')
+                ->orderByRaw("SUBSTRING(kode_mk, 4, 1)")
+                ->orderBy('kode_mk')
+                ->orderBy('jenis_materi')
+                ->get();
+
+            $totalRPS       = $rpsData->count();
+            $rpsUploaded    = $rpsData->where('status_rps', 'SUDAH UPLOAD')->count();
+            $rpsBelum       = $totalRPS - $rpsUploaded;
+            $rpsPercent     = $totalRPS > 0 ? round(($rpsUploaded / $totalRPS) * 100, 1) : 0;
+
+            $mkUnik         = $materiData->unique('kode_mk');
+            $totalMateri    = $mkUnik->count();
+            $materiUploaded = $materiData->where('status_upload', 'SUDAH UPLOAD')->unique('kode_mk')->count();
+            $materiBelum    = $totalMateri - $materiUploaded;
+            $materiPercent  = $totalMateri > 0 ? round(($materiUploaded / $totalMateri) * 100, 1) : 0;
+
+            $out  = "=== TABEL RPS (TABEL_RPS) ===\n";
+            $out .= "Program Studi: {$prodiNama} | Semester: {$semesterLabel} {$tahunAjaran}\n\n";
+
+            if ($rpsData->isEmpty()) {
+                $out .= "⚠️ Data RPS belum tersedia.\n\n";
+            } else {
+                // Group per kode_mk agar dosen tidak duplikat
+                $grouped = [];
+                foreach ($rpsData as $item) {
+                    $kode   = $item->kode_mk ?? '-';
+                    $tingkat = strlen($kode) >= 4 ? substr($kode, 3, 1) : '-';
+                    if (!isset($grouped[$kode])) {
+                        $grouped[$kode] = [
+                            'tingkat'     => $tingkat,
+                            'kode_mk'     => $kode,
+                            'nama_matkul' => $item->nama_matkul ?? '-',
+                            'dosen'       => [],
+                            'status_rps'  => $item->status_rps ?? 'BELUM UPLOAD',
+                        ];
+                    }
+                    $dosenNama = $item->dosen->inisial_nama ?? $item->dosen->nama ?? (string) $item->pegawai_id;
+                    if ($dosenNama && !in_array($dosenNama, $grouped[$kode]['dosen'])) {
+                        $grouped[$kode]['dosen'][] = $dosenNama;
+                    }
+                    // Jika salah satu row sudah upload, tandai sudah
+                    if ($item->status_rps === 'SUDAH UPLOAD') {
+                        $grouped[$kode]['status_rps'] = 'SUDAH UPLOAD';
+                    }
+                }
+
+                $out .= "| Tingkat | Kode MK | Nama Matakuliah | Dosen Pengampu | Status RPS |\n";
+                $out .= "|---------|---------|-----------------|----------------|------------|\n";
+                foreach ($grouped as $row) {
+                    $dosenStr  = implode(', ', $row['dosen']) ?: '-';
+                    $statusStr = $row['status_rps'] === 'SUDAH UPLOAD' ? '✅ Sudah Upload' : '❌ Belum Upload';
+                    $out .= "| {$row['tingkat']} | {$row['kode_mk']} | {$row['nama_matkul']} | {$dosenStr} | {$statusStr} |\n";
+                }
+                $out .= "\n";
+                // Tampilkan persentase hanya jika > 0, fokus pada jumlah MK yang belum
+                if ($rpsBelum > 0) {
+                    $out .= "**Ringkasan RPS:** Total {$totalRPS} MK | Sudah Upload: {$rpsUploaded} MK | Belum Upload: {$rpsBelum} MK\n\n";
+                } else {
+                    $out .= "**Ringkasan RPS:** Total {$totalRPS} MK | Semua sudah upload RPS ✅\n\n";
+                }
+            }
+
+            $out .= "=== TABEL MATERI (TABEL_MATERI) ===\n\n";
+
+            if ($materiData->isEmpty()) {
+                $out .= "⚠️ Data Materi belum tersedia.\n\n";
+            } else {
+                // Susun per kode_mk → teori & praktikum per minggu
+                $materiGrouped = [];
+                foreach ($materiData as $item) {
+                    $kode    = $item->kode_mk ?? '-';
+                    $jenis   = strtolower($item->jenis_materi ?? 'teori');
+                    $minggu  = (int) ($item->minggu_ke ?? 0);
+                    $status  = $item->status_upload ?? 'BELUM UPLOAD';
+
+                    if (!isset($materiGrouped[$kode])) {
+                        $materiGrouped[$kode] = [
+                            'nama_matkul' => $item->nama_matkul ?? '-',
+                            'dosen'       => [],
+                            'teori'       => [],
+                            'praktikum'   => [],
+                        ];
+                    }
+                    $dosenNama = $item->dosen->inisial_nama ?? $item->dosen->nama ?? (string) $item->pegawai_id;
+                    if ($dosenNama && !in_array($dosenNama, $materiGrouped[$kode]['dosen'])) {
+                        $materiGrouped[$kode]['dosen'][] = $dosenNama;
+                    }
+                    if (str_contains($jenis, 'prakt')) {
+                        $materiGrouped[$kode]['praktikum'][$minggu] = $status;
+                    } else {
+                        $materiGrouped[$kode]['teori'][$minggu] = $status;
+                    }
+                }
+
+                // Buat ringkasan per MK: berapa minggu teori/praktikum sudah upload
+                $out .= "| Kode MK | Nama Matakuliah | Dosen | Teori Upload (W1-16) | Praktikum Upload (W1-16) | Status |\n";
+                $out .= "|---------|-----------------|-------|---------------------|--------------------------|--------|\n";
+
+                $mkBelumMateri = []; // tidak digunakan untuk output, hanya untuk hitung $materiBelum
+                foreach ($materiGrouped as $kode => $data) {
+                    $dosenStr = implode(', ', $data['dosen']) ?: '-';
+                    $teoriUpload = count(array_filter($data['teori'], fn($s) => $s === 'SUDAH UPLOAD'));
+                    $praktUpload = count(array_filter($data['praktikum'], fn($s) => $s === 'SUDAH UPLOAD'));
+                    $teoriTotal  = 16;
+                    $praktTotal  = count($data['praktikum']) > 0 ? 16 : 0;
+
+                    $teoriStr = "{$teoriUpload}/{$teoriTotal}";
+                    $praktStr = $praktTotal > 0 ? "{$praktUpload}/{$praktTotal}" : '-';
+
+                    $statusMateri = ($teoriUpload === $teoriTotal && ($praktTotal === 0 || $praktUpload === $praktTotal))
+                        ? '✅ Lengkap' : '⚠️ Belum Lengkap';
+
+                    $out .= "| {$kode} | {$data['nama_matkul']} | {$dosenStr} | {$teoriStr} | {$praktStr} | {$statusMateri} |\n";
+                }
+
+                $out .= "\n";
+                // Tampilkan persentase hanya jika > 0, fokus pada jumlah MK yang belum
+                if ($materiBelum > 0) {
+                    $out .= "**Ringkasan Materi:** Total {$totalMateri} MK | Sudah Lengkap: {$materiUploaded} MK | Belum Lengkap: {$materiBelum} MK\n\n";
+                } else {
+                    $out .= "**Ringkasan Materi:** Total {$totalMateri} MK | Semua materi sudah lengkap ✅\n\n";
+                }
+            }
+
+            $out .= "=== STATISTIK GABUNGAN UNTUK EVALUASI ===\n";
+            $out .= "- RPS Sudah Upload : {$rpsUploaded} dari {$totalRPS} MK" . ($rpsBelum > 0 ? " ({$rpsBelum} MK belum upload)" : " (semua lengkap ✅)") . "\n";
+            $out .= "- Materi Sudah Lengkap: {$materiUploaded} dari {$totalMateri} MK" . ($materiBelum > 0 ? " ({$materiBelum} MK belum lengkap)" : " (semua lengkap ✅)") . "\n";
+            $out .= "- Target Ketercapaian: seluruh MK harus upload RPS dan materi lengkap (W1-W16)\n";
+            $out .= "- Status RPS    : " . ($rpsBelum === 0 ? "✅ Semua MK sudah upload" : "❌ {$rpsBelum} MK belum upload RPS") . "\n";
+            $out .= "- Status Materi : " . ($materiBelum === 0 ? "✅ Semua MK sudah lengkap" : "❌ {$materiBelum} MK belum lengkap materi") . "\n\n";
+            $out .= "CATATAN UNTUK AI: Saat menulis BAB 5 dan Analisis Ketercapaian, sebutkan berapa MK yang belum lengkap (jika ada), jangan menyebut '0%' — cukup sebut 'semua MK sudah memenuhi' jika tidak ada yang kurang.\n\n";
+
+            return $out;
+
+        } catch (\Exception $e) {
+            Log::error('buildRpsMateriTableForAI failed', ['error' => $e->getMessage()]);
+            return "Data TABEL_RPS dan TABEL_MATERI tidak dapat diambil: " . $e->getMessage() . "\n";
         }
     }
 
