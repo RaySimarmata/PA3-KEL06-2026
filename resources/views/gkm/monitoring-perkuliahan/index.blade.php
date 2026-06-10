@@ -113,7 +113,7 @@
                 <!-- Materi Teori Tab -->
                 <div class="tab-pane fade show active" id="teori" role="tabpanel">
                     <div class="monitoring-header" style="border-top: none;">
-                        <h6>Monitoring Status</h6>
+                       
                     </div>
 
                     <div class="table-responsive">
@@ -204,7 +204,7 @@
                 <div class="tab-pane fade" id="praktikum" role="tabpanel">
                     <div class="monitoring-header" style="border-top: none;">
 
-                        <h6>Monitoring Status</h6>
+                        
                     </div>
 
                     <div class="table-responsive">
