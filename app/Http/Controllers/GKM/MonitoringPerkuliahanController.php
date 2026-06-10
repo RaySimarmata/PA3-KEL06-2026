@@ -41,7 +41,7 @@ class MonitoringPerkuliahanController extends Controller
     {
         $currentYear = (int) date('Y');
         $baseYear = floor($currentYear / 5) * 5;
-        
+
         $tahunList = [];
         for ($i = 0; $i <= 5; $i++) {
             $year = $baseYear + $i;
@@ -50,14 +50,14 @@ class MonitoringPerkuliahanController extends Controller
                 'nm_thn_ajaran' => (string) $year
             ];
         }
-        
+
         Log::info('MonitoringPerkuliahan - Generated dynamic tahun ajaran', [
             'current_year' => $currentYear,
             'base_year' => $baseYear,
             'range' => $baseYear . ' - ' . ($baseYear + 5),
             'years_generated' => array_column($tahunList, 'id_thn_ajaran')
         ]);
-        
+
         return $tahunList;
     }
 
@@ -83,11 +83,11 @@ $selectedTahunAjaran = $request->input(
         $selectedTingkat = $request->input('tingkat', '');
         $periode = \App\Models\PeriodeAkademik::where('is_active', true)->first();
         $startDate = $periode ? \Carbon\Carbon::parse($periode->start_date) : null;
-        
+
         // Check if filter is applied
         $filterApplied = !empty($selectedSemester)
               && !empty($selectedTahunAjaran);
-        
+
         // Fallback: if no active periode, use a default start date based on semester and tahun ajaran
         if (!$startDate && $filterApplied) {
             // For semester 1 (Ganjil), start in August
@@ -106,7 +106,7 @@ $selectedTahunAjaran = $request->input(
             try {
                 // Set execution time limit to prevent timeout
                 set_time_limit(120); // 2 minutes max
-                
+
                 $apiService = new ExternalAPIService;
 
                 // Map prodi_id
@@ -141,10 +141,10 @@ $selectedTahunAjaran = $request->input(
                     // Limit data processing to prevent timeout
                     $maxMatkul = 100; // Increase limit untuk lebih banyak matkul
                     $processedCount = 0;
-                    
+
                     // 🔥 STRATEGY 1: Coba ambil dari Database dulu (lebih cepat dan reliable)
                     $matkulDosenMap = [];
-                    
+
                     Log::info('MonitoringPerkuliahan - Mulai mapping dari Database', [
                         'semester' => $selectedSemester,
                         'tahun_ajaran' => $selectedTahunAjaran,
@@ -200,7 +200,7 @@ $selectedTahunAjaran = $request->input(
                     // 🔥 STRATEGY 2: Jika masih kosong, fallback ke API
                     if (empty($matkulDosenMap)) {
                         Log::warning('MonitoringPerkuliahan - Database kosong, fallback ke API');
-                        
+
                         // Get dosen list dari API
                         $dosenList = Cache::remember("dosen_prodi_{$prodiId}", 900, function () use ($apiService) {
                             return $apiService->getFilteredDosen();
@@ -279,7 +279,7 @@ $selectedTahunAjaran = $request->input(
                             ]);
                             break;
                         }
-                        
+
                         $kuliahId = $matkul['kuliah_id'] ?? null;
                         $kodeMk = $matkul['kode_mk'] ?? '-';
                         $namaMk = $matkul['nama_matkul'] ?? '-';
@@ -294,7 +294,7 @@ $selectedTahunAjaran = $request->input(
                         if (! empty($selectedTingkat) && $tingkatMk != $selectedTingkat) {
                             continue;
                         }
-                        
+
                         // Increment processed count
                         $processedCount++;
 
@@ -303,7 +303,7 @@ $selectedTahunAjaran = $request->input(
                         if (isset($matkulDosenMap[$kodeMk]) && ! empty($matkulDosenMap[$kodeMk])) {
                             // 🔥 Extract nama saja untuk display
                             $dosenPengampu = implode(', ', array_column($matkulDosenMap[$kodeMk], 'nama'));
-                            
+
                             Log::info('MonitoringPerkuliahan - Dosen found', [
                                 'kode_mk' => $kodeMk,
                                 'dosen' => $dosenPengampu
@@ -383,7 +383,7 @@ $selectedTahunAjaran = $request->input(
                                 Log::warning("Failed to get monitoring for matkul {$kodeMk}: " . $e->getMessage());
                             }
                         }
-                        
+
                         // ================= PRAKTIKUM =================
                         $weeksPraktikum = array_fill(0, 16, null);
 
@@ -494,7 +494,7 @@ $selectedTahunAjaran = $request->input(
                         $materiPraktikum[] = $mkPraktikumData;
                     }
                 }
-                
+
                 // 🔥 SAVE SNAPSHOT TO DATABASE (seperti RPS)
                 if (!empty($materiTeori) || !empty($materiPraktikum)) {
                     $this->savePerkuliahanSnapshot(
@@ -1471,8 +1471,8 @@ private function savePerkuliahanComplianceSnapshot(
                             }
                         }
 
-                        // Update snapshot reminder status for this dosen
-                        try {
+                    // Update snapshot reminder status for this dosen
+                    try {
                             \App\Models\PerkuliahanMonitoringSnapshot::where('pegawai_id', $dosen->pegawai_id)
                                 ->where('status_upload', 'BELUM UPLOAD')
                                 ->update([
@@ -1578,7 +1578,7 @@ private function savePerkuliahanComplianceSnapshot(
     {
         try {
             $dosenIds = $request->input('dosen_ids', []);
-            
+
             if (empty($dosenIds)) {
                 return response()->json([
                     'success' => false,
@@ -1587,7 +1587,7 @@ private function savePerkuliahanComplianceSnapshot(
             }
 
             $dosenList = \App\Models\Dosenn::whereIn('pegawai_id', $dosenIds)->get();
-            
+
             $message = "Yth. Bapak/Ibu Dosen,\n\n";
             $message .= "Kami mengingatkan untuk segera melakukan upload materi perkuliahan di sistem CIS.\n\n";
             $message .= "Berdasarkan monitoring sistem untuk SEMUA SEMESTER (Ganjil & Genap) dan SEMUA TINGKAT (1-4), ";
@@ -1688,7 +1688,7 @@ private function savePerkuliahanComplianceSnapshot(
     {
         try {
             $dosenIds = $request->input('dosen_ids', []);
-            
+
             if (empty($dosenIds)) {
                 return response()->json([
                     'success' => false,
@@ -1697,7 +1697,7 @@ private function savePerkuliahanComplianceSnapshot(
             }
 
             $dosenList = \App\Models\Dosen::whereIn('id', $dosenIds)->get();
-            
+
             $message = "Yth. Bapak/Ibu Kepala Program Studi,\n\n";
             $message .= "Kami mengingatkan untuk segera melakukan review soal ujian yang telah disubmit oleh dosen.\n\n";
             $message .= "Kegiatan review meliputi:\n";
