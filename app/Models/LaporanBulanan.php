@@ -105,9 +105,8 @@ class LaporanBulanan extends Model
     {
         return match($this->status) {
             'completed' => 'success',
-            'processing' => 'warning',
             'error' => 'danger',
-            default => 'secondary',
+            default => 'danger',
         };
     }
 
@@ -117,11 +116,8 @@ class LaporanBulanan extends Model
     public function getStatusLabelAttribute()
     {
         return match($this->status) {
-            'pending' => 'Menunggu',
-            'processing' => 'Sedang Diproses',
-            'completed' => 'Selesai',
-            'error' => 'Error',
-            default => 'Unknown',
+            'completed' => 'Berhasil',
+            default => 'Gagal',
         };
     }
 

@@ -66,7 +66,8 @@
                         @forelse($logEmailList as $index => $log)
                             <tr>
                                 <td class="code-mk">{{ $logEmailList->firstItem() + $index }}</td>
-                                <td class="text-secondary">{{ \Carbon\Carbon::parse($log->tanggal_pengiriman)->format('d/m/Y H:i') }}</td>
+                                <td class="text-secondary">
+                                    {{ \Carbon\Carbon::parse($log->tanggal_pengiriman)->format('d/m/Y H:i') }}</td>
                                 <td class="nama-mk">{{ Str::limit($log->subjek, 40) }}</td>
                                 <td class="dosen-name">{{ $log->penerima_email }}</td>
                                 <td>
@@ -133,7 +134,8 @@
                         <div class="row mb-3">
                             <div class="col-md-12">
                                 <label class="fw-bold text-muted small">Tanggal Pengiriman:</label>
-                                <p class="mb-0">{{ \Carbon\Carbon::parse($log->tanggal_pengiriman)->format('d F Y, H:i') }} WIB</p>
+                                <p class="mb-0">
+                                    {{ \Carbon\Carbon::parse($log->tanggal_pengiriman)->format('d F Y, H:i') }} WIB</p>
                             </div>
                         </div>
 

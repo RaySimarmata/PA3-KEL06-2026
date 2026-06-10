@@ -23,22 +23,16 @@
 
         <!-- Flash Messages -->
         @if(session('success'))
-            <div class="alert alert-success alert-dismissible fade show mb-4" role="alert">
-                <div class="d-flex align-items-center">
-                    <i class="bi bi-check-circle-fill me-2" style="font-size: 1.2rem;"></i>
-                    <div>{{ session('success') }}</div>
-                </div>
-                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            <div class="alert-app success mb-4" data-auto-dismiss>
+                <i class="bi bi-check-circle-fill alert-app-icon"></i>
+                <div class="alert-app-body">{{ session('success') }}</div>
             </div>
         @endif
 
         @if(session('error'))
-            <div class="alert alert-danger alert-dismissible fade show mb-4" role="alert">
-                <div class="d-flex align-items-center">
-                    <i class="bi bi-exclamation-triangle-fill me-2" style="font-size: 1.2rem;"></i>
-                    <div>{{ session('error') }}</div>
-                </div>
-                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            <div class="alert-app danger mb-4" data-auto-dismiss>
+                <i class="bi bi-exclamation-triangle-fill alert-app-icon"></i>
+                <div class="alert-app-body">{{ session('error') }}</div>
             </div>
         @endif
 
@@ -150,7 +144,7 @@
                                             
                                             <form action="{{ route('gkm.laporan-kuesioner.template.destroy', $template->id) }}" 
                                                   method="POST" class="d-inline"
-                                                  onsubmit="return confirm('Yakin ingin menghapus template ini?')">
+                                                  onsubmit="AppConfirm.delete(this, 'Template ini akan dihapus permanen.'); return false;">
                                                 @csrf
                                                 @method('DELETE')
                                                 <button type="submit" class="btn btn-sm btn-outline-danger"

@@ -400,32 +400,41 @@ textarea.form-control {
     letter-spacing: 0.5px;
 }
 
-/* Alert Styles */
+/* Alert Styles - Updated to match alert-app design */
 .alert-gkm {
-    border-radius: 8px;
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    padding: 0.9rem 1.1rem;
+    border-radius: 10px;
     border: none;
-    padding: 1rem 1.25rem;
-    margin-bottom: 1.5rem;
+    font-size: 0.9rem;
+    line-height: 1.5;
+    margin-bottom: 1rem;
 }
 
 .alert-gkm.success {
-    background-color: #d4edda;
-    color: #155724;
+    background-color: #d1f0e0;
+    color: #0f5132;
+    border-left: 4px solid #198754;
 }
 
 .alert-gkm.warning {
-    background-color: #fff3cd;
-    color: #856404;
+    background-color: #fff4cc;
+    color: #664d03;
+    border-left: 4px solid #ffc107;
 }
 
 .alert-gkm.danger {
-    background-color: #f8d7da;
-    color: #721c24;
+    background-color: #fde8ea;
+    color: #842029;
+    border-left: 4px solid #dc3545;
 }
 
 .alert-gkm.info {
-    background-color: #d1ecf1;
-    color: #0c5460;
+    background-color: #dceefb;
+    color: #084298;
+    border-left: 4px solid #0d6efd;
 }
 
 /* Pagination */

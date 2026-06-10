@@ -142,12 +142,15 @@
                     <input type="hidden" name="selected_matkul" id="selected_matkul" value="">
 
                     @if ($errors->any())
-                        <div class="alert alert-danger">
-                            <ul>
-                                @foreach ($errors->all() as $error)
-                                    <li>{{ $error }}</li>
-                                @endforeach
-                            </ul>
+                        <div class="alert-app danger mb-3">
+                            <i class="bi bi-exclamation-triangle-fill alert-app-icon"></i>
+                            <div class="alert-app-body">
+                                <ul class="mb-0" style="padding-left:1.25rem;">
+                                    @foreach ($errors->all() as $error)
+                                        <li>{{ $error }}</li>
+                                    @endforeach
+                                </ul>
+                            </div>
                         </div>
                     @endif
                     <!-- Section 4: Upload File -->

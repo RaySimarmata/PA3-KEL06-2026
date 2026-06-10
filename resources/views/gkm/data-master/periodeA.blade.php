@@ -20,14 +20,16 @@
 
     {{-- ERROR VALIDATION --}}
     @if ($errors->any())
-        <div class="alert alert-danger alert-dismissible fade show" role="alert">
-            <strong><i class="bi bi-exclamation-triangle"></i> Terjadi kesalahan:</strong>
-            <ul class="mb-0 mt-2">
-                @foreach ($errors->all() as $error)
-                    <li>{{ $error }}</li>
-                @endforeach
-            </ul>
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        <div class="alert-app danger mb-3">
+            <i class="bi bi-exclamation-triangle-fill alert-app-icon"></i>
+            <div class="alert-app-body">
+                <div class="alert-app-title">Terjadi kesalahan:</div>
+                <ul class="mb-0" style="font-size:0.875rem; padding-left:1.25rem;">
+                    @foreach ($errors->all() as $error)
+                        <li>{{ $error }}</li>
+                    @endforeach
+                </ul>
+            </div>
         </div>
     @endif
 
@@ -107,7 +109,7 @@
                                           method="POST" style="display: inline-block;">
                                         @csrf
                                         <button class="btn btn-sm btn-success"
-                                                onclick="return confirm('Yakin ingin mengaktifkan periode ini?')"
+                                                onclick="AppConfirm.ask(this.closest('form'), 'Aktifkan Periode?', 'Periode ini akan dijadikan periode aktif.'); return false;"
                                                 style="padding: 0.4rem 0.8rem;">
                                             <i class="bi bi-toggle-on"></i> Aktifkan
                                         </button>

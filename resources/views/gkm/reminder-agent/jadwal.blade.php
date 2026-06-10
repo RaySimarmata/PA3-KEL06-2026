@@ -79,7 +79,7 @@
                                     {{ old('tipe_reminder') == 'Upload Materi' ? 'selected' : '' }}>
                                     Reminder Upload Materi
                                 </option>
-                                
+
                             </select>
                             @error('tipe_reminder')
                                 <div class="invalid-feedback">{{ $message }}</div>
@@ -194,7 +194,7 @@
             form.addEventListener('submit', function(e) {
                 if (!validateDateTime()) {
                     e.preventDefault();
-                    
+
                     // Tampilkan pesan error
                     if (tanggalInput.validity.customError) {
                         tanggalInput.classList.add('is-invalid');

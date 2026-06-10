@@ -3,270 +3,299 @@
 @section('page-title', 'Kirim Laporan')
 
 @section('content')
-<div style="padding: 1.5rem;">
-    @if(session('success'))
-    <div class="alert-gjm success alert-dismissible fade show" role="alert">
-        <i class="bi bi-check-circle"></i> {{ session('success') }}
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    </div>
-    @endif
-
-    @if(session('error'))
-    <div class="alert-gjm danger alert-dismissible fade show" role="alert">
-        <i class="bi bi-exclamation-triangle"></i> {{ session('error') }}
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    </div>
-    @endif
-
-    <!-- Header Card -->
-    <div class="filter-card mb-4">
-        <div class="d-flex align-items-start gap-3">
-            <div>
-                <h5 class="mb-1" style="font-weight: 600; color: #333;">Pengiriman Laporan GJM</h5>
-                <p class="text-muted mb-0" style="font-size: 0.875rem;">Kelola dan kirim pesan pengingat kepada penerima terkait laporan GJM.</p>
+    <div style="padding: 1.5rem;">
+        @if (session('success'))
+            <div class="alert-app success mb-3" data-auto-dismiss>
+                <i class="bi bi-check-circle-fill alert-app-icon"></i>
+                <div class="alert-app-body">{{ session('success') }}</div>
             </div>
-        </div>
-    </div>
+        @endif
 
-    <form id="laporanForm">
-        @csrf
-        <div class="monitoring-card mb-4">
-            <div class="monitoring-header">
-                <h6>Informasi Penerima</h6>
+        @if (session('error'))
+            <div class="alert-app danger mb-3" data-auto-dismiss>
+                <i class="bi bi-exclamation-triangle-fill alert-app-icon"></i>
+                <div class="alert-app-body">{{ session('error') }}</div>
             </div>
-            <div style="padding: 1.5rem;">
-                <div class="mb-4">
-                    <label class="filter-label">Penerima <span class="text-danger">*</span></label>
-                    <input type="text" class="form-control" name="recipients" id="recipients"
-                           placeholder="Contoh: rektor@example.com, dekan@example.com" required>
-                    <small class="text-muted" style="font-size: 0.8rem;">
-                        <i class="bi bi-info-circle"></i> Masukkan alamat email penerima. Pisahkan dengan koma untuk beberapa penerima.
-                    </small>
-                </div>
+        @endif
 
-                <div class="mb-4">
-                    <label class="filter-label">CC</label>
-                    <input type="text" class="form-control" name="cc" id="cc"
-                           placeholder="Contoh: spm@example.com">
-                    <small class="text-muted" style="font-size: 0.8rem;">
-                        <i class="bi bi-info-circle"></i> Masukkan alamat email CC. Pisahkan dengan koma untuk beberapa email.
-                    </small>
-                </div>
-
-                <div class="mb-4">
-                    <label class="filter-label">Subjek Email <span class="text-danger">*</span></label>
-                    <input type="text" class="form-control" name="subject" id="subject"
-                           placeholder="Contoh: Pengiriman Laporan GJM Triwulan I 2025" required>
-                </div>
-
-                <div class="mb-4">
-                    <label class="filter-label">Isi Pesan <span class="text-danger">*</span></label>
-                    <textarea class="form-control" name="message" id="message" rows="10" 
-                              placeholder="Tuliskan pesan Anda di sini..." required></textarea>
-                </div>
-
-                <div class="mb-4">
-                    <label class="filter-label">Lampiran Berkas</label>
-                    <div class="d-flex gap-2 mb-3">
-                        <button type="button" class="btn btn-outline-primary" onclick="showUploadExternal()">
-                            <i class="bi bi-upload"></i> Upload File Eksternal
-                        </button>
-                        <button type="button" class="btn btn-outline-primary" onclick="showPilihLaporan()">
-                            <i class="bi bi-file-earmark-text"></i> Pilih dari Laporan GJM
-                        </button>
-                    </div>
-                    
-                    <!-- Upload File Eksternal -->
-                    <div id="uploadExternalSection" style="display: none;">
-                        <div class="monitoring-card mb-3" style="border-left: 4px solid #5B9BD5;">
-                            <div style="padding: 1rem;">
-                                <input type="file" class="form-control" name="temp_attachments[]" id="tempAttachments" multiple>
-                                <small class="text-muted d-block mt-2" style="font-size: 0.8rem;">
-                                    <i class="bi bi-info-circle"></i> Anda dapat melampirkan beberapa file sekaligus
-                                </small>
-                            </div>
-                        </div>
-                        <div id="pendingFileList" class="mt-2"></div>
-                    </div>
-                    
-                    <!-- Pilih dari Laporan GJM -->
-                    <div id="pilihLaporanSection" style="display: none;">
-                        <div class="monitoring-card" style="border-left: 4px solid #5B9BD5;">
-                            <div style="padding: 1rem;">
-                                <div class="d-flex justify-content-between align-items-center mb-3">
-                                    <h6 class="mb-0" style="font-weight: 600; color: #333;">Laporan GJM yang Selesai</h6>
-                                    <span class="badge bg-success">{{ $laporanList->count() }} Laporan Tersedia</span>
-                                </div>
-                                
-                                @if($laporanList->count() > 0)
-                                <div class="table-responsive">
-                                    <table class="table table-monitoring mb-0">
-                                        <thead>
-                                            <tr>
-                                                <th style="width: 50px;">
-                                                    <input type="checkbox" class="form-check-input" id="selectAllLaporan" onchange="toggleAllLaporan(this)">
-                                                </th>
-                                                <th>JUDUL LAPORAN</th>
-                                                <th>TANGGAL DIBUAT</th>
-                                                <th>TIPE LAPORAN</th>
-                                                <th class="text-center">STATUS</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            @foreach($laporanList as $laporan)
-                                            <tr>
-                                                <td>
-                                                    <input type="checkbox" class="form-check-input laporan-checkbox" 
-                                                           value="{{ $laporan->id }}"
-                                                           data-title="{{ $laporan->getPeriodeLabel() }} - {{ $laporan->getJenisLaporanLabel() }}"
-                                                           onchange="showLaporanValidation()">
-                                                </td>
-                                                <td>
-                                                    <div class="d-flex align-items-center gap-2">
-                                                        <i class="bi bi-file-earmark-text" style="color: #5B9BD5; font-size: 1.25rem;"></i>
-                                                        <div>
-                                                            <div class="code-mk">Laporan {{ $laporan->getPeriodeLabel() }}</div>
-                                                            <small class="text-muted">{{ $laporan->program_studi ?? 'Fakultas Vokasi' }}</small>
-                                                        </div>
-                                                    </div>
-                                                </td>
-                                                <td class="text-secondary">{{ $laporan->created_at->format('d M Y') }}</td>
-                                                <td>
-                                                    <span class="badge-gjm {{ $laporan->jenis_laporan == 'triwulan' ? 'info' : 'warning' }}">
-                                                        {{ $laporan->getJenisLaporanLabel() }}
-                                                    </span>
-                                                </td>
-                                                <td class="text-center">
-                                                    <span class="badge-gjm success">
-                                                        {{ $laporan->status_laporan == 'completed' ? 'Selesai' : 'Approved' }}
-                                                    </span>
-                                                </td>
-                                            </tr>
-                                            @endforeach
-                                        </tbody>
-                                    </table>
-                                </div>
-                                <small class="text-muted d-block mt-2" style="font-size: 0.8rem;">
-                                    <i class="bi bi-info-circle"></i> Pilih laporan yang akan dilampirkan dalam email. Hanya laporan yang sudah selesai yang dapat dikirim.
-                                </small>
-                                @else
-                                <div class="text-center py-4">
-                                    <i class="bi bi-inbox" style="font-size: 3rem; color: #ccc;"></i>
-                                    <p class="text-muted mt-2 mb-0">Belum ada laporan yang selesai</p>
-                                    <small class="text-muted">Laporan yang sudah selesai akan muncul di sini</small>
-                                </div>
-                                @endif
-                            </div>
-                        </div>
-                        <div id="pendingLaporanList" class="mt-2"></div>
-                    </div>
-                    
-                    <!-- Daftar File yang Sudah Divalidasi -->
-                    <div id="validatedFilesSection" class="mt-3" style="display: none;">
-                        <div class="monitoring-card" style="border-left: 4px solid #28a745;">
-                            <div style="padding: 1rem;">
-                                <h6 class="mb-3" style="color: #28a745; font-weight: 600;">
-                                    <i class="bi bi-check-circle"></i> File yang Akan Dikirim
-                                </h6>
-                                <div id="validatedFilesList"></div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="d-flex gap-2">
-                    <button type="button" class="btn btn-outline-primary" onclick="generateMessage()">
-                        <i class="bi bi-magic"></i> Generate Pesan
-                    </button>
-                    <button type="button" class="btn-reminder" onclick="sendLaporan()">
-                        <i class="bi bi-send"></i>
-                        <span>Kirim Laporan</span>
-                    </button>
-                    <button type="button" class="btn btn-outline-secondary" onclick="previewMessage()">
-                        <i class="bi bi-eye"></i> Preview
-                    </button>
-                </div>
-            </div>
-        </div>
-    </form>
-</div>
-
-<!-- Modal Preview -->
-<div class="modal fade" id="previewModal" tabindex="-1">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <div class="modal-header" style="background: #f8f9fa; border-bottom: 2px solid #5B9BD5;">
-                <h5 class="modal-title" style="color: #333; font-weight: 600;">
-                    <i class="bi bi-eye" style="color: #5B9BD5;"></i> Preview Pesan
-                </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body" style="padding: 1.5rem;">
-                <div class="mb-3">
-                    <label class="filter-label">Penerima</label>
-                    <p id="previewRecipients" class="mb-0" style="color: #495057;"></p>
-                </div>
-                <div class="mb-3">
-                    <label class="filter-label">CC</label>
-                    <p id="previewCC" class="mb-0" style="color: #495057;"></p>
-                </div>
-                <div class="mb-3">
-                    <label class="filter-label">Subjek</label>
-                    <p id="previewSubject" class="mb-0" style="color: #495057; font-weight: 600;"></p>
-                </div>
-                <hr style="border-color: #e9ecef;">
+        <!-- Header Card -->
+        <div class="filter-card mb-4">
+            <div class="d-flex align-items-start gap-3">
                 <div>
-                    <label class="filter-label">Isi Pesan</label>
-                    <pre id="previewMessage" class="mt-2" style="white-space: pre-wrap; font-family: inherit; background: #f8f9fa; padding: 1rem; border-radius: 6px; border: 1px solid #e9ecef;"></pre>
+                    <h5 class="mb-1" style="font-weight: 600; color: #333;">Pengiriman Laporan GJM</h5>
+                    <p class="text-muted mb-0" style="font-size: 0.875rem;">Kelola dan kirim pesan pengingat kepada penerima
+                        terkait laporan GJM.</p>
                 </div>
-                <div class="mt-3" id="previewAttachments"></div>
             </div>
-            <div class="modal-footer" style="background: #f8f9fa;">
-                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">
-                    <i class="bi bi-x-circle"></i> Tutup
-                </button>
+        </div>
+
+        <form id="laporanForm">
+            @csrf
+            <div class="monitoring-card mb-4">
+                <div class="monitoring-header">
+                    <h6>Informasi Penerima</h6>
+                </div>
+                <div style="padding: 1.5rem;">
+                    <div class="mb-4">
+                        <label class="filter-label">Penerima <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" name="recipients" id="recipients"
+                            placeholder="Contoh: rektor@example.com, dekan@example.com" required>
+                        <small class="text-muted" style="font-size: 0.8rem;">
+                            <i class="bi bi-info-circle"></i> Masukkan alamat email penerima. Pisahkan dengan koma untuk
+                            beberapa penerima.
+                        </small>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="filter-label">CC</label>
+                        <input type="text" class="form-control" name="cc" id="cc"
+                            placeholder="Contoh: spm@example.com">
+                        <small class="text-muted" style="font-size: 0.8rem;">
+                            <i class="bi bi-info-circle"></i> Masukkan alamat email CC. Pisahkan dengan koma untuk beberapa
+                            email.
+                        </small>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="filter-label">Subjek Email <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" name="subject" id="subject"
+                            placeholder="Contoh: Pengiriman Laporan GJM Triwulan I 2025" required>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="filter-label">Isi Pesan <span class="text-danger">*</span></label>
+                        <textarea class="form-control" name="message" id="message" rows="10" placeholder="Tuliskan pesan Anda di sini..."
+                            required></textarea>
+                    </div>
+
+                    <!-- Tombol Generate AI (Hijau solid) -->
+                    <div class="mb-3">
+                        <button type="button" class="btn btn-success"
+                            style="background-color: #28a745 !important; border-color: #28a745 !important; transition: none;"
+                            onmouseover="this.style.backgroundColor='#28a745'"
+                            onmouseout="this.style.backgroundColor='#28a745'" onclick="generateMessage()">
+                            <i class="bi bi-magic"></i> Generate Pesan AI
+                        </button>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="filter-label">Lampiran Berkas</label>
+                        <div class="d-flex gap-2 mb-3">
+                            <button type="button" class="btn"
+                                style="background: linear-gradient(135deg, #5B9BD5 0%, #4a8bc2 100%) !important; border-color: #4a8bc2 !important; color: white !important; transition: none;"
+                                onclick="showUploadExternal()">
+                                <i class="bi bi-upload"></i> Upload File Eksternal
+                            </button>
+                            <button type="button" class="btn"
+                                style="background: linear-gradient(135deg, #5B9BD5 0%, #4a8bc2 100%) !important; border-color: #4a8bc2 !important; color: white !important; transition: none;"
+                                onclick="showPilihLaporan()">
+                                <i class="bi bi-file-earmark-text"></i> Pilih dari Laporan GJM
+                            </button>
+                        </div>
+
+                        <!-- Upload File Eksternal -->
+                        <div id="uploadExternalSection" style="display: none;">
+                            <div class="monitoring-card mb-3" style="border-left: 4px solid #5B9BD5;">
+                                <div style="padding: 1rem;">
+                                    <input type="file" class="form-control" name="temp_attachments[]"
+                                        id="tempAttachments" multiple>
+                                    <small class="text-muted d-block mt-2" style="font-size: 0.8rem;">
+                                        <i class="bi bi-info-circle"></i> Anda dapat melampirkan beberapa file sekaligus
+                                    </small>
+                                </div>
+                            </div>
+                            <div id="pendingFileList" class="mt-2"></div>
+                        </div>
+
+                        <!-- Pilih dari Laporan GJM -->
+                        <div id="pilihLaporanSection" style="display: none;">
+                            <div class="monitoring-card" style="border-left: 4px solid #5B9BD5;">
+                                <div style="padding: 1rem;">
+                                    <div class="d-flex justify-content-between align-items-center mb-3">
+                                        <h6 class="mb-0" style="font-weight: 600; color: #333;">Laporan GJM yang Selesai
+                                        </h6>
+                                        <span class="badge bg-success">{{ $laporanList->count() }} Laporan Tersedia</span>
+                                    </div>
+
+                                    @if ($laporanList->count() > 0)
+                                        <div class="table-responsive">
+                                            <table class="table table-monitoring mb-0">
+                                                <thead>
+                                                    <tr>
+                                                        <th style="width: 50px;">
+                                                            <input type="checkbox" class="form-check-input"
+                                                                id="selectAllLaporan" onchange="toggleAllLaporan(this)">
+                                                        </th>
+                                                        <th>JUDUL LAPORAN</th>
+                                                        <th>TANGGAL DIBUAT</th>
+                                                        <th>TIPE LAPORAN</th>
+                                                        <th class="text-center">STATUS</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    @foreach ($laporanList as $laporan)
+                                                        <tr>
+                                                            <td>
+                                                                <input type="checkbox"
+                                                                    class="form-check-input laporan-checkbox"
+                                                                    value="{{ $laporan->id }}"
+                                                                    data-title="{{ $laporan->getPeriodeLabel() }} - {{ $laporan->getJenisLaporanLabel() }}"
+                                                                    onchange="showLaporanValidation()">
+                                                            </td>
+                                                            <td>
+                                                                <div class="d-flex align-items-center gap-2">
+                                                                    <i class="bi bi-file-earmark-text"
+                                                                        style="color: #5B9BD5; font-size: 1.25rem;"></i>
+                                                                    <div>
+                                                                        <div class="code-mk">Laporan
+                                                                            {{ $laporan->getPeriodeLabel() }}</div>
+                                                                        <small
+                                                                            class="text-muted">{{ $laporan->program_studi ?? 'Fakultas Vokasi' }}</small>
+                                                                    </div>
+                                                                </div>
+                                                            </td>
+                                                            <td class="text-secondary">
+                                                                {{ $laporan->created_at->format('d M Y') }}</td>
+                                                            <td>
+                                                                <span
+                                                                    class="badge-gjm {{ $laporan->jenis_laporan == 'triwulan' ? 'info' : 'warning' }}">
+                                                                    {{ $laporan->getJenisLaporanLabel() }}
+                                                                </span>
+                                                            </td>
+                                                            <td class="text-center">
+                                                                <span class="badge-gjm success">
+                                                                    {{ $laporan->status_laporan == 'completed' ? 'Selesai' : 'Approved' }}
+                                                                </span>
+                                                            </td>
+                                                        </tr>
+                                                    @endforeach
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                        <small class="text-muted d-block mt-2" style="font-size: 0.8rem;">
+                                            <i class="bi bi-info-circle"></i> Pilih laporan yang akan dilampirkan dalam
+                                            email. Hanya laporan yang sudah selesai yang dapat dikirim.
+                                        </small>
+                                    @else
+                                        <div class="text-center py-4">
+                                            <i class="bi bi-inbox" style="font-size: 3rem; color: #ccc;"></i>
+                                            <p class="text-muted mt-2 mb-0">Belum ada laporan yang selesai</p>
+                                            <small class="text-muted">Laporan yang sudah selesai akan muncul di
+                                                sini</small>
+                                        </div>
+                                    @endif
+                                </div>
+                            </div>
+                            <div id="pendingLaporanList" class="mt-2"></div>
+                        </div>
+
+                        <!-- Daftar File yang Sudah Divalidasi -->
+                        <div id="validatedFilesSection" class="mt-3" style="display: none;">
+                            <div class="monitoring-card" style="border-left: 4px solid #28a745;">
+                                <div style="padding: 1rem;">
+                                    <h6 class="mb-3" style="color: #28a745; font-weight: 600;">
+                                        <i class="bi bi-check-circle"></i> File yang Akan Dikirim
+                                    </h6>
+                                    <div id="validatedFilesList"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- GARIS PEMISAH + TOMBOL KIRIM & PREVIEW DI KANAN -->
+                    <div class="mt-4 pt-3 border-top d-flex justify-content-end gap-2">
+                        <button type="button" class="btn"
+                            style="background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%); color: white; border: none;"
+                            onclick="sendLaporan()">
+                            <i class="bi bi-send"></i> Kirim Laporan
+                        </button>
+                        <button type="button" class="btn btn-secondary btn-sm" onclick="previewMessage()">
+                            <i class="bi bi-eye"></i> Preview
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <!-- Modal Preview -->
+    <div class="modal fade" id="previewModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header" style="background: #f8f9fa; border-bottom: 2px solid #5B9BD5;">
+                    <h5 class="modal-title" style="color: #333; font-weight: 600;">
+                        <i class="bi bi-eye" style="color: #5B9BD5;"></i> Preview Pesan
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" style="padding: 1.5rem;">
+                    <div class="mb-3">
+                        <label class="filter-label">Penerima</label>
+                        <p id="previewRecipients" class="mb-0" style="color: #495057;"></p>
+                    </div>
+                    <div class="mb-3">
+                        <label class="filter-label">CC</label>
+                        <p id="previewCC" class="mb-0" style="color: #495057;"></p>
+                    </div>
+                    <div class="mb-3">
+                        <label class="filter-label">Subjek</label>
+                        <p id="previewSubject" class="mb-0" style="color: #495057; font-weight: 600;"></p>
+                    </div>
+                    <hr style="border-color: #e9ecef;">
+                    <div>
+                        <label class="filter-label">Isi Pesan</label>
+                        <pre id="previewMessage" class="mt-2"
+                            style="white-space: pre-wrap; font-family: inherit; background: #f8f9fa; padding: 1rem; border-radius: 6px; border: 1px solid #e9ecef;"></pre>
+                    </div>
+                    <div class="mt-3" id="previewAttachments"></div>
+                </div>
+                <div class="modal-footer" style="background: #f8f9fa;">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">
+                        <i class="bi bi-x-circle"></i> Tutup
+                    </button>
+                </div>
             </div>
         </div>
     </div>
-</div>
 
-<script>
-// Storage untuk file yang sudah divalidasi
-let validatedFiles = {
-    external: [], // Array of File objects
-    laporan: []   // Array of {id, title}
-};
+    <script>
+        // Storage untuk file yang sudah divalidasi
+        let validatedFiles = {
+            external: [], // Array of File objects
+            laporan: [] // Array of {id, title}
+        };
 
-function showUploadExternal() {
-    document.getElementById('uploadExternalSection').style.display = 'block';
-    document.getElementById('pilihLaporanSection').style.display = 'none';
-}
+        function showUploadExternal() {
+            document.getElementById('uploadExternalSection').style.display = 'block';
+            document.getElementById('pilihLaporanSection').style.display = 'none';
+        }
 
-function showPilihLaporan() {
-    document.getElementById('uploadExternalSection').style.display = 'none';
-    document.getElementById('pilihLaporanSection').style.display = 'block';
-}
+        function showPilihLaporan() {
+            document.getElementById('uploadExternalSection').style.display = 'none';
+            document.getElementById('pilihLaporanSection').style.display = 'block';
+        }
 
-function toggleAllLaporan(checkbox) {
-    const checkboxes = document.querySelectorAll('.laporan-checkbox');
-    checkboxes.forEach(cb => cb.checked = checkbox.checked);
-    showLaporanValidation();
-}
+        function toggleAllLaporan(checkbox) {
+            const checkboxes = document.querySelectorAll('.laporan-checkbox');
+            checkboxes.forEach(cb => cb.checked = checkbox.checked);
+            showLaporanValidation();
+        }
 
-// Handle file selection untuk eksternal
-document.getElementById('tempAttachments').addEventListener('change', function(e) {
-    const pendingList = document.getElementById('pendingFileList');
-    pendingList.innerHTML = '';
-    
-    if (this.files.length > 0) {
-        const filesDiv = document.createElement('div');
-        filesDiv.className = 'border rounded p-3 bg-light';
-        filesDiv.innerHTML = '<h6 class="mb-3">File yang Dipilih - Validasi:</h6>';
-        
-        Array.from(this.files).forEach((file, index) => {
-            const fileItem = document.createElement('div');
-            fileItem.className = 'd-flex align-items-center justify-content-between p-2 mb-2 bg-white rounded border';
-            fileItem.innerHTML = `
+        // Handle file selection untuk eksternal
+        document.getElementById('tempAttachments').addEventListener('change', function(e) {
+            const pendingList = document.getElementById('pendingFileList');
+            pendingList.innerHTML = '';
+
+            if (this.files.length > 0) {
+                const filesDiv = document.createElement('div');
+                filesDiv.className = 'border rounded p-3 bg-light';
+                filesDiv.innerHTML = '<h6 class="mb-3">File yang Dipilih - Validasi:</h6>';
+
+                Array.from(this.files).forEach((file, index) => {
+                    const fileItem = document.createElement('div');
+                    fileItem.className =
+                        'd-flex align-items-center justify-content-between p-2 mb-2 bg-white rounded border';
+                    fileItem.innerHTML = `
                 <div class="d-flex align-items-center gap-2">
                     <i class="bi bi-file-earmark text-primary"></i>
                     <div>
@@ -283,45 +312,46 @@ document.getElementById('tempAttachments').addEventListener('change', function(e
                     </button>
                 </div>
             `;
-            filesDiv.appendChild(fileItem);
+                    filesDiv.appendChild(fileItem);
+                });
+
+                pendingList.appendChild(filesDiv);
+            }
         });
-        
-        pendingList.appendChild(filesDiv);
-    }
-});
 
-function validateExternalFile(index, isValid) {
-    const fileInput = document.getElementById('tempAttachments');
-    const file = fileInput.files[index];
-    
-    if (isValid) {
-        // Tambahkan ke validated files
-        validatedFiles.external.push(file);
-        updateValidatedFilesDisplay();
-    }
-    
-    // Hapus file dari pending list
-    const dt = new DataTransfer();
-    Array.from(fileInput.files).forEach((f, i) => {
-        if (i !== index) dt.items.add(f);
-    });
-    fileInput.files = dt.files;
-    fileInput.dispatchEvent(new Event('change'));
-}
+        function validateExternalFile(index, isValid) {
+            const fileInput = document.getElementById('tempAttachments');
+            const file = fileInput.files[index];
 
-function showLaporanValidation() {
-    const selectedCheckboxes = document.querySelectorAll('.laporan-checkbox:checked');
-    const pendingList = document.getElementById('pendingLaporanList');
-    
-    if (selectedCheckboxes.length > 0) {
-        const laporanDiv = document.createElement('div');
-        laporanDiv.className = 'border rounded p-3 bg-light mt-2';
-        laporanDiv.innerHTML = '<h6 class="mb-3">Laporan yang Dipilih - Validasi:</h6>';
-        
-        selectedCheckboxes.forEach(checkbox => {
-            const laporanItem = document.createElement('div');
-            laporanItem.className = 'd-flex align-items-center justify-content-between p-2 mb-2 bg-white rounded border';
-            laporanItem.innerHTML = `
+            if (isValid) {
+                // Tambahkan ke validated files
+                validatedFiles.external.push(file);
+                updateValidatedFilesDisplay();
+            }
+
+            // Hapus file dari pending list
+            const dt = new DataTransfer();
+            Array.from(fileInput.files).forEach((f, i) => {
+                if (i !== index) dt.items.add(f);
+            });
+            fileInput.files = dt.files;
+            fileInput.dispatchEvent(new Event('change'));
+        }
+
+        function showLaporanValidation() {
+            const selectedCheckboxes = document.querySelectorAll('.laporan-checkbox:checked');
+            const pendingList = document.getElementById('pendingLaporanList');
+
+            if (selectedCheckboxes.length > 0) {
+                const laporanDiv = document.createElement('div');
+                laporanDiv.className = 'border rounded p-3 bg-light mt-2';
+                laporanDiv.innerHTML = '<h6 class="mb-3">Laporan yang Dipilih - Validasi:</h6>';
+
+                selectedCheckboxes.forEach(checkbox => {
+                    const laporanItem = document.createElement('div');
+                    laporanItem.className =
+                        'd-flex align-items-center justify-content-between p-2 mb-2 bg-white rounded border';
+                    laporanItem.innerHTML = `
                 <div class="d-flex align-items-center gap-2">
                     <i class="bi bi-file-earmark-text text-success"></i>
                     <div>
@@ -338,57 +368,62 @@ function showLaporanValidation() {
                     </button>
                 </div>
             `;
-            laporanDiv.appendChild(laporanItem);
-        });
-        
-        pendingList.innerHTML = '';
-        pendingList.appendChild(laporanDiv);
-    } else {
-        pendingList.innerHTML = '';
-    }
-}
+                    laporanDiv.appendChild(laporanItem);
+                });
 
-function validateLaporan(id, title, isValid, button) {
-    const checkbox = document.querySelector(`.laporan-checkbox[value="${id}"]`);
-    
-    if (isValid) {
-        // Tambahkan ke validated laporan
-        if (!validatedFiles.laporan.find(l => l.id === id)) {
-            validatedFiles.laporan.push({id, title});
-            updateValidatedFilesDisplay();
+                pendingList.innerHTML = '';
+                pendingList.appendChild(laporanDiv);
+            } else {
+                pendingList.innerHTML = '';
+            }
         }
-    }
-    
-    // Uncheck checkbox dan update pending list
-    checkbox.checked = false;
-    showLaporanValidation();
-}
 
-function updateValidatedFilesDisplay() {
-    const section = document.getElementById('validatedFilesSection');
-    const listDiv = document.getElementById('validatedFilesList');
-    
-    if (validatedFiles.external.length === 0 && validatedFiles.laporan.length === 0) {
-        section.style.display = 'none';
-        return;
-    }
-    
-    section.style.display = 'block';
-    listDiv.innerHTML = '';
-    
-    // Display external files
-    if (validatedFiles.external.length > 0) {
-        const externalDiv = document.createElement('div');
-        externalDiv.className = 'mb-3';
-        externalDiv.innerHTML = '<strong class="text-success"><i class="bi bi-upload"></i> File Eksternal:</strong>';
-        
-        const externalList = document.createElement('div');
-        externalList.className = 'mt-2';
-        
-        validatedFiles.external.forEach((file, index) => {
-            const fileItem = document.createElement('div');
-            fileItem.className = 'd-flex align-items-center justify-content-between p-2 mb-1 bg-white rounded border';
-            fileItem.innerHTML = `
+        function validateLaporan(id, title, isValid, button) {
+            const checkbox = document.querySelector(`.laporan-checkbox[value="${id}"]`);
+
+            if (isValid) {
+                // Tambahkan ke validated laporan
+                if (!validatedFiles.laporan.find(l => l.id === id)) {
+                    validatedFiles.laporan.push({
+                        id,
+                        title
+                    });
+                    updateValidatedFilesDisplay();
+                }
+            }
+
+            // Uncheck checkbox dan update pending list
+            checkbox.checked = false;
+            showLaporanValidation();
+        }
+
+        function updateValidatedFilesDisplay() {
+            const section = document.getElementById('validatedFilesSection');
+            const listDiv = document.getElementById('validatedFilesList');
+
+            if (validatedFiles.external.length === 0 && validatedFiles.laporan.length === 0) {
+                section.style.display = 'none';
+                return;
+            }
+
+            section.style.display = 'block';
+            listDiv.innerHTML = '';
+
+            // Display external files
+            if (validatedFiles.external.length > 0) {
+                const externalDiv = document.createElement('div');
+                externalDiv.className = 'mb-3';
+                externalDiv.innerHTML =
+                    '<strong class="text-success"><i class="bi bi-upload"></i> File Eksternal:</strong>';
+
+                const externalList = document.createElement('div');
+                externalList.className = 'mt-2';
+
+                validatedFiles.external.forEach((file, index) => {
+                    const fileItem = document.createElement('div');
+                    fileItem.className =
+                        'd-flex align-items-center justify-content-between p-2 mb-1 bg-white rounded border';
+                    fileItem.innerHTML = `
                 <div class="d-flex align-items-center gap-2">
                     <i class="bi bi-file-earmark text-primary"></i>
                     <div>
@@ -400,25 +435,27 @@ function updateValidatedFilesDisplay() {
                     <i class="bi bi-trash"></i>
                 </button>
             `;
-            externalList.appendChild(fileItem);
-        });
-        
-        externalDiv.appendChild(externalList);
-        listDiv.appendChild(externalDiv);
-    }
-    
-    // Display laporan files
-    if (validatedFiles.laporan.length > 0) {
-        const laporanDiv = document.createElement('div');
-        laporanDiv.innerHTML = '<strong class="text-success"><i class="bi bi-file-earmark-text"></i> Laporan GJM:</strong>';
-        
-        const laporanList = document.createElement('div');
-        laporanList.className = 'mt-2';
-        
-        validatedFiles.laporan.forEach((laporan, index) => {
-            const laporanItem = document.createElement('div');
-            laporanItem.className = 'd-flex align-items-center justify-content-between p-2 mb-1 bg-white rounded border';
-            laporanItem.innerHTML = `
+                    externalList.appendChild(fileItem);
+                });
+
+                externalDiv.appendChild(externalList);
+                listDiv.appendChild(externalDiv);
+            }
+
+            // Display laporan files
+            if (validatedFiles.laporan.length > 0) {
+                const laporanDiv = document.createElement('div');
+                laporanDiv.innerHTML =
+                    '<strong class="text-success"><i class="bi bi-file-earmark-text"></i> Laporan GJM:</strong>';
+
+                const laporanList = document.createElement('div');
+                laporanList.className = 'mt-2';
+
+                validatedFiles.laporan.forEach((laporan, index) => {
+                    const laporanItem = document.createElement('div');
+                    laporanItem.className =
+                        'd-flex align-items-center justify-content-between p-2 mb-1 bg-white rounded border';
+                    laporanItem.innerHTML = `
                 <div class="d-flex align-items-center gap-2">
                     <i class="bi bi-file-earmark-text text-success"></i>
                     <div class="small">Laporan ${laporan.title}</div>
@@ -427,236 +464,260 @@ function updateValidatedFilesDisplay() {
                     <i class="bi bi-trash"></i>
                 </button>
             `;
-            laporanList.appendChild(laporanItem);
-        });
-        
-        laporanDiv.appendChild(laporanList);
-        listDiv.appendChild(laporanDiv);
-    }
-}
+                    laporanList.appendChild(laporanItem);
+                });
 
-function removeValidatedExternal(index) {
-    validatedFiles.external.splice(index, 1);
-    updateValidatedFilesDisplay();
-}
+                laporanDiv.appendChild(laporanList);
+                listDiv.appendChild(laporanDiv);
+            }
+        }
 
-function removeValidatedLaporan(index) {
-    validatedFiles.laporan.splice(index, 1);
-    updateValidatedFilesDisplay();
-}
+        function removeValidatedExternal(index) {
+            validatedFiles.external.splice(index, 1);
+            updateValidatedFilesDisplay();
+        }
 
-function formatFileSize(bytes) {
-    if (bytes === 0) return '0 Bytes';
-    const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
-}
+        function removeValidatedLaporan(index) {
+            validatedFiles.laporan.splice(index, 1);
+            updateValidatedFilesDisplay();
+        }
 
-function generateMessage() {
-    const recipients = document.getElementById('recipients').value;
-    const subject = document.getElementById('subject').value;
-    
-    if (!recipients || !subject) {
-        alert('Penerima dan subjek harus diisi terlebih dahulu');
-        return;
-    }
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+        }
 
-    const messageTextarea = document.getElementById('message');
-    const originalValue = messageTextarea.value;
-    messageTextarea.value = 'Generating pesan dengan AI Agent...\nMohon tunggu...';
-    messageTextarea.disabled = true;
+        function generateMessage() {
+            const recipients = document.getElementById('recipients').value;
+            const subject = document.getElementById('subject').value;
 
-    const generateBtn = event.target;
-    const originalBtnHtml = generateBtn.innerHTML;
-    generateBtn.disabled = true;
-    generateBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Generating...';
+            if (!recipients || !subject) {
+                showToast('danger', 'Penerima dan subjek harus diisi terlebih dahulu');
+                return;
+            }
 
-    fetch('{{ route("gjm.kirim-laporan.generate") }}', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-CSRF-TOKEN': '{{ csrf_token() }}'
-        },
-        body: JSON.stringify({
-            recipients: recipients,
-            subject: subject
-        })
-    })
-    .then(response => {
-        // Check if response is JSON
-        const contentType = response.headers.get('content-type');
-        if (!contentType || !contentType.includes('application/json')) {
-            // Log the actual response for debugging
-            return response.text().then(text => {
-                console.error('Non-JSON response:', text.substring(0, 500));
-                throw new Error('Server mengembalikan response yang tidak valid. Periksa console browser untuk detail.');
+            const messageTextarea = document.getElementById('message');
+            const originalValue = messageTextarea.value;
+            messageTextarea.value = 'Generating pesan dengan AI Agent...\nMohon tunggu...';
+            messageTextarea.disabled = true;
+
+            const generateBtn = event.target;
+            const originalBtnHtml = generateBtn.innerHTML;
+            generateBtn.disabled = true;
+            generateBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Generating...';
+
+            fetch('{{ route('gjm.kirim-laporan.generate') }}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                    },
+                    body: JSON.stringify({
+                        recipients: recipients,
+                        subject: subject
+                    })
+                })
+                .then(response => {
+                    // Check if response is JSON
+                    const contentType = response.headers.get('content-type');
+                    if (!contentType || !contentType.includes('application/json')) {
+                        // Log the actual response for debugging
+                        return response.text().then(text => {
+                            console.error('Non-JSON response:', text.substring(0, 500));
+                            throw new Error(
+                                'Server mengembalikan response yang tidak valid. Periksa console browser untuk detail.'
+                            );
+                        });
+                    }
+
+                    if (!response.ok) {
+                        return response.json().then(err => {
+                            throw new Error(err.message || 'Server error');
+                        }).catch(jsonErr => {
+                            if (jsonErr.message) throw jsonErr;
+                            throw new Error('Server error: ' + response.status);
+                        });
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    if (data.success) {
+                        messageTextarea.value = data.message;
+                        messageTextarea.disabled = false;
+                        generateBtn.disabled = false;
+                        generateBtn.innerHTML = originalBtnHtml;
+                        showToast('success', 'Pesan berhasil di-generate oleh AI Agent!');
+                    } else {
+                        throw new Error(data.message || 'Gagal generate pesan');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    showToast('danger',
+                        `<strong>Error!</strong> ${error.message}<br><small>Pastikan AI Agent aktif dan konfigurasi LLM sudah benar di .env.</small>`
+                    );
+                    messageTextarea.value = originalValue;
+                    messageTextarea.disabled = false;
+                    generateBtn.disabled = false;
+                    generateBtn.innerHTML = originalBtnHtml;
+                });
+        }
+
+        function previewMessage() {
+            const recipients = document.getElementById('recipients').value;
+            const cc = document.getElementById('cc').value;
+            const subject = document.getElementById('subject').value;
+            const message = document.getElementById('message').value;
+
+            if (!recipients || !subject || !message) {
+                showToast('danger', 'Penerima, subjek, dan pesan harus diisi');
+                return;
+            }
+
+            document.getElementById('previewRecipients').textContent = recipients || '-';
+            document.getElementById('previewCC').textContent = cc || '-';
+            document.getElementById('previewSubject').textContent = subject;
+            document.getElementById('previewMessage').textContent = message;
+
+            const attachmentsDiv = document.getElementById('previewAttachments');
+            let attachmentHtml = '';
+
+            if (validatedFiles.external.length > 0) {
+                attachmentHtml += '<strong>File Eksternal:</strong><ul class="mt-2">';
+                validatedFiles.external.forEach(file => {
+                    attachmentHtml += `<li>${file.name} (${formatFileSize(file.size)})</li>`;
+                });
+                attachmentHtml += '</ul>';
+            }
+
+            if (validatedFiles.laporan.length > 0) {
+                attachmentHtml += '<strong>Laporan GJM Terpilih:</strong><ul class="mt-2">';
+                validatedFiles.laporan.forEach(laporan => {
+                    attachmentHtml += `<li>Laporan ${laporan.title}</li>`;
+                });
+                attachmentHtml += '</ul>';
+            }
+
+            if (attachmentHtml) {
+                attachmentsDiv.innerHTML = attachmentHtml;
+            } else {
+                attachmentsDiv.innerHTML = '<small class="text-muted">Tidak ada lampiran</small>';
+            }
+
+            const modal = new bootstrap.Modal(document.getElementById('previewModal'));
+            modal.show();
+        }
+
+        function sendLaporan() {
+            const recipients = document.getElementById('recipients').value;
+            const subject = document.getElementById('subject').value;
+            const message = document.getElementById('message').value;
+
+            if (!recipients || !subject || !message) {
+                showToast('danger', 'Penerima, subjek, dan pesan harus diisi');
+                return;
+            }
+
+            AppConfirm.custom({
+                type: 'process',
+                title: 'Kirim Laporan?',
+                message: 'Laporan akan dikirim ke penerima yang dipilih.',
+                okText: 'Ya, Kirim'
+            }, function() {
+                const sendBtn = document.querySelector('[onclick="sendLaporan()"]');
+                sendBtn.disabled = true;
+                sendBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Mengirim...';
+
+                const formData = new FormData();
+                formData.append('_token', '{{ csrf_token() }}');
+                formData.append('recipients', recipients);
+                formData.append('cc', document.getElementById('cc').value);
+                formData.append('subject', subject);
+                formData.append('message', message);
+
+                // Add validated external files
+                validatedFiles.external.forEach(file => {
+                    formData.append('attachments[]', file);
+                });
+
+                // Add validated laporan IDs
+                validatedFiles.laporan.forEach(laporan => {
+                    formData.append('laporan_ids[]', laporan.id);
+                });
+
+                fetch('{{ route('gjm.kirim-laporan.send') }}', {
+                        method: 'POST',
+                        body: formData
+                    })
+                    .then(response => {
+                        const contentType = response.headers.get('content-type');
+                        if (!contentType || !contentType.includes('application/json')) {
+                            throw new Error(
+                                'Server mengembalikan response yang tidak valid. Periksa log Laravel untuk detail error.'
+                            );
+                        }
+                        if (!response.ok) {
+                            return response.json().then(err => {
+                                throw new Error(err.message || 'Server error');
+                            }).catch(() => {
+                                throw new Error('Server error: ' + response.status);
+                            });
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
+                        if (data.success) {
+                            showToast('success', 'Laporan berhasil dikirim!', true);
+                        } else {
+                            throw new Error(data.message || 'Gagal mengirim laporan');
+                        }
+                    })
+                    .catch(error => {
+                        showToast('danger', 'Error: ' + error.message);
+                        sendBtn.disabled = false;
+                        sendBtn.innerHTML = '<i class="bi bi-send"></i> Kirim Laporan';
+                    });
             });
         }
-        
-        if (!response.ok) {
-            return response.json().then(err => {
-                throw new Error(err.message || 'Server error');
-            }).catch(jsonErr => {
-                if (jsonErr.message) throw jsonErr;
-                throw new Error('Server error: ' + response.status);
-            });
-        }
-        return response.json();
-    })
-    .then(data => {
-        if (data.success) {
-            messageTextarea.value = data.message;
-            messageTextarea.disabled = false;
-            generateBtn.disabled = false;
-            generateBtn.innerHTML = originalBtnHtml;
-            
-            const alert = document.createElement('div');
-            alert.className = 'alert alert-success alert-dismissible fade show';
-            alert.innerHTML = `
-                <i class="bi bi-check-circle"></i> Pesan berhasil di-generate oleh AI Agent!
-                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-            `;
-            document.querySelector('.card-body').insertBefore(alert, document.querySelector('.card-body').firstChild);
-            
-            setTimeout(() => alert.remove(), 3000);
-        } else {
-            throw new Error(data.message || 'Gagal generate pesan');
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        
-        const alert = document.createElement('div');
-        alert.className = 'alert alert-danger alert-dismissible fade show';
-        alert.innerHTML = `
-            <strong><i class="bi bi-exclamation-triangle"></i> Error!</strong><br>
-            ${error.message}<br>
-            <small>Pastikan AI Agent aktif dan konfigurasi LLM sudah benar di .env. Periksa console browser untuk detail.</small>
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        `;
-        document.querySelector('.card-body').insertBefore(alert, document.querySelector('.card-body').firstChild);
-        
-        messageTextarea.value = originalValue;
-        messageTextarea.disabled = false;
-        generateBtn.disabled = false;
-        generateBtn.innerHTML = originalBtnHtml;
-    });
-}
 
-function previewMessage() {
-    const recipients = document.getElementById('recipients').value;
-    const cc = document.getElementById('cc').value;
-    const subject = document.getElementById('subject').value;
-    const message = document.getElementById('message').value;
-    
-    if (!recipients || !subject || !message) {
-        alert('Penerima, subjek, dan pesan harus diisi');
-        return;
-    }
-    
-    document.getElementById('previewRecipients').textContent = recipients || '-';
-    document.getElementById('previewCC').textContent = cc || '-';
-    document.getElementById('previewSubject').textContent = subject;
-    document.getElementById('previewMessage').textContent = message;
-    
-    const attachmentsDiv = document.getElementById('previewAttachments');
-    let attachmentHtml = '';
-    
-    if (validatedFiles.external.length > 0) {
-        attachmentHtml += '<strong>File Eksternal:</strong><ul class="mt-2">';
-        validatedFiles.external.forEach(file => {
-            attachmentHtml += `<li>${file.name} (${formatFileSize(file.size)})</li>`;
-        });
-        attachmentHtml += '</ul>';
-    }
-    
-    if (validatedFiles.laporan.length > 0) {
-        attachmentHtml += '<strong>Laporan GJM Terpilih:</strong><ul class="mt-2">';
-        validatedFiles.laporan.forEach(laporan => {
-            attachmentHtml += `<li>Laporan ${laporan.title}</li>`;
-        });
-        attachmentHtml += '</ul>';
-    }
-    
-    if (attachmentHtml) {
-        attachmentsDiv.innerHTML = attachmentHtml;
-    } else {
-        attachmentsDiv.innerHTML = '<small class="text-muted">Tidak ada lampiran</small>';
-    }
-    
-    const modal = new bootstrap.Modal(document.getElementById('previewModal'));
-    modal.show();
-}
+        // ---- Toast helper ----
+        function showToast(type, html, reload) {
+            // Remove existing toasts
+            document.querySelectorAll('.kirim-toast').forEach(t => t.remove());
 
-function sendLaporan() {
-    const recipients = document.getElementById('recipients').value;
-    const subject = document.getElementById('subject').value;
-    const message = document.getElementById('message').value;
-    
-    if (!recipients || !subject || !message) {
-        alert('Penerima, subjek, dan pesan harus diisi');
-        return;
-    }
-    
-    if (!confirm('Kirim laporan sekarang?')) {
-        return;
-    }
-    
-    const formData = new FormData();
-    formData.append('_token', '{{ csrf_token() }}');
-    formData.append('recipients', recipients);
-    formData.append('cc', document.getElementById('cc').value);
-    formData.append('subject', subject);
-    formData.append('message', message);
-    
-    // Add validated external files
-    validatedFiles.external.forEach(file => {
-        formData.append('attachments[]', file);
-    });
-    
-    // Add validated laporan IDs
-    validatedFiles.laporan.forEach(laporan => {
-        formData.append('laporan_ids[]', laporan.id);
-    });
-    
-    const sendBtn = event.target;
-    sendBtn.disabled = true;
-    sendBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Mengirim...';
-    
-    fetch('{{ route("gjm.kirim-laporan.send") }}', {
-        method: 'POST',
-        body: formData
-    })
-    .then(response => {
-        // Check if response is JSON
-        const contentType = response.headers.get('content-type');
-        if (!contentType || !contentType.includes('application/json')) {
-            throw new Error('Server mengembalikan response yang tidak valid. Periksa log Laravel untuk detail error.');
-        }
-        
-        if (!response.ok) {
-            return response.json().then(err => {
-                throw new Error(err.message || 'Server error');
-            }).catch(() => {
-                throw new Error('Server error: ' + response.status);
+            const icons = {
+                success: 'bi-check-circle-fill',
+                danger: 'bi-exclamation-triangle-fill',
+                warning: 'bi-exclamation-triangle-fill',
+                info: 'bi-info-circle-fill'
+            };
+            const toast = document.createElement('div');
+            toast.className = `alert-app ${type} kirim-toast mb-3`;
+            toast.style.cssText = 'animation: confirmFadeIn .2s ease;';
+            toast.innerHTML =
+                `<i class="bi ${icons[type] || 'bi-info-circle-fill'} alert-app-icon"></i><div class="alert-app-body">${html}</div>`;
+
+            // Insert before the form or at top of content
+            const target = document.querySelector('.filter-card') || document.querySelector('[style*="padding: 1.5rem"]');
+            target.parentNode.insertBefore(toast, target);
+            target.parentNode.scrollTop = 0;
+            window.scrollTo({
+                top: 0,
+                behavior: 'smooth'
             });
+
+            if (reload) {
+                setTimeout(() => window.location.reload(), 1800);
+            } else {
+                setTimeout(() => {
+                    toast.style.transition = 'opacity .4s';
+                    toast.style.opacity = '0';
+                    setTimeout(() => toast.remove(), 400);
+                }, 5000);
+            }
         }
-        return response.json();
-    })
-    .then(data => {
-        if (data.success) {
-            alert('Laporan berhasil dikirim!');
-            window.location.reload();
-        } else {
-            throw new Error(data.message || 'Gagal mengirim laporan');
-        }
-    })
-    .catch(error => {
-        alert('Error: ' + error.message);
-        sendBtn.disabled = false;
-        sendBtn.innerHTML = '<i class="bi bi-send"></i> Kirim Laporan';
-    });
-}
-</script>
+    </script>
 @endsection

@@ -9,13 +9,12 @@
             <div class="d-flex justify-content-between align-items-center">
                 <div>
                     <h5 class="mb-1 d-flex align-items-center gap-2" style="font-weight: 600; color: #333;">
-                        <i class="bi bi-upload" style="color: #5B9BD5;"></i>
                         Upload Template Laporan Artefak Baru
                     </h5>
                     <p class="text-muted mb-0" style="font-size: 0.875rem;">Upload file Word (.docx) sebagai template untuk AI
                         Agent</p>
                 </div>
-                <a href="{{ route('gkm.laporan-artefak.template.index') }}" class="btn btn-outline-secondary">
+                <a href="{{ route('gkm.laporan-artefak.template.index') }}" class="btn btn-secondary btn-sm">
                     <i class="bi bi-arrow-left"></i> Kembali
                 </a>
             </div>
@@ -60,7 +59,6 @@
                 <!-- Form Card -->
                 <div class="monitoring-card">
                     <div class="monitoring-header">
-                        <i class="bi bi-upload" style="color: #5B9BD5;"></i>
                         <h6>Form Upload Template</h6>
                     </div>
                     <div style="padding: 1.5rem;">
@@ -99,11 +97,7 @@
                             </div>
 
                             <!-- Submit Buttons -->
-                            <div class="d-flex justify-content-between gap-2">
-                                <a href="{{ route('gkm.laporan-artefak.template.index') }}"
-                                    class="btn btn-outline-secondary">
-                                    <i class="bi bi-x-circle"></i> Batal
-                                </a>
+                            <div class="d-flex justify-content-end gap-2">
                                 <button type="submit" class="btn-reminder">
                                     <i class="bi bi-upload"></i>
                                     <span>Upload Template</span>

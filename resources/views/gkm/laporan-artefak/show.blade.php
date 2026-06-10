@@ -156,7 +156,7 @@
                             
                             <form action="{{ route('gkm.laporan-artefak.destroy', $laporan->id) }}" 
                                   method="POST"
-                                  onsubmit="return confirm('Yakin ingin menghapus laporan ini?')">
+                                  onsubmit="AppConfirm.delete(this, 'Laporan ini akan dihapus permanen.'); return false;">
                                 @csrf
                                 @method('DELETE')
                                 <button type="submit" class="btn btn-outline-danger w-100">
