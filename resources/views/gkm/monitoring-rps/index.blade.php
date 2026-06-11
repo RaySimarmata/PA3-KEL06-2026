@@ -77,14 +77,16 @@
         </form>
 
         @if(session('cache_cleared'))
-        <div class="alert alert-success mt-3 mb-0">
-            <i class="bi bi-check-circle"></i> Cache berhasil dihapus. Data dosen akan dimuat ulang dari database.
+        <div class="alert-app success mt-3 mb-0" data-auto-dismiss>
+            <i class="bi bi-check-circle alert-app-icon"></i>
+            <div class="alert-app-body">Cache berhasil dihapus. Data dosen akan dimuat ulang dari database.</div>
         </div>
         @endif
 
         @if(session('error'))
-        <div class="alert alert-danger mt-3 mb-0">
-            <i class="bi bi-exclamation-triangle"></i> {{ session('error') }}
+        <div class="alert-app danger mt-3 mb-0" data-auto-dismiss>
+            <i class="bi bi-exclamation-triangle alert-app-icon"></i>
+            <div class="alert-app-body">{{ session('error') }}</div>
         </div>
         @endif
     </div>
@@ -217,9 +219,9 @@
         </div>
     </div>
     @else
-    <div class="alert alert-info mt-4">
-        <i class="bi bi-info-circle"></i> 
-        Silakan pilih filter terlebih dahulu
+    <div class="alert-app info mt-4">
+        <i class="bi bi-info-circle alert-app-icon"></i>
+        <div class="alert-app-body">Silakan pilih filter terlebih dahulu</div>
     </div>
     @endif
 

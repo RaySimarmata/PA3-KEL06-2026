@@ -129,7 +129,7 @@
                                             
                                             <form action="{{ route('gkm.laporan-artefak.template.destroy', $template->id) }}" 
                                                   method="POST" class="d-inline"
-                                                  onsubmit="return confirm('Yakin ingin menghapus template ini?')">
+                                                  onsubmit="AppConfirm.delete(this, 'Template ini akan dihapus permanen.'); return false;">
                                                 @csrf
                                                 @method('DELETE')
                                                 <button type="submit" class="btn btn-sm btn-outline-danger"

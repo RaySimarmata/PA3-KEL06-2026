@@ -24,12 +24,8 @@
                         <label class="filter-label">Status</label>
                         <select name="status" class="form-select">
                             <option value="">Semua Status</option>
-                            <option value="pending" {{ request('status') == 'pending' ? 'selected' : '' }}>Menunggu</option>
-                            <option value="processing" {{ request('status') == 'processing' ? 'selected' : '' }}>Sedang
-                                Diproses</option>
-                            <option value="completed" {{ request('status') == 'completed' ? 'selected' : '' }}>Selesai
-                            </option>
-                            <option value="error" {{ request('status') == 'error' ? 'selected' : '' }}>Error</option>
+                            <option value="completed" {{ request('status') == 'completed' ? 'selected' : '' }}>Berhasil</option>
+                            <option value="error" {{ request('status') == 'error' ? 'selected' : '' }}>Gagal</option>
                         </select>
                     </div>
                     <div class="col-md-4">
@@ -107,7 +103,7 @@
 
                                         <form action="{{ route('gkm.laporan-artefak.destroy', $laporan->id) }}"
                                             method="POST" class="d-inline"
-                                            onsubmit="return confirm('Yakin ingin menghapus laporan ini?')">
+                                            onsubmit="AppConfirm.delete(this, 'Laporan ini akan dihapus permanen.'); return false;">
                                             @csrf
                                             @method('DELETE')
                                             <button type="submit" class="btn btn-sm btn-outline-danger" title="Hapus">

@@ -6,30 +6,31 @@
     <div style="padding: 1.5rem;">
         <!-- Alert Messages -->
         @if(session('success'))
-            <div class="alert alert-success alert-dismissible fade show" role="alert">
-                <i class="bi bi-check-circle"></i> {{ session('success') }}
-                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            <div class="alert-app success mb-3" data-auto-dismiss>
+                <i class="bi bi-check-circle-fill alert-app-icon"></i>
+                <div class="alert-app-body">{{ session('success') }}</div>
             </div>
         @endif
 
         @if(session('error'))
-            <div class="alert alert-danger alert-dismissible fade show" role="alert">
-                <i class="bi bi-exclamation-triangle"></i> {{ session('error') }}
-                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            <div class="alert-app danger mb-3" data-auto-dismiss>
+                <i class="bi bi-exclamation-triangle-fill alert-app-icon"></i>
+                <div class="alert-app-body">{{ session('error') }}</div>
             </div>
         @endif
 
         @if(session('warning'))
-            <div class="alert alert-warning alert-dismissible fade show" role="alert">
-                <i class="bi bi-exclamation-triangle"></i> 
-                <strong>Perhatian!</strong> {{ session('warning')['message'] }}
-                <div class="mt-2">
-                    <button type="button" class="btn btn-sm btn-danger" 
-                            onclick="forceDeleteTemplate({{ session('warning')['template_id'] }}, '{{ session('warning')['type'] }}')">
-                        <i class="bi bi-trash"></i> Hapus Paksa ({{ session('warning')['usage_count'] }} laporan akan kehilangan referensi template)
-                    </button>
+            <div class="alert-app warning mb-3">
+                <i class="bi bi-exclamation-triangle-fill alert-app-icon"></i>
+                <div class="alert-app-body">
+                    <strong>Perhatian!</strong> {{ session('warning')['message'] }}
+                    <div class="mt-2">
+                        <button type="button" class="btn btn-sm btn-outline-danger" 
+                                onclick="forceDeleteTemplate({{ session('warning')['template_id'] }}, '{{ session('warning')['type'] }}')">
+                            <i class="bi bi-trash"></i> Hapus Paksa ({{ session('warning')['usage_count'] }} laporan akan kehilangan referensi template)
+                        </button>
+                    </div>
                 </div>
-                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
             </div>
         @endif
 
@@ -160,7 +161,7 @@
                                             
                                             <form action="{{ route('gjm.template-laporan.destroy', ['id' => $template->id, 'type' => 'semester']) }}" 
                                                   method="POST" class="d-inline"
-                                                  onsubmit="return confirm('Yakin ingin menghapus template ini?')">
+                                                  onsubmit="AppConfirm.delete(this, 'Template ini akan dihapus permanen.'); return false;">
                                                 @csrf
                                                 @method('DELETE')
                                                 <button type="submit" class="btn btn-sm btn-outline-danger"

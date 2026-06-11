@@ -5,13 +5,13 @@
 @section('content')
 <div style="padding: 1.5rem;">
     @if(session('success'))
-        <div class="alert alert-success alert-dismissible fade show" role="alert">
-            {{ session('success') }}
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        <div class="alert-app success mb-4" data-auto-dismiss>
+            <i class="bi bi-check-circle-fill alert-app-icon"></i>
+            <div class="alert-app-body">{{ session('success') }}</div>
         </div>
     @endif
 
-    
+
 
     <!-- Jadwal Reminder Table -->
     <div class="monitoring-card">
@@ -81,7 +81,7 @@
                                     </a>
                                     <form action="{{ route('gkm.reminder-agent.jadwal.destroy', $jadwal->id) }}" 
                                           method="POST" class="d-inline"
-                                          onsubmit="return confirm('Yakin ingin menghapus jadwal reminder ini?')">
+                                          onsubmit="AppConfirm.delete(this, 'Jadwal reminder ini akan dihapus permanen.'); return false;">
                                         @csrf
                                         @method('DELETE')
                                         <button type="submit" class="btn btn-sm btn-outline-danger" title="Hapus">

@@ -230,6 +230,7 @@ Route::middleware('auth')->group(function () {
             Route::get('/create', [MonitoringKuesioneController::class, 'create'])->name('create');
             Route::post('/store', [MonitoringKuesioneController::class, 'store'])->name('store');
             Route::get('/view/{id}', [MonitoringKuesioneController::class, 'show'])->name('show');
+            Route::get('/{id}/download', [MonitoringKuesioneController::class, 'download'])->name('download');
             Route::post('/{id}/reprocess', [MonitoringKuesioneController::class, 'reprocess'])->name('reprocess');
             Route::get('/{id}',[MonitoringKuesioneController::class, 'showKuesioner'])->name('showa');
             Route::delete('/{id}', [MonitoringKuesioneController::class, 'destroy'])->name('destroy');

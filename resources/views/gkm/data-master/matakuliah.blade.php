@@ -19,16 +19,16 @@
 
     {{-- ALERT --}}
     @if(session('success'))
-        <div class="alert alert-success alert-dismissible fade show">
-            <i class="bi bi-check-circle"></i> {{ session('success') }}
-            <button class="btn-close" data-bs-dismiss="alert"></button>
+        <div class="alert-app success mb-3" data-auto-dismiss>
+            <i class="bi bi-check-circle-fill alert-app-icon"></i>
+            <div class="alert-app-body">{{ session('success') }}</div>
         </div>
     @endif
 
     @if(session('error'))
-        <div class="alert alert-danger alert-dismissible fade show">
-            <i class="bi bi-exclamation-triangle"></i> {{ session('error') }}
-            <button class="btn-close" data-bs-dismiss="alert"></button>
+        <div class="alert-app danger mb-3" data-auto-dismiss>
+            <i class="bi bi-exclamation-triangle-fill alert-app-icon"></i>
+            <div class="alert-app-body">{{ session('error') }}</div>
         </div>
     @endif
 

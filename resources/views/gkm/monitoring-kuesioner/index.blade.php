@@ -229,7 +229,7 @@
                                         @endif
 
                                         <form action="{{ route('gkm.monitoring-kuesioner.destroy', $k->id) }}"
-                                            method="POST" onsubmit="return confirm('Yakin hapus data kuesioner ini?')"
+                                            method="POST" onsubmit="AppConfirm.delete(this, 'Data kuesioner ini akan dihapus permanen.'); return false;"
                                             class="d-inline">
                                             @csrf
                                             @method('DELETE')
