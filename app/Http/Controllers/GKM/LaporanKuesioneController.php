@@ -401,6 +401,11 @@ class LaporanKuesioneController extends Controller
                 ->first();
 
             if ($existing) {
+                // Update existing draft template if the user selected a template now
+                if ($request->template_id && $existing->template_id !== $request->template_id) {
+                    $existing->update(['template_id' => $request->template_id]);
+                }
+
                 // Return existing draft
                 return response()->json([
                     'success' => true,
@@ -409,6 +414,7 @@ class LaporanKuesioneController extends Controller
                         'id' => $existing->id,
                         'judul' => $existing->judul_laporan,
                         'periode' => $periodeDisplay,
+                        'template_id' => $existing->template_id,
                     ],
                 ]);
             }
@@ -478,12 +484,43 @@ class LaporanKuesioneController extends Controller
                 'conversation_history' => 'nullable|array',
                 'template_id' => 'nullable|exists:template_laporan,id',
                 'periode' => 'nullable|string',
+                'laporan_id' => 'nullable|exists:laporan_bulanan,id',
             ]);
 
             $userPrompt = $request->input('prompt');
             $promptLower = strtolower($userPrompt);
+            $laporanId = $request->input('laporan_id');
             $periode = $request->input('periode', null);
             $tipeLaporan = $request->input('tipe_laporan', 'UTS');
+            $templateId = $request->input('template_id');
+
+            $laporan = null;
+            if ($laporanId) {
+                $laporan = LaporanBulanan::find($laporanId);
+                if ($laporan) {
+                    $user = Auth::user();
+                    $hasAccess = $laporan->user_id == $user->id || in_array($user->role, ['GKM', 'GJM']);
+                    if (!$hasAccess) {
+                        return response()->json([
+                            'success' => false,
+                            'message' => 'Unauthorized access to laporan draft',
+                        ], 403);
+                    }
+
+                    if (!$templateId && $laporan->template_id) {
+                        $templateId = $laporan->template_id;
+                    }
+                    if (!$periode && $laporan->periode) {
+                        $periode = $laporan->periode;
+                    }
+                    if ((!$tipeLaporan || $tipeLaporan === 'UTS') && $laporan->tipe_laporan) {
+                        $tipeLaporan = $laporan->tipe_laporan;
+                    }
+                    if ($templateId && $laporan->template_id !== $templateId) {
+                        $laporan->update(['template_id' => $templateId]);
+                    }
+                }
+            }
 
             // ================================================================
             // VALIDASI KONTEKS LAPORAN KUESIONER - BACKEND
@@ -777,7 +814,14 @@ class LaporanKuesioneController extends Controller
                     $user = Auth::user();
                     $prodiId = $user->prodi_id ?? null;
 
-                    $result = $this->laporanService->generateLaporan($periode, $prodiId, $templateId, $tipeLaporan);
+                    // Use appropriate generation method based on template
+                    if ($templateId) {
+                        // Generate with placeholder structure for template mapping
+                        $result = $this->laporanService->generateLaporanWithPlaceholders($periode, $prodiId, $templateId, $tipeLaporan);
+                    } else {
+                        // Generate with standard structure
+                        $result = $this->laporanService->generateLaporan($periode, $prodiId, $templateId, $tipeLaporan);
+                    }
 
                     // Update laporan with generated data
                     $laporan->update([
@@ -1550,6 +1594,9 @@ class LaporanKuesioneController extends Controller
 
             $uploads = KuesioneUpload::query()
                 ->where('semester', $semester)
+                ->when($tipeLaporan && \Schema::hasColumn('kuesioner_uploads', 'jenis_kuesioner'), function ($query) use ($tipeLaporan) {
+                    $query->whereRaw('LOWER(TRIM(jenis_kuesioner)) = ?', [strtolower(trim($tipeLaporan))]);
+                })
                 ->whereHas('user', function($q) use ($prodiKode) {
                     if ($prodiKode) {
                         $q->whereHas('prodi', function($pq) use ($prodiKode) {
