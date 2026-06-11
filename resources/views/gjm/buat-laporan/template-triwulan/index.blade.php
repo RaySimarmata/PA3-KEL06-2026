@@ -6,31 +6,30 @@
 <div style="padding: 1.5rem;">
     <!-- Success/Error Messages -->
     @if(session('success'))
-        <div class="alert alert-success alert-dismissible fade show" role="alert" style="border-left: 4px solid #28a745;">
-            <i class="bi bi-check-circle-fill"></i>
-            <strong>Berhasil!</strong> {{ session('success') }}
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        <div class="alert-app success mb-3" data-auto-dismiss>
+            <i class="bi bi-check-circle-fill alert-app-icon"></i>
+            <div class="alert-app-body">{{ session('success') }}</div>
         </div>
     @endif
 
     @if(session('error'))
-        <div class="alert alert-danger alert-dismissible fade show" role="alert" style="border-left: 4px solid #dc3545;">
-            <i class="bi bi-exclamation-triangle-fill"></i>
-            <strong>Error!</strong> {{ session('error') }}
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        <div class="alert-app danger mb-3" data-auto-dismiss>
+            <i class="bi bi-exclamation-triangle-fill alert-app-icon"></i>
+            <div class="alert-app-body">{{ session('error') }}</div>
         </div>
     @endif
 
     @if($errors->any())
-        <div class="alert alert-danger alert-dismissible fade show" role="alert" style="border-left: 4px solid #dc3545;">
-            <i class="bi bi-exclamation-triangle-fill"></i>
-            <strong>Terjadi kesalahan:</strong>
-            <ul class="mb-0 mt-2">
-                @foreach($errors->all() as $error)
-                    <li>{{ $error }}</li>
-                @endforeach
-            </ul>
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        <div class="alert-app danger mb-3">
+            <i class="bi bi-exclamation-triangle-fill alert-app-icon"></i>
+            <div class="alert-app-body">
+                <div class="alert-app-title">Terjadi kesalahan:</div>
+                <ul class="mb-0" style="font-size:0.875rem; padding-left:1.25rem; margin-top:0.25rem;">
+                    @foreach($errors->all() as $error)
+                        <li>{{ $error }}</li>
+                    @endforeach
+                </ul>
+            </div>
         </div>
     @endif
 
@@ -179,7 +178,7 @@
                                         
                                         <form action="{{ route('gjm.buat-laporan.template-triwulan.destroy', $template->id) }}" 
                                               method="POST" class="d-inline"
-                                              onsubmit="return confirm('⚠️ Yakin ingin menghapus template ini?\n\nTemplate: {{ $template->nama_template }}\n\nTindakan ini tidak dapat dibatalkan!')">
+                                              onsubmit="AppConfirm.delete(this, 'Template &quot;{{ $template->nama_template }}&quot; akan dihapus permanen.'); return false;">
                                             @csrf
                                             @method('DELETE')
                                             <button type="submit" 

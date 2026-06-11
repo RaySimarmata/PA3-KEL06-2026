@@ -24,16 +24,16 @@
             <div class="col-lg-8 mx-auto">
                 <!-- Error Messages -->
                 @if($errors->any())
-                    <div class="alert alert-danger alert-dismissible fade show mb-4" role="alert" style="border-left: 4px solid #dc3545;">
-                        <h6 style="font-weight: 600; margin-bottom: 0.5rem;">
-                            <i class="bi bi-exclamation-triangle-fill"></i> Terjadi Kesalahan
-                        </h6>
-                        <ul class="mb-0" style="font-size: 0.875rem;">
-                            @foreach($errors->all() as $error)
-                                <li>{{ $error }}</li>
-                            @endforeach
-                        </ul>
-                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    <div class="alert-app danger mb-4">
+                        <i class="bi bi-exclamation-triangle-fill alert-app-icon"></i>
+                        <div class="alert-app-body">
+                            <div class="alert-app-title">Terjadi Kesalahan</div>
+                            <ul class="mb-0" style="font-size:0.875rem; padding-left:1.25rem; margin-top:0.25rem;">
+                                @foreach($errors->all() as $error)
+                                    <li>{{ $error }}</li>
+                                @endforeach
+                            </ul>
+                        </div>
                     </div>
                 @endif
 

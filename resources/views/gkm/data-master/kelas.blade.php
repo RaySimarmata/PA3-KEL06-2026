@@ -70,7 +70,7 @@
                                 </button>
                                 <form action="{{ route('gkm.data-master.kelas.destroy', $kelas->id) }}" 
                                       method="POST" class="d-inline" 
-                                      onsubmit="return confirm('Yakin ingin menghapus kelas ini?')">
+                                      onsubmit="AppConfirm.delete(this, 'Data kelas ini akan dihapus permanen.'); return false;">
                                     @csrf
                                     @method('DELETE')
                                     <button type="submit" class="btn btn-sm btn-outline-danger">

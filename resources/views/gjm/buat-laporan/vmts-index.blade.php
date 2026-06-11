@@ -91,7 +91,7 @@
 
                                         <form action="{{ route('gjm.buat-laporan.vmts.destroy', $laporan->id) }}"
                                             method="POST" class="d-inline"
-                                            onsubmit="return confirm('Yakin ingin menghapus laporan ini?')">
+                                            onsubmit="AppConfirm.delete(this, 'Laporan ini akan dihapus permanen.'); return false;">
                                             @csrf
                                             @method('DELETE')
                                             <button type="submit" class="btn btn-sm btn-outline-danger" title="Hapus">

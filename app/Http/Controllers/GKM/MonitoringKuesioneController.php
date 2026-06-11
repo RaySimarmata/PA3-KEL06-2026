@@ -318,6 +318,23 @@ if ($request->dosen_pengampu) {
         }
     }
 
+    public function download($id)
+    {
+        $kuesioner = KuesioneUpload::findOrFail($id);
+
+        // Kuesioner dari API tidak punya file fisik
+        if ($kuesioner->file_path === 'from-api' || $kuesioner->source === 'api') {
+            return back()->withErrors(['error' => 'File tidak tersedia karena kuesioner ini berasal dari API eksternal.']);
+        }
+
+        if (!Storage::disk('public')->exists($kuesioner->file_path)) {
+            return back()->withErrors(['error' => 'File tidak ditemukan di server.']);
+        }
+
+        $fileName = basename($kuesioner->file_path);
+        return Storage::disk('public')->download($kuesioner->file_path, $fileName);
+    }
+
     public function generateReport($id)
     {
         $kuesioner = KuesioneUpload::with(['user', 'user.prodi'])->findOrFail($id);

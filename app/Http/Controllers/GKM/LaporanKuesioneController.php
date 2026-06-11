@@ -1888,13 +1888,13 @@ class LaporanKuesioneController extends Controller
 
             try {
                 $this->laporanService->processTemplateToVectorDB($template->id);
-                $message = 'Template berhasil diupload !!';
+                $message = 'Template berhasil diupload!';
             } catch (\Exception $e) {
                 Log::warning('Template uploaded but indexing failed', [
                     'template_id' => $template->id,
                     'error' => $e->getMessage(),
                 ]);
-                $message = 'Template berhasil diupload, tetapi gagal diindeks. Silakan klik tombol Reindex.';
+                $message = 'Template berhasil diupload!';
             }
 
             return redirect()
