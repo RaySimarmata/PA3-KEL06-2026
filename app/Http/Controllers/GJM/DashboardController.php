@@ -103,7 +103,7 @@ class DashboardController extends Controller
     | KPI
     */
     $stats = [
-        'total_prodi' => $data->pluck('prodi')->pluck('kode')->unique()->cdasount(),
+        'total_prodi' => $data->pluck('prodi')->pluck('kode')->unique()->count(),
         'total_analisis' => $data->count(),
         'total_kuesioner' => $data->pluck('judul_kuesioner')->unique()->count(),
         'dosen_dipantau' => $data->pluck('dosen_pengajar')->unique()->count(),

@@ -18,6 +18,11 @@ use PhpOffice\PhpWord\TemplateProcessor;
 class KuesioneWordGenerationService
 {
     /**
+     * Pending table replacements after template fill: token => xml
+     */
+    private $pendingTableReplacements = [];
+
+    /**
      * Generate Word document from laporan data
      * ALWAYS generate from scratch untuk avoid placeholder issues
      */
@@ -25,10 +30,29 @@ class KuesioneWordGenerationService
     {
         Log::info('Generating Word document for laporan', [
             'laporan_id' => $laporan->id,
-            'periode' => $laporan->periode
+            'periode' => $laporan->periode,
+            'template_id' => $laporan->template_id
         ]);
 
-        // ALWAYS use generateWordFromScratch (no template placeholder issues)
+        if ($laporan->template_id) {
+            $template = $laporan->template ?: TemplateLaporan::find($laporan->template_id);
+
+            if ($template && $template->file_path) {
+                Log::info('Attempting template-based Word generation', [
+                    'template_id' => $template->id,
+                    'template_name' => $template->nama_template,
+                    'file_path' => $template->file_path
+                ]);
+
+                return $this->generateWordFromTemplate($laporan, $template);
+            }
+
+            Log::warning('Template selected but not found or missing file_path', [
+                'laporan_id' => $laporan->id,
+                'template_id' => $laporan->template_id
+            ]);
+        }
+
         return $this->generateWordFromScratch($laporan);
     }
 
@@ -38,7 +62,16 @@ class KuesioneWordGenerationService
     private function generateWordFromTemplate($laporan, $template)
     {
         try {
-            $templatePath = storage_path('app/' . $template->file_path);
+            $templateRelativePath = ltrim($template->file_path, '/');
+            $templateRelativePath = preg_replace('#^public[\\/]+#', '', $templateRelativePath);
+
+            $templatePath = storage_path('app/public/' . $templateRelativePath);
+            if (!file_exists($templatePath)) {
+                $alternatePath = storage_path('app/' . $templateRelativePath);
+                if (file_exists($alternatePath)) {
+                    $templatePath = $alternatePath;
+                }
+            }
 
             if (!file_exists($templatePath)) {
                 Log::warning('Template file not found', ['path' => $templatePath]);
@@ -51,14 +84,20 @@ class KuesioneWordGenerationService
                 'laporan_id' => $laporan->id
             ]);
 
-            // Load template
+            // Normalize placeholder runs inside the document XML, then load template
+            $templatePath = $this->normalizeTemplatePath($templatePath);
             $templateProcessor = new TemplateProcessor($templatePath);
 
-            // Set macro chars based on template format (default {{VAR}})
+            // Try double-brace macros first, then fallback to single-brace if no variables found
             $templateProcessor->setMacroChars('{{', '}}');
-
-            // Get available variables in template
             $availableVars = $templateProcessor->getVariables();
+
+            if (empty($availableVars)) {
+                Log::info('No variables found with {{ }} macro, trying { } macro');
+                $templateProcessor->setMacroChars('{', '}');
+                $availableVars = $templateProcessor->getVariables();
+            }
+
             Log::info('Template variables found', ['variables' => $availableVars]);
 
             // Extract placeholder values from hasil_laporan
@@ -122,6 +161,32 @@ class KuesioneWordGenerationService
             $tempPath = storage_path('app/temp_' . uniqid() . '.docx');
             $templateProcessor->saveAs($tempPath);
 
+            // Inject any pending Word table replacements into the saved temp docx
+            if (!empty($this->pendingTableReplacements)) {
+                $zip = new \ZipArchive();
+                if ($zip->open($tempPath) === true) {
+                    $xmlFiles = ['word/document.xml'];
+                    for ($h = 0; $h <= 9; $h++) {
+                        $xmlFiles[] = 'word/header' . $h . '.xml';
+                        $xmlFiles[] = 'word/footer' . $h . '.xml';
+                    }
+
+                    foreach ($xmlFiles as $xmlFile) {
+                        if (!$zip->locateName($xmlFile)) continue;
+                        $xml = $zip->getFromName($xmlFile);
+                        if ($xml === false) continue;
+
+                        foreach ($this->pendingTableReplacements as $token => $tableXml) {
+                            $pattern = '/<w:r[^>]*>\s*<w:t[^>]*>' . preg_quote($token, '/') . '<\/w:t>\s*<\/w:r>/';
+                            $xml = preg_replace($pattern, $tableXml, $xml);
+                        }
+
+                        $zip->addFromString($xmlFile, $xml);
+                    }
+
+                    $zip->close();
+                }
+            }
             // Move to final location
             if (!rename($tempPath, $fullPath)) {
                 throw new \Exception('Failed to save Word document');
@@ -161,27 +226,13 @@ class KuesioneWordGenerationService
         $placeholders = [];
         $hasilLaporan = $laporan->hasil_laporan ?? [];
 
-        // Basic metadata placeholders
-        $periodeObj = Carbon::createFromFormat('Y-m', $laporan->periode);
-        $year = $periodeObj->year;
-        $month = $periodeObj->month;
-
-        // Determine semester and tahun akademik
-        if ($month <= 6) {
-            $semesterText = 'GENAP';
-            $tahunAkademik = ($year - 1) . '/' . $year;
-        } else {
-            $semesterText = 'GANJIL';
-            $tahunAkademik = $year . '/' . ($year + 1);
-        }
-
-        // Determine UTS/UAS
-        $jenisUjian = '';
-        if (($month >= 3 && $month <= 4) || ($month >= 10 && $month <= 11)) {
-            $jenisUjian = 'UTS';
-        } elseif (($month >= 5 && $month <= 6) || ($month >= 12 || $month <= 1)) {
-            $jenisUjian = 'UAS';
-        }
+        $periodeContext = $this->resolveLaporanPeriodeContext($laporan);
+        $periodeObj = $periodeContext['periodeObj'];
+        $year = $periodeContext['year'];
+        $month = $periodeContext['month'];
+        $semesterText = $periodeContext['semesterText'];
+        $tahunAkademik = $periodeContext['tahunAkademik'];
+        $jenisUjian = $periodeContext['jenisUjian'];
 
         $placeholders['PERIODE'] = $periodeObj->locale('id')->translatedFormat('F Y');
         $placeholders['BULAN'] = $periodeObj->locale('id')->translatedFormat('F');
@@ -201,7 +252,7 @@ class KuesioneWordGenerationService
         $placeholders['TEMPAT'] = 'Laguboti';
 
         // Use the 10th day of the month after periode for TANGGAL
-        $reportDate = $periodeObj->copy()->addMonth()->day(10);
+        $reportDate = $periodeContext['reportDate'];
         $placeholders['TANGGAL'] = $reportDate->locale('id')->translatedFormat('d F Y');
 
         // Pendahuluan Section
@@ -283,18 +334,9 @@ class KuesioneWordGenerationService
      */
     private function generatePendahuluanTujuan($laporan)
     {
-        $periodeObj = Carbon::createFromFormat('Y-m', $laporan->periode);
-        $year = $periodeObj->year;
-        $month = $periodeObj->month;
-
-        // Determine tahun akademik and semester
-        if ($month <= 6) {
-            $semester = 'GENAP';
-            $tahunAkademik = ($year - 1) . '/' . $year;
-        } else {
-            $semester = 'GANJIL';
-            $tahunAkademik = $year . '/' . ($year + 1);
-        }
+        $periodeContext = $this->resolveLaporanPeriodeContext($laporan);
+        $semester = $periodeContext['semesterText'];
+        $tahunAkademik = $periodeContext['tahunAkademik'];
 
         // Get user's prodi name
         $user = \App\Models\User::find($laporan->user_id);
@@ -310,13 +352,10 @@ class KuesioneWordGenerationService
      */
     private function generatePendahuluanWaktu($laporan)
     {
-        $periodeObj = Carbon::createFromFormat('Y-m', $laporan->periode);
+        $periodeContext = $this->resolveLaporanPeriodeContext($laporan);
+        $periodeObj = $periodeContext['periodeObj'];
         $bulan = $periodeObj->locale('id')->translatedFormat('F');
         $tahun = $periodeObj->year;
-
-        // Determine if UTS or UAS based on month
-        $month = $periodeObj->month;
-        $jenisUjian = ($month >= 3 && $month <= 5) || ($month >= 10 && $month <= 12) ? 'UTS dan UAS' : 'evaluasi';
 
         $text = "Penyebaran kuesioner evaluasi mata kuliah dilaksanakan pada bulan {$bulan} {$tahun}. ";
         $text .= "Penyebaran kuesioner dibagi menjadi 2 tahap yaitu pembagian pertama dilakukan pada minggu ke-14 dan pembagian kedua dilakukan pada minggu ke-15. ";
@@ -355,13 +394,11 @@ class KuesioneWordGenerationService
     private function generateKesimpulanFromDatabase($laporan, $hasilLaporan)
     {
         // Query actual data from database to calculate real average
-        $periode = $laporan->periode;
         $userId = $laporan->user_id;
+        $periodeContext = $this->resolveLaporanPeriodeContext($laporan);
+        $semester = $periodeContext['semester'];
 
-        // Determine semester
-        $year = (int) substr($periode, 0, 4);
-        $month = (int) substr($periode, 5, 2);
-        $semester = ($month <= 6) ? 2 : 1;
+        // Get user's prodi
 
         // Get user's prodi
         $user = \App\Models\User::find($userId);
@@ -422,26 +459,15 @@ class KuesioneWordGenerationService
      */
     private function generateHasilKuesionePerTingkat(&$placeholders, $hasilLaporan, $laporan)
     {
-        // Get periode and user info from laporan to query kuesioner_uploads
-        $periode = $laporan->periode;
         $userId = $laporan->user_id;
-
-        // Determine semester from periode
-        $year = (int) substr($periode, 0, 4);
-        $month = (int) substr($periode, 5, 2);
-
-        if ($month <= 6) {
-            $semester = 2; // Genap
-        } else {
-            $semester = 1; // Ganjil
-        }
+        $periodeContext = $this->resolveLaporanPeriodeContext($laporan);
+        $semester = $periodeContext['semester'];
 
         // Get user's prodi
         $user = \App\Models\User::find($userId);
         $prodiKode = $user && $user->prodi ? $user->prodi->kode_prodi : null;
 
         Log::info('Generating Hasil Kuesioner per Tingkat from database', [
-            'periode' => $periode,
             'semester' => $semester,
             'prodi_kode' => $prodiKode,
             'user_id' => $userId
@@ -493,6 +519,7 @@ class KuesioneWordGenerationService
 
             $hasilKey = "HASIL_KUESIONER_TINGKAT_" . $tingkatRoman;
             $masukanKey = "MASUKAN_SARAN_TINGKAT_" . $tingkatRoman;
+            $gabunganKey = "GABUNGAN_TINGKAT_" . $tingkatRoman;
 
             $kuesioneData = $dataByTingkat->get($i, collect());
 
@@ -501,22 +528,36 @@ class KuesioneWordGenerationService
                 'key' => $i
             ]);
 
-            if ($kuesioneData->isNotEmpty()) {
-                // Generate Hasil Kuesioner table
-                $hasilText = $this->generateHasilKuesioneTableFromUploads($kuesioneData, $i);
-                $placeholders[$hasilKey] = $hasilText;
 
-                // Generate Masukan/Saran table
-                $masukanText = $this->generateMasukanSaranTableFromUploads($kuesioneData, $i);
-                $placeholders[$masukanKey] = $masukanText;
+            if ($kuesioneData->isNotEmpty()) {
+                // Prepare Word table tokens and schedule XML replacements
+                $groups = $this->groupMatakuliahUploads($kuesioneData);
+
+                $hasilToken = '__TABLE_HASIL_TINGKAT_' . $tingkatRoman . '__';
+                $masukanToken = '__TABLE_MASUKAN_TINGKAT_' . $tingkatRoman . '__';
+                $gabunganToken = '__TABLE_GABUNGAN_TINGKAT_' . $tingkatRoman . '__';
+
+                $placeholders[$hasilKey] = $hasilToken;
+                $placeholders[$masukanKey] = $masukanToken;
+
+                // Create XML fragments for the tables
+                $this->pendingTableReplacements[$hasilToken] = $this->generateWordTableXml($groups, $i, 'hasil');
+                $this->pendingTableReplacements[$masukanToken] = $this->generateWordTableXml($groups, $i, 'masukan');
+
+                // Combined fragment: hasil then masukan
+                $this->pendingTableReplacements[$gabunganToken] = $this->pendingTableReplacements[$hasilToken] . '<w:p><w:r><w:t/></w:r></w:p>' . $this->pendingTableReplacements[$masukanToken];
+                $placeholders[$gabunganKey] = $gabunganToken;
 
                 Log::info("Generated content for Tingkat {$tingkatRoman}", [
                     'hasil_length' => strlen($hasilText),
-                    'masukan_length' => strlen($masukanText)
+                    'masukan_length' => strlen($masukanText),
+                    'gabungan_length' => strlen($gabunganText)
                 ]);
             } else {
-                $placeholders[$hasilKey] = "\nTidak ada data kuesioner untuk Tingkat {$tingkatRoman}";
+                $noDataMsg = "Tidak ada data kuesioner untuk Tingkat {$tingkatRoman}";
+                $placeholders[$hasilKey] = "\n" . $noDataMsg;
                 $placeholders[$masukanKey] = "";
+                $placeholders[$gabunganKey] = "\n" . $noDataMsg;
 
                 Log::info("No data for Tingkat {$tingkatRoman}");
             }
@@ -706,6 +747,209 @@ class KuesioneWordGenerationService
         $text .= "\n";
 
         return $text;
+    }
+
+    /**
+     * Generate Word XML for a table from groups data
+     * type: 'hasil' or 'masukan'
+     */
+    private function generateWordTableXml($groups, $tingkat, $type = 'hasil')
+    {
+        $cols = $type === 'hasil'
+            ? ['Kode Matakuliah', 'Nama Matakuliah', 'Dosen Pengampu', 'Indeks Kepuasan']
+            : ['Kode Matakuliah', 'Nama Matakuliah', 'Dosen Pengampu', 'Masukan/Saran'];
+
+        // Paragraph before table
+        $tingkatRoman = $this->numberToRoman($tingkat);
+        $count = count($groups);
+        $para = '<w:p><w:r><w:t>Pada tingkat ' . $tingkatRoman . ' terdapat ' . $count . ' matakuliah dengan detail sebagai berikut:</w:t></w:r></w:p>';
+
+        // Build table header
+        $tbl = '<w:tbl><w:tblPr><w:tblStyle w:val="TableGrid"/></w:tblPr><w:tblGrid>';
+        $colWidth = intval(9000 / count($cols));
+        foreach ($cols as $c) {
+            $tbl .= '<w:gridCol w:w="' . $colWidth . '"/>';
+        }
+        $tbl .= '</w:tblGrid>';
+
+        // Header row
+        $tbl .= '<w:tr>'; 
+        foreach ($cols as $c) {
+            $tbl .= '<w:tc><w:p><w:r><w:t>' . $this->escapeXml($c) . '</w:t></w:r></w:p></w:tc>';
+        }
+        $tbl .= '</w:tr>';
+
+        // Rows
+        $sumAllIndices = 0;
+        $countAllIndices = 0;
+        foreach ($groups as $group) {
+            $kode = $this->escapeXml($group['kode_matakuliah'] ?: '-');
+            $nama = $this->escapeXml($group['nama_matakuliah'] ?: '-');
+            $dosen = $this->escapeXml(!empty($group['dosen']) ? implode(', ', $group['dosen']) : '-');
+
+            $tbl .= '<w:tr>';
+            $tbl .= '<w:tc><w:p><w:r><w:t>' . $kode . '</w:t></w:r></w:p></w:tc>';
+            $tbl .= '<w:tc><w:p><w:r><w:t>' . $nama . '</w:t></w:r></w:p></w:tc>';
+            $tbl .= '<w:tc><w:p><w:r><w:t>' . $dosen . '</w:t></w:r></w:p></w:tc>';
+
+            if ($type === 'hasil') {
+                $groupIndexCount = count($group['indices']);
+                $groupAvgIndex = $groupIndexCount > 0 ? round(array_sum($group['indices']) / $groupIndexCount, 5) : 0;
+                $sumAllIndices += array_sum($group['indices']);
+                $countAllIndices += $groupIndexCount;
+                $tbl .= '<w:tc><w:p><w:r><w:t>' . $groupAvgIndex . '</w:t></w:r></w:p></w:tc>';
+            } else {
+                $rekom = $group['rekomendasi'] ?? [];
+                if (empty($rekom) && !empty($group['area_perbaikan'])) $rekom = $group['area_perbaikan'];
+                if (empty($rekom) && !empty($group['ringkasan'])) $rekom = [$group['ringkasan']];
+                $rekomText = $this->escapeXml(implode('; ', array_slice($rekom, 0, 3)) ?: '-');
+                $tbl .= '<w:tc><w:p><w:r><w:t>' . $rekomText . '</w:t></w:r></w:p></w:tc>';
+            }
+
+            $tbl .= '</w:tr>';
+        }
+
+        $tbl .= '</w:tbl>';
+
+        $avgIndex = $countAllIndices > 0 ? round($sumAllIndices / $countAllIndices, 5) : 0;
+        $footer = '';
+        if ($type === 'hasil') {
+            $footer = '<w:p><w:r><w:t>Rata Indeks Kepuasan: ' . $avgIndex . '</w:t></w:r></w:p>';
+        }
+
+        return $para . $tbl . $footer;
+    }
+
+    private function escapeXml($s)
+    {
+        return htmlspecialchars((string)$s, ENT_XML1 | ENT_QUOTES, 'UTF-8');
+    }
+
+    /**
+     * Normalize a Word template file so split placeholders are joined into single text runs.
+     */
+    private function normalizeTemplatePath($templatePath)
+    {
+        $tempPath = storage_path('app/temp_template_' . uniqid() . '.docx');
+        copy($templatePath, $tempPath);
+
+        $zip = new \ZipArchive();
+        if ($zip->open($tempPath) !== true) {
+            return $templatePath;
+        }
+
+        $xmlFiles = array_merge(['word/document.xml'], array_map(function ($i) {
+            return 'word/header' . $i . '.xml';
+        }, range(0, 9)), array_map(function ($i) {
+            return 'word/footer' . $i . '.xml';
+        }, range(0, 9)));
+
+        foreach ($xmlFiles as $xmlFile) {
+            if (!$zip->locateName($xmlFile)) {
+                continue;
+            }
+
+            $xml = $zip->getFromName($xmlFile);
+            if ($xml === false) {
+                continue;
+            }
+
+            $normalizedXml = $this->normalizeTemplatePlaceholdersXml($xml);
+            if ($normalizedXml !== $xml) {
+                $zip->addFromString($xmlFile, $normalizedXml);
+            }
+        }
+
+        $zip->close();
+        return $tempPath;
+    }
+
+    /**
+     * Normalize placeholder fragments in Word document XML.
+     */
+    private function normalizeTemplatePlaceholdersXml($xml)
+    {
+        $runs = [];
+        preg_match_all('#<w:r[^>]*>.*?</w:r>#s', $xml, $matches, PREG_OFFSET_CAPTURE);
+        foreach ($matches[0] as $match) {
+            $runs[] = [
+                'text' => $match[0],
+                'pos' => $match[1],
+                'length' => strlen($match[0]),
+            ];
+        }
+
+        if (empty($runs)) {
+            return $xml;
+        }
+
+        $output = '';
+        $lastPos = 0;
+        $buffer = [];
+        $bufferStart = null;
+
+        foreach ($runs as $run) {
+            if ($bufferStart === null) {
+                if ($this->isPlaceholderStartRun($run['text'])) {
+                    $buffer = [$run];
+                    $bufferStart = $run['pos'];
+                    continue;
+                }
+
+                $output .= substr($xml, $lastPos, $run['pos'] - $lastPos);
+                $output .= $run['text'];
+                $lastPos = $run['pos'] + $run['length'];
+                continue;
+            }
+
+            $buffer[] = $run;
+            $combinedText = '';
+            foreach ($buffer as $bufferRun) {
+                $combinedText .= $this->extractTextFromRun($bufferRun['text']);
+            }
+            $normalizedText = preg_replace('/\s+/', '', $combinedText);
+
+            if ($this->isCompletedPlaceholderText($normalizedText)) {
+                $output .= substr($xml, $lastPos, $bufferStart - $lastPos);
+                $output .= '<w:r><w:t>{{' . $this->normalizePlaceholderText($normalizedText) . '}}</w:t></w:r>';
+                $lastPos = $run['pos'] + $run['length'];
+                $buffer = [];
+                $bufferStart = null;
+            }
+        }
+
+        if ($bufferStart !== null && !empty($buffer)) {
+            $output .= substr($xml, $lastPos, $bufferStart - $lastPos);
+            foreach ($buffer as $bufferRun) {
+                $output .= $bufferRun['text'];
+            }
+            $lastPos = end($buffer)['pos'] + end($buffer)['length'];
+        }
+
+        $output .= substr($xml, $lastPos);
+        return $output;
+    }
+
+    private function isPlaceholderStartRun($run)
+    {
+        return preg_match('#\{\{(?:HASIL_KUESIONER_TINGKAT_|MASUKAN_SARAN_TINGKAT_|GABUNGAN_TINGKAT_)#', $run);
+    }
+
+    private function extractTextFromRun($run)
+    {
+        preg_match_all('#<w:t[^>]*>(.*?)</w:t>#s', $run, $matches);
+        return implode('', $matches[1]);
+    }
+
+    private function isCompletedPlaceholderText($text)
+    {
+        return preg_match('#^\{\{(?:HASIL_KUESIONER_TINGKAT_[A-Z]+|MASUKAN_SARAN_TINGKAT_[A-Z]+|GABUNGAN_TINGKAT_[A-Z]+)\}\}$#', $text);
+    }
+
+    private function normalizePlaceholderText($text)
+    {
+        preg_match('#^\{\{((?:HASIL_KUESIONER_TINGKAT_|MASUKAN_SARAN_TINGKAT_|GABUNGAN_TINGKAT_)[A-Z]+)\}\}$#', $text, $matches);
+        return $matches[1] ?? $text;
     }
 
     /**
@@ -902,27 +1146,156 @@ class KuesioneWordGenerationService
     }
 
     /**
-     * Get tahun akademik from periode (YYYY-MM)
+     * Resolve laporan periode context from periode or periode_akademik relationship
      */
-    private function getTahunAkademik($periode)
+    private function resolveLaporanPeriodeContext($laporan)
     {
-        $year = (int) substr($periode, 0, 4);
-        $month = (int) substr($periode, 5, 2);
+        $context = [
+            'original' => $laporan->periode,
+            'periodeIso' => null,
+            'periodeObj' => null,
+            'year' => null,
+            'month' => null,
+            'semester' => null,
+            'semesterText' => null,
+            'tahunAkademik' => null,
+            'jenisUjian' => null,
+            'reportDate' => null,
+        ];
 
-        if ($month <= 6) {
-            return ($year - 1) . '/' . $year;
-        } else {
-            return $year . '/' . ($year + 1);
+        // Prefer periode_akademik relationship when available
+        if ($laporan->periode_akademik_id && $laporan->periodeAkademik) {
+            $akademik = $laporan->periodeAkademik;
+            if ($akademik->start_date) {
+                $context['periodeObj'] = Carbon::parse($akademik->start_date);
+            } elseif ($akademik->end_date) {
+                $context['periodeObj'] = Carbon::parse($akademik->end_date);
+            } else {
+                $tahunAjaran = (string) $akademik->tahun_ajaran;
+                $semester = (int) $akademik->semester;
+
+                if ($semester === 1) {
+                    $year = is_numeric($tahunAjaran) && strlen($tahunAjaran) === 4 ? (int) $tahunAjaran : Carbon::now()->year;
+                    $context['periodeObj'] = Carbon::create($year, 8, 1);
+                } else {
+                    if (preg_match('/^(\d{4})\\/(\d{4})$/', $tahunAjaran, $matches)) {
+                        $year = (int) $matches[2];
+                    } elseif (preg_match('/^(\d{2})\\/(\d{2})$/', $tahunAjaran, $matches)) {
+                        $year = 2000 + (int) $matches[2];
+                    } else {
+                        $year = is_numeric($tahunAjaran) && strlen($tahunAjaran) === 4 ? (int) $tahunAjaran + 1 : Carbon::now()->year;
+                    }
+                    $context['periodeObj'] = Carbon::create($year, 2, 1);
+                }
+            }
+
+            $context['semester'] = (int) $akademik->semester;
+            $context['semesterText'] = strtoupper($akademik->semester_label ?? ($context['semester'] === 1 ? 'GANJIL' : 'GENAP'));
+            $context['tahunAkademik'] = is_numeric($akademik->tahun_ajaran) && strlen($akademik->tahun_ajaran) === 4
+                ? $akademik->tahun_ajaran . '/' . ((int) $akademik->tahun_ajaran + 1)
+                : $akademik->tahun_ajaran;
         }
+
+        // Fallback to periode string if needed
+        if (!$context['periodeObj'] && !empty($laporan->periode)) {
+            if (preg_match('/^(\d{4})-(\d{2})$/', $laporan->periode, $matches)) {
+                $context['periodeObj'] = Carbon::createFromFormat('Y-m', $laporan->periode);
+            } elseif (preg_match('/\b(GANJIL|GENAP)\b/i', $laporan->periode, $matches)) {
+                $semester = strtoupper($matches[1]) === 'GANJIL' ? 1 : 2;
+                $year = null;
+
+                if (preg_match('/(\d{4})/', $laporan->periode, $yearMatch)) {
+                    $year = (int) $yearMatch[1];
+                } elseif (preg_match('/(\d{2})\\/(\d{2})/', $laporan->periode, $yearMatch)) {
+                    $year = 2000 + (int) $yearMatch[2];
+                }
+
+                if ($year === null) {
+                    $year = Carbon::now()->year;
+                }
+
+                if ($semester === 1) {
+                    $context['periodeObj'] = Carbon::create($year, 8, 1);
+                } else {
+                    $context['periodeObj'] = Carbon::create($year, 2, 1);
+                }
+
+                $context['semester'] = $semester;
+                $context['semesterText'] = $semester === 1 ? 'GANJIL' : 'GENAP';
+                $context['tahunAkademik'] = $semester === 1 ? $year . '/' . ($year + 1) : ($year - 1) . '/' . $year;
+            }
+        }
+
+        if (!$context['periodeObj']) {
+            $context['periodeObj'] = Carbon::now();
+        }
+
+        $context['year'] = $context['periodeObj']->year;
+        $context['month'] = $context['periodeObj']->month;
+
+        if (!$context['semester']) {
+            $context['semester'] = $context['month'] <= 6 ? 2 : 1;
+            $context['semesterText'] = $context['semester'] === 1 ? 'GANJIL' : 'GENAP';
+        }
+
+        if (!$context['tahunAkademik']) {
+            $context['tahunAkademik'] = $context['semester'] === 1
+                ? $context['year'] . '/' . ($context['year'] + 1)
+                : ($context['year'] - 1) . '/' . $context['year'];
+        }
+
+        $context['periodeIso'] = $context['periodeObj']->format('Y-m');
+        $context['reportDate'] = $context['periodeObj']->copy()->addMonth()->day(10);
+
+        $context['jenisUjian'] = $laporan->tipe_laporan ??
+            (($context['month'] >= 3 && $context['month'] <= 4) || ($context['month'] >= 10 && $context['month'] <= 11)
+                ? 'UTS'
+                : 'UAS');
+
+        return $context;
     }
 
     /**
-     * Get semester from periode (YYYY-MM)
+     * Get tahun akademik from periode string
+     */
+    private function getTahunAkademik($periode)
+    {
+        if (preg_match('/^(\d{4})-(\d{2})$/', $periode, $matches)) {
+            $year = (int) $matches[1];
+            $month = (int) $matches[2];
+            return $month <= 6 ? ($year - 1) . '/' . $year : $year . '/' . ($year + 1);
+        }
+
+        if (preg_match('/\b(GANJIL|GENAP)\b/i', $periode, $matches)) {
+            $semester = strtoupper($matches[1]) === 'GANJIL' ? 1 : 2;
+            if (preg_match('/(\d{4})/', $periode, $yearMatch)) {
+                $year = (int) $yearMatch[1];
+            } elseif (preg_match('/(\d{2})\/(\d{2})/', $periode, $yearMatch)) {
+                $year = 2000 + (int) $yearMatch[1];
+            } else {
+                $year = Carbon::now()->year;
+            }
+            return $semester === 1 ? $year . '/' . ($year + 1) : ($year - 1) . '/' . $year;
+        }
+
+        return Carbon::now()->year . '/' . (Carbon::now()->year + 1);
+    }
+
+    /**
+     * Get semester from periode string
      */
     private function getSemester($periode)
     {
-        $month = (int) substr($periode, 5, 2);
-        return $month <= 6 ? 'Genap' : 'Ganjil';
+        if (preg_match('/^(\d{4})-(\d{2})$/', $periode, $matches)) {
+            $month = (int) $matches[2];
+            return $month <= 6 ? 'Genap' : 'Ganjil';
+        }
+
+        if (preg_match('/\b(GANJIL|GENAP)\b/i', $periode, $matches)) {
+            return strtoupper($matches[1]) === 'GANJIL' ? 'Ganjil' : 'Genap';
+        }
+
+        return Carbon::now()->month <= 6 ? 'Genap' : 'Ganjil';
     }
 
     /**
@@ -937,13 +1310,9 @@ class KuesioneWordGenerationService
             ]);
 
             // Query database untuk data kuesioner
-            $periode = $laporan->periode;
             $userId = $laporan->user_id;
-
-            // Determine semester
-            $year = (int) substr($periode, 0, 4);
-            $month = (int) substr($periode, 5, 2);
-            $semester = ($month <= 6) ? 2 : 1;
+            $periodeContext = $this->resolveLaporanPeriodeContext($laporan);
+            $semester = $periodeContext['semester'];
 
             // Get user's prodi
             $user = \App\Models\User::find($userId);
@@ -980,11 +1349,12 @@ class KuesioneWordGenerationService
             $section = $phpWord->addSection();
 
             // HEADER/TITLE
-            $periodeObj = Carbon::createFromFormat('Y-m', $periode);
+            $periodeContext = $this->resolveLaporanPeriodeContext($laporan);
+            $periodeObj = $periodeContext['periodeObj'];
             $bulan = $periodeObj->locale('id')->translatedFormat('F');
             $tahun = $periodeObj->year;
-            $semesterText = ($semester == 1) ? 'GANJIL' : 'GENAP';
-            $tahunAkademik = ($semester == 1) ? $tahun . '/' . ($tahun + 1) : ($tahun - 1) . '/' . $tahun;
+            $semesterText = $periodeContext['semesterText'];
+            $tahunAkademik = $periodeContext['tahunAkademik'];
 
             $section->addText(
                 "LAPORAN HASIL KEPUASAN MAHASISWA",

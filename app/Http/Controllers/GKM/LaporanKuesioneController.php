@@ -379,6 +379,20 @@ class LaporanKuesioneController extends Controller
             }
             $periodeDisplay = $tipeLaporan . ' ' . $periodeAkademik->semester_label . ' ' . $tahunAjaranFormatted;
 
+            // Generate canonical periode Y-m for backend calculations
+            // Generate canonical periode Y-m for backend calculations
+            // Use the academic year and semester cleanly, avoiding incorrect dates
+            // when stored start_date/end_date values are not aligned with the academic year.
+            $tahunAjaranNumeric = (int) $periodeAkademik->tahun_ajaran;
+            if ($periodeAkademik->semester == 1) {
+                $periodeIso = $tahunAjaranNumeric . '-08';
+            } else {
+                $periodeIso = ($tahunAjaranNumeric + 1) . '-02';
+            }
+            $periodeObj = Carbon::createFromFormat('Y-m', $periodeIso);
+            $bulan = $periodeObj->month;
+            $tahun = $periodeObj->year;
+
             // Check if draft already exists for this user + periode + tipe_laporan
             $existing = LaporanBulanan::where('periode_akademik_id', $periodeAkademikId)
                 ->where('tipe_laporan', $tipeLaporan)
@@ -401,9 +415,9 @@ class LaporanKuesioneController extends Controller
 
             // Create new draft
             $laporan = LaporanBulanan::create([
-                'periode' => $periodeDisplay,
-                'bulan' => $periodeDisplay,
-                'tahun' => (int)$periodeAkademik->tahun_ajaran,
+                'periode' => $periodeIso,
+                'bulan' => $bulan,
+                'tahun' => $tahun,
                 'user_id' => $user->id,
                 'periode_akademik_id' => $periodeAkademikId,
                 'tipe_laporan' => $tipeLaporan,
@@ -468,6 +482,8 @@ class LaporanKuesioneController extends Controller
 
             $userPrompt = $request->input('prompt');
             $promptLower = strtolower($userPrompt);
+            $periode = $request->input('periode', null);
+            $tipeLaporan = $request->input('tipe_laporan', 'UTS');
 
             // ================================================================
             // VALIDASI KONTEKS LAPORAN KUESIONER - BACKEND
@@ -646,8 +662,6 @@ class LaporanKuesioneController extends Controller
 
             $conversationHistory = $request->input('conversation_history', []);
             $templateId = $request->input('template_id');
-            $periode = $request->input('periode', null);
-            $tipeLaporan = $request->input('tipe_laporan', 'UTS');
 
             // Ensure periode is not null
             if (!$periode || empty(trim($periode))) {
@@ -1307,8 +1321,7 @@ class LaporanKuesioneController extends Controller
                 ]);
 
                 $wordGenerated = $this->generateWordFromTemplateWithPlaceholders(
-                    $laporan->fresh(),
-                    $hasilLaporan
+                    $laporan->fresh()
                 );
             } else {
                 Log::info('Generating Word without template');
@@ -1356,8 +1369,9 @@ class LaporanKuesioneController extends Controller
     /**
      * Generate Word from template with placeholders
      */
-    private function generateWordFromTemplateWithPlaceholders($laporan, $hasilLaporan)
+    private function generateWordFromTemplateWithPlaceholders($laporan)
     {
+        $laporan->loadMissing('template');
         $wordGenerationService = app(\App\Services\KuesioneWordGenerationService::class);
         return $wordGenerationService->generateWordDocument($laporan);
     }
@@ -1874,7 +1888,7 @@ class LaporanKuesioneController extends Controller
 
             try {
                 $this->laporanService->processTemplateToVectorDB($template->id);
-                $message = 'Template berhasil diupload dan diindeks ke vector database!';
+                $message = 'Template berhasil diupload !!';
             } catch (\Exception $e) {
                 Log::warning('Template uploaded but indexing failed', [
                     'template_id' => $template->id,

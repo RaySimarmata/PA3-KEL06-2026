@@ -60,17 +60,9 @@ class LaporanKuesioneService
         // Get ALL records for now (will be filtered manually later if needed)
         Log::info("Getting all kuesioner records without prodi filter (temporary)");
 
-        // Parse periode to determine semester and tahun_ajaran
-        $year = (int) substr($periode, 0, 4);
-        $month = (int) substr($periode, 5, 2);
-
-        if ($month <= 6) {
-            $semester = 2; // Genap
-            $tahunAjaran = ($year - 1) . '/' . $year;
-        } else {
-            $semester = 1; // Ganjil
-            $tahunAjaran = $year . '/' . ($year + 1);
-        }
+        $periodeContext = $this->resolvePeriodeContext($periode);
+        $semester = $periodeContext['semester'];
+        $tahunAjaran = $periodeContext['tahunAjaran'];
 
         Log::info("Determined semester and tahun ajaran", [
             'semester' => $semester,
@@ -247,6 +239,66 @@ class LaporanKuesioneService
     }
 
     /**
+     * Resolve periode context from periode string. Supports Y-m and descriptive semester formats.
+     */
+    private function resolvePeriodeContext($periode)
+    {
+        $context = [
+            'periode' => $periode,
+            'periodeObj' => null,
+            'year' => null,
+            'month' => null,
+            'semester' => null,
+            'tahunAjaran' => null,
+        ];
+
+        if (!empty($periode)) {
+            if (preg_match('/^(\d{4})-(\d{2})$/', $periode, $matches)) {
+                $context['periodeObj'] = Carbon::createFromFormat('Y-m', $periode);
+                $context['year'] = (int) $matches[1];
+                $context['month'] = (int) $matches[2];
+            } elseif (preg_match('/\b(GANJIL|GENAP)\b/i', $periode, $matches)) {
+                $context['semester'] = strtoupper($matches[1]) === 'GANJIL' ? 1 : 2;
+                $year = null;
+                if (preg_match('/(\d{4})/', $periode, $yearMatch)) {
+                    $year = (int) $yearMatch[1];
+                } elseif (preg_match('/(\d{2})\/(\d{2})/', $periode, $yearMatch)) {
+                    $year = $context['semester'] === 1
+                        ? 2000 + (int) $yearMatch[1]
+                        : 2000 + (int) $yearMatch[2];
+                }
+                if (!$year) {
+                    $year = Carbon::now()->year;
+                }
+                if ($context['semester'] === 1) {
+                    $context['periodeObj'] = Carbon::create($year, 8, 1);
+                } else {
+                    $context['periodeObj'] = Carbon::create($year, 2, 1);
+                }
+            }
+        }
+
+        if (!$context['periodeObj']) {
+            $context['periodeObj'] = Carbon::now();
+        }
+
+        $context['year'] = $context['periodeObj']->year;
+        $context['month'] = $context['periodeObj']->month;
+
+        if (!$context['semester']) {
+            $context['semester'] = $context['month'] <= 6 ? 2 : 1;
+        }
+
+        if (!$context['tahunAjaran']) {
+            $context['tahunAjaran'] = $context['semester'] === 1
+                ? $context['year'] . '/' . ($context['year'] + 1)
+                : ($context['year'] - 1) . '/' . $context['year'];
+        }
+
+        return $context;
+    }
+
+    /**
      * RAG STEP 3: Build Context
      * Build context untuk AI dari data yang sudah diagregasi
      */
@@ -254,9 +306,9 @@ class LaporanKuesioneService
     {
         Log::info("=== RAG STEP 3: Building Context ===");
 
-        $periodeObj = Carbon::createFromFormat('Y-m', $periode);
-        $bulan = $periodeObj->locale('id')->translatedFormat('F');
-        $tahun = $periodeObj->year;
+        $periodeContext = $this->resolvePeriodeContext($periode);
+        $bulan = $periodeContext['periodeObj']->locale('id')->translatedFormat('F');
+        $tahun = $periodeContext['year'];
 
         $context = "=== DATA KUESIONER PERIODE {$bulan} {$tahun} ===\n\n";
 
@@ -417,20 +469,9 @@ class LaporanKuesioneService
     {
         Log::info("=== RAG STEP 4: Augmenting Prompt with Template ===");
 
-        // Parse periode - if it's the new format (ID-TYPE), extract just for logging
-        $bulan = 'Periode Laporan';
-        $tahun = date('Y');
-
-        if (strpos($periode, '-') === false) {
-            // Old format Y-m
-            try {
-                $periodeObj = Carbon::createFromFormat('Y-m', $periode);
-                $bulan = $periodeObj->locale('id')->translatedFormat('F');
-                $tahun = $periodeObj->year;
-            } catch (\Exception $e) {
-                // Keep defaults
-            }
-        }
+        $periodeContext = $this->resolvePeriodeContext($periode);
+        $bulan = $periodeContext['periodeObj']->locale('id')->translatedFormat('F');
+        $tahun = $periodeContext['year'];
 
         $tipeLabel = $tipeLaporan === 'UTS' ? 'Ujian Tengah Semester' : 'Ujian Akhir Semester';
 
@@ -918,9 +959,9 @@ class LaporanKuesioneService
             $aggregatedData = $this->aggregateStatistik($kuesioneList);
 
             // Step 4: Build query for RAG retrieval
-            $periodeObj = Carbon::createFromFormat('Y-m', $periode);
-            $bulan = $periodeObj->locale('id')->translatedFormat('F');
-            $tahun = $periodeObj->year;
+            $periodeContext = $this->resolvePeriodeContext($periode);
+            $bulan = $periodeContext['periodeObj']->locale('id')->translatedFormat('F');
+            $tahun = $periodeContext['year'];
 
             $query = "Analisis kuesioner mahasiswa periode {$bulan} {$tahun}. ";
             $query .= "Berikan insight mendalam tentang kepuasan mahasiswa, ";
@@ -1050,9 +1091,9 @@ class LaporanKuesioneService
      */
     private function buildEnrichedContext($aggregatedData, $ragContext, $ragMetadata, $periode)
     {
-        $periodeObj = Carbon::createFromFormat('Y-m', $periode);
-        $bulan = $periodeObj->locale('id')->translatedFormat('F');
-        $tahun = $periodeObj->year;
+        $periodeContext = $this->resolvePeriodeContext($periode);
+        $bulan = $periodeContext['periodeObj']->locale('id')->translatedFormat('F');
+        $tahun = $periodeContext['year'];
 
         $context = "=== LAPORAN KUESIONER PERIODE {$bulan} {$tahun} ===\n\n";
 
@@ -1149,9 +1190,9 @@ class LaporanKuesioneService
      */
     private function augmentPromptAdvanced($template, $enrichedContext, $periode, $ragMetadata)
     {
-        $periodeObj = Carbon::createFromFormat('Y-m', $periode);
-        $bulan = $periodeObj->locale('id')->translatedFormat('F');
-        $tahun = $periodeObj->year;
+        $periodeContext = $this->resolvePeriodeContext($periode);
+        $bulan = $periodeContext['periodeObj']->locale('id')->translatedFormat('F');
+        $tahun = $periodeContext['year'];
 
         $prompt = "Anda adalah AI Agent expert dalam analisis kuesioner akademik.\n\n";
 
@@ -1517,9 +1558,9 @@ Your output will be converted to Word document, so it must be clean, professiona
      */
     private function buildStructureAwarePrompt($template, $dataContext, $formatContext, $sectionExamples, $periode, $gkmName = null, $gkmProdi = null)
     {
-        $periodeObj = Carbon::createFromFormat('Y-m', $periode);
-        $bulan = $periodeObj->locale('id')->translatedFormat('F');
-        $tahun = $periodeObj->year;
+        $periodeContext = $this->resolvePeriodeContext($periode);
+        $bulan = $periodeContext['periodeObj']->locale('id')->translatedFormat('F');
+        $tahun = $periodeContext['year'];
 
         // Format tanggal untuk kesimpulan (format: 25 Juni 2025)
         $tanggalLaporan = Carbon::now()->locale('id')->translatedFormat('d F Y');
@@ -1775,9 +1816,9 @@ Your output will be converted to Word document, so it must be clean, professiona
         $gkmProdi = $prodi ? $prodi->nama_prodi : '';
 
         // Build Prompt based on Python logic
-        $periodeObj = Carbon::createFromFormat('Y-m', $periode);
-        $bulan = $periodeObj->locale('id')->translatedFormat('F');
-        $tahun = $periodeObj->year;
+        $periodeContext = $this->resolvePeriodeContext($periode);
+        $bulan = $periodeContext['periodeObj']->locale('id')->translatedFormat('F');
+        $tahun = $periodeContext['year'];
         $tanggal = Carbon::now()->locale('id')->translatedFormat('d F Y');
 
         // Extract real semester and tahun akademik from kuesioner periode string

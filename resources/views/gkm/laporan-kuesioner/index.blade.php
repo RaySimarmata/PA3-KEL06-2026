@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('page-title', 'Laporan Kuesioner Bulanan')
+@section('page-title', 'Laporan Kuesioner')
 
 @section('content')
     <div style="padding: 1.5rem;">
@@ -44,7 +44,7 @@
         <!-- Monitoring Table -->
         <div class="monitoring-card">
             <div class="monitoring-header">
-                <h6>Laporan Kuesioner Bulanan</h6>
+                <h6>Laporan Kuesioner</h6>
                 <div style="margin-left: auto; display: flex; gap: 0.5rem;">
                     <a href="{{ route('gkm.laporan-kuesioner.template.index') }}" 
                        class="btn btn-sm btn-success" 
