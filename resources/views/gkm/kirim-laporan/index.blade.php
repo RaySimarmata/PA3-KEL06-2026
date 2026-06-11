@@ -58,6 +58,8 @@
             </div>
         @endif
 
+        <div id="ajaxAlert"></div>
+
         <!-- Header Card -->
         <div class="filter-card mb-4">
             <div class="d-flex align-items-start justify-content-between gap-3">
@@ -66,11 +68,11 @@
                     <p class="text-muted mb-0" style="font-size: 0.875rem;">Kelola dan kirim pesan pengingat kepada penerima
                         terkait laporan.</p>
                 </div>
-                <div>
+                {{-- <div>
                     <a href="{{ route('gkm.kirim-laporan.history') }}" class="btn btn-primary">
                         <i class="bi bi-clock-history"></i> Riwayat Pengiriman
                     </a>
-                </div>
+                </div> --}}
             </div>
         </div>
 
@@ -563,15 +565,16 @@
                         generateBtn.disabled = false;
                         generateBtn.innerHTML = originalBtnHtml;
                         showToast('success', 'Pesan berhasil di-generate oleh AI Agent!');
+                        showAlert('success', 'Pesan berhasil di-generate oleh AI Agent!');
                     } else {
                         throw new Error(data.message || 'Gagal generate pesan');
                     }
                 })
                 .catch(error => {
                     console.error('Error:', error);
-                    showToast('danger',
-                        `<strong>Error!</strong> ${error.message}<br><small>Pastikan AI Agent aktif dan konfigurasi LLM sudah benar di .env.</small>`
-                    );
+                    const errorText = `<strong>Error!</strong> ${error.message}<br><small>Pastikan AI Agent aktif dan konfigurasi LLM sudah benar di .env.</small>`;
+                    showToast('danger', errorText);
+                    showAlert('danger', errorText);
                     messageTextarea.value = originalValue;
                     messageTextarea.disabled = false;
                     generateBtn.disabled = false;
@@ -682,12 +685,15 @@
                     .then(data => {
                         if (data.success) {
                             showToast('success', 'Reminder berhasil dikirim!', true);
+                            showAlert('success', 'Reminder berhasil dikirim!');
                         } else {
                             throw new Error(data.message || 'Gagal mengirim reminder');
                         }
                     })
                     .catch(error => {
-                        showToast('danger', 'Error: ' + error.message);
+                        const errorText = 'Error: ' + error.message;
+                        showToast('danger', errorText);
+                        showAlert('danger', errorText);
                         sendBtn.disabled = false;
                         sendBtn.innerHTML = '<i class="bi bi-send"></i> Kirim Reminder';
                     });
@@ -695,6 +701,19 @@
         }
 
         // ---- Toast helper ----
+        function showAlert(type, html) {
+            const alertContainer = document.getElementById('ajaxAlert');
+            if (!alertContainer) return;
+
+            alertContainer.innerHTML = `
+                <div class="alert-app ${type} mb-3" data-auto-dismiss>
+                    <i class="bi ${type === 'success' ? 'bi-check-circle-fill' : 'bi-exclamation-triangle-fill'} alert-app-icon"></i>
+                    <div class="alert-app-body">${html}</div>
+                </div>
+            `;
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
         function showToast(type, html, reload) {
             document.querySelectorAll('.kirim-toast').forEach(t => t.remove());
 

@@ -220,11 +220,21 @@ class KuesioneWordGenerationService
     /**
      * Extract placeholder values from hasil_laporan JSON
      * Maps AI results to template placeholder names
+     * HANDLES TWO FORMATS:
+     * 1. AI-generated format: PENDAHULUAN_TUJUAN, HASIL_KUESIONER_TINGKAT_I, etc.
+     * 2. Complex format: ringkasan_eksekutif, statistik_utama, analisis_per_kuesioner, etc.
      */
     private function extractPlaceholdersFromLaporan($laporan)
     {
         $placeholders = [];
         $hasilLaporan = $laporan->hasil_laporan ?? [];
+
+        Log::info('Starting placeholder extraction', [
+            'laporan_id' => $laporan->id,
+            'hasil_laporan_keys' => array_keys($hasilLaporan),
+            'has_ai_format' => isset($hasilLaporan['PENDAHULUAN_TUJUAN']),
+            'has_complex_format' => isset($hasilLaporan['ringkasan_eksekutif'])
+        ]);
 
         $periodeContext = $this->resolveLaporanPeriodeContext($laporan);
         $periodeObj = $periodeContext['periodeObj'];
@@ -254,6 +264,47 @@ class KuesioneWordGenerationService
         // Use the 10th day of the month after periode for TANGGAL
         $reportDate = $periodeContext['reportDate'];
         $placeholders['TANGGAL'] = $reportDate->locale('id')->translatedFormat('d F Y');
+
+        // =================================================================
+        // HANDLE AI-GENERATED FORMAT (from generateLaporanWithPlaceholders)
+        // =================================================================
+        if (isset($hasilLaporan['PENDAHULUAN_TUJUAN']) || isset($hasilLaporan['HASIL_KUESIONER_TINGKAT_I'])) {
+            Log::info('Using AI-generated format for placeholders');
+            
+            // Directly use AI-generated content for Pendahuluan section
+            $placeholders['PENDAHULUAN_TUJUAN'] = $hasilLaporan['PENDAHULUAN_TUJUAN'] ?? $this->generatePendahuluanTujuan($laporan);
+            $placeholders['PENDAHULUAN_WAKTU'] = $hasilLaporan['PENDAHULUAN_WAKTU'] ?? $this->generatePendahuluanWaktu($laporan);
+            $placeholders['PENDAHULUAN_RUANG_LINGKUP'] = $hasilLaporan['PENDAHULUAN_RUANG_LINGKUP'] ?? $this->generatePendahuluanRuangLingkup($laporan);
+
+            // Use AI-generated hasil kuesioner per tingkat
+            for ($tingkat = 1; $tingkat <= 4; $tingkat++) {
+                $hasilKey = "HASIL_KUESIONER_TINGKAT_" . ($tingkat == 1 ? "I" : ($tingkat == 2 ? "II" : ($tingkat == 3 ? "III" : "IV")));
+                $masukanKey = "MASUKAN_SARAN_TINGKAT_" . ($tingkat == 1 ? "I" : ($tingkat == 2 ? "II" : ($tingkat == 3 ? "III" : "IV")));
+                
+                if (isset($hasilLaporan[$hasilKey])) {
+                    $placeholders[$hasilKey] = $hasilLaporan[$hasilKey];
+                }
+                if (isset($hasilLaporan[$masukanKey])) {
+                    $placeholders[$masukanKey] = $hasilLaporan[$masukanKey];
+                }
+            }
+
+            // Kesimpulan
+            $placeholders['KESIMPULAN'] = $hasilLaporan['KESIMPULAN'] ?? $this->generateKesimpulanFromDatabase($laporan, $hasilLaporan);
+            $placeholders['SARAN_REKOMENDASI'] = $hasilLaporan['SARAN_REKOMENDASI'] ?? '';
+
+            Log::info('AI-generated format placeholders extracted', [
+                'total_placeholders' => count($placeholders),
+                'has_tingkat_i' => isset($placeholders['HASIL_KUESIONER_TINGKAT_I'])
+            ]);
+
+            return $placeholders;
+        }
+
+        // =================================================================
+        // FALLBACK: Complex format with ringkasan_eksekutif, etc.
+        // =================================================================
+        Log::info('Using complex format for placeholders');
 
         // Pendahuluan Section
         $placeholders['PENDAHULUAN_TUJUAN'] = $this->generatePendahuluanTujuan($laporan);
@@ -325,6 +376,10 @@ class KuesioneWordGenerationService
 
         // Generate Hasil Kuesioner per Tingkat based on database data
         $this->generateHasilKuesionePerTingkat($placeholders, $hasilLaporan, $laporan);
+
+        Log::info('Complex format placeholders extracted', [
+            'total_placeholders' => count($placeholders)
+        ]);
 
         return $placeholders;
     }

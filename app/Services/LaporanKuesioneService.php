@@ -6,6 +6,7 @@ use App\Models\KuesioneUpload;
 use App\Models\LaporanBulanan;
 use App\Models\TemplateLaporan;
 use App\Models\DocumentChunk;
+use App\Models\PeriodeAkademik;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
@@ -39,7 +40,7 @@ class LaporanKuesioneService
      * RAG STEP 1: Collect Kuesioner Data (Retrieve)
      * Ambil semua kuesioner completed dalam periode tertentu
      */
-    public function collectKuesioneData($periode, $prodiId = null)
+    public function collectKuesioneData($periode, $prodiId = null, $tipeLaporan = 'UTS')
     {
         Log::info("=== RAG STEP 1: Collecting Kuesioner Data ===", [
             'periode' => $periode,
@@ -82,6 +83,11 @@ class LaporanKuesioneService
             Log::warning("Semester column empty or doesn't exist, skipping semester filter");
         }
 
+        if (!empty($tipeLaporan) && \Schema::hasColumn('kuesioner_uploads', 'jenis_kuesioner')) {
+            Log::info("Filtering by jenis_kuesioner", ['tipe_laporan' => $tipeLaporan]);
+            $query->whereRaw('LOWER(TRIM(jenis_kuesioner)) = ?', [strtolower(trim($tipeLaporan))]);
+        }
+
         // Get results - don't require hasil_analisis to be not null
         // We'll use raw data if hasil_analisis is not available
         $results = $query->orderBy('created_at', 'desc')->get();
@@ -109,6 +115,9 @@ class LaporanKuesioneService
                 $query->whereHas('user', function ($uq) use ($prodiId) {
                     $uq->where('prodi_id', $prodiId);
                 });
+            }
+            if (!empty($tipeLaporan) && \Schema::hasColumn('kuesioner_uploads', 'jenis_kuesioner')) {
+                $query->whereRaw('LOWER(TRIM(jenis_kuesioner)) = ?', [strtolower(trim($tipeLaporan))]);
             }
             $results = $query->orderBy('created_at', 'desc')->limit(20)->get();
         }
@@ -187,7 +196,7 @@ class LaporanKuesioneService
         $aggregatedData = [
             'total_kuesioner' => $totalKuesioner,
             'total_responden' => $totalResponden,
-            'index_kepuasan_rata_rata' => round($indexKepuasanRataRata, 2),
+            'index_kepuasan_rata_rata' => round($indexKepuasanRataRata, 4),
             'persen_kepuasan_rata_rata' => round($persenKepuasanRataRata, 2),
             'kuesioner_data' => $kuesioneData,
             'top_5_tertinggi' => $top5Tertinggi,
@@ -253,6 +262,26 @@ class LaporanKuesioneService
         ];
 
         if (!empty($periode)) {
+            if (strpos($periode, '-') !== false) {
+                $parts = explode('-', $periode);
+                if (count($parts) === 2 && is_numeric($parts[0]) && in_array(strtoupper($parts[1]), ['UTS', 'UAS'])) {
+                    $periodeAkademik = PeriodeAkademik::find((int) $parts[0]);
+                    if ($periodeAkademik) {
+                        $context['semester'] = $periodeAkademik->semester;
+                        $context['tahunAjaran'] = $periodeAkademik->tahun_ajaran;
+                        if ($context['semester'] === 1) {
+                            $yearParts = explode('/', $context['tahunAjaran']);
+                            $year = (int) $yearParts[0];
+                            $context['periodeObj'] = Carbon::create($year, 8, 1);
+                        } else {
+                            $yearParts = explode('/', $context['tahunAjaran']);
+                            $year = count($yearParts) === 2 ? (int) $yearParts[1] : Carbon::now()->year;
+                            $context['periodeObj'] = Carbon::create($year, 2, 1);
+                        }
+                    }
+                }
+            }
+
             if (preg_match('/^(\d{4})-(\d{2})$/', $periode, $matches)) {
                 $context['periodeObj'] = Carbon::createFromFormat('Y-m', $periode);
                 $context['year'] = (int) $matches[1];
@@ -302,7 +331,7 @@ class LaporanKuesioneService
      * RAG STEP 3: Build Context
      * Build context untuk AI dari data yang sudah diagregasi
      */
-    public function buildContext($aggregatedData, $periode, $prodi = null)
+    public function buildContext($aggregatedData, $periode, $prodi = null, $tipeLaporan = 'UTS')
     {
         Log::info("=== RAG STEP 3: Building Context ===");
 
@@ -314,6 +343,10 @@ class LaporanKuesioneService
 
         if ($prodi) {
             $context .= "Program Studi: {$prodi->nama_prodi}\n\n";
+        }
+
+        if (!empty($tipeLaporan)) {
+            $context .= "Jenis Laporan: {$tipeLaporan}\n\n";
         }
 
         $context .= "RINGKASAN STATISTIK:\n";
@@ -361,7 +394,7 @@ class LaporanKuesioneService
                 $totalIndex += $k['index_kepuasan'];
             }
             $avgIndex = count($kuesioneList) > 0 ? $totalIndex / count($kuesioneList) : 0;
-            $context .= "Rata-rata Index Kepuasan Tingkat {$tingkat}: " . round($avgIndex, 10) . "\n\n";
+            $context .= "Rata-rata Index Kepuasan Tingkat {$tingkat}: " . number_format(round($avgIndex, 4), 4, '.', '') . "\n\n";
 
             $context .= "Tabel Matakuliah Tingkat {$tingkat}:\n";
             $context .= "| Kode Matakuliah | Nama Matakuliah | Dosen Pengampu | Indeks Kepuasan |\n";
@@ -383,9 +416,9 @@ class LaporanKuesioneService
                 $kodeMk = $group['kode_matakuliah'];
                 $namaMk = $group['nama_matakuliah'];
                 $dosenPengampu = !empty($dosenSet) ? implode(', ', $dosenSet) : '-';
-                $avgIndexPerMatakuliah = $entryCount > 0 ? round($totalMatakuliahIndex / $entryCount, 10) : 0;
+                $avgIndexPerMatakuliah = $entryCount > 0 ? round($totalMatakuliahIndex / $entryCount, 4) : 0;
 
-                $context .= "| {$kodeMk} | {$namaMk} | {$dosenPengampu} | {$avgIndexPerMatakuliah} |\n";
+                $context .= "| {$kodeMk} | {$namaMk} | {$dosenPengampu} | " . number_format($avgIndexPerMatakuliah, 4, '.', '') . " |\n";
             }
 
             $context .= "\nMasukan/Saran untuk Tingkat {$tingkat}:\n";
@@ -445,12 +478,12 @@ class LaporanKuesioneService
         $context .= "TOP 5 KUESIONER TERTINGGI:\n";
 
         foreach ($aggregatedData['top_5_tertinggi'] as $idx => $kuesioner) {
-            $context .= ($idx + 1) . ". {$kuesioner['nama']} - Index: {$kuesioner['index_kepuasan']}\n";
+            $context .= ($idx + 1) . ". {$kuesioner['nama']} - Index: " . number_format($kuesioner['index_kepuasan'], 4, '.', '') . "\n";
         }
 
         $context .= "\nTOP 5 KUESIONER TERENDAH:\n";
         foreach ($aggregatedData['top_5_terendah'] as $idx => $kuesioner) {
-            $context .= ($idx + 1) . ". {$kuesioner['nama']} - Index: {$kuesioner['index_kepuasan']}\n";
+            $context .= ($idx + 1) . ". {$kuesioner['nama']} - Index: " . number_format($kuesioner['index_kepuasan'], 4, '.', '') . "\n";
         }
 
         $context .= "\n=== DATA UNTUK KESIMPULAN ===\n";
@@ -571,7 +604,7 @@ class LaporanKuesioneService
             ]);
 
             // Step 1: Collect Data
-            $kuesioneList = $this->collectKuesioneData($periode, $prodiId);
+            $kuesioneList = $this->collectKuesioneData($periode, $prodiId, $tipeLaporan);
 
             if ($kuesioneList->isEmpty()) {
                 throw new \Exception('Tidak ada kuesioner completed untuk periode ini');
@@ -584,7 +617,7 @@ class LaporanKuesioneService
             $prodi = $prodiId ? \App\Models\Prodi::find($prodiId) : null;
 
             // Step 3: Build Context
-            $context = $this->buildContext($aggregatedData, $periode, $prodi);
+            $context = $this->buildContext($aggregatedData, $periode, $prodi, $tipeLaporan);
 
             // Get template
             $template = $templateId ? TemplateLaporan::find($templateId) : null;
@@ -924,7 +957,7 @@ class LaporanKuesioneService
     /**
      * Generate laporan using Advanced RAG with Vector Database
      */
-    public function generateLaporanAdvanced($periode, $prodiId = null, $templateId = null)
+    public function generateLaporanAdvanced($periode, $prodiId = null, $templateId = null, $tipeLaporan = 'UTS')
     {
         try {
             Log::info("=== Starting ADVANCED RAG Laporan Generation ===", [
@@ -949,7 +982,7 @@ class LaporanKuesioneService
             $this->ensureKuesioneIndexed($periode, $prodiId, $vectorDbService);
 
             // Step 2: Collect basic data (for statistics)
-            $kuesioneList = $this->collectKuesioneData($periode, $prodiId);
+            $kuesioneList = $this->collectKuesioneData($periode, $prodiId, $tipeLaporan);
 
             if ($kuesioneList->isEmpty()) {
                 throw new \Exception('Tidak ada kuesioner completed untuk periode ini');
@@ -1133,7 +1166,7 @@ class LaporanKuesioneService
                 $totalIndex += $k['index_kepuasan'];
             }
             $avgIndex = count($kuesioneList) > 0 ? $totalIndex / count($kuesioneList) : 0;
-            $context .= "Rata-rata Index Kepuasan Tingkat {$tingkat}: " . round($avgIndex, 10) . "\n\n";
+            $context .= "Rata-rata Index Kepuasan Tingkat {$tingkat}: " . number_format(round($avgIndex, 4), 4, '.', '') . "\n\n";
 
             $context .= "Tabel Matakuliah Tingkat {$tingkat}:\n";
             $context .= "| Kode Matakuliah | Nama Matakuliah | Dosen Pengampu | Indeks Kepuasan |\n";
@@ -1145,7 +1178,7 @@ class LaporanKuesioneService
                 $dosenPengampu = $kuesioner['dosen_pengampu'] ?? '-';
                 $indexKepuasan = $kuesioner['index_kepuasan'] ?? 0;
 
-                $context .= "| {$kodeMk} | {$namaMk} | {$dosenPengampu} | {$indexKepuasan} |\n";
+                $context .= "| {$kodeMk} | {$namaMk} | {$dosenPengampu} | " . number_format($indexKepuasan, 4, '.', '') . " |\n";
             }
 
             $context .= "\nMasukan/Saran untuk Tingkat {$tingkat}:\n";
@@ -1368,7 +1401,7 @@ class LaporanKuesioneService
      * Generate laporan dengan template structure-aware
      * Returns the generated content and metadata, not a new LaporanBulanan record
      */
-    public function generateLaporanWithTemplateStructure($periode, $prodiId = null, $templateId = null)
+    public function generateLaporanWithTemplateStructure($periode, $prodiId = null, $templateId = null, $tipeLaporan = 'UTS')
     {
         Log::info("=== Generate Laporan with Template Structure ===", [
             'periode' => $periode,
@@ -1395,7 +1428,7 @@ class LaporanKuesioneService
         }
 
         // 3. Collect kuesioner data
-        $kuesioneList = $this->collectKuesioneData($periode, $prodiId);
+        $kuesioneList = $this->collectKuesioneData($periode, $prodiId, $tipeLaporan);
 
         if ($kuesioneList->isEmpty()) {
             throw new \Exception('Tidak ada kuesioner completed untuk periode ini');
@@ -1432,7 +1465,7 @@ class LaporanKuesioneService
 
         // 5. Build enriched context
         $prodi = $prodiId ? \App\Models\Prodi::find($prodiId) : null;
-        $context = $this->buildContext($aggregatedData, $periode, $prodi);
+        $context = $this->buildContext($aggregatedData, $periode, $prodi, $tipeLaporan);
 
         // Get current user (GKM)
         $user = auth()->user();
@@ -1779,7 +1812,7 @@ Your output will be converted to Word document, so it must be clean, professiona
     /**
      * Generate laporan dengan placeholder sesuai format template DOCX (dari main.py python)
      */
-    public function generateLaporanWithPlaceholders($periode, $prodiId = null, $templateId = null)
+    public function generateLaporanWithPlaceholders($periode, $prodiId = null, $templateId = null, $tipeLaporan = 'UTS')
     {
         Log::info("=== Generate Laporan with Placeholders ===", [
             'periode' => $periode,
@@ -1799,7 +1832,7 @@ Your output will be converted to Word document, so it must be clean, professiona
         }
 
         // 2. Collect kuesioner data
-        $kuesioneList = $this->collectKuesioneData($periode, $prodiId);
+        $kuesioneList = $this->collectKuesioneData($periode, $prodiId, $tipeLaporan);
 
         if ($kuesioneList->isEmpty()) {
             throw new \Exception('Tidak ada kuesioner completed untuk periode ini');
@@ -1808,7 +1841,7 @@ Your output will be converted to Word document, so it must be clean, professiona
         $aggregatedData = $this->aggregateStatistik($kuesioneList);
 
         $prodi = $prodiId ? \App\Models\Prodi::find($prodiId) : null;
-        $context = $this->buildContext($aggregatedData, $periode, $prodi);
+        $context = $this->buildContext($aggregatedData, $periode, $prodi, $tipeLaporan);
 
         // Get current user (GKM)
         $user = auth()->user();
@@ -1817,7 +1850,8 @@ Your output will be converted to Word document, so it must be clean, professiona
 
         // Build Prompt based on Python logic
         $periodeContext = $this->resolvePeriodeContext($periode);
-        $bulan = $periodeContext['periodeObj']->locale('id')->translatedFormat('F');
+        $periodeObj = $periodeContext['periodeObj'];
+        $bulan = $periodeObj->locale('id')->translatedFormat('F');
         $tahun = $periodeContext['year'];
         $tanggal = Carbon::now()->locale('id')->translatedFormat('d F Y');
 
@@ -1835,6 +1869,12 @@ Your output will be converted to Word document, so it must be clean, professiona
         $prompt .= "Tulis dengan gaya formal Indonesia, berdasarkan data hasil kuesioner mahasiswa.\n\n";
 
         $prompt .= "KONTEKS DOKUMEN:\n" . substr($context, 0, 10000) . "\n\n";
+
+        // Include template contoh_konten if available so AI follows draft template
+        if ($template && !empty($template->contoh_konten)) {
+            $prompt .= "TEMPLATE REFERENSI (Gunakan struktur dan label placeholder yang ada di template ini saat mengisi dokumen):\n";
+            $prompt .= substr($template->contoh_konten, 0, 8000) . "\n\n";
+        }
 
         $prompt .= "TUGAS:\n";
         $prompt .= "Hasilkan konten laporan dalam format JSON dengan kunci-kunci berikut SESUAI TEMPLATE:\n\n";

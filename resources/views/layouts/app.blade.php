@@ -652,7 +652,7 @@
                             <div class="dropdown-submenu">
                                 <a href="{{ route('gkm.reminder-agent.index') }}"
                                     class="nav-item {{ request()->routeIs('gkm.reminder-agent.index') ? 'active' : '' }}">
-                                    <i class="bi bi-file-earmark-text menu-icon"></i>
+                                    <i class="bi bi-bell"></i>
                                     <span class="menu-text">Jadwal Reminder</span>
                                 </a>
                                 <a href="{{ route('gkm.reminder-agent.log') }}"
@@ -663,29 +663,29 @@
                             </div>
                         </div>
 
-                        <a href="{{ route('gkm.kirim-laporan.index') }}"
+                        {{-- <a href="{{ route('gkm.kirim-laporan.index') }}"
                             class="nav-item {{ request()->routeIs('gkm.kirim-laporan.*') ? 'active' : '' }}">
                             <span><i class="bi bi-send"></i> Kirim Laporan</span>
-                        </a>
+                        </a> --}}
                         <!-- Reminder Agent -->
                         <div
-                            class="nav-dropdown {{ request()->routeIs('gkm.reminder-agent.*') ? 'open' : '' }}">
+                            class="nav-dropdown {{ request()->routeIs('gkm.kirim-laporan.*') ? 'open' : '' }}">
                             <a href="javascript:void(0)"
-                                class="nav-item {{ request()->routeIs('gkm.reminder-agent.*') ? 'active' : '' }}"
+                                class="nav-item {{ request()->routeIs('gkm.kirim-laporan.*') ? 'active' : '' }}"
                                 onclick="toggleDropdown(this)">
-                                <span><i class="bi bi-bell"></i> Reminder Agent</span>
+                                <span><i class="bi bi-send"></i> Kirim Laporan</span>
                                 <i class="bi bi-chevron-down dropdown-icon"></i>
                             </a>
                             <div class="dropdown-submenu">
-                                <a href="{{ route('gkm.reminder-agent.index') }}"
-                                    class="nav-item {{ request()->routeIs('gkm.reminder-agent.index') ? 'active' : '' }}">
-                                    <i class="bi bi-file-earmark-text menu-icon"></i>
-                                    <span class="menu-text">Jadwal Reminder</span>
+                                <a href="{{ route('gkm.kirim-laporan.index') }}"
+                                    class="nav-item {{ request()->routeIs('gkm.kirim-laporan.index') ? 'active' : '' }}">
+                                    <i class="bi bi-send"></i>
+                                    <span class="menu-text">Kirim Laporan</span>
                                 </a>
-                                <a href="{{ route('gkm.reminder-agent.log') }}"
-                                    class="nav-item {{ request()->routeIs('gkm.reminder-agent.log') ? 'active' : '' }}">
-                                    <i class="bi bi-file-earmark-text menu-icon"></i>
-                                    <span class="menu-text">Log Reminder</span>
+                                <a href="{{ route('gkm.kirim-laporan.history') }}"
+                                    class="nav-item {{ request()->routeIs('gkm.kirim-laporan.history') ? 'active' : '' }}">
+                                    <i class="bi bi-send"></i>
+                                    <span class="menu-text">History Kirim Laporan</span>
                                 </a>
                             </div>
                         </div>

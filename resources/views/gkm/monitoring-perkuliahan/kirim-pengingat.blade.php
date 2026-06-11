@@ -55,13 +55,13 @@
                                value="{{ request('search') }}">
                     </div>
                     <!-- Tombol Pilih Semua: biru solid (btn-primary) -->
-                    <button type="button" class="btn btn-sm btn-primary" onclick="selectAll()">
+                    {{-- <button type="button" class="btn btn-sm btn-primary" onclick="selectAll()">
                          Pilih Semua
                     </button>
                     <!-- Tombol Batal Pilih: merah solid (btn-danger) -->
                     <button type="button" class="btn btn-sm btn-danger" onclick="deselectAll()">
                         Batal Pilih
-                    </button>
+                    </button> --}}
                 </div>
 
                 
