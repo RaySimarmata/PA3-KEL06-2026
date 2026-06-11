@@ -1,5 +1,11 @@
 /* GJM Global Styles - Following GKM Pattern */
 
+/* CSS Variables */
+:root {
+    --primary-color: #1e3c72;
+    --secondary-color: #2a5298;
+}
+
 /* Body & Background */
 body {
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -107,7 +113,7 @@ small,
 
 .monitoring-header i,
 .content-header i {
-    color: #5B9BD5;
+    color: var(--primary-color);
     font-size: 1.25rem;
 }
 
@@ -193,6 +199,32 @@ small,
 /* Button Styles */
 .btn-reminder,
 .btn-action-primary {
+    background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+    color: white;
+    border: none;
+    padding: 0.625rem 1.5rem;
+    border-radius: 6px;
+    font-weight: 600;
+    font-size: 0.875rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 8px rgba(30, 60, 114, 0.2);
+    text-decoration: none;
+}
+
+.btn-reminder:hover,
+.btn-action-primary:hover {
+    background: linear-gradient(135deg, #1a3461 0%, #234785 100%);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(30, 60, 114, 0.3);
+    color: white;
+}
+
+/* Tombol Generate / Add New — tetap biru muda */
+.btn-generate {
     background: #5B9BD5;
     color: white;
     border: none;
@@ -209,11 +241,15 @@ small,
     text-decoration: none;
 }
 
-.btn-reminder:hover,
-.btn-action-primary:hover {
+.btn-generate:hover {
     background: #4A8BC2;
     transform: translateY(-1px);
     box-shadow: 0 4px 12px rgba(91, 155, 213, 0.3);
+    color: white;
+}
+
+.btn-generate i {
+    font-size: 1rem;
     color: white;
 }
 
@@ -288,8 +324,8 @@ small,
 
 .form-select:focus,
 .form-control:focus {
-    border-color: #5B9BD5;
-    box-shadow: 0 0 0 0.2rem rgba(91, 155, 213, 0.15);
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 0.2rem rgba(30, 60, 114, 0.15);
     outline: none;
 }
 
@@ -315,25 +351,25 @@ textarea.form-control {
 }
 
 .btn-primary {
-    background: #5B9BD5;
+    background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
     border: none;
     color: white;
 }
 
 .btn-primary:hover {
-    background: #4A8BC2;
+    background: linear-gradient(135deg, #1a3461 0%, #234785 100%);
     transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(91, 155, 213, 0.3);
+    box-shadow: 0 4px 12px rgba(30, 60, 114, 0.3);
 }
 
 .btn-outline-primary {
-    border-color: #5B9BD5;
-    color: #5B9BD5;
+    border-color: var(--primary-color);
+    color: var(--primary-color);
 }
 
 .btn-outline-primary:hover {
-    background: #5B9BD5;
-    border-color: #5B9BD5;
+    background: var(--primary-color);
+    border-color: var(--primary-color);
     color: white;
 }
 
@@ -481,13 +517,13 @@ textarea.form-control {
 
 .pagination .page-link:hover {
     background-color: #f8f9fa;
-    border-color: #5B9BD5;
-    color: #5B9BD5;
+    border-color: var(--primary-color);
+    color: var(--primary-color);
 }
 
 .pagination .page-item.active .page-link {
-    background-color: #5B9BD5;
-    border-color: #5B9BD5;
+    background-color: var(--primary-color);
+    border-color: var(--primary-color);
 }
 
 /* Utility Classes */
@@ -566,13 +602,13 @@ textarea.form-control {
 
 /* Link Styles */
 a {
-    color: #5B9BD5;
+    color: var(--primary-color);
     text-decoration: none;
     transition: color 0.3s ease;
 }
 
 a:hover {
-    color: #4A8BC2;
+    color: var(--secondary-color);
 }
 
 /* Progress Bar */
@@ -584,14 +620,14 @@ a:hover {
 }
 
 .progress-gjm .progress-bar {
-    background-color: #5B9BD5;
+    background-color: var(--primary-color);
     transition: width 0.6s ease;
 }
 
 /* Loading Spinner */
 .spinner-gjm {
     border: 3px solid #f3f3f3;
-    border-top: 3px solid #5B9BD5;
+    border-top: 3px solid var(--primary-color);
     border-radius: 50%;
     width: 40px;
     height: 40px;

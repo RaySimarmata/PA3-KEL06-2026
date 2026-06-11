@@ -454,6 +454,42 @@ class LaporanVMTSController extends Controller
                     continue;
                 }
 
+                // Heading 4 (#### ) — bold italic, size 11
+                if (preg_match('/^####\s+(.+)$/', $line, $matches)) {
+                    $text = $this->sanitizeTextForWord($matches[1]);
+                    if (!empty($text)) {
+                        $section->addText($text, [
+                            'bold'   => true,
+                            'italic' => true,
+                            'size'   => 11,
+                            'name'   => 'Arial',
+                            'color'  => '2E4C7E',
+                        ], [
+                            'spaceAfter'  => 60,
+                            'spaceBefore' => 80,
+                        ]);
+                    }
+                    $inList = false;
+                    continue;
+                }
+
+                // Heading 5+ (##### and beyond) — treated as bold paragraph
+                if (preg_match('/^#{5,}\s+(.+)$/', $line, $matches)) {
+                    $text = $this->sanitizeTextForWord($matches[1]);
+                    if (!empty($text)) {
+                        $section->addText($text, [
+                            'bold' => true,
+                            'size' => 11,
+                            'name' => 'Arial',
+                        ], [
+                            'spaceAfter'  => 60,
+                            'spaceBefore' => 60,
+                        ]);
+                    }
+                    $inList = false;
+                    continue;
+                }
+
                 // Bullet list (- or *)
                 if (preg_match('/^[\-\*]\s+(.+)$/', $line, $matches)) {
                     $text = $this->sanitizeTextForWord($matches[1]);
@@ -841,6 +877,9 @@ class LaporanVMTSController extends Controller
         
         // Remove null bytes first
         $content = str_replace("\0", '', $content);
+        
+        // Normalize heading levels: ##### and beyond → ####, so parser handles them
+        $content = preg_replace('/^#{5,}\s+/m', '#### ', $content);
         
         // Remove HTML tags
         $content = strip_tags($content);
@@ -1514,17 +1553,19 @@ class LaporanVMTSController extends Controller
         $prompt .= "# III. Hasil Analisis Deskriptif\n\n";
         
         $prompt .= "## 1. Gambaran Umum Responden\n";
-        $prompt .= "WAJIB buat tabel Markdown seperti ini (gunakan data AKTUAL dari Excel):\n\n";
+        $prompt .= "WAJIB buat tabel Markdown dengan kolom: Unit | Jumlah Responden | Rentang Skala | Catatan\n";
+        $prompt .= "FORMAT TABEL:\n";
         $prompt .= "| Unit | Jumlah Responden | Rentang Skala | Catatan |\n";
-        $prompt .= "|------|------------------|---------------|----------|\n";
-        $prompt .= "| Fakultas Vokasi | [hitung dari data] | 1-6 | Data agregat keseluruhan |\n";
-        $prompt .= "| Perguruan Tinggi | [hitung dari data] | 1-6 | [keterangan] |\n";
-        $prompt .= "| Program Studi D4 TRPL | [hitung dari data] | 1-6 | [keterangan] |\n";
-        $prompt .= "| Program Studi D3 TI | [hitung dari data] | 1-6 | [keterangan] |\n";
-        $prompt .= "| Program Studi D3 TK | [hitung dari data] | 1-6 | [keterangan] |\n\n";
+        $prompt .= "|------|------------------|---------------|----------|\n\n";
+        $prompt .= "INSTRUKSI PENGISIAN:\n";
+        $prompt .= "- Isi kolom 'Unit' dengan nama sheet/unit yang tersedia di data Excel\n";
+        $prompt .= "- Isi kolom 'Jumlah Responden' dengan angka AKTUAL yang kamu hitung dari baris data tiap sheet\n";
+        $prompt .= "- Isi kolom 'Rentang Skala' dengan rentang skala yang digunakan (contoh: 1-6)\n";
+        $prompt .= "- Isi kolom 'Catatan' dengan keterangan relevan berdasarkan data\n";
+        $prompt .= "- JANGAN menuliskan placeholder seperti [hitung dari data] atau [keterangan] — isi dengan nilai nyata\n\n";
         
         $prompt .= "CARA MENGHITUNG:\n";
-        $prompt .= "- Hitung jumlah responden di setiap sheet Excel\n";
+        $prompt .= "- Hitung jumlah baris data (bukan baris header) di setiap sheet Excel\n";
         $prompt .= "- Sheet 'Fakultas Vokasi' = jumlah responden Fakultas Vokasi\n";
         $prompt .= "- Sheet 'Perguruan Tinggi' = jumlah responden Perguruan Tinggi\n";
         $prompt .= "- Sheet 'Program Studi D4 TRPL' = jumlah responden D4 TRPL\n";
@@ -1532,7 +1573,7 @@ class LaporanVMTSController extends Controller
         $prompt .= "- Sheet 'Program Studi D3 Teknologi Komputer' = jumlah responden D3 TK\n\n";
         
         $prompt .= "## 2. Analisis Per Butir Pertanyaan\n";
-        $prompt .= "Dari data Excel, identifikasi pertanyaan-pertanyaan survei (biasanya di baris pertama).\n";
+        $prompt .= "Dari data Excel, identifikasi pertanyaan-pertanyaan survei (biasanya di baris pertama/header).\n";
         $prompt .= "Untuk setiap pertanyaan, analisis distribusi jawaban dari semua responden.\n\n";
         
         $prompt .= "CONTOH PERTANYAAN YANG MUNGKIN ADA:\n";
@@ -1546,13 +1587,16 @@ class LaporanVMTSController extends Controller
         $prompt .= "- Dukungan terhadap kompetensi\n";
         $prompt .= "- Kebutuhan perbaikan\n\n";
         
-        $prompt .= "BUAT TABEL ANALISIS seperti ini (gunakan data AKTUAL):\n\n";
+        $prompt .= "BUAT TABEL ANALISIS dengan kolom: No | Aspek yang Dinilai | (satu kolom per unit) | Interpretasi\n";
+        $prompt .= "FORMAT TABEL:\n";
         $prompt .= "| No | Aspek yang Dinilai | Fak. Vokasi | Perg. Tinggi | D4 TRPL | D3 TI | D3 TK | Interpretasi |\n";
-        $prompt .= "|----|--------------------|-----------|--------------|---------|---------|---------|--------------|\n";
-        $prompt .= "| 1 | Status Responden | [distribusi] | [distribusi] | [distribusi] | [distribusi] | [distribusi] | [analisis] |\n";
-        $prompt .= "| 2 | Lama Mengenal IT Del | [distribusi] | [distribusi] | [distribusi] | [distribusi] | [distribusi] | [analisis] |\n";
-        $prompt .= "| 3 | Tingkat Pengetahuan Visi-Misi | [distribusi] | [distribusi] | [distribusi] | [distribusi] | [distribusi] | [analisis] |\n";
-        $prompt .= "| ... | ... | ... | ... | ... | ... | ... | ... |\n\n";
+        $prompt .= "|----|--------------------|-----------|--------------|---------|---------|---------|--------------|\n\n";
+        $prompt .= "INSTRUKSI PENGISIAN TABEL:\n";
+        $prompt .= "- Isi setiap sel dengan data AKTUAL dari Excel (jumlah/persentase per opsi jawaban)\n";
+        $prompt .= "- Contoh format sel: 'Mengetahui: 30 (60%), Cukup: 15 (30%), Tidak: 5 (10%)'\n";
+        $prompt .= "- Isi kolom 'Interpretasi' dengan analisis singkat: unit mana terbaik/terlemah\n";
+        $prompt .= "- JANGAN menuliskan [distribusi] atau [analisis] — isi dengan data nyata dari Excel\n";
+        $prompt .= "- Jika data tidak tersedia untuk unit tertentu, tulis 'N/A'\n\n";
         
         $prompt .= "CARA ANALISIS:\n";
         $prompt .= "1. Untuk setiap pertanyaan, hitung berapa responden yang menjawab setiap opsi\n";
@@ -1576,14 +1620,15 @@ class LaporanVMTSController extends Controller
         $prompt .= "- Faktor-faktor yang mempengaruhi\n\n";
         
         $prompt .= "## 2. Analisis Komparatif\n";
-        $prompt .= "Bandingkan hasil survei antar unit dengan membuat tabel:\n\n";
+        $prompt .= "Bandingkan hasil survei antar unit dengan membuat tabel persentase:\n\n";
+        $prompt .= "FORMAT TABEL:\n";
         $prompt .= "| Aspek | Fak. Vokasi | Perg. Tinggi | D4 TRPL | D3 TI | D3 TK | Kesimpulan |\n";
-        $prompt .= "|-------|-------------|--------------|---------|-------|-------|-------------|\n";
-        $prompt .= "| Tingkat Pengetahuan Visi-Misi | [%] | [%] | [%] | [%] | [%] | [analisis perbandingan] |\n";
-        $prompt .= "| Frekuensi Sosialisasi | [%] | [%] | [%] | [%] | [%] | [analisis perbandingan] |\n";
-        $prompt .= "| Tingkat Pemahaman | [%] | [%] | [%] | [%] | [%] | [analisis perbandingan] |\n";
-        $prompt .= "| Dukungan terhadap Kompetensi | [%] | [%] | [%] | [%] | [%] | [analisis perbandingan] |\n";
-        $prompt .= "| Kebutuhan Perbaikan | [%] | [%] | [%] | [%] | [%] | [analisis perbandingan] |\n\n";
+        $prompt .= "|-------|-------------|--------------|---------|-------|-------|-------------|\n\n";
+        $prompt .= "INSTRUKSI PENGISIAN TABEL KOMPARATIF:\n";
+        $prompt .= "- Hitung persentase jawaban positif per unit untuk setiap aspek\n";
+        $prompt .= "- Isi setiap sel dengan angka persen AKTUAL, contoh: 78%, 65%, 90%\n";
+        $prompt .= "- Isi kolom 'Kesimpulan' dengan analisis perbandingan antar unit\n";
+        $prompt .= "- JANGAN menuliskan [%] atau [analisis perbandingan] — isi dengan data nyata\n\n";
         
         $prompt .= "CARA MENGHITUNG PERSENTASE:\n";
         $prompt .= "- Hitung berapa responden yang menjawab positif (Mengetahui, Paham, Mendukung, dll)\n";
@@ -1633,7 +1678,8 @@ class LaporanVMTSController extends Controller
         $prompt .= "✓ Analisis harus mendalam, bukan hanya deskripsi angka\n";
         $prompt .= "✓ Gunakan heading Markdown: # untuk judul utama, ## untuk sub-judul\n";
         $prompt .= "✓ Gunakan bullet points (- atau *) untuk list\n";
-        $prompt .= "✓ Paragraf harus koheren dan mengalir dengan baik\n\n";
+        $prompt .= "✓ Paragraf harus koheren dan mengalir dengan baik\n";
+        $prompt .= "✗ JANGAN tambahkan kalimat penutup generik seperti 'Laporan ini diharapkan dapat menjadi acuan...', 'Semoga laporan ini bermanfaat...', atau kalimat sejenisnya — laporan harus langsung berakhir di bagian VI. Rekomendasi\n\n";
         
         $prompt .= str_repeat('=', 100) . "\n\n";
 

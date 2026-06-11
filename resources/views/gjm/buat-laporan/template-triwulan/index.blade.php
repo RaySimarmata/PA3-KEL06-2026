@@ -38,7 +38,6 @@
         <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
             <div>
                 <h5 class="mb-1 d-flex align-items-center gap-2" style="font-weight: 600; color: #333;">
-                    <i class="bi bi-file-earmark-word" style="color: #5B9BD5;"></i>
                     Kelola Template Laporan Triwulan
                 </h5>
                 <p class="text-muted mb-0" style="font-size: 0.875rem;">Upload dan kelola template Word untuk laporan triwulan GJM</p>

@@ -43,7 +43,7 @@
             <div class="monitoring-header">
                 <h6>Laporan VMTS</h6>
                 <div style="margin-left: auto; display: flex; gap: 0.5rem;">
-                    <a href="{{ route('gjm.buat-laporan.vmts.create') }}" class="btn-reminder">
+                    <a href="{{ route('gjm.buat-laporan.vmts.create') }}" class="btn-generate">
                         <i class="bi bi-plus-circle"></i>
                         <span>Generate Laporan Baru</span>
                     </a>

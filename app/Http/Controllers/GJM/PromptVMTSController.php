@@ -413,6 +413,7 @@ ATURAN PENTING:
 7. Sebutkan nama prodi/unit yang spesifik sesuai data yang tersedia
 8. JANGAN skip bagian manapun
 9. Output harus langsung berupa laporan (bukan penjelasan tentang laporan)
+10. JANGAN tambahkan kalimat penutup generik seperti "Laporan ini diharapkan dapat menjadi acuan...", "Semoga laporan ini bermanfaat...", atau kalimat sejenisnya — laporan harus langsung berakhir di bagian VI. Rekomendasi
 PROMPT;
     }
 

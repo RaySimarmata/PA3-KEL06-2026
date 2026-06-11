@@ -7,8 +7,8 @@
     <meta name="cache-version" content="1.2.0-{{ time() }}">
     <style>
         /* ===============================================================
-                                                                                                                                           AI PROMPT ASSISTANT — SEMESTER
-                                                                                                                                           =============================================================== */
+                                                                                                                                                       AI PROMPT ASSISTANT — SEMESTER
+                                                                                                                                                       =============================================================== */
 
         /* Button hover effect - icon turns white */
         .btn-template-link:hover i {
@@ -639,8 +639,8 @@
         }
 
         /* ===============================================================
-                                                                                                                                   SETTINGS MODAL STYLES
-                                                                                                                                   =============================================================== */
+                                                                                                                                               SETTINGS MODAL STYLES
+                                                                                                                                               =============================================================== */
 
         /* Modal overlay */
         .fixed {
@@ -892,24 +892,13 @@
 
 @section('content')
     <div style="padding: 1.5rem;">
-        <!-- Header Section -->
-        <div class="monitoring-card mb-4" style="border-left: 4px solid #1e3c72;">
-            <div style="padding: 1.5rem;">
-                <div class="d-flex justify-content-between align-items-center">
-                    <div class="d-flex align-items-start gap-3">
-                        <i class="bi bi-file-earmark-text" style="color: #1e3c72; font-size: 2rem;"></i>
-                        <div>
-                            <h6 class="mb-1" style="font-weight: 600; color: #333;">Generate Laporan Semester Baru</h6>
-                            <p class="text-muted mb-0" style="font-size: 0.875rem;">
-                                AI Agent akan menganalisis data kegiatan dan monitoring mutu dalam periode semester yang dipilih
-                            </p>
-                        </div>
-                    </div>
-                    <a href="{{ route('gjm.buat-laporan.semester.index') }}" class="btn btn-outline-secondary">
-                        <i class="bi bi-arrow-left"></i> Kembali
-                    </a>
-                </div>
-            </div>
+        <div class="filter-card mb-4 d-flex justify-content-between align-items-center">
+            <h5 class="mb-0 font-semibold" style="text-transform: uppercase; letter-spacing: 0.5px;">
+                Generate Laporan Semester Baru
+            </h5>
+            <a href="{{ route('gjm.buat-laporan.semester.index') }}" class="btn btn-secondary btn-sm">
+                <i class="bi bi-arrow-left me-1"></i> Kembali
+            </a>
         </div>
 
         <div class="row">
@@ -1651,7 +1640,7 @@
                         if (data.validation_error) {
                             // Show validation error with better formatting
                             const errorMessage = data.message.replace(/\n/g, '<br>');
-                            
+
                             appendAIMessage(`
                                 <div style="background:#fef2f2;border-left:4px solid #dc2626;padding:16px;border-radius:8px;margin:8px 0;">
                                     <p style="color:#dc2626;margin:0 0 12px 0;font-weight:600;font-size:16px;">
@@ -1671,15 +1660,16 @@
                                     </p>
                                 </div>
                             `);
-                            
+
                             // Clear the invalid images
                             selectedOCRImages = [];
                             updateAllAttachmentsDisplay();
-                            
+
                             // Also clear prompt input to prevent user from sending without valid images
                             promptInput.value = '';
-                            promptInput.placeholder = '⚠️ Upload gambar yang relevan terlebih dahulu sebelum chat dengan AI';
-                            
+                            promptInput.placeholder =
+                                '⚠️ Upload gambar yang relevan terlebih dahulu sebelum chat dengan AI';
+
                             return false;
                         } else {
                             appendAIMessage(`<strong>❌ OCR Error:</strong> ${data.message}`);
@@ -1902,13 +1892,14 @@
                     const template = document.getElementById('template_id').value;
                     if (template) formData.append('template_id', template);
 
-                    const response = await fetch('{{ route('gjm.buat-laporan.semester.create-draft') }}', {
-                        method: 'POST',
-                        body: formData,
-                        headers: {
-                            'Accept': 'application/json',
-                        },
-                    });
+                    const response = await fetch(
+                        '{{ route('gjm.buat-laporan.semester.create-draft') }}', {
+                            method: 'POST',
+                            body: formData,
+                            headers: {
+                                'Accept': 'application/json',
+                            },
+                        });
 
                     const data = await response.json();
 
@@ -1963,11 +1954,11 @@
                 }
 
                 // Cek apakah ada data yang tersedia
-                const hasValidData = selectedFiles.length > 0 || 
-                                    selectedOCRImages.length > 0 || 
-                                    ocrExtractedText.length > 0 ||
-                                    conversationHistory.length > 0;
-                
+                const hasValidData = selectedFiles.length > 0 ||
+                    selectedOCRImages.length > 0 ||
+                    ocrExtractedText.length > 0 ||
+                    conversationHistory.length > 0;
+
                 // Jika tidak ada data dan tidak ada prompt, tampilkan pesan
                 if (!hasValidData && !prompt) {
                     appendAIMessage(`
@@ -1983,9 +1974,10 @@
                     `);
                     return;
                 }
-                
+
                 // Jika sudah ada conversation history, izinkan chat tanpa file
-                if (conversationHistory.length === 0 && !selectedFiles.length && !selectedOCRImages.length && !ocrExtractedText) {
+                if (conversationHistory.length === 0 && !selectedFiles.length && !selectedOCRImages.length && !
+                    ocrExtractedText) {
                     appendAIMessage(`
                         <div style="background:#fff3cd;border-left:4px solid #ffc107;padding:12px;border-radius:4px;">
                             <p style="color:#856404;margin:0;font-weight:600;">
@@ -2016,7 +2008,8 @@
                 const template = document.getElementById('template_id').value;
 
                 // Tampilkan bubble pesan user (dengan file yang sudah dipilih sebelumnya)
-                appendUserMessage(prompt || '(File dikirim)', allFilesForBubble.length > 0 ? allFilesForBubble : null);
+                appendUserMessage(prompt || '(File dikirim)', allFilesForBubble.length > 0 ? allFilesForBubble :
+                    null);
                 promptInput.value = '';
                 promptInput.style.height = 'auto';
                 promptInput.placeholder = 'Ketik instruksi Anda...';
@@ -2025,17 +2018,17 @@
                 const currentFiles = [...selectedFiles]; // Simpan referensi file untuk request
                 const currentOCRImages = [...selectedOCRImages];
                 const currentOCRText = ocrExtractedText;
-                
+
                 selectedFiles = [];
                 selectedOCRImages = [];
                 ocrExtractedText = '';
-                
+
                 // Reset file inputs
                 const fileInput = document.getElementById('file_referensi_semester');
                 const ocrInput = document.getElementById('ocr_images_semester');
                 if (fileInput) fileInput.value = '';
                 if (ocrInput) ocrInput.value = '';
-                
+
                 // Update display to hide attachment chips
                 updateAllAttachmentsDisplay();
                 toggleSendButton();
@@ -2086,7 +2079,9 @@
                             });
                     } catch (fetchErr) {
                         if (fetchErr.name === 'AbortError') {
-                            throw new Error('⏱️ Request timeout (>2 menit). Server AI sedang sibuk. Coba kurangi ukuran file atau coba lagi nanti.');
+                            throw new Error(
+                                '⏱️ Request timeout (>2 menit). Server AI sedang sibuk. Coba kurangi ukuran file atau coba lagi nanti.'
+                            );
                         }
                         throw fetchErr;
                     } finally {
