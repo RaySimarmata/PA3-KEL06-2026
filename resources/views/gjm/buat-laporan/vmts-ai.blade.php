@@ -241,13 +241,183 @@ document.addEventListener('DOMContentLoaded', function () {
 
   // ── Send ─────────────────────────────────────────────────────────────────
   btnSend.addEventListener('click', async function () {
-    const prompt = promptInput.value.trim();
+    const prompt     = promptInput.value.trim();
     const totalFiles = excelFiles.length + refFiles.length;
+    const hasConversation = conversationHistory.length > 0;
 
-    if (!prompt && totalFiles === 0 && conversationHistory.length === 0) {
-      appendAI('<span style="color:#fbbf24">⚠️ Silakan upload file Excel atau tuliskan instruksi terlebih dahulu.</span>');
+    console.log('🔍 VALIDATION CHECK:', {
+      prompt: prompt,
+      promptLength: prompt.length,
+      totalFiles: totalFiles,
+      hasConversation: hasConversation,
+      excelFiles: excelFiles.length,
+      refFiles: refFiles.length
+    });
+
+    // VALIDATION 1: Interaksi pertama wajib upload file
+    if (!hasConversation && totalFiles === 0) {
+      console.warn('❌ VALIDATION FAILED: No files uploaded for first interaction');
+      appendAI(`
+        <div style="background:#450a0a;border-left:4px solid #dc2626;padding:15px;border-radius:6px;">
+          <p style="color:#fca5a5;margin:0;font-weight:700;font-size:.95rem;">
+            <i class="bi bi-exclamation-triangle-fill"></i> UPLOAD FILE TERLEBIH DAHULU!
+          </p>
+          <p style="color:#fca5a5;margin:10px 0 0 0;line-height:1.6;">
+            Untuk chat pertama dengan AI, Anda <strong>WAJIB upload file</strong> terlebih dahulu.
+          </p>
+          <p style="color:#fca5a5;margin:10px 0 0 0;line-height:1.6;">
+            <strong>File yang didukung:</strong>
+          </p>
+          <ul style="color:#fca5a5;margin:8px 0 0 20px;line-height:1.6;">
+            <li>📊 Data kuesioner: XLSX, XLS (wajib ada)</li>
+            <li>📄 Contoh laporan: PDF, DOCX (direkomendasikan)</li>
+          </ul>
+          <p style="color:#fca5a5;margin:10px 0 0 0;line-height:1.6;">
+            <strong>Cara upload:</strong> Klik zona upload <strong>📊 File Excel</strong> atau <strong>📄 Contoh Laporan</strong> di atas.
+          </p>
+          <p style="color:#fca5a5;margin:10px 0 0 0;font-style:italic;">
+            Setelah upload file, baru Anda bisa chat dengan AI.
+          </p>
+        </div>
+      `);
       return;
     }
+
+    // VALIDATION 2: Ada file tapi tidak ada instruksi
+    if (!prompt || prompt.length === 0) {
+      if (totalFiles > 0) {
+        console.warn('❌ VALIDATION FAILED: Files uploaded without instruction');
+        appendAI(`
+          <div style="background:#450a0a;border-left:4px solid #dc2626;padding:15px;border-radius:6px;">
+            <p style="color:#fca5a5;margin:0;font-weight:700;font-size:.95rem;">
+              <i class="bi bi-exclamation-triangle-fill"></i> INSTRUKSI WAJIB DIISI!
+            </p>
+            <p style="color:#fca5a5;margin:10px 0 0 0;line-height:1.6;">
+              Anda telah mengupload <strong>${totalFiles} file</strong>, tetapi belum memberikan instruksi.
+            </p>
+            <p style="color:#fca5a5;margin:10px 0 0 0;line-height:1.6;">
+              <strong>Silakan ketik instruksi Anda</strong>, misalnya:
+            </p>
+            <ul style="color:#fca5a5;margin:8px 0 0 20px;line-height:1.6;">
+              <li>"Analisis data Excel dan buat laporan VMTS lengkap"</li>
+              <li>"Buat laporan berdasarkan kuesioner yang diupload"</li>
+              <li>"Ekstrak data survei dan analisis per butir pertanyaan"</li>
+            </ul>
+            <p style="color:#fca5a5;margin:10px 0 0 0;font-style:italic;">
+              File tidak akan diproses tanpa instruksi yang jelas.
+            </p>
+          </div>
+        `);
+        setTimeout(() => { promptInput.focus(); }, 100);
+        return;
+      } else {
+        console.warn('❌ VALIDATION FAILED: No instruction provided');
+        appendAI(`
+          <div style="background:#422006;border-left:4px solid #f59e0b;padding:12px;border-radius:6px;">
+            <p style="color:#fde68a;margin:0;font-weight:600;">
+              <i class="bi bi-info-circle-fill"></i> Silakan masukkan instruksi atau pertanyaan Anda
+            </p>
+          </div>
+        `);
+        setTimeout(() => { promptInput.focus(); }, 100);
+        return;
+      }
+    }
+
+    // VALIDATION 3: Instruksi terlalu pendek
+    if (prompt.length < 5) {
+      console.warn('❌ VALIDATION FAILED: Instruction too short (' + prompt.length + ' chars)');
+      appendAI(`
+        <div style="background:#450a0a;border-left:4px solid #dc2626;padding:15px;border-radius:6px;">
+          <p style="color:#fca5a5;margin:0;font-weight:700;">
+            <i class="bi bi-exclamation-triangle-fill"></i> Instruksi terlalu singkat!
+          </p>
+          <p style="color:#fca5a5;margin:10px 0 0 0;line-height:1.6;">
+            Instruksi Anda hanya <strong>${prompt.length} karakter</strong>.<br>
+            Silakan berikan instruksi yang lebih jelas dan spesifik (minimal 5 karakter).
+          </p>
+          <p style="color:#fca5a5;margin:10px 0 0 0;line-height:1.6;">
+            <strong>Contoh instruksi yang baik:</strong>
+          </p>
+          <ul style="color:#fca5a5;margin:8px 0 0 20px;line-height:1.6;">
+            <li>"Buat laporan VMTS dari data Excel ini"</li>
+            <li>"Analisis hasil survei kuesioner"</li>
+            <li>"Buat ringkasan temuan"</li>
+          </ul>
+        </div>
+      `);
+      setTimeout(() => { promptInput.focus(); }, 100);
+      return;
+    }
+
+    // VALIDATION 4: Prompt tidak relevan dengan laporan VMTS
+    const isPromptRelevantVMTS = (function(text) {
+      const t = text.toLowerCase();
+
+      // Pola sapaan / obrolan umum yang TIDAK relevan
+      const offTopicPatterns = [
+        /^(hai|halo|hello|hi|hey|hei|holas?)\b/,
+        /^(apa kabar|how are you|selamat pagi|selamat siang|selamat malam|selamat sore)\b/,
+        /^(siapa kamu|siapa anda|kamu siapa|anda siapa|nama kamu|nama anda)\b/,
+        /^(aku|saya|gue|gw)\s+(adalah|aku|bernama|namaku|namanya)\b/,
+        /^(test|tes|coba|cobaan|testing|hello world)\b/,
+        /^(ok|oke|okay|iya|ya|yep|yup|sip|baik|bagus|mantap|keren)\s*[.!]*$/,
+        /^(terima kasih|makasih|thanks|thank you)\s*[.!]*$/,
+        /^(tolong bantu|bantu saya|help me|bantuin)\s*$/,
+      ];
+
+      // Kata kunci yang RELEVAN dengan laporan VMTS
+      const relevantKeywords = [
+        'laporan', 'vmts', 'visi', 'misi', 'tujuan', 'sasaran',
+        'kuesioner', 'survei', 'survey', 'analisis', 'analisa',
+        'excel', 'data', 'hasil', 'buat', 'generate', 'tulis',
+        'periode', 'fakultas', 'prodi', 'program studi', 'responden',
+        'distribusi', 'persentase', 'statistik', 'mean', 'median',
+        'rekomendasi', 'kesimpulan', 'pembahasan', 'pendahuluan',
+        'sosialisasi', 'pemahaman', 'perbaiki', 'revisi', 'ubah',
+        'tambah', 'lengkapi', 'ringkasan', 'rangkum', 'ekstrak',
+        'download', 'word', 'dokumen', 'file', 'upload', 'referensi'
+      ];
+
+      // Jika mengandung kata kunci relevan → langsung lolos
+      if (relevantKeywords.some(kw => t.includes(kw))) return true;
+
+      // Cek pola off-topic
+      for (const pat of offTopicPatterns) {
+        if (pat.test(t.trim())) return false;
+      }
+
+      // Default: izinkan jika panjang > 20 karakter
+      return text.length > 20;
+    })(prompt);
+
+    if (!isPromptRelevantVMTS) {
+      console.warn('❌ VALIDATION FAILED: Prompt not relevant to VMTS report');
+      appendAI(`
+        <div style="background:#422006;border-left:4px solid #f59e0b;padding:15px;border-radius:6px;">
+          <p style="color:#fde68a;margin:0;font-weight:700;">
+            <i class="bi bi-exclamation-triangle-fill"></i> Instruksi tidak relevan dengan Laporan VMTS
+          </p>
+          <p style="color:#fde68a;margin:10px 0 0 0;line-height:1.6;">
+            AI Assistant ini khusus untuk membantu pembuatan <strong>Laporan VMTS (Visi, Misi, Tujuan, dan Sasaran)</strong>.
+            Silakan berikan instruksi yang berkaitan dengan laporan.
+          </p>
+          <p style="color:#fde68a;margin:10px 0 0 0;line-height:1.6;">
+            <strong>Contoh instruksi yang tepat:</strong>
+          </p>
+          <ul style="color:#fde68a;margin:8px 0 0 20px;line-height:1.6;">
+            <li>"Buat laporan VMTS berdasarkan data kuesioner yang diupload"</li>
+            <li>"Analisis hasil survei dan buat laporan lengkap"</li>
+            <li>"Perbaiki bagian kesimpulan agar lebih detail"</li>
+            <li>"Ekstrak data dari Excel dan analisis per butir pertanyaan"</li>
+          </ul>
+        </div>
+      `);
+      setTimeout(() => { promptInput.focus(); }, 100);
+      return;
+    }
+
+    console.log('✅ VALIDATION PASSED: Proceeding with request');
 
     // Show user message
     const allFileNames = [...excelFiles.map(f=>f.name), ...refFiles.map(f=>f.name)];

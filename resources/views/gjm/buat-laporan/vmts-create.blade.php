@@ -7,8 +7,8 @@
     <meta name="cache-version" content="1.2.0-{{ time() }}">
     <style>
         /* ===============================================================
-                                                                                                                                           AI PROMPT ASSISTANT — VMTS
-                                                                                                                                           =============================================================== */
+                                                                                                                                                   AI PROMPT ASSISTANT — VMTS
+                                                                                                                                                   =============================================================== */
 
         /* Button hover effect - icon turns white */
         .btn-template-link:hover i {
@@ -720,8 +720,8 @@
         }
 
         /* ===============================================================
-                                                                                                                                   SETTINGS MODAL STYLES
-                                                                                                                                   =============================================================== */
+                                                                                                                                           SETTINGS MODAL STYLES
+                                                                                                                                           =============================================================== */
 
         /* Modal overlay */
         .fixed {
@@ -977,23 +977,17 @@
 @endsection
 
 @section('content')
+
     <div style="padding: 1.5rem;">
-        <!-- Sub Header -->
-        <div class="monitoring-card mb-4" style="border-left: 4px solid #1e3c72;">
-            <div style="padding: 1.5rem;">
-                <div class="d-flex justify-content-between align-items-center">
-                    <div class="d-flex align-items-start gap-3">
-                        <i class="bi bi-file-earmark-text" style="color: #1e3c72; font-size: 2rem;"></i>
-                        <div>
-                            <h6 class="mb-1" style="font-weight: 600; color: #333;">Generate Laporan VMTS Baru</h6>
-                        </div>
-                    </div>
-                    <a href="{{ route('gjm.buat-laporan.vmts.index') }}" class="btn btn-outline-secondary">
-                        <i class="bi bi-arrow-left"></i> Kembali
-                    </a>
-                </div>
-            </div>
+        <div class="filter-card mb-4 d-flex justify-content-between align-items-center">
+            <h5 class="mb-0 font-semibold" style="text-transform: uppercase; letter-spacing: 0.5px;">
+                Generate Laporan VMTS Baru
+            </h5>
+            <a href="{{ route('gjm.buat-laporan.vmts.index') }}" class="btn btn-secondary btn-sm">
+                <i class="bi bi-arrow-left me-1"></i> Kembali
+            </a>
         </div>
+
         <div class="row">
             <div class="col-xl-11 col-lg-12 mx-auto">
                 <!-- Info Card -->
@@ -1717,7 +1711,7 @@
                         if (data.validation_error) {
                             // Show validation error with better formatting
                             const errorMessage = data.message.replace(/\n/g, '<br>');
-                            
+
                             appendAIMessage(`
                                 <div style="background:#fef2f2;border-left:4px solid #dc2626;padding:16px;border-radius:8px;margin:8px 0;">
                                     <p style="color:#dc2626;margin:0 0 12px 0;font-weight:600;font-size:16px;">
@@ -1737,15 +1731,16 @@
                                     </p>
                                 </div>
                             `);
-                            
+
                             // Clear the invalid images
                             selectedOCRImages = [];
                             updateAllAttachmentsDisplay();
-                            
+
                             // Also clear prompt input to prevent user from sending without valid images
                             promptInput.value = '';
-                            promptInput.placeholder = '⚠️ Upload gambar yang relevan terlebih dahulu sebelum chat dengan AI';
-                            
+                            promptInput.placeholder =
+                                '⚠️ Upload gambar yang relevan terlebih dahulu sebelum chat dengan AI';
+
                             return false;
                         } else {
                             appendAIMessage(`<strong>❌ OCR Error:</strong> ${data.message}`);
@@ -2023,26 +2018,193 @@
                     return;
                 }
 
-                // Cek apakah ada data yang tersedia
-                const hasValidData = selectedFiles.length > 0 || 
-                                    selectedOCRImages.length > 0 || 
-                                    ocrExtractedText.length > 0 ||
-                                    conversationHistory.length > 0;
-                
-                if (!hasValidData && !prompt) {
+                // ── VALIDASI PROMPT ──────────────────────────────────────────
+                const hasFiles    = selectedFiles.length > 0 || selectedOCRImages.length > 0;
+                const hasOCRText  = ocrExtractedText && ocrExtractedText.length > 0;
+                const hasConversation = conversationHistory.length > 0;
+
+                console.log('🔍 VALIDATION CHECK:', {
+                    prompt: prompt,
+                    promptLength: prompt.length,
+                    hasFiles: hasFiles,
+                    hasOCRText: hasOCRText,
+                    hasConversation: hasConversation,
+                    selectedFiles: selectedFiles.length,
+                    selectedOCRImages: selectedOCRImages.length
+                });
+
+                // VALIDATION 1: Interaksi pertama wajib upload file
+                if (!hasConversation && !hasFiles && !hasOCRText) {
+                    console.warn('❌ VALIDATION FAILED: No files uploaded for first interaction');
                     appendAIMessage(`
-                        <div style="background:#fff3cd;border-left:4px solid #ffc107;padding:12px;border-radius:4px;">
-                            <p style="color:#856404;margin:0;font-weight:600;">
-                                <i class="bi bi-info-circle-fill"></i> Upload File Terlebih Dahulu
+                        <div style="background:#fee2e2;border-left:4px solid #dc2626;padding:15px;border-radius:6px;">
+                            <p style="color:#dc2626;margin:0;font-weight:700;font-size:16px;">
+                                <i class="bi bi-exclamation-triangle-fill"></i> UPLOAD FILE TERLEBIH DAHULU!
                             </p>
-                            <p style="color:#856404;margin:8px 0 0 0;">
-                                Silakan upload file referensi atau gambar terlebih dahulu sebelum chat dengan AI.
-                                AI membutuhkan data untuk membuat laporan yang akurat.
+                            <p style="color:#dc2626;margin:10px 0 0 0;line-height:1.6;">
+                                Untuk chat pertama dengan AI, Anda <strong>WAJIB upload file</strong> terlebih dahulu.
+                            </p>
+                            <p style="color:#dc2626;margin:10px 0 0 0;line-height:1.6;">
+                                <strong>File yang didukung:</strong>
+                            </p>
+                            <ul style="color:#dc2626;margin:8px 0 0 20px;line-height:1.6;">
+                                <li>📊 Data kuesioner: XLSX, XLS</li>
+                                <li>📄 Laporan referensi: PDF, DOCX</li>
+                                <li>🖼️ Gambar dokumentasi: JPG, PNG</li>
+                            </ul>
+                            <p style="color:#dc2626;margin:10px 0 0 0;line-height:1.6;">
+                                <strong>Cara upload:</strong> Klik tombol 📎 (attachment) di sebelah kolom chat.
+                            </p>
+                            <p style="color:#dc2626;margin:10px 0 0 0;font-style:italic;">
+                                Setelah upload file, baru Anda bisa chat dengan AI.
                             </p>
                         </div>
                     `);
+                    setTimeout(() => {
+                        const attachBtn = document.getElementById('btn-attachment');
+                        if (attachBtn) attachBtn.focus();
+                        else promptInput.focus();
+                    }, 100);
                     return;
                 }
+
+                // VALIDATION 2: Ada file tapi tidak ada instruksi
+                if (!prompt || prompt.length === 0) {
+                    if (hasFiles || hasOCRText) {
+                        console.warn('❌ VALIDATION FAILED: Files uploaded without instruction');
+                        appendAIMessage(`
+                            <div style="background:#fee2e2;border-left:4px solid #dc2626;padding:15px;border-radius:6px;">
+                                <p style="color:#dc2626;margin:0;font-weight:700;font-size:16px;">
+                                    <i class="bi bi-exclamation-triangle-fill"></i> INSTRUKSI WAJIB DIISI!
+                                </p>
+                                <p style="color:#dc2626;margin:10px 0 0 0;line-height:1.6;">
+                                    Anda telah mengupload <strong>${selectedFiles.length + selectedOCRImages.length} file</strong>,
+                                    tetapi belum memberikan instruksi.
+                                </p>
+                                <p style="color:#dc2626;margin:10px 0 0 0;line-height:1.6;">
+                                    <strong>Silakan ketik instruksi Anda terlebih dahulu</strong>, misalnya:
+                                </p>
+                                <ul style="color:#dc2626;margin:8px 0 0 20px;line-height:1.6;">
+                                    <li>"Analisis data Excel dan buat laporan VMTS lengkap"</li>
+                                    <li>"Buat laporan berdasarkan kuesioner yang diupload"</li>
+                                    <li>"Ekstrak data survei dan analisis per butir pertanyaan"</li>
+                                </ul>
+                                <p style="color:#dc2626;margin:10px 0 0 0;font-style:italic;">
+                                    File tidak akan diproses tanpa instruksi yang jelas.
+                                </p>
+                            </div>
+                        `);
+                        setTimeout(() => { promptInput.focus(); }, 100);
+                        return;
+                    } else {
+                        console.warn('❌ VALIDATION FAILED: No instruction provided');
+                        appendAIMessage(`
+                            <div style="background:#fff3cd;border-left:4px solid #ffc107;padding:12px;border-radius:4px;">
+                                <p style="color:#856404;margin:0;font-weight:600;">
+                                    <i class="bi bi-info-circle-fill"></i> Silakan masukkan instruksi atau pertanyaan Anda
+                                </p>
+                            </div>
+                        `);
+                        setTimeout(() => { promptInput.focus(); }, 100);
+                        return;
+                    }
+                }
+
+                // VALIDATION 3: Instruksi terlalu pendek
+                if (prompt.length < 5) {
+                    console.warn('❌ VALIDATION FAILED: Instruction too short (' + prompt.length + ' chars)');
+                    appendAIMessage(`
+                        <div style="background:#fee2e2;border-left:4px solid #dc2626;padding:15px;border-radius:6px;">
+                            <p style="color:#dc2626;margin:0;font-weight:700;">
+                                <i class="bi bi-exclamation-triangle-fill"></i> Instruksi terlalu singkat!
+                            </p>
+                            <p style="color:#dc2626;margin:10px 0 0 0;line-height:1.6;">
+                                Instruksi Anda hanya <strong>${prompt.length} karakter</strong>.<br>
+                                Silakan berikan instruksi yang lebih jelas dan spesifik (minimal 5 karakter).
+                            </p>
+                            <p style="color:#dc2626;margin:10px 0 0 0;line-height:1.6;">
+                                <strong>Contoh instruksi yang baik:</strong>
+                            </p>
+                            <ul style="color:#dc2626;margin:8px 0 0 20px;line-height:1.6;">
+                                <li>"Buat laporan VMTS dari data Excel ini"</li>
+                                <li>"Analisis hasil survei kuesioner"</li>
+                                <li>"Buat ringkasan temuan"</li>
+                            </ul>
+                        </div>
+                    `);
+                    setTimeout(() => { promptInput.focus(); }, 100);
+                    return;
+                }
+
+                // VALIDATION 4: Prompt tidak relevan dengan laporan VMTS
+                const isPromptRelevantVMTS = (function(text) {
+                    const t = text.toLowerCase();
+
+                    // Pola sapaan / obrolan umum yang TIDAK relevan
+                    const offTopicPatterns = [
+                        /^(hai|halo|hello|hi|hey|hei|holas?)\b/,
+                        /^(apa kabar|how are you|selamat pagi|selamat siang|selamat malam|selamat sore)\b/,
+                        /^(siapa kamu|siapa anda|kamu siapa|anda siapa|nama kamu|nama anda)\b/,
+                        /^(aku|saya|gue|gw)\s+(adalah|aku|bernama|namaku|namanya)\b/,
+                        /^(test|tes|coba|cobaan|testing|hello world)\b/,
+                        /^(ok|oke|okay|iya|ya|yep|yup|sip|baik|bagus|mantap|keren)\s*[.!]*$/,
+                        /^(terima kasih|makasih|thanks|thank you)\s*[.!]*$/,
+                        /^(tolong bantu|bantu saya|help me|bantuin)\s*$/,
+                        /^[\w\s]{1,20}$/ // kalimat terlalu pendek & umum — hanya jika tidak mengandung kata kunci laporan
+                    ];
+
+                    // Kata kunci yang RELEVAN dengan laporan VMTS
+                    const relevantKeywords = [
+                        'laporan', 'vmts', 'visi', 'misi', 'tujuan', 'sasaran',
+                        'kuesioner', 'survei', 'survey', 'analisis', 'analisa',
+                        'excel', 'data', 'hasil', 'buat', 'generate', 'tulis',
+                        'periode', 'fakultas', 'prodi', 'program studi', 'responden',
+                        'distribusi', 'persentase', 'statistik', 'mean', 'median',
+                        'rekomendasi', 'kesimpulan', 'pembahasan', 'pendahuluan',
+                        'sosialisasi', 'pemahaman', 'perbaiki', 'revisi', 'ubah',
+                        'tambah', 'lengkapi', 'ringkasan', 'rangkum', 'ekstrak',
+                        'download', 'word', 'dokumen', 'file', 'upload', 'referensi'
+                    ];
+
+                    // Jika mengandung kata kunci relevan → langsung lolos
+                    if (relevantKeywords.some(kw => t.includes(kw))) return true;
+
+                    // Cek pola off-topic
+                    for (const pat of offTopicPatterns) {
+                        if (pat.test(t.trim())) return false;
+                    }
+
+                    // Default: izinkan jika panjang > 20 karakter (kemungkinan instruksi spesifik)
+                    return text.length > 20;
+                })(prompt);
+
+                if (!isPromptRelevantVMTS) {
+                    console.warn('❌ VALIDATION FAILED: Prompt not relevant to VMTS report');
+                    appendAIMessage(`
+                        <div style="background:#fff3cd;border-left:4px solid #ffc107;padding:15px;border-radius:6px;">
+                            <p style="color:#856404;margin:0;font-weight:700;">
+                                <i class="bi bi-exclamation-triangle-fill"></i> Instruksi tidak relevan dengan Laporan VMTS
+                            </p>
+                            <p style="color:#856404;margin:10px 0 0 0;line-height:1.6;">
+                                AI Assistant ini khusus untuk membantu pembuatan <strong>Laporan VMTS (Visi, Misi, Tujuan, dan Sasaran)</strong>.
+                                Silakan berikan instruksi yang berkaitan dengan laporan.
+                            </p>
+                            <p style="color:#856404;margin:10px 0 0 0;line-height:1.6;">
+                                <strong>Contoh instruksi yang tepat:</strong>
+                            </p>
+                            <ul style="color:#856404;margin:8px 0 0 20px;line-height:1.6;">
+                                <li>"Buat laporan VMTS berdasarkan data kuesioner yang diupload"</li>
+                                <li>"Analisis hasil survei dan buat laporan lengkap"</li>
+                                <li>"Perbaiki bagian kesimpulan agar lebih detail"</li>
+                                <li>"Ekstrak data dari Excel dan analisis per butir pertanyaan"</li>
+                            </ul>
+                        </div>
+                    `);
+                    setTimeout(() => { promptInput.focus(); }, 100);
+                    return;
+                }
+
+                console.log('✅ VALIDATION PASSED: Proceeding with request');
 
                 // Tangkap file yang dipilih sebelum OCR memproses (karena OCR akan clear selectedOCRImages)
                 const allFilesForBubble = [...selectedFiles, ...selectedOCRImages];
@@ -2059,7 +2221,8 @@
                 const judul = document.getElementById('judul_laporan').value;
 
                 // Tampilkan bubble pesan user (dengan file yang sudah dipilih sebelumnya)
-                appendUserMessage(prompt || '(File dikirim)', allFilesForBubble.length > 0 ? allFilesForBubble : null);
+                appendUserMessage(prompt || '(File dikirim)', allFilesForBubble.length > 0 ?
+                    allFilesForBubble : null);
                 promptInput.value = '';
                 promptInput.style.height = 'auto';
                 promptInput.placeholder = 'Ketik instruksi Anda...';
@@ -2068,13 +2231,13 @@
                 selectedFiles = [];
                 selectedOCRImages = [];
                 ocrExtractedText = '';
-                
+
                 // Reset file inputs
                 const fileInput = document.getElementById('file_referensi_VMTS');
                 const ocrInput = document.getElementById('ocr_images_VMTS');
                 if (fileInput) fileInput.value = '';
                 if (ocrInput) ocrInput.value = '';
-                
+
                 // Update display to hide attachment chips
                 updateAllAttachmentsDisplay();
                 toggleSendButton();
@@ -2124,7 +2287,9 @@
                             });
                     } catch (fetchErr) {
                         if (fetchErr.name === 'AbortError') {
-                            throw new Error('⏱️ Request timeout (>2 menit). Server AI sedang sibuk. Coba kurangi ukuran file atau coba lagi nanti.');
+                            throw new Error(
+                                '⏱️ Request timeout (>2 menit). Server AI sedang sibuk. Coba kurangi ukuran file atau coba lagi nanti.'
+                            );
                         }
                         throw fetchErr;
                     } finally {

@@ -51,7 +51,7 @@
                         style="background-color: #28a745; border-color: #28a745; color: white;">
                         <i class="bi bi-file-earmark-text" style="color: white;"></i> Kelola Template
                     </a>
-                    <a href="{{ route('gjm.buat-laporan.triwulan.create') }}" class="btn-reminder">
+                    <a href="{{ route('gjm.buat-laporan.triwulan.create') }}" class="btn-generate">
                         <i class="bi bi-plus-circle"></i>
                         <span>Generate Laporan Baru</span>
                     </a>

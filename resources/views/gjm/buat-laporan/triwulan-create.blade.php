@@ -963,26 +963,15 @@
 
 @section('content')
     <div style="padding: 1.5rem;">
-        <!-- Header Section -->
-        <div class="monitoring-card mb-4" style="border-left: 4px solid #1e3c72;">
-            <div style="padding: 1.5rem;">
-                <div class="d-flex justify-content-between align-items-center">
-                    <div class="d-flex align-items-start gap-3">
-                        <i class="bi bi-file-earmark-text" style="color: #1e3c72; font-size: 2rem;"></i>
-                        <div>
-                            <h6 class="mb-1" style="font-weight: 600; color: #333;">Generate Laporan Triwulan Baru</h6>
-                            <p class="text-muted mb-0" style="font-size: 0.875rem;">
-                                AI Agent akan menganalisis data kegiatan dan monitoring mutu dalam periode triwulan yang
-                                dipilih
-                            </p>
-                        </div>
-                    </div>
-                    <a href="{{ route('gjm.buat-laporan.triwulan.index') }}" class="btn btn-outline-secondary">
-                        <i class="bi bi-arrow-left"></i> Kembali
-                    </a>
-                </div>
-            </div>
+        <div class="filter-card mb-4 d-flex justify-content-between align-items-center">
+            <h5 class="mb-0 font-semibold" style="text-transform: uppercase; letter-spacing: 0.5px;">
+                Generate Laporan Triwulan Baru
+            </h5>
+            <a href="{{ route('gjm.buat-laporan.triwulan.index') }}" class="btn btn-secondary btn-sm">
+                <i class="bi bi-arrow-left me-1"></i> Kembali
+            </a>
         </div>
+
 
         <div class="row">
             <div class="col-xl-11 col-lg-12 mx-auto">

@@ -873,6 +873,19 @@ class VMTSAIAssistantService
                 continue;
             }
 
+            // Heading 4 (#### )
+            if (preg_match('/^####\s+(.+)$/', $line, $matches)) {
+                $section->addText($matches[1], ['bold' => true, 'italic' => true, 'size' => 11]);
+                $section->addTextBreak();
+                continue;
+            }
+
+            // Heading 5+ (#####...)
+            if (preg_match('/^#{5,}\s+(.+)$/', $line, $matches)) {
+                $section->addText($matches[1], ['bold' => true, 'size' => 10]);
+                continue;
+            }
+
             // Table detection
             if (strpos($line, '|') !== false) {
                 if (!$inTable) {
