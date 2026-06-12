@@ -24,6 +24,9 @@ RUN pecl install mongodb-1.21.0 && docker-php-ext-enable mongodb
 # Install Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
+# Trust /var/www/html as safe git directory (fixes dubious ownership error)
+RUN git config --global --add safe.directory /var/www/html
+
 # Set working directory
 WORKDIR /var/www/html
 
@@ -35,6 +38,10 @@ RUN composer install --no-dev --optimize-autoloader --no-scripts --no-interactio
 
 # Copy rest of the application
 COPY . .
+
+# Ensure bootstrap/cache and storage exist and are writable before post-autoload-dump
+RUN mkdir -p bootstrap/cache storage/framework/sessions storage/framework/views storage/framework/cache storage/logs \
+    && chmod -R 775 bootstrap/cache storage
 
 # Run post-install scripts
 RUN composer run-script post-autoload-dump
