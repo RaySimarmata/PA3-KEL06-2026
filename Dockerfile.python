@@ -1,4 +1,4 @@
-FROM python:3.10-slim
+FROM python:3.9-slim
 
 # Install system dependencies for PaddleOCR
 RUN apt-get update && apt-get install -y \
@@ -14,23 +14,20 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 
-# Copy requirements
-COPY requirements.txt .
+# Install PaddlePaddle CPU (latest stable for Python 3.9)
+RUN pip install --no-cache-dir --upgrade pip \
+    && pip install --no-cache-dir paddlepaddle==2.6.2 -f https://www.paddlepaddle.org.cn/whl/linux/mkl/avx/stable.html \
+    || pip install --no-cache-dir paddlepaddle==2.6.2
 
-# Install Python dependencies
-# PaddlePaddle CPU version (lighter, no GPU needed)
-RUN pip install --no-cache-dir paddlepaddle==2.5.2 -i https://pypi.tuna.tsinghua.edu.cn/simple \
-    || pip install --no-cache-dir paddlepaddle==2.5.2
-
+# Install OCR and other dependencies
 RUN pip install --no-cache-dir \
-    paddleocr>=2.7.0 \
-    pytesseract>=0.3.10 \
-    Pillow>=10.0.0 \
-    pdf2image>=1.16.3 \
-    opencv-python-headless>=4.8.0 \
-    numpy>=1.24.0 \
-    pymupdf>=1.23.0 \
-    flask>=3.0.0
+    "paddleocr>=2.7.0" \
+    "Pillow>=10.0.0" \
+    "pdf2image>=1.16.3" \
+    "opencv-python-headless>=4.8.0" \
+    "numpy>=1.24.0,<2.0.0" \
+    "pymupdf>=1.23.0" \
+    "flask>=3.0.0"
 
 # Copy OCR service script
 COPY docker/python/ocr_service.py .
