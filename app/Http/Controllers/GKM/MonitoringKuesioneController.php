@@ -11,7 +11,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use Illuminate\Support\Facades\Http;
-use App\Services\ExternalApiService;
+use App\Services\ExternalAPIService;
 use App\Models\PeriodeAkademik;
 use Illuminate\Support\Facades\DB;
 use App\Models\KuesionerMongo;
@@ -26,7 +26,7 @@ class MonitoringKuesioneController extends Controller
 
     public function __construct(
     AIAgentService $aiAgent,
-    ExternalApiService $apiService
+    ExternalAPIService $apiService
 ) {
     $this->aiAgent = $aiAgent;
     $this->apiService = $apiService;
@@ -266,7 +266,7 @@ if ($request->dosen_pengampu) {
                         $semester = $kuesioner->semester ?? ($kuesioner->periode && stripos($kuesioner->periode, 'Genap') !== false ? '2' : '1');
                         $ta = $kuesioner->periode;
                         
-                        $apiService = app(\App\Services\ExternalApiService::class);
+                        $apiService = app(\App\Services\ExternalAPIService::class);
                         $matkulData = $apiService->getMatkulByProdiSemTa($prodiId, $semester, $ta);
                         
                         if ($matkulData && is_array($matkulData)) {
