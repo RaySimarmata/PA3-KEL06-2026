@@ -12,20 +12,20 @@ return new class extends Migration
             $table->id();
 
             // 🔑 IDENTITAS DOSEN (KEY UTAMA)
-            $table->string('pegawai_id')->index();
+            $table->string('pegawai_id', 50)->index();
 
             // PRODI + PERIODE
-            $table->string('prodi_kode')->index();
+            $table->string('prodi_kode', 20)->index();
             $table->bigInteger('prodi_id')->index();
 
-            $table->string('semester')->index(); // '1' atau '2'
-            $table->string('tahun_ajaran')->index();
+            $table->string('semester', 5)->index(); // '1' atau '2'
+            $table->string('tahun_ajaran', 20)->index();
 
             // MATKUL
-            $table->string('kuliah_id')->index();
-            $table->string('kode_mk')->index();
+            $table->string('kuliah_id', 50)->index();
+            $table->string('kode_mk', 50)->index();
             $table->string('nama_matkul')->nullable();
-            $table->string('tingkat')->nullable(); // '1', '2', '3', '4'
+            $table->string('tingkat', 5)->nullable(); // '1', '2', '3', '4'
 
             // JENIS MATERI
             $table->enum('jenis_materi', [
