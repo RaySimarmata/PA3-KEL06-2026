@@ -1,0 +1,223 @@
+version: '3.9'
+
+services:
+
+  # ─────────────────────────────────────────
+  # MYSQL DATABASE
+  # ─────────────────────────────────────────
+  mysql:
+    image: mysql:8.0
+    container_name: pa3_mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${DB_DATABASE:-pa3_db}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-secret}
+      MYSQL_USER: ${DB_USERNAME:-pa3user}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-secret}
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./docker/mysql/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    ports:
+      - "3306:3306"
+    networks:
+      - pa3_network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 10s
+      retries: 10
+      interval: 10s
+
+  # ─────────────────────────────────────────
+  # LARAVEL BACKEND (PHP + Nginx)
+  # ─────────────────────────────────────────
+  laravel:
+    build:
+      context: .
+      dockerfile: Dockerfile.laravel
+    container_name: pa3_laravel
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      APP_ENV: production
+      APP_DEBUG: "false"
+      APP_KEY: ${APP_KEY}
+      APP_URL: ${APP_URL:-http://localhost}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
+      DB_CONNECTION: mysql
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_DATABASE: ${DB_DATABASE:-pa3_db}
+      DB_USERNAME: ${DB_USERNAME:-pa3user}
+      DB_PASSWORD: ${DB_PASSWORD:-secret}
+      MONGODB_URI: ${MONGODB_URI}
+      MONGODB_DATABASE: ${MONGODB_DATABASE:-gkm_chatbot}
+      CACHE_STORE: file
+      SESSION_DRIVER: file
+      QUEUE_CONNECTION: database
+      MAIL_MAILER: ${MAIL_MAILER:-smtp}
+      MAIL_HOST: ${MAIL_HOST:-smtp.gmail.com}
+      MAIL_PORT: ${MAIL_PORT:-587}
+      MAIL_USERNAME: ${MAIL_USERNAME}
+      MAIL_PASSWORD: ${MAIL_PASSWORD}
+      MAIL_ENCRYPTION: ${MAIL_ENCRYPTION:-tls}
+      MAIL_FROM_ADDRESS: ${MAIL_FROM_ADDRESS}
+      MAIL_FROM_NAME: ${MAIL_FROM_NAME}
+      LLM_ENABLED: ${LLM_ENABLED:-true}
+      LLM_PROVIDER: ${LLM_PROVIDER:-openai}
+      LLM_API_KEY: ${LLM_API_KEY}
+      LLM_MODEL: ${LLM_MODEL:-gpt-4o-mini}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      GROQ_API_KEY: ${GROQ_API_KEY}
+      LIBRARY_API_URL: ${LIBRARY_API_URL}
+      LIBRARY_API_USERNAME: ${LIBRARY_API_USERNAME}
+      LIBRARY_API_PASSWORD: ${LIBRARY_API_PASSWORD}
+      # OCR: point ke Python service container
+      PADDLEOCR_PYTHON_PATH: /usr/bin/python3
+      OCR_SERVICE_URL: http://python-ocr:5000
+      WACHAT_TOKEN: ${WACHAT_TOKEN}
+      WACHAT_INSTANCE_ID: ${WACHAT_INSTANCE_ID}
+      WACHAT_URL: ${WACHAT_URL}
+    volumes:
+      - laravel_storage:/var/www/html/storage/app
+      - laravel_logs:/var/www/html/storage/logs
+    ports:
+      - "8000:80"
+    networks:
+      - pa3_network
+
+  # ─────────────────────────────────────────
+  # QUEUE WORKER (Laravel Jobs)
+  # ─────────────────────────────────────────
+  queue:
+    build:
+      context: .
+      dockerfile: Dockerfile.laravel
+    container_name: pa3_queue
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+      laravel:
+        condition: service_started
+    environment:
+      APP_ENV: production
+      APP_KEY: ${APP_KEY}
+      DB_CONNECTION: mysql
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_DATABASE: ${DB_DATABASE:-pa3_db}
+      DB_USERNAME: ${DB_USERNAME:-pa3user}
+      DB_PASSWORD: ${DB_PASSWORD:-secret}
+      MONGODB_URI: ${MONGODB_URI}
+      QUEUE_CONNECTION: database
+      LLM_API_KEY: ${LLM_API_KEY}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      GROQ_API_KEY: ${GROQ_API_KEY}
+      MAIL_MAILER: ${MAIL_MAILER:-smtp}
+      MAIL_HOST: ${MAIL_HOST:-smtp.gmail.com}
+      MAIL_PORT: ${MAIL_PORT:-587}
+      MAIL_USERNAME: ${MAIL_USERNAME}
+      MAIL_PASSWORD: ${MAIL_PASSWORD}
+      MAIL_ENCRYPTION: tls
+      MAIL_FROM_ADDRESS: ${MAIL_FROM_ADDRESS}
+      OCR_SERVICE_URL: http://python-ocr:5000
+    volumes:
+      - laravel_storage:/var/www/html/storage/app
+    networks:
+      - pa3_network
+    command: php /var/www/html/artisan queue:work --sleep=3 --tries=3 --timeout=300
+
+  # ─────────────────────────────────────────
+  # SCHEDULER (Laravel Cron)
+  # ─────────────────────────────────────────
+  scheduler:
+    build:
+      context: .
+      dockerfile: Dockerfile.laravel
+    container_name: pa3_scheduler
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      APP_ENV: production
+      APP_KEY: ${APP_KEY}
+      DB_CONNECTION: mysql
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_DATABASE: ${DB_DATABASE:-pa3_db}
+      DB_USERNAME: ${DB_USERNAME:-pa3user}
+      DB_PASSWORD: ${DB_PASSWORD:-secret}
+      MONGODB_URI: ${MONGODB_URI}
+      QUEUE_CONNECTION: database
+      MAIL_MAILER: ${MAIL_MAILER:-smtp}
+      MAIL_HOST: ${MAIL_HOST:-smtp.gmail.com}
+      MAIL_PORT: ${MAIL_PORT:-587}
+      MAIL_USERNAME: ${MAIL_USERNAME}
+      MAIL_PASSWORD: ${MAIL_PASSWORD}
+      MAIL_FROM_ADDRESS: ${MAIL_FROM_ADDRESS}
+    volumes:
+      - laravel_storage:/var/www/html/storage/app
+    networks:
+      - pa3_network
+    command: sh -c "while true; do php /var/www/html/artisan schedule:run; sleep 60; done"
+
+  # ─────────────────────────────────────────
+  # PYTHON OCR SERVICE
+  # ─────────────────────────────────────────
+  python-ocr:
+    build:
+      context: .
+      dockerfile: Dockerfile.python
+    container_name: pa3_python_ocr
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    volumes:
+      - ocr_cache:/app/cache
+    networks:
+      - pa3_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      timeout: 10s
+      retries: 5
+      interval: 30s
+      start_period: 60s
+
+  # ─────────────────────────────────────────
+  # NEXT.JS FRONTEND
+  # ─────────────────────────────────────────
+  nextjs:
+    build:
+      context: .
+      dockerfile: Dockerfile.nextjs
+    container_name: pa3_nextjs
+    restart: unless-stopped
+    environment:
+      NEXT_PUBLIC_API_URL: ${APP_URL:-http://localhost:8000}
+    ports:
+      - "3000:3000"
+    networks:
+      - pa3_network
+
+# ─────────────────────────────────────────
+# VOLUMES
+# ─────────────────────────────────────────
+volumes:
+  mysql_data:
+    driver: local
+  laravel_storage:
+    driver: local
+  laravel_logs:
+    driver: local
+  ocr_cache:
+    driver: local
+
+# ─────────────────────────────────────────
+# NETWORKS
+# ─────────────────────────────────────────
+networks:
+  pa3_network:
+    driver: bridge

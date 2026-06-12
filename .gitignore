@@ -15,6 +15,9 @@ node_modules/
 .env.staging
 .env.testing
 
+# Docker generated
+docker/mysql/data/
+
 # Allow .env.example (template)
 !.env.example
 
