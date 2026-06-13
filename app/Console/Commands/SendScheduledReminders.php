@@ -4,10 +4,7 @@ namespace App\Console\Commands;
 
 use Illuminate\Console\Command;
 use App\Models\JadwalReminder;
-use App\Models\Dosen;
 use App\Models\RPS;
-use App\Models\Materi;
-use App\Models\Perwaliaan;
 use App\Helpers\EmailHelper;
 use Carbon\Carbon;
 
@@ -56,7 +53,7 @@ class SendScheduledReminders extends Command
         foreach ($jadwalReminders as $jadwal) {
             // Cek apakah reminder sudah dikirim hari ini
             $lastSent = $jadwal->last_sent_at ? Carbon::parse($jadwal->last_sent_at) : null;
-            
+
             if ($lastSent && $lastSent->isToday()) {
                 $this->info("Reminder {$jadwal->tipe_reminder} already sent today. Skipping...");
                 continue;
@@ -66,13 +63,13 @@ class SendScheduledReminders extends Command
 
             try {
                 $result = $this->sendReminder($jadwal);
-                
+
                 if ($result['success']) {
                     // Update last_sent_at
                     $jadwal->update([
                         'last_sent_at' => now(),
                     ]);
-                    
+
                     $this->info("✓ {$result['message']}");
                 } else {
                     $this->error("✗ {$result['message']}");
@@ -93,23 +90,23 @@ class SendScheduledReminders extends Command
     {
         // Normalisasi tipe reminder
         $tipe = strtolower(str_replace(' ', '_', $jadwal->tipe_reminder));
-        
+
         switch ($tipe) {
             case 'rps':
             case 'rps_review':
                 return $this->sendRPSReminder($jadwal);
-            
+
             case 'upload_materi':
             case 'materi_upload':
                 return $this->sendMateriReminder($jadwal);
-            
+
             case 'review_soal':
                 return $this->sendReviewSoalReminder($jadwal);
-            
+
             case 'perwalian':
             case 'perwaliaan':
                 return $this->sendPerwalianReminder($jadwal);
-            
+
             default:
                 return [
                     'success' => false,

@@ -41,11 +41,6 @@ class RPS extends Model
         return $this->belongsTo(Dosen::class);
     }
 
-    public function materi()
-    {
-        return $this->hasMany(Materi::class);
-    }
-
     public function evaluasiArtefak()
     {
         return $this->hasOne(EvaluasiArtefak::class);

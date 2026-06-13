@@ -14,7 +14,6 @@ class EvaluasiArtefak extends Model
     protected $fillable = [
         'evaluator_id',
         'rps_id',
-        'materi_id',
         'jenis_artefak',
         'skor_evaluasi',
         'catatan_evaluasi',
@@ -38,10 +37,5 @@ class EvaluasiArtefak extends Model
     public function rps()
     {
         return $this->belongsTo(RPS::class);
-    }
-
-    public function materi()
-    {
-        return $this->belongsTo(Materi::class);
     }
 }

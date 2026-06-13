@@ -512,11 +512,42 @@ class LaporanKuesioneService
         $prompt .= "JENIS LAPORAN: {$tipeLabel} ({$tipeLaporan})\n";
         $prompt .= "Buat laporan yang spesifik untuk " . strtolower($tipeLabel) . ".\n\n";
 
-        if ($template && $template->contoh_konten) {
+        // Try to get template content from multiple sources
+        $templateContent = null;
+        
+        if ($template) {
+            // First, try contoh_konten
+            if (!empty($template->contoh_konten)) {
+                $templateContent = $template->contoh_konten;
+                Log::info("Using template contoh_konten");
+            } 
+            // Second, try to extract from template file
+            elseif (!empty($template->file_path)) {
+                try {
+                    $templateContent = $this->extractTemplateContent($template);
+                    if ($templateContent) {
+                        Log::info("Successfully extracted template content from file", [
+                            'file_path' => $template->file_path,
+                            'content_length' => strlen($templateContent)
+                        ]);
+                    }
+                } catch (\Exception $e) {
+                    Log::warning("Failed to extract template content from file", [
+                        'template_id' => $template->id,
+                        'file_path' => $template->file_path,
+                        'error' => $e->getMessage()
+                    ]);
+                }
+            }
+        }
+
+        if ($templateContent) {
             $prompt .= "TEMPLATE LAPORAN:\n";
             $prompt .= "Gunakan struktur dan format berikut sebagai referensi:\n\n";
-            $prompt .= $template->contoh_konten . "\n\n";
+            $prompt .= $templateContent . "\n\n";
             $prompt .= "PENTING: Ikuti struktur template di atas, tapi isi dengan data aktual di bawah.\n\n";
+        } else {
+            Log::info("No template content available, using default structure");
         }
 
         $prompt .= "DATA KUESIONER:\n";
@@ -1823,8 +1854,19 @@ Your output will be converted to Word document, so it must be clean, professiona
         // 1. Get template
         if ($templateId) {
             $template = TemplateLaporan::find($templateId);
+            Log::info("Template loaded", [
+                'template_id' => $templateId,
+                'found' => !is_null($template),
+                'has_contoh_konten' => $template ? !empty($template->contoh_konten) : false,
+                'has_file_path' => $template ? !empty($template->file_path) : false,
+                'file_path' => $template ? $template->file_path : null
+            ]);
         } else {
             $template = $this->getActiveTemplate('laporan_bulanan');
+            Log::info("Using active template", [
+                'found' => !is_null($template),
+                'template_id' => $template ? $template->id : null
+            ]);
         }
 
         if (!$template) {
@@ -1870,10 +1912,40 @@ Your output will be converted to Word document, so it must be clean, professiona
 
         $prompt .= "KONTEKS DOKUMEN:\n" . substr($context, 0, 10000) . "\n\n";
 
-        // Include template contoh_konten if available so AI follows draft template
-        if ($template && !empty($template->contoh_konten)) {
+        // Include template content - try multiple sources
+        $templateContent = null;
+        
+        if ($template) {
+            // First, try contoh_konten
+            if (!empty($template->contoh_konten)) {
+                $templateContent = $template->contoh_konten;
+                Log::info("Using template contoh_konten for placeholders");
+            } 
+            // Second, try to extract from template file
+            elseif (!empty($template->file_path)) {
+                try {
+                    $templateContent = $this->extractTemplateContent($template);
+                    if ($templateContent) {
+                        Log::info("Successfully extracted template content from file for placeholders", [
+                            'file_path' => $template->file_path,
+                            'content_length' => strlen($templateContent)
+                        ]);
+                    }
+                } catch (\Exception $e) {
+                    Log::warning("Failed to extract template content from file for placeholders", [
+                        'template_id' => $template->id,
+                        'file_path' => $template->file_path,
+                        'error' => $e->getMessage()
+                    ]);
+                }
+            }
+        }
+
+        if ($templateContent) {
             $prompt .= "TEMPLATE REFERENSI (Gunakan struktur dan label placeholder yang ada di template ini saat mengisi dokumen):\n";
-            $prompt .= substr($template->contoh_konten, 0, 8000) . "\n\n";
+            $prompt .= substr($templateContent, 0, 8000) . "\n\n";
+        } else {
+            Log::warning("No template content available for placeholders - using default structure");
         }
 
         $prompt .= "TUGAS:\n";
@@ -2429,5 +2501,132 @@ If you cannot generate valid JSON, return this fallback:
         }
 
         return trim($text);
+    }
+
+    /**
+     * Extract template content from uploaded Word file
+     * 
+     * @param \App\Models\TemplateLaporan $template
+     * @return string|null
+     */
+    private function extractTemplateContent($template)
+    {
+        if (!$template || !$template->file_path) {
+            return null;
+        }
+
+        try {
+            // Try multiple path locations
+            $possiblePaths = [
+                storage_path('app/public/' . $template->file_path),
+                storage_path('app/' . $template->file_path),
+            ];
+
+            $templatePath = null;
+            foreach ($possiblePaths as $path) {
+                if (file_exists($path)) {
+                    $templatePath = $path;
+                    break;
+                }
+            }
+
+            if (!$templatePath) {
+                Log::warning('Template file not found in any location', [
+                    'template_id' => $template->id,
+                    'file_path' => $template->file_path,
+                    'tried_paths' => $possiblePaths
+                ]);
+                return null;
+            }
+
+            // Read template using PhpWord
+            $phpWord = \PhpOffice\PhpWord\IOFactory::load($templatePath);
+            $content = [];
+
+            // Extract text from all sections
+            foreach ($phpWord->getSections() as $section) {
+                foreach ($section->getElements() as $element) {
+                    $text = $this->extractTextFromWordElement($element);
+                    if (!empty($text)) {
+                        $content[] = $text;
+                    }
+                }
+            }
+
+            if (empty($content)) {
+                Log::info('No content found in template file', [
+                    'template_id' => $template->id
+                ]);
+                return null;
+            }
+
+            $contentText = implode("\n", $content);
+            
+            Log::info('Template content extracted successfully', [
+                'template_id' => $template->id,
+                'content_length' => strlen($contentText),
+                'sections_found' => count($content)
+            ]);
+
+            return $contentText;
+
+        } catch (\Exception $e) {
+            Log::error('Failed to extract template content', [
+                'template_id' => $template->id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            return null;
+        }
+    }
+
+    /**
+     * Extract text from PhpWord element recursively
+     * 
+     * @param mixed $element
+     * @return string
+     */
+    private function extractTextFromWordElement($element)
+    {
+        $text = '';
+
+        try {
+            // Handle different element types
+            if ($element instanceof \PhpOffice\PhpWord\Element\TextRun) {
+                // TextRun contains multiple Text elements
+                foreach ($element->getElements() as $childElement) {
+                    $text .= $this->extractTextFromWordElement($childElement);
+                }
+            } elseif ($element instanceof \PhpOffice\PhpWord\Element\Text) {
+                // Text element has getText() method
+                $text = $element->getText();
+            } elseif ($element instanceof \PhpOffice\PhpWord\Element\Table) {
+                // Skip tables for structure extraction
+                $text = '[TABLE]';
+            } elseif ($element instanceof \PhpOffice\PhpWord\Element\TextBreak) {
+                // Line break
+                $text = "\n";
+            } elseif (method_exists($element, 'getText')) {
+                $result = $element->getText();
+                // Make sure result is string
+                if (is_string($result)) {
+                    $text = $result;
+                } elseif (is_object($result)) {
+                    $text = method_exists($result, '__toString') ? (string)$result : '';
+                }
+            } elseif (method_exists($element, 'getElements')) {
+                // Container element, recurse into children
+                foreach ($element->getElements() as $childElement) {
+                    $text .= $this->extractTextFromWordElement($childElement) . ' ';
+                }
+            }
+        } catch (\Exception $e) {
+            Log::debug('Failed to extract text from Word element', [
+                'element_type' => get_class($element),
+                'error' => $e->getMessage()
+            ]);
+        }
+
+        return is_string($text) ? trim($text) : '';
     }
 }

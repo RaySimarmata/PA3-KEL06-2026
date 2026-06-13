@@ -958,10 +958,9 @@
                                 </div>
 
                                 <div class="col-md-12 mb-4">
-                                    <label class="filter-label">Template Laporan <span class="text-muted"
-                                            style="font-weight: 400;"></span></label>
-                                    <select class="form-select" name="template_id" id="template_id">
-                                        <option value="">-- Gunakan Format Default --</option>
+                                    <label class="filter-label">Template Laporan <span class="text-danger">*</span></label>
+                                    <select class="form-select" name="template_id" id="template_id" required>
+                                        <option value="">-- Pilih Template --</option>
                                         @foreach ($templates as $t)
                                             <option value="{{ $t->id }}">
                                                 {{ $t->nama_template }}
@@ -1865,6 +1864,7 @@
             btnCreateDraft.addEventListener('click', async function() {
                 const periode = document.getElementById('periode_semester').value;
                 const judul = document.getElementById('judul_laporan').value;
+                const template = document.getElementById('template_id').value;
 
                 if (!periode) {
                     alert('Pilih periode laporan terlebih dahulu.');
@@ -1878,6 +1878,12 @@
                     return;
                 }
 
+                if (!template) {
+                    alert('Pilih template laporan terlebih dahulu.');
+                    document.getElementById('template_id').focus();
+                    return;
+                }
+
                 this.disabled = true;
                 const originalText = this.innerHTML;
                 this.innerHTML =
@@ -1888,9 +1894,7 @@
                     formData.append('_token', '{{ csrf_token() }}');
                     formData.append('periode_semester', periode);
                     formData.append('judul_laporan', judul);
-
-                    const template = document.getElementById('template_id').value;
-                    if (template) formData.append('template_id', template);
+                    formData.append('template_id', template);
 
                     const response = await fetch(
                         '{{ route('gjm.buat-laporan.semester.create-draft') }}', {

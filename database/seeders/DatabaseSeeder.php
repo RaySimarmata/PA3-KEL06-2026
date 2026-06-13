@@ -16,7 +16,6 @@ class DatabaseSeeder extends Seeder
             DosenKaprodiWaliSeeder::class,
             GKMProdiSeeder::class,
             JadwalReminderSeeder::class,
-            KelasSeeder::class,
             KuesionerUploadSeeder::class,
             TemplateLaporanSeeder::class,
             LaporanGJMSeeder::class,

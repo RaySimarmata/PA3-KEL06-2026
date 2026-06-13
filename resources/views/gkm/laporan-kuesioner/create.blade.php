@@ -408,9 +408,9 @@
                                 </div>
 
                                 <div class="col-md-12 mb-4">
-                                    <label class="filter-label">Template Laporan</label>
-                                    <select class="form-select" name="template_id" id="template_id">
-                                        <option value="">-- Gunakan Format Default --</option>
+                                    <label class="filter-label">Template Laporan <span class="text-danger">*</span></label>
+                                    <select class="form-select" name="template_id" id="template_id" required>
+                                        <option value="">-- Pilih Template --</option>
                                         @foreach ($templates as $t)
                                             <option value="{{ $t->id }}">
                                                 {{ $t->nama_template }}
@@ -606,6 +606,7 @@
             btnCreateDraft.addEventListener('click', async function() {
                 const periode = document.getElementById('periode').value;
                 const judul = document.getElementById('judul_laporan').value;
+                const template = document.getElementById('template_id').value;
 
                 if (!periode) {
                     alert('Pilih periode laporan terlebih dahulu.');
@@ -616,6 +617,12 @@
                 if (!judul) {
                     alert('Isi judul laporan terlebih dahulu.');
                     document.getElementById('judul_laporan').focus();
+                    return;
+                }
+
+                if (!template) {
+                    alert('Pilih template laporan terlebih dahulu.');
+                    document.getElementById('template_id').focus();
                     return;
                 }
 
@@ -639,9 +646,7 @@
                     formData.append('periode', periode);
                     formData.append('tipe_laporan', tipeLaporan);
                     formData.append('judul_laporan', judul);
-
-                    const template = document.getElementById('template_id').value;
-                    if (template) formData.append('template_id', template);
+                    formData.append('template_id', template);
 
                     const response = await fetch('{{ route('gkm.laporan-kuesioner.create-draft') }}', {
                         method: 'POST',

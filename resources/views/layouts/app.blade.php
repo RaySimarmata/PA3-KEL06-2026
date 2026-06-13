@@ -662,6 +662,33 @@
                             </div>
                         </div>
 
+                        <a href="{{ route('gkm.kirim-laporan.index') }}"
+                            class="nav-item {{ request()->routeIs('gkm.kirim-laporan.*') ? 'active' : '' }}">
+                            <span><i class="bi bi-send"></i> Kirim Laporan</span>
+                        </a>
+                        {{--
+                        <!-- Reminder Agent -->
+                        <div class="nav-dropdown {{ request()->routeIs('gkm.reminder-agent.*') ? 'open' : '' }}">
+                            <a href="javascript:void(0)"
+                                class="nav-item {{ request()->routeIs('gkm.reminder-agent.*') ? 'active' : '' }}"
+                                onclick="toggleDropdown(this)">
+                                <span><i class="bi bi-bell"></i> Reminder Agent</span>
+                                <i class="bi bi-chevron-down dropdown-icon"></i>
+                            </a>
+                            <div class="dropdown-submenu">
+                                <a href="{{ route('gkm.reminder-agent.index') }}"
+                                    class="nav-item {{ request()->routeIs('gkm.reminder-agent.index') ? 'active' : '' }}">
+                                    <i class="bi bi-file-earmark-text menu-icon"></i>
+                                    <span class="menu-text">Jadwal Reminder</span>
+                                </a>
+                                <a href="{{ route('gkm.reminder-agent.log') }}"
+                                    class="nav-item {{ request()->routeIs('gkm.reminder-agent.log') ? 'active' : '' }}">
+                                    <i class="bi bi-file-earmark-text menu-icon"></i>
+                                    <span class="menu-text">Log Reminder</span>
+                                </a>
+                            </div>
+                        </div>
+                    --}}
                     @elseif (auth()->user()->isGJM())
                         <a href="{{ route('gjm.dashboard') }}"
                             class="nav-item {{ request()->routeIs('gjm.dashboard') ? 'active' : '' }}">
@@ -762,7 +789,7 @@
                 </div>
 
                 <div class="content">
-                    @if (isset($errors) && $errors->any())
+                    @if ($errors->any())
                         <div class="alert-app danger mb-3">
                             <i class="bi bi-exclamation-triangle-fill alert-app-icon"></i>
                             <div class="alert-app-body">
@@ -789,420 +816,419 @@
     </div>
 
     {{-- ===== GLOBAL ALERT & CONFIRM STYLES ===== --}}
-                        <style>
-                            /* Universal alert style - works for all roles */
-                            .alert-app {
-                                display: flex;
-                                align-items: flex-start;
-                                gap: 0.75rem;
-                                padding: 0.9rem 1.1rem;
-                                border-radius: 10px;
-                                border: none;
-                                font-size: 0.9rem;
-                                line-height: 1.5;
-                                margin-bottom: 1rem;
-                            }
+    <style>
+        /* Universal alert style - works for all roles */
+        .alert-app {
+            display: flex;
+            align-items: flex-start;
+            gap: 0.75rem;
+            padding: 0.9rem 1.1rem;
+            border-radius: 10px;
+            border: none;
+            font-size: 0.9rem;
+            line-height: 1.5;
+            margin-bottom: 1rem;
+        }
 
-                            .alert-app .alert-app-icon {
-                                font-size: 1.1rem;
-                                flex-shrink: 0;
-                                margin-top: 1px;
-                            }
+        .alert-app .alert-app-icon {
+            font-size: 1.1rem;
+            flex-shrink: 0;
+            margin-top: 1px;
+        }
 
-                            .alert-app .alert-app-body {
-                                flex: 1;
-                            }
+        .alert-app .alert-app-body {
+            flex: 1;
+        }
 
-                            .alert-app .alert-app-title {
-                                font-weight: 600;
-                                margin-bottom: 0.25rem;
-                            }
+        .alert-app .alert-app-title {
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+        }
 
-                            .alert-app .alert-app-close {
-                                background: none;
-                                border: none;
-                                cursor: pointer;
-                                opacity: 0.5;
-                                font-size: 1rem;
-                                padding: 0;
-                                line-height: 1;
-                                flex-shrink: 0;
-                                margin-top: 2px;
-                            }
+        .alert-app .alert-app-close {
+            background: none;
+            border: none;
+            cursor: pointer;
+            opacity: 0.5;
+            font-size: 1rem;
+            padding: 0;
+            line-height: 1;
+            flex-shrink: 0;
+            margin-top: 2px;
+        }
 
-                            .alert-app .alert-app-close:hover {
-                                opacity: 1;
-                            }
+        .alert-app .alert-app-close:hover {
+            opacity: 1;
+        }
 
-                            .alert-app.success {
-                                background-color: #d1f0e0;
-                                color: #0f5132;
-                                border-left: 4px solid #198754;
-                            }
+        .alert-app.success {
+            background-color: #d1f0e0;
+            color: #0f5132;
+            border-left: 4px solid #198754;
+        }
 
-                            .alert-app.danger {
-                                background-color: #fde8ea;
-                                color: #842029;
-                                border-left: 4px solid #dc3545;
-                            }
+        .alert-app.danger {
+            background-color: #fde8ea;
+            color: #842029;
+            border-left: 4px solid #dc3545;
+        }
 
-                            .alert-app.warning {
-                                background-color: #fff4cc;
-                                color: #664d03;
-                                border-left: 4px solid #ffc107;
-                            }
+        .alert-app.warning {
+            background-color: #fff4cc;
+            color: #664d03;
+            border-left: 4px solid #ffc107;
+        }
 
-                            .alert-app.info {
-                                background-color: #dceefb;
-                                color: #084298;
-                                border-left: 4px solid #0d6efd;
-                            }
+        .alert-app.info {
+            background-color: #dceefb;
+            color: #084298;
+            border-left: 4px solid #0d6efd;
+        }
 
-                            /* Keep alert-gkm and alert-gjm for backward compat but align them */
-                            .alert-gkm,
-                            .alert-gjm {
-                                display: flex;
-                                align-items: flex-start;
-                                gap: 0.75rem;
-                                padding: 0.9rem 1.1rem;
-                                border-radius: 10px;
-                                border: none;
-                                font-size: 0.9rem;
-                                line-height: 1.5;
-                            }
+        /* Keep alert-gkm and alert-gjm for backward compat but align them */
+        .alert-gkm,
+        .alert-gjm {
+            display: flex;
+            align-items: flex-start;
+            gap: 0.75rem;
+            padding: 0.9rem 1.1rem;
+            border-radius: 10px;
+            border: none;
+            font-size: 0.9rem;
+            line-height: 1.5;
+        }
 
-                            .alert-gkm.success,
-                            .alert-gjm.success {
-                                background-color: #d1f0e0;
-                                color: #0f5132;
-                                border-left: 4px solid #198754;
-                            }
+        .alert-gkm.success,
+        .alert-gjm.success {
+            background-color: #d1f0e0;
+            color: #0f5132;
+            border-left: 4px solid #198754;
+        }
 
-                            .alert-gkm.danger,
-                            .alert-gjm.danger {
-                                background-color: #fde8ea;
-                                color: #842029;
-                                border-left: 4px solid #dc3545;
-                            }
+        .alert-gkm.danger,
+        .alert-gjm.danger {
+            background-color: #fde8ea;
+            color: #842029;
+            border-left: 4px solid #dc3545;
+        }
 
-                            .alert-gkm.warning,
-                            .alert-gjm.warning {
-                                background-color: #fff4cc;
-                                color: #664d03;
-                                border-left: 4px solid #ffc107;
-                            }
+        .alert-gkm.warning,
+        .alert-gjm.warning {
+            background-color: #fff4cc;
+            color: #664d03;
+            border-left: 4px solid #ffc107;
+        }
 
-                            .alert-gkm.info,
-                            .alert-gjm.info {
-                                background-color: #dceefb;
-                                color: #084298;
-                                border-left: 4px solid #0d6efd;
-                            }
+        .alert-gkm.info,
+        .alert-gjm.info {
+            background-color: #dceefb;
+            color: #084298;
+            border-left: 4px solid #0d6efd;
+        }
 
-                            /* Global Confirm Modal */
-                            #globalConfirmModal {
-                                display: none;
-                                position: fixed;
-                                inset: 0;
-                                z-index: 99999;
-                                align-items: center;
-                                justify-content: center;
-                            }
+        /* Global Confirm Modal */
+        #globalConfirmModal {
+            display: none;
+            position: fixed;
+            inset: 0;
+            z-index: 99999;
+            align-items: center;
+            justify-content: center;
+        }
 
-                            #globalConfirmModal.active {
-                                display: flex;
-                            }
+        #globalConfirmModal.active {
+            display: flex;
+        }
 
-                            #globalConfirmBackdrop {
-                                position: absolute;
-                                inset: 0;
-                                background: rgba(0, 0, 0, 0.45);
-                                backdrop-filter: blur(2px);
-                            }
+        #globalConfirmBackdrop {
+            position: absolute;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.45);
+            backdrop-filter: blur(2px);
+        }
 
-                            #globalConfirmDialog {
-                                position: relative;
-                                background: #fff;
-                                border-radius: 1rem;
-                                padding: 2rem;
-                                max-width: 400px;
-                                width: 90%;
-                                box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
-                                animation: confirmFadeIn .18s ease;
-                            }
+        #globalConfirmDialog {
+            position: relative;
+            background: #fff;
+            border-radius: 1rem;
+            padding: 2rem;
+            max-width: 400px;
+            width: 90%;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+            animation: confirmFadeIn .18s ease;
+        }
 
-                            @keyframes confirmFadeIn {
-                                from {
-                                    opacity: 0;
-                                    transform: scale(.95) translateY(-6px);
-                                }
+        @keyframes confirmFadeIn {
+            from {
+                opacity: 0;
+                transform: scale(.95) translateY(-6px);
+            }
 
-                                to {
-                                    opacity: 1;
-                                    transform: scale(1) translateY(0);
-                                }
-                            }
+            to {
+                opacity: 1;
+                transform: scale(1) translateY(0);
+            }
+        }
 
-                            #globalConfirmDialog .confirm-icon {
-                                text-align: center;
-                                margin-bottom: 1rem;
-                            }
+        #globalConfirmDialog .confirm-icon {
+            text-align: center;
+            margin-bottom: 1rem;
+        }
 
-                            #globalConfirmDialog .confirm-icon span {
-                                display: inline-flex;
-                                align-items: center;
-                                justify-content: center;
-                                width: 56px;
-                                height: 56px;
-                                border-radius: 50%;
-                                background: #fde8ea;
-                                font-size: 1.5rem;
-                            }
+        #globalConfirmDialog .confirm-icon span {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            background: #fde8ea;
+            font-size: 1.5rem;
+        }
 
-                            #globalConfirmDialog h6 {
-                                text-align: center;
-                                font-weight: 700;
-                                font-size: 1rem;
-                                color: #1a1a2e;
-                                margin-bottom: 0.4rem;
-                            }
+        #globalConfirmDialog h6 {
+            text-align: center;
+            font-weight: 700;
+            font-size: 1rem;
+            color: #1a1a2e;
+            margin-bottom: 0.4rem;
+        }
 
-                            #globalConfirmDialog p {
-                                text-align: center;
-                                color: #6c757d;
-                                font-size: 0.875rem;
-                                margin-bottom: 1.5rem;
-                            }
+        #globalConfirmDialog p {
+            text-align: center;
+            color: #6c757d;
+            font-size: 0.875rem;
+            margin-bottom: 1.5rem;
+        }
 
-                            #globalConfirmDialog .confirm-buttons {
-                                display: flex;
-                                gap: 0.75rem;
-                            }
+        #globalConfirmDialog .confirm-buttons {
+            display: flex;
+            gap: 0.75rem;
+        }
 
-                            #globalConfirmDialog .btn-confirm-cancel {
-                                flex: 1;
-                                padding: 0.55rem;
-                                border: 1px solid #dee2e6;
-                                border-radius: 0.5rem;
-                                background: #f8f9fa;
-                                color: #495057;
-                                font-weight: 600;
-                                cursor: pointer;
-                                font-size: 0.9rem;
-                            }
+        #globalConfirmDialog .btn-confirm-cancel {
+            flex: 1;
+            padding: 0.55rem;
+            border: 1px solid #dee2e6;
+            border-radius: 0.5rem;
+            background: #f8f9fa;
+            color: #495057;
+            font-weight: 600;
+            cursor: pointer;
+            font-size: 0.9rem;
+        }
 
-                            #globalConfirmDialog .btn-confirm-ok {
-                                flex: 1;
-                                padding: 0.55rem;
-                                border: none;
-                                border-radius: 0.5rem;
-                                background: linear-gradient(135deg, #dc3545, #c82333);
-                                color: white;
-                                font-weight: 600;
-                                cursor: pointer;
-                                font-size: 0.9rem;
-                            }
+        #globalConfirmDialog .btn-confirm-ok {
+            flex: 1;
+            padding: 0.55rem;
+            border: none;
+            border-radius: 0.5rem;
+            background: linear-gradient(135deg, #dc3545, #c82333);
+            color: white;
+            font-weight: 600;
+            cursor: pointer;
+            font-size: 0.9rem;
+        }
 
-                            #globalConfirmDialog .btn-confirm-ok:disabled {
-                                opacity: 0.7;
-                                cursor: not-allowed;
-                            }
-                        </style>
+        #globalConfirmDialog .btn-confirm-ok:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+        }
+    </style>
 
-                        {{-- Global Confirm Modal --}}
-                        <div id="globalConfirmModal" role="dialog" aria-modal="true">
-                            <div id="globalConfirmBackdrop"></div>
-                            <div id="globalConfirmDialog">
-                                <div class="confirm-icon">
-                                    <span><i class="bi bi-trash3-fill" style="color:#dc3545;"></i></span>
-                                </div>
-                                <h6 id="globalConfirmTitle">Konfirmasi</h6>
-                                <p id="globalConfirmMessage">Apakah Anda yakin?</p>
-                                <div class="confirm-buttons">
-                                    <button class="btn-confirm-cancel" id="globalConfirmCancel">
-                                        <i class="bi bi-x-lg"></i> Batal
-                                    </button>
-                                    <button class="btn-confirm-ok" id="globalConfirmOk">
-                                        <i class="bi bi-check-lg"></i> Ya, Lanjutkan
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
+    {{-- Global Confirm Modal --}}
+    <div id="globalConfirmModal" role="dialog" aria-modal="true">
+        <div id="globalConfirmBackdrop"></div>
+        <div id="globalConfirmDialog">
+            <div class="confirm-icon">
+                <span><i class="bi bi-trash3-fill" style="color:#dc3545;"></i></span>
+            </div>
+            <h6 id="globalConfirmTitle">Konfirmasi</h6>
+            <p id="globalConfirmMessage">Apakah Anda yakin?</p>
+            <div class="confirm-buttons">
+                <button class="btn-confirm-cancel" id="globalConfirmCancel">
+                    <i class="bi bi-x-lg"></i> Batal
+                </button>
+                <button class="btn-confirm-ok" id="globalConfirmOk">
+                    <i class="bi bi-check-lg"></i> Ya, Lanjutkan
+                </button>
+            </div>
+        </div>
+    </div>
 
-                        <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-                        <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
-                        <script>
-                            function toggleDropdown(element) {
-                                const dropdown = element.closest('.nav-dropdown');
-                                if (!dropdown) return;
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
+    <script>
+        function toggleDropdown(element) {
+            const dropdown = element.closest('.nav-dropdown');
+            if (!dropdown) return;
 
-                                const isOpen = dropdown.classList.contains('open');
-                                document.querySelectorAll('.sidebar .nav-dropdown.open').forEach(el => {
-                                    if (el !== dropdown) {
-                                        el.classList.remove('open');
-                                    }
-                                });
+            const isOpen = dropdown.classList.contains('open');
+            document.querySelectorAll('.sidebar .nav-dropdown.open').forEach(el => {
+                if (el !== dropdown) {
+                    el.classList.remove('open');
+                }
+            });
 
-                                dropdown.classList.toggle('open', !isOpen);
-                            }
+            dropdown.classList.toggle('open', !isOpen);
+        }
 
-                            function toggleTopbarDropdown(element) {
-                                const wasOpen = element.classList.contains('open');
-                                document.querySelectorAll('.topbar-user.open').forEach(el => {
-                                    el.classList.remove('open');
-                                });
-                                if (!wasOpen) {
-                                    element.classList.add('open');
-                                }
-                            }
+        function toggleTopbarDropdown(element) {
+            const wasOpen = element.classList.contains('open');
+            document.querySelectorAll('.topbar-user.open').forEach(el => {
+                el.classList.remove('open');
+            });
+            if (!wasOpen) {
+                element.classList.add('open');
+            }
+        }
 
-                            function toggleSidebar() {
-                                const wrapper = document.querySelector('.wrapper');
-                                if (!wrapper) return;
-                                wrapper.classList.toggle('sidebar-open');
-                            }
+        function toggleSidebar() {
+            const wrapper = document.querySelector('.wrapper');
+            if (!wrapper) return;
+            wrapper.classList.toggle('sidebar-open');
+        }
 
-                            function closeSidebar() {
-                                const wrapper = document.querySelector('.wrapper');
-                                if (!wrapper) return;
-                                wrapper.classList.remove('sidebar-open');
-                            }
+        function closeSidebar() {
+            const wrapper = document.querySelector('.wrapper');
+            if (!wrapper) return;
+            wrapper.classList.remove('sidebar-open');
+        }
 
-                            document.addEventListener('click', function(event) {
-                                const topbarUser = document.querySelector('.topbar-user');
-                                if (topbarUser && !topbarUser.contains(event.target)) {
-                                    topbarUser.classList.remove('open');
-                                }
+        document.addEventListener('click', function(event) {
+            const topbarUser = document.querySelector('.topbar-user');
+            if (topbarUser && !topbarUser.contains(event.target)) {
+                topbarUser.classList.remove('open');
+            }
 
-                                if (window.innerWidth <= 768) {
-                                    const sidebar = document.querySelector('.sidebar');
-                                    const toggleBtn = document.querySelector('.sidebar-toggle');
-                                    if (sidebar && !sidebar.contains(event.target) && toggleBtn && !toggleBtn.contains(event.target)) {
-                                        closeSidebar();
-                                    }
-                                }
-                            });
+            if (window.innerWidth <= 768) {
+                const sidebar = document.querySelector('.sidebar');
+                const toggleBtn = document.querySelector('.sidebar-toggle');
+                if (sidebar && !sidebar.contains(event.target) && toggleBtn && !toggleBtn.contains(event.target)) {
+                    closeSidebar();
+                }
+            }
+        });
 
-                            document.querySelectorAll('.sidebar .nav-item').forEach(item => {
-                                item.addEventListener('click', function() {
-                                    if (window.innerWidth <= 768) {
-                                        closeSidebar();
-                                    }
-                                });
-                            });
+        document.querySelectorAll('.sidebar .nav-item').forEach(item => {
+            item.addEventListener('click', function() {
+                if (window.innerWidth <= 768) {
+                    closeSidebar();
+                }
+            });
+        });
 
-                            window.addEventListener('resize', function() {
-                                if (window.innerWidth > 768) {
-                                    closeSidebar();
-                                }
-                            });
-                        </script>
-                        @yield('scripts')
-                        @stack('scripts')
+        window.addEventListener('resize', function() {
+            if (window.innerWidth > 768) {
+                closeSidebar();
+            }
+        });
+    </script>
+    @yield('scripts')
+    @stack('scripts')
 
-                        <script>
-                            // ===== GLOBAL CONFIRM MODAL =====
-                            (function() {
-                                let _pendingForm = null;
-                                let _pendingCallback = null;
+    <script>
+        // ===== GLOBAL CONFIRM MODAL =====
+        (function() {
+            let _pendingForm = null;
+            let _pendingCallback = null;
 
-                                const modal = document.getElementById('globalConfirmModal');
-                                const title = document.getElementById('globalConfirmTitle');
-                                const message = document.getElementById('globalConfirmMessage');
-                                const btnOk = document.getElementById('globalConfirmOk');
-                                const btnCancel = document.getElementById('globalConfirmCancel');
-                                const backdrop = document.getElementById('globalConfirmBackdrop');
+            const modal = document.getElementById('globalConfirmModal');
+            const title = document.getElementById('globalConfirmTitle');
+            const message = document.getElementById('globalConfirmMessage');
+            const btnOk = document.getElementById('globalConfirmOk');
+            const btnCancel = document.getElementById('globalConfirmCancel');
+            const backdrop = document.getElementById('globalConfirmBackdrop');
 
-                                function show(opts) {
-                                    title.textContent = opts.title || 'Konfirmasi';
-                                    message.textContent = opts.message || 'Apakah Anda yakin?';
-                                    // swap icon based on type
-                                    const iconEl = modal.querySelector('.confirm-icon span');
-                                    if (opts.type === 'delete') {
-                                        iconEl.innerHTML = '<i class="bi bi-trash3-fill" style="color:#dc3545;"></i>';
-                                        iconEl.style.background = '#fde8ea';
-                                        btnOk.style.background = 'linear-gradient(135deg,#dc3545,#c82333)';
-                                    } else if (opts.type === 'process') {
-                                        iconEl.innerHTML = '<i class="bi bi-cpu-fill" style="color:#198754;"></i>';
-                                        iconEl.style.background = '#d1f0e0';
-                                        btnOk.style.background = 'linear-gradient(135deg,#198754,#20c997)';
-                                    } else {
-                                        iconEl.innerHTML = '<i class="bi bi-question-circle-fill" style="color:#0d6efd;"></i>';
-                                        iconEl.style.background = '#dceefb';
-                                        btnOk.style.background = 'linear-gradient(135deg,#0d6efd,#0b5ed7)';
-                                    }
-                                    btnOk.textContent = opts.okText || 'Ya, Lanjutkan';
-                                    btnOk.disabled = false;
-                                    modal.classList.add('active');
-                                }
+            function show(opts) {
+                title.textContent = opts.title || 'Konfirmasi';
+                message.textContent = opts.message || 'Apakah Anda yakin?';
+                // swap icon based on type
+                const iconEl = modal.querySelector('.confirm-icon span');
+                if (opts.type === 'delete') {
+                    iconEl.innerHTML = '<i class="bi bi-trash3-fill" style="color:#dc3545;"></i>';
+                    iconEl.style.background = '#fde8ea';
+                    btnOk.style.background = 'linear-gradient(135deg,#dc3545,#c82333)';
+                } else if (opts.type === 'process') {
+                    iconEl.innerHTML = '<i class="bi bi-cpu-fill" style="color:#198754;"></i>';
+                    iconEl.style.background = '#d1f0e0';
+                    btnOk.style.background = 'linear-gradient(135deg,#198754,#20c997)';
+                } else {
+                    iconEl.innerHTML = '<i class="bi bi-question-circle-fill" style="color:#0d6efd;"></i>';
+                    iconEl.style.background = '#dceefb';
+                    btnOk.style.background = 'linear-gradient(135deg,#0d6efd,#0b5ed7)';
+                }
+                btnOk.textContent = opts.okText || 'Ya, Lanjutkan';
+                btnOk.disabled = false;
+                modal.classList.add('active');
+            }
 
-                                function hide() {
-                                    modal.classList.remove('active');
-                                    _pendingForm = null;
-                                    _pendingCallback = null;
-                                }
+            function hide() {
+                modal.classList.remove('active');
+                _pendingForm = null;
+                _pendingCallback = null;
+            }
 
-                                btnOk.addEventListener('click', function() {
-                                    btnOk.disabled = true;
-                                    if (_pendingCallback) _pendingCallback();
-                                    else if (_pendingForm) _pendingForm.submit();
-                                    hide();
-                                });
-                                btnCancel.addEventListener('click', hide);
-                                backdrop.addEventListener('click', hide);
-                                document.addEventListener('keydown', function(e) {
-                                    if (e.key === 'Escape') hide();
-                                });
+            btnOk.addEventListener('click', function() {
+                btnOk.disabled = true;
+                if (_pendingCallback) _pendingCallback();
+                else if (_pendingForm) _pendingForm.submit();
+                hide();
+            });
+            btnCancel.addEventListener('click', hide);
+            backdrop.addEventListener('click', hide);
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape') hide();
+            });
 
-                                // Public API
-                                window.AppConfirm = {
-                                    delete: function(form, msg) {
-                                        _pendingForm = form;
-                                        show({
-                                            type: 'delete',
-                                            title: 'Hapus Data?',
-                                            message: msg || 'Data yang dihapus tidak dapat dikembalikan.',
-                                            okText: 'Ya, Hapus'
-                                        });
-                                    },
-                                    ask: function(form, title, msg) {
-                                        _pendingForm = form;
-                                        show({
-                                            type: 'info',
-                                            title: title,
-                                            message: msg,
-                                            okText: 'Ya, Lanjutkan'
-                                        });
-                                    },
-                                    process: function(form, title, msg) {
-                                        _pendingForm = form;
-                                        show({
-                                            type: 'process',
-                                            title: title,
-                                            message: msg,
-                                            okText: 'Ya, Proses'
-                                        });
-                                    },
-                                    custom: function(opts, callback) {
-                                        _pendingCallback = callback;
-                                        show(opts);
-                                    }
-                                };
+            // Public API
+            window.AppConfirm = {
+                delete: function(form, msg) {
+                    _pendingForm = form;
+                    show({
+                        type: 'delete',
+                        title: 'Hapus Data?',
+                        message: msg || 'Data yang dihapus tidak dapat dikembalikan.',
+                        okText: 'Ya, Hapus'
+                    });
+                },
+                ask: function(form, title, msg) {
+                    _pendingForm = form;
+                    show({
+                        type: 'info',
+                        title: title,
+                        message: msg,
+                        okText: 'Ya, Lanjutkan'
+                    });
+                },
+                process: function(form, title, msg) {
+                    _pendingForm = form;
+                    show({
+                        type: 'process',
+                        title: title,
+                        message: msg,
+                        okText: 'Ya, Proses'
+                    });
+                },
+                custom: function(opts, callback) {
+                    _pendingCallback = callback;
+                    show(opts);
+                }
+            };
 
-                                // Auto-dismiss .alert-app after 6s
-                                document.querySelectorAll('.alert-app[data-auto-dismiss]').forEach(function(el) {
-                                    setTimeout(function() {
-                                        el.style.transition = 'opacity .4s';
-                                        el.style.opacity = '0';
-                                        setTimeout(function() {
-                                            el.remove();
-                                        }, 400);
-                                    }, 6000);
-                                });
-                            })();
-                        </script>
+            // Auto-dismiss .alert-app after 6s
+            document.querySelectorAll('.alert-app[data-auto-dismiss]').forEach(function(el) {
+                setTimeout(function() {
+                    el.style.transition = 'opacity .4s';
+                    el.style.opacity = '0';
+                    setTimeout(function() {
+                        el.remove();
+                    }, 400);
+                }, 6000);
+            });
+        })();
+    </script>
 
-    </body>
+</body>
 
-    </html>
-
+</html>

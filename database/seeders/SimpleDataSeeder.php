@@ -7,7 +7,6 @@ use Illuminate\Database\Seeder;
 use App\Models\Ajaran;
 use App\Models\Prodi;
 use App\Models\RPS;
-use App\Models\Materi;
 use App\Models\Matakuliah;
 use App\Models\Dosen;
 use Carbon\Carbon;
@@ -21,7 +20,7 @@ class SimpleDataSeeder extends Seeder
     public function run(): void
     {
         DB::beginTransaction();
-        
+
         try {
             // 1. Seed Ajaran jika belum ada
             if (Ajaran::count() == 0) {
@@ -44,11 +43,11 @@ class SimpleDataSeeder extends Seeder
                 $matakuliah = Matakuliah::limit(5)->get();
                 $dosen = Dosen::limit(3)->get();
                 $ajaran = Ajaran::first();
-                
+
                 if ($matakuliah->isNotEmpty() && $dosen->isNotEmpty() && $ajaran) {
                     foreach ($matakuliah as $mk) {
                         $hasFile = rand(1, 100) <= 80;
-                        
+
                         RPS::create([
                             'matakuliah_id' => $mk->id,
                             'ajaran_id' => $ajaran->id,
@@ -69,42 +68,9 @@ class SimpleDataSeeder extends Seeder
                 }
             }
 
-            // 3. Seed Materi jika belum ada
-            if (Materi::count() == 0) {
-                $rps = RPS::limit(3)->get();
-                $matakuliah = Matakuliah::limit(3)->get();
-                $dosen = Dosen::limit(3)->get();
-                
-                if ($rps->isNotEmpty() && $matakuliah->isNotEmpty() && $dosen->isNotEmpty()) {
-                    foreach ($matakuliah as $mk) {
-                        $rpsItem = $rps->where('matakuliah_id', $mk->id)->first();
-                        
-                        for ($i = 1; $i <= 5; $i++) {
-                            $hasFile = rand(1, 100) <= 75;
-                            
-                            Materi::create([
-                                'rps_id' => $rpsItem ? $rpsItem->id : null,
-                                'matakuliah_id' => $mk->id,
-                                'dosen_id' => $dosen->random()->id,
-                                'judul_materi' => "Pertemuan {$i}: Materi " . $mk->nama_mk,
-                                'deskripsi_materi' => "Materi pembelajaran pertemuan {$i}",
-                                'file_materi' => $hasFile ? "uploads/materi/{$mk->kode_mk}/pertemuan_{$i}.pdf" : null,
-                                'jenis_file' => $hasFile ? 'pdf' : null,
-                                'status_upload_materi' => $hasFile ? 'uploaded' : 'not_uploaded',
-                                'tanggal_upload_materi' => $hasFile ? Carbon::now()->subDays(rand(1, 30)) : null,
-                                'lokasi_upload' => $hasFile ? 'server' : null,
-                                'created_at' => Carbon::now()->subDays(rand(1, 60)),
-                                'updated_at' => Carbon::now()->subDays(rand(1, 30)),
-                            ]);
-                        }
-                    }
-                    $this->command->info('Materi seeded successfully!');
-                }
-            }
-
             DB::commit();
             $this->command->info('All seeders completed successfully!');
-            
+
         } catch (\Exception $e) {
             DB::rollback();
             $this->command->error('Seeder failed: ' . $e->getMessage());

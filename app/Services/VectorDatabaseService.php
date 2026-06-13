@@ -188,9 +188,7 @@ class VectorDatabaseService
             }
 
             if (isset($filters['source_id'])) {
-                // Cast to int to prevent loose-type mismatch (DB stores integer, filter
-                // may arrive as string from controller).
-                $chunksQuery->where('source_id', (int) $filters['source_id']);
+                $chunksQuery->where('source_id', $filters['source_id']);
             }
 
             if (isset($filters['periode'])) {

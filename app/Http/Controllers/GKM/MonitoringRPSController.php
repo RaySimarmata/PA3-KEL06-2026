@@ -5,9 +5,7 @@ use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
 use Illuminate\Pagination\LengthAwarePaginator;
 use App\Models\RPS;
-use App\Models\Materi;
 use App\Models\User;
-use App\Models\Dosen;
 use App\Models\Dosenn;
 use App\Models\RpsMonitoringSnapshot;
 use App\Models\LogEmail;
@@ -117,7 +115,7 @@ class MonitoringRPSController extends Controller
 
                 // Cache the result
                 \Cache::put($cacheKey, $matkulList, 1800);
-                
+
                 \Log::info('MonitoringRPS - Data cached and saved to snapshot', [
                     'prodi_id' => $prodiId,
                     'semester' => $selectedSemester,
@@ -326,7 +324,7 @@ public function exportPdf(Request $request)
 
     // Konversi semester input ke format yang ada di database
     $semesterVariations = [];
-    
+
     if ($selectedSemester == '1') {
         $semesterVariations = ['1', 'Ganjil', 'ganjil', 'GANJIL'];
     } elseif ($selectedSemester == '2') {
@@ -483,11 +481,11 @@ public function exportPdf(Request $request)
 
                 $pegawaiIds = $uniqueDosen->pluck('pegawai_id')->toArray();
                 $dosenNama = $uniqueDosen->pluck('nama')->filter()->implode(', ');
-                
+
                 if (empty($dosenNama) || $dosenNama === '') {
                     $dosenNama = '-';
                 }
-                
+
                 \Log::info('MonitoringRPS - Dosen found for matkul', [
                     'kode_mk' => $kodeMk,
                     'found_key' => $foundKey,
@@ -1004,12 +1002,12 @@ private function buildRpsComplianceSummary(int $prodiId, string $semester, strin
         compact('user', 'logEmailList', 'dosenList', 'dosenId', 'sort')
     );
 }
-    
+
 
     /**
      * Generate dynamic tahun ajaran list based on current year
      * Auto-updates every 5 years
-     * 
+     *
      * Example:
      * - Current year 2025-2029: Shows 2025, 2026, 2027, 2028, 2029, 2030
      * - Current year 2030-2034: Shows 2030, 2031, 2032, 2033, 2034, 2035
@@ -1018,7 +1016,7 @@ private function buildRpsComplianceSummary(int $prodiId, string $semester, strin
     private function generateDynamicTahunAjaran()
     {
         $currentYear = (int) date('Y');
-        
+
         // Determine base year (start of 5-year range)
         // Formula: floor(currentYear / 5) * 5
         // Examples:
@@ -1026,7 +1024,7 @@ private function buildRpsComplianceSummary(int $prodiId, string $semester, strin
         // - 2030-2034 → baseYear = 2030
         // - 2035-2039 → baseYear = 2035
         $baseYear = floor($currentYear / 5) * 5;
-        
+
         // Generate 6 years (current 5-year range + 1 next year)
         $tahunList = [];
         for ($i = 0; $i <= 5; $i++) {
@@ -1036,14 +1034,14 @@ private function buildRpsComplianceSummary(int $prodiId, string $semester, strin
                 'nm_thn_ajaran' => (string) $year
             ];
         }
-        
+
         Log::info('Generated dynamic tahun ajaran', [
             'current_year' => $currentYear,
             'base_year' => $baseYear,
             'range' => $baseYear . ' - ' . ($baseYear + 5),
             'years_generated' => array_column($tahunList, 'id_thn_ajaran')
         ]);
-        
+
         return $tahunList;
     }
 }

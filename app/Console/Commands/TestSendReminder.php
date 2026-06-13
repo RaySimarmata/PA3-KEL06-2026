@@ -4,7 +4,7 @@ namespace App\Console\Commands;
 
 use Illuminate\Console\Command;
 use App\Models\JadwalReminder;
-use App\Models\Dosen;
+use App\Models\Dosenn as Dosen;
 use App\Helpers\EmailHelper;
 
 class TestSendReminder extends Command

@@ -1465,20 +1465,148 @@ class LaporanKuesioneController extends Controller
      */
     private function extractTemplateStructure($templateId)
     {
-        if (!$templateId) return null;
+        if (!$templateId) {
+            return null;
+        }
 
         try {
             $template = TemplateLaporan::find($templateId);
-            if (!$template) return null;
+            if (!$template || !$template->file_path) {
+                Log::warning('Template not found or no file_path', [
+                    'template_id' => $templateId,
+                    'has_template' => !is_null($template),
+                    'has_file_path' => $template ? !is_null($template->file_path) : false
+                ]);
+                return null;
+            }
 
-            return "Template structure for kuesioner report...";
-        } catch (\Exception $e) {
-            Log::warning('Failed to extract template structure for Kuesioner', [
+            // Try multiple path locations
+            $possiblePaths = [
+                storage_path('app/public/' . $template->file_path),
+                storage_path('app/' . $template->file_path),
+            ];
+
+            $templatePath = null;
+            foreach ($possiblePaths as $path) {
+                if (file_exists($path)) {
+                    $templatePath = $path;
+                    break;
+                }
+            }
+
+            if (!$templatePath) {
+                Log::warning('Template file not found in any location', [
+                    'template_id' => $templateId,
+                    'file_path' => $template->file_path,
+                    'tried_paths' => $possiblePaths
+                ]);
+                return null;
+            }
+
+            Log::info('Loading template file for structure extraction', [
                 'template_id' => $templateId,
-                'error' => $e->getMessage()
+                'file_path' => $templatePath
+            ]);
+
+            // Read template using PhpWord
+            $phpWord = \PhpOffice\PhpWord\IOFactory::load($templatePath);
+            $structure = [];
+            $currentSection = null;
+
+            // Extract text from all sections
+            foreach ($phpWord->getSections() as $section) {
+                foreach ($section->getElements() as $element) {
+                    $text = $this->extractTextFromElement($element);
+                    if (!empty($text)) {
+                        // Detect section headers (Roman numerals, numbers, or bold text)
+                        if (preg_match('/^(I{1,3}V?|IV|V?I{0,3})\.\s*(.+)$/i', $text, $matches)) {
+                            // Roman numeral section (e.g., "I. PENDAHULUAN")
+                            $currentSection = trim($matches[2]);
+                            $structure[] = "# " . strtoupper($currentSection);
+                        } elseif (preg_match('/^([a-z])\.\s*(.+)$/i', $text, $matches)) {
+                            // Sub-section (e.g., "a. Latar Belakang")
+                            $subSection = trim($matches[2]);
+                            $structure[] = "## " . ucwords(strtolower($subSection));
+                        } elseif (preg_match('/^\d+\.\s*(.+)$/i', $text, $matches)) {
+                            // Numbered section (e.g., "1. PENDAHULUAN")
+                            $currentSection = trim($matches[1]);
+                            $structure[] = "# " . strtoupper($currentSection);
+                        }
+                    }
+                }
+            }
+
+            if (empty($structure)) {
+                Log::info('No structure found in template, returning null', [
+                    'template_id' => $templateId
+                ]);
+                return null;
+            }
+
+            $structureText = implode("\n", $structure);
+            Log::info('Template structure extracted successfully', [
+                'template_id' => $templateId,
+                'sections_found' => count($structure),
+                'structure_preview' => substr($structureText, 0, 200)
+            ]);
+
+            return $structureText;
+
+        } catch (\Exception $e) {
+            Log::error('Failed to extract template structure for Kuesioner', [
+                'template_id' => $templateId,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
             ]);
             return null;
         }
+    }
+
+    /**
+     * Extract text from PhpWord element recursively
+     */
+    private function extractTextFromElement($element)
+    {
+        $text = '';
+
+        try {
+            // Handle different element types
+            if ($element instanceof \PhpOffice\PhpWord\Element\TextRun) {
+                // TextRun contains multiple Text elements
+                foreach ($element->getElements() as $childElement) {
+                    $text .= $this->extractTextFromElement($childElement);
+                }
+            } elseif ($element instanceof \PhpOffice\PhpWord\Element\Text) {
+                // Text element has getText() method
+                $text = $element->getText();
+            } elseif ($element instanceof \PhpOffice\PhpWord\Element\Table) {
+                // Skip tables for structure extraction
+                $text = '[TABLE]';
+            } elseif ($element instanceof \PhpOffice\PhpWord\Element\TextBreak) {
+                // Line break
+                $text = "\n";
+            } elseif (method_exists($element, 'getText')) {
+                $result = $element->getText();
+                // Make sure result is string
+                if (is_string($result)) {
+                    $text = $result;
+                } elseif (is_object($result)) {
+                    $text = method_exists($result, '__toString') ? (string)$result : '';
+                }
+            } elseif (method_exists($element, 'getElements')) {
+                // Container element, recurse into children
+                foreach ($element->getElements() as $childElement) {
+                    $text .= $this->extractTextFromElement($childElement) . ' ';
+                }
+            }
+        } catch (\Exception $e) {
+            Log::debug('Failed to extract text from element', [
+                'element_type' => get_class($element),
+                'error' => $e->getMessage()
+            ]);
+        }
+
+        return is_string($text) ? trim($text) : '';
     }
 
     /**

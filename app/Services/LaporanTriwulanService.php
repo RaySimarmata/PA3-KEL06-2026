@@ -59,8 +59,7 @@ class LaporanTriwulanService
             // 2. Parse instruksi_prompt untuk mendapatkan periode dan tahun
             $instruksi = json_decode($laporan->instruksi_prompt, true);
             $periode = $instruksi['periode'] ?? 'Triwulan';
-            // Note: key stored in DB is lowercase 'periode_triwulan'
-            $periodeTriwulan = $instruksi['periode_triwulan'] ?? $instruksi['periode_Triwulan'] ?? null;
+            $periodeTriwulan = $instruksi['periode_Triwulan'] ?? 'ganjil';
             $tahun = $instruksi['tahun'] ?? date('Y');
 
             // 3. Extract placeholders dari AI preview sections
@@ -385,43 +384,15 @@ class LaporanTriwulanService
             'periode_akhir' => $periodeAkhir
         ]);
 
-        $mulai = Carbon::parse($periodeMulai);
-        $akhir  = Carbon::parse($periodeAkhir);
-
-        // Build list of (year, month) pairs that fall within the range so we can
-        // filter using the dedicated 'tahun' and 'bulan' columns instead of
-        // created_at.  This prevents out-of-range records from leaking in due to
-        // the record's insert date differing from its actual report period.
-        $yearMonthPairs = [];
-        $cursor = $mulai->copy()->startOfMonth();
-        while ($cursor->lte($akhir)) {
-            $yearMonthPairs[] = [$cursor->year, $cursor->month];
-            $cursor->addMonth();
-        }
-
-        $query = LaporanBulanan::where('status', 'completed')->with(['prodi', 'user']);
-
-        if (!empty($yearMonthPairs)) {
-            $query->where(function ($q) use ($yearMonthPairs) {
-                foreach ($yearMonthPairs as [$y, $m]) {
-                    $q->orWhere(function ($inner) use ($y, $m) {
-                        $inner->where('tahun', $y)->where('bulan', $m);
-                    });
-                }
-            });
-        }
-
-        $laporanGKM = $query->get();
-
-        Log::info("GKM data collected using bulan/tahun filter", [
-            'year_month_pairs' => $yearMonthPairs,
-            'records_found'    => $laporanGKM->count(),
-        ]);
+        $laporanGKM = LaporanBulanan::where('status', 'completed')
+            ->whereBetween('created_at', [$periodeMulai, $periodeAkhir])
+            ->with(['prodi', 'user'])
+            ->get();
 
         $dataContext = [
             'total_laporan' => $laporanGKM->count(),
-            'periode_mulai' => $mulai->locale('id')->translatedFormat('d F Y'),
-            'periode_akhir' => $akhir->locale('id')->translatedFormat('d F Y'),
+            'periode_mulai' => Carbon::parse($periodeMulai)->locale('id')->translatedFormat('d F Y'),
+            'periode_akhir' => Carbon::parse($periodeAkhir)->locale('id')->translatedFormat('d F Y'),
             'laporan_per_prodi' => [],
         ];
 
@@ -449,27 +420,6 @@ class LaporanTriwulanService
         $prompt .= "- Periode: {$periode}\n";
         $prompt .= "- Tahun Akademik: {$tahun}\n\n";
 
-        // Derive date range from periode label so the AI knows the hard boundaries
-        $periodeRangeMap = [
-            'Triwulan I'   => "1 Januari {$tahun} - 31 Maret {$tahun}",
-            'Triwulan II'  => "1 April {$tahun} - 30 Juni {$tahun}",
-            'Triwulan III' => "1 Juli {$tahun} - 30 September {$tahun}",
-            'Triwulan IV'  => "1 Oktober {$tahun} - 31 Desember {$tahun}",
-        ];
-        $rangeLabel = '';
-        foreach ($periodeRangeMap as $key => $range) {
-            if (str_contains($periode, $key)) {
-                $rangeLabel = $range;
-                break;
-            }
-        }
-        if ($rangeLabel) {
-            $prompt .= "⛔ BATASAN PERIODE WAJIB:\n";
-            $prompt .= "- Laporan ini HANYA mencakup periode: {$rangeLabel}\n";
-            $prompt .= "- SEMUA data, kegiatan, dan tanggal harus berada dalam rentang tersebut.\n";
-            $prompt .= "- DILARANG menyebut data atau peristiwa di luar rentang {$rangeLabel}.\n\n";
-        }
-
         $prompt .= "DATA YANG TERSEDIA:\n";
         $prompt .= "- Total Laporan GKM: {$dataContext['total_laporan']}\n";
         $prompt .= "- Periode Data: {$dataContext['periode_mulai']} s/d {$dataContext['periode_akhir']}\n\n";
@@ -490,9 +440,8 @@ class LaporanTriwulanService
         $prompt .= "INSTRUKSI:\n";
         $prompt .= "1. Buat laporan Triwulan yang komprehensif berdasarkan data GKM yang tersedia\n";
         $prompt .= "2. Gunakan struktur template jika tersedia\n";
-        $prompt .= "3. Isi placeholder dengan konten yang relevan dan berada dalam periode {$periode}\n";
-        $prompt .= "4. Gunakan bahasa formal dan profesional\n";
-        $prompt .= "5. Jangan sertakan data dari periode lain di luar {$periode}\n\n";
+        $prompt .= "3. Isi placeholder dengan konten yang relevan\n";
+        $prompt .= "4. Gunakan bahasa formal dan profesional\n\n";
 
         $prompt .= "Silakan generate laporan sekarang.";
 

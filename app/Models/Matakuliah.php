@@ -38,9 +38,4 @@ class Matakuliah extends Model
     {
         return $this->hasMany(RPS::class);
     }
-
-    public function materi()
-    {
-        return $this->hasMany(Materi::class);
-    }
 }
