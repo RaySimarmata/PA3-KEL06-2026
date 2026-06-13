@@ -145,8 +145,6 @@ class LaporanTriwulanController extends Controller
                 'file_referensi.*' => 'file|mimes:docx,doc,pdf,txt,xlsx,xls,jpg,jpeg,png,gif,webp|max:10240',
                 'conversation_history' => 'nullable|array',
                 'template_id' => 'nullable|exists:template_laporan,id',
-                'laporan_id' => 'nullable|exists:laporan_gjm,id',
-                'periode_triwulan' => 'nullable|in:1,2,3,4',
             ]);
             
             $userPrompt = $request->input('prompt');
@@ -191,44 +189,6 @@ class LaporanTriwulanController extends Controller
             $conversationHistory = $request->input('conversation_history', []);
             $templateId = $request->input('template_id');
             $laporanId = $request->input('laporan_id');
-
-            // Resolve periode triwulan — try request first, then fall back to laporan record
-            $periodeTriwulanInput = $request->input('periode_triwulan');
-            if (!$periodeTriwulanInput && $laporanId) {
-                $laporanRecord = \App\Models\LaporanGJM::find($laporanId);
-                if ($laporanRecord) {
-                    $instruksiData = json_decode($laporanRecord->instruksi_prompt, true);
-                    $periodeTriwulanInput = $instruksiData['periode_triwulan'] ?? null;
-                }
-            }
-
-            // Build human-readable periode label and date range for the AI prompt
-            $periodeTriwulanLabel = '';
-            $periodeTriwulanMulai = '';
-            $periodeTriwulanAkhir = '';
-            $currentYear = date('Y');
-            switch ($periodeTriwulanInput) {
-                case '1':
-                    $periodeTriwulanLabel = 'Triwulan I';
-                    $periodeTriwulanMulai = "1 Januari {$currentYear}";
-                    $periodeTriwulanAkhir = "31 Maret {$currentYear}";
-                    break;
-                case '2':
-                    $periodeTriwulanLabel = 'Triwulan II';
-                    $periodeTriwulanMulai = "1 April {$currentYear}";
-                    $periodeTriwulanAkhir = "30 Juni {$currentYear}";
-                    break;
-                case '3':
-                    $periodeTriwulanLabel = 'Triwulan III';
-                    $periodeTriwulanMulai = "1 Juli {$currentYear}";
-                    $periodeTriwulanAkhir = "30 September {$currentYear}";
-                    break;
-                case '4':
-                    $periodeTriwulanLabel = 'Triwulan IV';
-                    $periodeTriwulanMulai = "1 Oktober {$currentYear}";
-                    $periodeTriwulanAkhir = "31 Desember {$currentYear}";
-                    break;
-            }
             
             // Debug logging
             Log::info('AI Prompt Request', [
@@ -244,7 +204,7 @@ class LaporanTriwulanController extends Controller
                 'feature' => 'triwulan', // For evaluation tracking
                 'type' => 'laporan_triwulan',
                 'template_id' => $templateId,
-                'periode_triwulan' => $periodeTriwulanInput,
+                'periode_triwulan' => $request->input('periode_triwulan'),
                 'has_files' => $request->hasFile('file_referensi'),
                 'file_count' => $request->hasFile('file_referensi') ? count($request->file('file_referensi')) : 0,
             ];
@@ -277,25 +237,11 @@ class LaporanTriwulanController extends Controller
             $templateStructure = $this->extractTemplateStructure($templateId);
             
             // Get GKM monthly reports data for context
-            $gkmData = $this->getGKMTriwulanReports($periodeTriwulanInput);
+            $gkmData = $this->getGKMTriwulanReports($request->input('periode_triwulan'));
             
             // System context for triwulan reports
             $systemContext = "Anda adalah AI Assistant untuk membuat LAPORAN TRIWULAN GJM Institut Teknologi Del.\n\n";
-
-            // ── PERIODE FILTER ────────────────────────────────────────────────────────
-            if ($periodeTriwulanLabel) {
-                $systemContext .= "🗓️ PERIODE LAPORAN YANG SEDANG DIBUAT:\n";
-                $systemContext .= "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n";
-                $systemContext .= "- Periode: {$periodeTriwulanLabel} {$currentYear}\n";
-                $systemContext .= "- Rentang tanggal: {$periodeTriwulanMulai} s/d {$periodeTriwulanAkhir}\n";
-                $systemContext .= "- SEMUA data, kegiatan, dan peristiwa yang Anda tulis HARUS berada dalam\n";
-                $systemContext .= "  rentang {$periodeTriwulanMulai} - {$periodeTriwulanAkhir}.\n";
-                $systemContext .= "- DILARANG KERAS menyebut data, kegiatan, atau tanggal di luar rentang tersebut.\n";
-                $systemContext .= "- Jika data GKM yang tersedia berasal dari luar periode ini, ABAIKAN data tersebut.\n";
-                $systemContext .= "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n";
-            }
-            // ─────────────────────────────────────────────────────────────────────────
-
+            
             $systemContext .= "❗ PENTING - JENIS LAPORAN:\n";
             $systemContext .= "- Anda sedang membuat LAPORAN TRIWULAN, BUKAN laporan VMTS!\n";
             $systemContext .= "- Laporan Triwulan = Laporan 3 bulanan untuk GJM (Gugus Jaminan Mutu)\n";
@@ -395,12 +341,6 @@ class LaporanTriwulanController extends Controller
             $systemContext .= "- Jelaskan program kerja GJM yang dilaksanakan\n";
             $systemContext .= "- Sertakan data dan capaian dalam periode triwulan\n";
             $systemContext .= "- JANGAN bahas tentang VMTS, visi misi, atau strategi jangka panjang\n\n";
-            if ($periodeTriwulanLabel) {
-                $systemContext .= "⛔ BATASAN PERIODE WAJIB:\n";
-                $systemContext .= "- Laporan ini HANYA untuk periode {$periodeTriwulanLabel} {$currentYear} ({$periodeTriwulanMulai} - {$periodeTriwulanAkhir}).\n";
-                $systemContext .= "- Jangan masukkan data atau peristiwa dari bulan/tahun di luar periode tersebut.\n";
-                $systemContext .= "- Jika tidak ada data untuk periode ini, nyatakan secara eksplisit bahwa data belum tersedia.\n\n";
-            }
 
             // Extract file content if uploaded
             $filesContext = [];
@@ -492,32 +432,27 @@ class LaporanTriwulanController extends Controller
                                 // Index OCR text to vector database if laporan_id exists
                                 if ($laporanId) {
                                     $vectorDbService->indexDocument([
-                                        'text'        => $ocrText,
+                                        'text' => $ocrText,
                                         'source_type' => 'laporan_gjm_ocr',
-                                        'source_id'   => (int) $laporanId,
+                                        'source_id' => $laporanId,
                                         'chunk_index' => $index,
-                                        'metadata'    => [
-                                            'type'                    => 'ocr_image',
-                                            'filename'                => $fileName,
-                                            'laporan_id'              => (int) $laporanId,
-                                            'laporan_type'            => 'triwulan',
-                                            'periode_triwulan'        => $periodeTriwulanInput,
-                                            'periode_triwulan_label'  => $periodeTriwulanLabel,
-                                            'periode_mulai'           => $periodeTriwulanMulai,
-                                            'periode_akhir'           => $periodeTriwulanAkhir,
-                                            'ocr_method'              => $ocrResult['method'],
-                                            'confidence'              => $ocrResult['confidence'],
-                                            'image_path'              => $permanentPath,
-                                            'indexed_at'              => now()->toIso8601String(),
+                                        'metadata' => [
+                                            'type' => 'ocr_image',
+                                            'filename' => $fileName,
+                                            'laporan_id' => $laporanId,
+                                            'laporan_type' => 'triwulan',
+                                            'ocr_method' => $ocrResult['method'],
+                                            'confidence' => $ocrResult['confidence'],
+                                            'image_path' => $permanentPath,
+                                            'indexed_at' => now()->toIso8601String(),
                                         ]
                                     ]);
-
+                                    
                                     Log::info('OCR text indexed to vector database', [
-                                        'filename'         => $fileName,
-                                        'laporan_id'       => $laporanId,
-                                        'periode_triwulan' => $periodeTriwulanInput,
-                                        'text_length'      => strlen($ocrText),
-                                        'image_path'       => $permanentPath,
+                                        'filename' => $fileName,
+                                        'laporan_id' => $laporanId,
+                                        'text_length' => strlen($ocrText),
+                                        'image_path' => $permanentPath
                                     ]);
                                 }
                             }
@@ -553,35 +488,11 @@ class LaporanTriwulanController extends Controller
                         try {
                             $result = $textExtraction->extractFromFile($fullPath);
                             $fileContent = $result['text'] ?? '';
-
-                            // Detect period hints from the filename so AI can be warned
-                            // when the uploaded file appears to be from a different triwulan.
-                            $fileWarning = '';
-                            if ($periodeTriwulanLabel) {
-                                $outOfRange = $this->detectOutOfRangePeriod(
-                                    $fileName,
-                                    $fileContent,
-                                    $periodeTriwulanInput
-                                );
-                                if ($outOfRange) {
-                                    $fileWarning = "⚠️ PERINGATAN: File '{$fileName}' tampaknya berasal dari periode {$outOfRange}, "
-                                        . "BUKAN dari {$periodeTriwulanLabel} {$currentYear} ({$periodeTriwulanMulai} – {$periodeTriwulanAkhir}). "
-                                        . "ABAIKAN semua data, tanggal, dan peristiwa dalam file ini yang berada di luar periode {$periodeTriwulanLabel} {$currentYear}. "
-                                        . "Gunakan file ini hanya sebagai referensi format/struktur, BUKAN sebagai sumber data.\n\n";
-
-                                    Log::warning('Document file detected as out-of-range period', [
-                                        'filename'          => $fileName,
-                                        'detected_period'   => $outOfRange,
-                                        'target_triwulan'   => $periodeTriwulanLabel,
-                                    ]);
-                                }
-                            }
-
+                            
                             $filesContext[] = [
                                 'filename' => $fileName,
-                                'content'  => $fileContent,
-                                'type'     => $this->categorizeFile($fileName),
-                                'warning'  => $fileWarning,
+                                'content' => $fileContent,
+                                'type' => $this->categorizeFile($fileName)
                             ];
                             
                             Log::info('Document extracted for AI prompt', [
@@ -683,11 +594,6 @@ class LaporanTriwulanController extends Controller
                 $currentMessage .= "DOKUMEN YANG DIUPLOAD:\n\n";
                 
                 foreach ($filesContext as $fileData) {
-                    // Show file warning first if out-of-range period detected
-                    if (!empty($fileData['warning'])) {
-                        $currentMessage .= $fileData['warning'];
-                    }
-
                     // Truncate very long content to prevent API limits
                     $content = $fileData['content'];
                     $maxFileContentLength = 12000; // Leave room for other parts of the message
@@ -707,38 +613,32 @@ class LaporanTriwulanController extends Controller
             }
             
             // Get RAG context from vector database if laporan_id exists
-            // Only retrieve OCR chunks that belong to THIS laporan (by source_id).
-            // We intentionally do NOT search the kuesioner index here because those
-            // chunks are not filtered by triwulan and would bring in cross-period data.
             $ragContext = '';
             if ($laporanId) {
                 try {
-                    $ragRetrieval = $ragService->retrieveContext($userPrompt, [
+                    $ragResults = $ragService->retrieveContext($userPrompt, [
                         'source_type' => 'laporan_gjm_ocr',
-                        'source_id'   => (int) $laporanId,
-                        'top_k'       => 5,
+                        'source_id' => $laporanId,
+                        'top_k' => 5
                     ]);
-
-                    // retrieveContext returns ['results'=>[], 'context_text'=>'', 'metadata'=>[]]
-                    $ragResultItems = $ragRetrieval['results'] ?? $ragRetrieval;
-
-                    if (!empty($ragResultItems)) {
-                        $ragContext = "CONTEXT DARI GAMBAR SEBELUMNYA (laporan ini saja):\n\n";
-                        foreach ($ragResultItems as $result) {
-                            $ragContext .= "- " . ($result['text'] ?? '') . "\n";
-                            $ragContext .= "  (Relevance: " . round(($result['similarity'] ?? 0) * 100, 1) . "%)\n\n";
+                    
+                    if (!empty($ragResults)) {
+                        $ragContext = "CONTEXT DARI GAMBAR SEBELUMNYA:\n\n";
+                        foreach ($ragResults as $result) {
+                            $ragContext .= "- " . $result['text'] . "\n";
+                            $ragContext .= "  (Relevance: " . round($result['similarity'] * 100, 1) . "%)\n\n";
                         }
-
+                        
                         Log::info('RAG context retrieved', [
-                            'laporan_id'    => $laporanId,
-                            'results_count' => count($ragResultItems),
-                            'top_similarity' => $ragResultItems[0]['similarity'] ?? 0,
+                            'laporan_id' => $laporanId,
+                            'results_count' => count($ragResults),
+                            'top_similarity' => $ragResults[0]['similarity'] ?? 0
                         ]);
                     }
                 } catch (\Exception $e) {
                     Log::warning('RAG retrieval failed', [
                         'laporan_id' => $laporanId,
-                        'error'      => $e->getMessage(),
+                        'error' => $e->getMessage()
                     ]);
                 }
             }
@@ -753,31 +653,7 @@ class LaporanTriwulanController extends Controller
             if (!empty($ocrTexts)) {
                 $currentMessage .= "TEKS DARI GAMBAR YANG DIUPLOAD:\n\n";
                 foreach ($ocrTexts as $ocrData) {
-                    // Detect if the image content is from a different period
-                    $ocrWarning = '';
-                    if ($periodeTriwulanLabel) {
-                        $outOfRange = $this->detectOutOfRangePeriod(
-                            $ocrData['filename'],
-                            $ocrData['text'],
-                            $periodeTriwulanInput
-                        );
-                        if ($outOfRange) {
-                            $ocrWarning = "⚠️ PERINGATAN: Gambar '{$ocrData['filename']}' tampaknya berasal dari "
-                                . "periode {$outOfRange}, BUKAN {$periodeTriwulanLabel} {$currentYear}. "
-                                . "ABAIKAN data tanggal/kegiatan di luar {$periodeTriwulanMulai}–{$periodeTriwulanAkhir}.\n";
-
-                            Log::warning('OCR image detected as out-of-range period', [
-                                'filename'        => $ocrData['filename'],
-                                'detected_period' => $outOfRange,
-                                'target_triwulan' => $periodeTriwulanLabel,
-                            ]);
-                        }
-                    }
-
                     $currentMessage .= "**{$ocrData['filename']}** (OCR: {$ocrData['method']}, Confidence: {$ocrData['confidence']}%):\n";
-                    if ($ocrWarning) {
-                        $currentMessage .= $ocrWarning;
-                    }
                     $currentMessage .= "```\n" . $ocrData['text'] . "\n```\n\n";
                 }
             }
@@ -800,13 +676,6 @@ class LaporanTriwulanController extends Controller
             $currentMessage .= "===== INSTRUKSI USER =====\n";
             $currentMessage .= $userPrompt . "\n";
             $currentMessage .= "===== END INSTRUKSI =====\n\n";
-
-            // Always remind AI about the period boundary in every turn
-            if ($periodeTriwulanLabel) {
-                $currentMessage .= "🗓️ PENGINGAT PERIODE: Laporan ini untuk {$periodeTriwulanLabel} {$currentYear} ";
-                $currentMessage .= "({$periodeTriwulanMulai} - {$periodeTriwulanAkhir}). ";
-                $currentMessage .= "SEMUA konten HARUS berada dalam rentang tanggal tersebut.\n\n";
-            }
             
             // CRITICAL: Remind AI about conversation history
             if (!empty($conversationHistory) && count($conversationHistory) > 0) {
@@ -1759,163 +1628,53 @@ class LaporanTriwulanController extends Controller
     }
 
     /**
-     * Detect if an uploaded file appears to belong to a different triwulan period.
-     * Checks filename and the first portion of content for period keywords.
-     *
-     * Returns a human-readable period label if out-of-range, or null if no mismatch detected.
-     */
-    private function detectOutOfRangePeriod(string $fileName, string $content, ?string $targetTriwulan): ?string
-    {
-        if (!$targetTriwulan) {
-            return null;
-        }
-
-        // Month groups per triwulan (numeric)
-        $triwulanMonths = [
-            '1' => [1, 2, 3],
-            '2' => [4, 5, 6],
-            '3' => [7, 8, 9],
-            '4' => [10, 11, 12],
-        ];
-
-        // Indonesian & English month name → number mapping
-        $monthMap = [
-            'januari' => 1, 'january' => 1, 'jan' => 1,
-            'februari' => 2, 'february' => 2, 'feb' => 2,
-            'maret' => 3, 'march' => 3, 'mar' => 3,
-            'april' => 4, 'apr' => 4,
-            'mei' => 5, 'may' => 5,
-            'juni' => 6, 'june' => 6, 'jun' => 6,
-            'juli' => 7, 'july' => 7, 'jul' => 7,
-            'agustus' => 8, 'august' => 8, 'aug' => 8,
-            'september' => 9, 'sept' => 9, 'sep' => 9,
-            'oktober' => 10, 'october' => 10, 'oct' => 10, 'okt' => 10,
-            'november' => 11, 'nov' => 11,
-            'desember' => 12, 'december' => 12, 'des' => 12, 'dec' => 12,
-        ];
-
-        $triwulanLabels = [
-            '1' => 'Triwulan I (Januari–Maret)',
-            '2' => 'Triwulan II (April–Juni)',
-            '3' => 'Triwulan III (Juli–September)',
-            '4' => 'Triwulan IV (Oktober–Desember)',
-        ];
-
-        $targetMonths = $triwulanMonths[$targetTriwulan] ?? [];
-        $searchText   = strtolower($fileName . ' ' . substr($content, 0, 3000));
-        $foundOutside = null;
-
-        // 1. Check explicit "triwulan X" pattern in filename/content
-        if (preg_match('/triwulan\s*(i{1,3}v?|iv|[1-4])/i', $searchText, $m)) {
-            $raw = strtolower(trim($m[1]));
-            $romanMap = ['i' => 1, 'ii' => 2, 'iii' => 3, 'iv' => 4];
-            $detected = is_numeric($raw) ? (int)$raw : ($romanMap[$raw] ?? null);
-            if ($detected && (string)$detected !== (string)$targetTriwulan) {
-                return $triwulanLabels[(string)$detected] ?? "Triwulan {$detected}";
-            }
-        }
-
-        // 2. Check semester/ganjil/genap keywords
-        // Semester Ganjil ≈ Jul–Dec → Triwulan III & IV
-        // Semester Genap  ≈ Jan–Jun → Triwulan I & II
-        if (preg_match('/semester\s*(ganjil|gasal|odd)/i', $searchText)) {
-            if (!in_array($targetTriwulan, ['3', '4'])) {
-                return 'Semester Ganjil (Juli–Desember)';
-            }
-        }
-        if (preg_match('/semester\s*(genap|even)/i', $searchText)) {
-            if (!in_array($targetTriwulan, ['1', '2'])) {
-                return 'Semester Genap (Januari–Juni)';
-            }
-        }
-
-        // 3. Check month names — if ALL found months are outside the target period, flag it
-        $foundMonths = [];
-        foreach ($monthMap as $name => $num) {
-            if (preg_match('/\b' . preg_quote($name, '/') . '\b/i', $searchText)) {
-                $foundMonths[$num] = true;
-            }
-        }
-
-        if (!empty($foundMonths)) {
-            $inRange  = array_intersect(array_keys($foundMonths), $targetMonths);
-            $outRange = array_diff(array_keys($foundMonths), $targetMonths);
-
-            // Only flag when NONE of the detected months fall within the target period
-            if (empty($inRange) && !empty($outRange)) {
-                foreach ($triwulanMonths as $tw => $twMonths) {
-                    if (!empty(array_intersect($outRange, $twMonths))) {
-                        $foundOutside = $triwulanLabels[$tw] ?? "Triwulan {$tw}";
-                        break;
-                    }
-                }
-                return $foundOutside;
-            }
-        }
-
-        return null;
-    }
-
+     * Get GKM monthly reports data for the specified triwulan period
     /**
      * Get GKM monthly reports data for the specified triwulan period
      */
     private function getGKMTriwulanReports($periodeTriwulan)
     {
         try {
-            // Determine months and label based on triwulan
+            // Determine months based on triwulan
             $months = [];
             $currentYear = date('Y');
-            $periodeLabel = '';
-
+            
             switch ($periodeTriwulan) {
                 case '1':
+                    // Triwulan I: Jan - Mar
                     $months = [1, 2, 3];
-                    $periodeLabel = 'Triwulan I (Januari - Maret)';
                     break;
                 case '2':
+                    // Triwulan II: Apr - Jun
                     $months = [4, 5, 6];
-                    $periodeLabel = 'Triwulan II (April - Juni)';
                     break;
                 case '3':
+                    // Triwulan III: Jul - Sep
                     $months = [7, 8, 9];
-                    $periodeLabel = 'Triwulan III (Juli - September)';
                     break;
                 case '4':
+                    // Triwulan IV: Oct - Dec
                     $months = [10, 11, 12];
-                    $periodeLabel = 'Triwulan IV (Oktober - Desember)';
                     break;
                 default:
                     return '';
             }
 
-            // Filter using dedicated 'bulan' and 'tahun' columns so only reports
-            // that actually belong to the triwulan period are included, regardless
-            // of when the record was created in the database.
-            $gkmReports = \App\Models\LaporanBulanan::where('tahun', $currentYear)
-                ->whereIn('bulan', $months)
+            $gkmReports = \App\Models\LaporanBulanan::whereYear('created_at', $currentYear)
+                ->whereIn(\DB::raw('MONTH(created_at)'), $months)
                 ->where('status', 'completed')
                 ->with(['prodi'])
                 ->get();
-
-            Log::info('GKM reports fetched for triwulan', [
-                'periode_triwulan' => $periodeTriwulan,
-                'periode_label'    => $periodeLabel,
-                'year'             => $currentYear,
-                'months'           => $months,
-                'reports_found'    => $gkmReports->count(),
-            ]);
 
             if ($gkmReports->isEmpty()) {
                 return '';
             }
 
-            $summary = "Ringkasan Laporan GKM Bulanan untuk {$periodeLabel} {$currentYear}:\n";
+            $summary = "Ringkasan Laporan GKM Bulanan:\n";
             foreach ($gkmReports as $report) {
-                $bulanNama = \Carbon\Carbon::createFromDate($report->tahun, $report->bulan, 1)
-                    ->locale('id')
-                    ->translatedFormat('F');
+                $month = $report->created_at->format('F Y');
                 $prodi = $report->prodi->nama_prodi ?? 'Unknown';
-                $summary .= "- {$bulanNama} {$report->tahun} ({$prodi}): {$report->ringkasan_kegiatan}\n";
+                $summary .= "- {$month} ({$prodi}): {$report->ringkasan_kegiatan}\n";
             }
 
             return $summary;

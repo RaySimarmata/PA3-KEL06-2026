@@ -207,8 +207,9 @@
                             </select>
                         </div>
                         <div class="col-md-6">
-                            <label class="form-label fw-semibold">Tanggal Mulai</label>
-                            <input type="date" name="start_date" value="{{ old('start_date') }}" class="form-control" required>
+                            <label class="form-label fw-semibold">Tanggal Mulai <span class="text-danger">*</span></label>
+                            <input type="date" name="start_date" id="tanggal_mulai_tambah" value="{{ old('start_date') }}" class="form-control" required>
+                            <small class="text-muted"><i class="bi bi-calendar-event"></i> Tanggal tidak boleh sebelum hari ini</small>
                         </div>
                         <div class="col-md-6">
                             <label class="form-label fw-semibold">Tanggal Selesai</label>
@@ -265,5 +266,113 @@
     });
 </script>
 @endif
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Set minimum date ke hari ini untuk semua input tanggal
+        const today = new Date();
+        const todayStr = today.toISOString().split('T')[0];
+        
+        // ===== VALIDASI MODAL TAMBAH PERIODE =====
+        const tanggalMulaiTambah = document.getElementById('tanggal_mulai_tambah');
+        const tanggalAkhirTambah = document.getElementById('tanggal_akhir_tambah');
+        const formTambah = tanggalMulaiTambah?.closest('form');
+        
+        if (tanggalMulaiTambah && tanggalAkhirTambah) {
+            // Set minimum date
+            tanggalMulaiTambah.setAttribute('min', todayStr);
+            tanggalAkhirTambah.setAttribute('min', todayStr);
+            
+            function validateTambahPeriode() {
+                const tanggalMulai = tanggalMulaiTambah.value;
+                const tanggalAkhir = tanggalAkhirTambah.value;
+                
+                // Clear previous custom validity
+                tanggalMulaiTambah.setCustomValidity('');
+                tanggalAkhirTambah.setCustomValidity('');
+                
+                // Validasi tanggal mulai tidak boleh sebelum hari ini
+                if (tanggalMulai && tanggalMulai < todayStr) {
+                    tanggalMulaiTambah.setCustomValidity('Tanggal mulai tidak boleh sebelum hari ini.');
+                    return false;
+                }
+                
+                // Validasi tanggal akhir tidak boleh sebelum hari ini
+                if (tanggalAkhir && tanggalAkhir < todayStr) {
+                    tanggalAkhirTambah.setCustomValidity('Tanggal selesai tidak boleh sebelum hari ini.');
+                    return false;
+                }
+                
+                // Validasi tanggal akhir tidak boleh sebelum tanggal mulai
+                if (tanggalMulai && tanggalAkhir && tanggalAkhir < tanggalMulai) {
+                    tanggalAkhirTambah.setCustomValidity('Tanggal selesai tidak boleh sebelum tanggal mulai.');
+                    return false;
+                }
+                
+                return true;
+            }
+            
+            tanggalMulaiTambah.addEventListener('change', function() {
+                validateTambahPeriode();
+                if (this.validity.customError) {
+                    this.classList.add('is-invalid');
+                    showErrorMessage(this, this.validationMessage);
+                } else {
+                    this.classList.remove('is-invalid');
+                    removeErrorMessage(this);
+                }
+            });
+            
+            tanggalAkhirTambah.addEventListener('change', function() {
+                validateTambahPeriode();
+                if (this.validity.customError) {
+                    this.classList.add('is-invalid');
+                    showErrorMessage(this, this.validationMessage);
+                } else {
+                    this.classList.remove('is-invalid');
+                    removeErrorMessage(this);
+                }
+            });
+            
+            formTambah?.addEventListener('submit', function(e) {
+                if (!validateTambahPeriode()) {
+                    e.preventDefault();
+                    
+                    if (tanggalMulaiTambah.validity.customError) {
+                        tanggalMulaiTambah.classList.add('is-invalid');
+                        showErrorMessage(tanggalMulaiTambah, tanggalMulaiTambah.validationMessage);
+                    }
+                    
+                    if (tanggalAkhirTambah.validity.customError) {
+                        tanggalAkhirTambah.classList.add('is-invalid');
+                        showErrorMessage(tanggalAkhirTambah, tanggalAkhirTambah.validationMessage);
+                    }
+                    
+                    return false;
+                }
+            });
+        }
+        
+        // Helper functions untuk menampilkan error message
+        function showErrorMessage(inputElement, message) {
+            removeErrorMessage(inputElement);
+            
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'invalid-feedback';
+            errorDiv.style.display = 'block';
+            errorDiv.textContent = message;
+            errorDiv.setAttribute('data-custom-error', 'true');
+            
+            inputElement.parentNode.appendChild(errorDiv);
+        }
+        
+        function removeErrorMessage(inputElement) {
+            const customError = inputElement.parentNode.querySelector('[data-custom-error="true"]');
+            if (customError) {
+                customError.remove();
+            }
+        }
+    });
+</script>
 
 @endsection

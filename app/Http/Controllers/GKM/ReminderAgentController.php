@@ -5,7 +5,7 @@ namespace App\Http\Controllers\GKM;
 use App\Http\Controllers\Controller;
 use App\Models\JadwalReminder;
 use App\Models\LogEmail;
-use App\Models\Dosen;
+use App\Models\Dosenn as Dosen;
 use App\Helpers\EmailHelper;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;

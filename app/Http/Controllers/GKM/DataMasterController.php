@@ -3,13 +3,12 @@
 namespace App\Http\Controllers\GKM;
 
 use App\Http\Controllers\Controller;
-use App\Models\Dosen;
+use App\Models\Dosenn as Dosen;
 use App\Models\Matakuliah;
 use App\Models\Ajaran;
 use App\Models\PeriodeAkademik;
 use App\Models\User;
 use App\Models\Prodi;
-use App\Models\Kelas;
 use App\Models\Dosenn;
 use App\Models\TemplateLaporan;
 use Illuminate\Http\Request;
@@ -74,11 +73,20 @@ class DataMasterController extends Controller
             $currentUser = Auth::user();
             $prodiId = $currentUser->prodi_id;
 
-            // Jika user tidak memiliki prodi_id, coba ambil dari kelas_wali yang dipilih
+            // Jika user tidak memiliki prodi_id, coba tentukan prodi dari kode kelas wali
             if (!$prodiId && $request->is_dosen_wali && $request->kelas_wali) {
-                $kelas = Kelas::where('kode_kelas', $request->kelas_wali)->first();
-                if ($kelas) {
-                    $prodiId = $kelas->prodi_id;
+                $kelasWaliCode = strtoupper($request->kelas_wali);
+                $prodiMap = [
+                    'TRPL' => 1,
+                    'TI' => 2,
+                    'NM' => 3,
+                ];
+
+                foreach ($prodiMap as $kode => $id) {
+                    if (str_contains($kelasWaliCode, $kode)) {
+                        $prodiId = $id;
+                        break;
+                    }
                 }
             }
 
@@ -642,14 +650,16 @@ class DataMasterController extends Controller
         $request->validate([
             'tahun_ajaran' => 'required|integer|min:2020|max:2100',
             'semester' => 'required|in:ganjil,genap',
-            'tanggal_mulai' => 'required|date',
-            'tanggal_akhir' => 'required|date|after:tanggal_mulai',
+            'tanggal_mulai' => 'required|date|after_or_equal:today',
+            'tanggal_akhir' => 'required|date|after:tanggal_mulai|after_or_equal:today',
         ], [
             'tahun_ajaran.required' => 'Tahun ajaran wajib diisi',
             'semester.required' => 'Semester wajib dipilih',
             'tanggal_mulai.required' => 'Tanggal mulai wajib diisi',
+            'tanggal_mulai.after_or_equal' => 'Tanggal mulai tidak boleh sebelum hari ini',
             'tanggal_akhir.required' => 'Tanggal akhir wajib diisi',
             'tanggal_akhir.after' => 'Tanggal akhir harus setelah tanggal mulai',
+            'tanggal_akhir.after_or_equal' => 'Tanggal akhir tidak boleh sebelum hari ini',
         ]);
 
         try {
@@ -694,8 +704,12 @@ class DataMasterController extends Controller
         $request->validate([
             'tahun_ajaran' => 'required|integer|min:2020|max:2100',
             'semester' => 'required|in:ganjil,genap',
-            'tanggal_mulai' => 'required|date',
-            'tanggal_akhir' => 'required|date|after:tanggal_mulai',
+            'tanggal_mulai' => 'required|date|after_or_equal:today',
+            'tanggal_akhir' => 'required|date|after:tanggal_mulai|after_or_equal:today',
+        ], [
+            'tanggal_mulai.after_or_equal' => 'Tanggal mulai tidak boleh sebelum hari ini',
+            'tanggal_akhir.after' => 'Tanggal akhir harus setelah tanggal mulai',
+            'tanggal_akhir.after_or_equal' => 'Tanggal akhir tidak boleh sebelum hari ini',
         ]);
 
         try {
@@ -757,159 +771,6 @@ class DataMasterController extends Controller
         } catch (\Exception $e) {
             return redirect()->back()
                 ->with('error', 'Gagal menghapus periode akademik: ' . $e->getMessage());
-        }
-    }
-
-    // ==================== KELAS MANAGEMENT ====================
-
-    public function kelas()
-    {
-        $user = Auth::user();
-
-        $query = Kelas::with('prodi')->orderBy('kode_kelas');
-
-        if ($user->prodi_id) {
-            $query->where('prodi_id', $user->prodi_id);
-        }
-
-        $kelasList = $query->paginate(10);
-
-        return view('gkm.data-master.kelas', compact('user', 'kelasList'));
-    }
-
-    public function storeKelas(Request $request)
-    {
-        $validated = $request->validate([
-            'kode_kelas' => 'required|string|max:50',
-            'tingkat' => 'required|integer|min:1|max:4',
-            'program_studi' => 'required|in:TRPL,TI,NM',
-            'tahun_angkatan' => 'required|integer|min:2000|max:' . (date('Y') + 1),
-            'status' => 'required|in:aktif,tidak_aktif',
-        ]);
-
-        try {
-            $currentUser = Auth::user();
-            $prodiId = $currentUser->prodi_id;
-
-            // Jika user tidak memiliki prodi_id, ambil dari program_studi yang dipilih
-            if (!$prodiId) {
-                $prodiMap = [
-                    'TRPL' => 1,
-                    'TI' => 2,
-                    'NM' => 3,
-                ];
-                $prodiId = $prodiMap[$validated['program_studi']] ?? null;
-
-                if (!$prodiId) {
-                    return redirect()->back()
-                        ->with('error', 'Program studi tidak valid.')
-                        ->withInput();
-                }
-            }
-
-            // Cek duplikasi kode kelas
-            $existing = Kelas::where('prodi_id', $prodiId)
-                ->where('kode_kelas', $validated['kode_kelas'])
-                ->first();
-
-            if ($existing) {
-                return redirect()->back()
-                    ->with('error', 'Kode kelas sudah digunakan')
-                    ->withInput();
-            }
-
-            Kelas::create([
-                'prodi_id' => $prodiId,
-                'kode_kelas' => $validated['kode_kelas'],
-                'tingkat' => $validated['tingkat'],
-                'program_studi' => $validated['program_studi'],
-                'tahun_angkatan' => $validated['tahun_angkatan'],
-                'status' => $validated['status'],
-            ]);
-
-            return redirect()->route('gkm.data-master.kelas')
-                ->with('success', 'Kelas berhasil ditambahkan');
-        } catch (\Exception $e) {
-            return redirect()->back()
-                ->with('error', 'Gagal menambahkan kelas: ' . $e->getMessage())
-                ->withInput();
-        }
-    }
-
-    public function updateKelas(Request $request, $id)
-    {
-        $validated = $request->validate([
-            'kode_kelas' => 'required|string|max:50',
-            'tingkat' => 'required|integer|min:1|max:4',
-            'program_studi' => 'required|in:TRPL,TI,NM',
-            'tahun_angkatan' => 'required|integer|min:2000|max:' . (date('Y') + 1),
-            'status' => 'required|in:aktif,tidak_aktif',
-        ]);
-
-        try {
-            $kelas = Kelas::findOrFail($id);
-            $currentUser = Auth::user();
-            $prodiId = $currentUser->prodi_id;
-
-            // Jika user tidak memiliki prodi_id, ambil dari program_studi yang dipilih
-            if (!$prodiId) {
-                $prodiMap = [
-                    'TRPL' => 1,
-                    'TI' => 2,
-                    'NM' => 3,
-                ];
-                $prodiId = $prodiMap[$validated['program_studi']] ?? null;
-
-                if (!$prodiId) {
-                    return redirect()->back()
-                        ->with('error', 'Program studi tidak valid.')
-                        ->withInput();
-                }
-            }
-
-            // Cek duplikasi kode kelas (kecuali kelas yang sedang diedit)
-            $existing = Kelas::where('prodi_id', $prodiId)
-                ->where('kode_kelas', $validated['kode_kelas'])
-                ->where('id', '!=', $id)
-                ->first();
-
-            if ($existing) {
-                return redirect()->back()
-                    ->with('error', 'Kode kelas sudah digunakan')
-                    ->withInput();
-            }
-
-            $kelas->update($validated);
-
-            return redirect()->route('gkm.data-master.kelas')
-                ->with('success', 'Kelas berhasil diperbarui');
-        } catch (\Exception $e) {
-            return redirect()->back()
-                ->with('error', 'Gagal memperbarui kelas: ' . $e->getMessage())
-                ->withInput();
-        }
-    }
-
-    public function destroyKelas($id)
-    {
-        try {
-            $kelas = Kelas::findOrFail($id);
-
-            // Cek apakah kelas sedang digunakan oleh dosen wali
-            $dosenWali = Dosen::where('kelas_wali', $kelas->kode_kelas)->count();
-
-            if ($dosenWali > 0) {
-                return redirect()->back()
-                    ->with('error', 'Tidak dapat menghapus kelas yang sedang digunakan oleh dosen wali');
-            }
-
-            $kelas->delete();
-
-            return redirect()->route('gkm.data-master.kelas')
-                ->with('success', 'Kelas berhasil dihapus');
-        } catch (\Exception $e) {
-            return redirect()->back()
-                ->with('error', 'Gagal menghapus kelas: ' . $e->getMessage());
         }
     }
 

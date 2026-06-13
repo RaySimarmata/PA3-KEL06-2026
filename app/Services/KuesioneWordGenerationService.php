@@ -24,7 +24,7 @@ class KuesioneWordGenerationService
 
     /**
      * Generate Word document from laporan data
-     * ALWAYS generate from scratch untuk avoid placeholder issues
+     * Uses template if available and compatible, otherwise generates from scratch
      */
     public function generateWordDocument($laporan)
     {
@@ -34,26 +34,66 @@ class KuesioneWordGenerationService
             'template_id' => $laporan->template_id
         ]);
 
+        // Check if template is available and should be used
         if ($laporan->template_id) {
             $template = $laporan->template ?: TemplateLaporan::find($laporan->template_id);
 
             if ($template && $template->file_path) {
-                Log::info('Attempting template-based Word generation', [
-                    'template_id' => $template->id,
-                    'template_name' => $template->nama_template,
-                    'file_path' => $template->file_path
-                ]);
+                $templatePath = $this->resolveTemplatePath($template);
 
-                return $this->generateWordFromTemplate($laporan, $template);
+                if ($templatePath && file_exists($templatePath)) {
+                    Log::info('Using template-based Word generation', [
+                        'template_id' => $template->id,
+                        'template_name' => $template->nama_template,
+                        'file_path' => $template->file_path
+                    ]);
+
+                    return $this->generateWordFromTemplate($laporan, $template);
+                } else {
+                    Log::warning('Template file not found, falling back to scratch generation', [
+                        'template_id' => $template->id,
+                        'file_path' => $template->file_path
+                    ]);
+                }
             }
-
-            Log::warning('Template selected but not found or missing file_path', [
-                'laporan_id' => $laporan->id,
-                'template_id' => $laporan->template_id
-            ]);
         }
 
+        // Fallback: generate from scratch
+        Log::info('Using generateWordFromScratch for proper table rendering', [
+            'laporan_id' => $laporan->id,
+            'reason' => 'No template available or template not found'
+        ]);
+
         return $this->generateWordFromScratch($laporan);
+    }
+
+    /**
+     * Resolve template file path from multiple possible locations
+     */
+    private function resolveTemplatePath($template)
+    {
+        $templateRelativePath = ltrim($template->file_path, '/');
+        $templateRelativePath = preg_replace('#^public[\\/]+#', '', $templateRelativePath);
+
+        $possiblePaths = [
+            storage_path('app/public/' . $templateRelativePath),
+            storage_path('app/' . $templateRelativePath),
+            storage_path('app/public/' . $template->file_path),
+            storage_path('app/' . $template->file_path),
+        ];
+
+        foreach ($possiblePaths as $path) {
+            if (file_exists($path)) {
+                Log::info('Template file found', ['path' => $path]);
+                return $path;
+            }
+        }
+
+        Log::warning('Template file not found in any location', [
+            'tried_paths' => $possiblePaths
+        ]);
+
+        return null;
     }
 
     /**
@@ -98,7 +138,17 @@ class KuesioneWordGenerationService
                 $availableVars = $templateProcessor->getVariables();
             }
 
-            Log::info('Template variables found', ['variables' => $availableVars]);
+            Log::info('Template variables found', [
+                'variables' => $availableVars,
+                'total_count' => count($availableVars),
+                'has_gabungan_i' => in_array('GABUNGAN_TINGKAT_I', $availableVars),
+                'has_gabungan_ii' => in_array('GABUNGAN_TINGKAT_II', $availableVars),
+                'has_gabungan_iii' => in_array('GABUNGAN_TINGKAT_III', $availableVars),
+                'has_gabungan_iv' => in_array('GABUNGAN_TINGKAT_IV', $availableVars),
+                'gabungan_related' => array_filter($availableVars, function($v) {
+                    return strpos($v, 'GABUNGAN') !== false || strpos($v, 'TINGKAT') !== false;
+                })
+            ]);
 
             // Extract placeholder values from hasil_laporan
             $placeholders = $this->extractPlaceholdersFromLaporan($laporan);
@@ -106,6 +156,11 @@ class KuesioneWordGenerationService
             Log::info('Extracted placeholders from laporan', [
                 'count' => count($placeholders),
                 'keys' => array_keys($placeholders),
+                'has_gabungan_i' => isset($placeholders['GABUNGAN_TINGKAT_I']),
+                'has_gabungan_ii' => isset($placeholders['GABUNGAN_TINGKAT_II']),
+                'has_gabungan_iii' => isset($placeholders['GABUNGAN_TINGKAT_III']),
+                'has_gabungan_iv' => isset($placeholders['GABUNGAN_TINGKAT_IV']),
+                'gabungan_i_length' => isset($placeholders['GABUNGAN_TINGKAT_I']) ? strlen($placeholders['GABUNGAN_TINGKAT_I']) : 0,
                 'sample_values' => array_map(function($v) {
                     return is_string($v) ? substr($v, 0, 100) : gettype($v);
                 }, array_slice($placeholders, 0, 5))
@@ -114,6 +169,12 @@ class KuesioneWordGenerationService
             // Fill placeholders
             $filledCount = 0;
             foreach ($placeholders as $key => $value) {
+                // Skip table placeholders - they will be injected with replaceXmlBlock
+                if (isset($this->pendingTableReplacements[$key])) {
+                    Log::debug('Skipping table placeholder (will be injected with XML)', ['key' => $key]);
+                    continue;
+                }
+
                 if (in_array($key, $availableVars)) {
                     try {
                         // Convert arrays to formatted text
@@ -127,7 +188,8 @@ class KuesioneWordGenerationService
 
                         Log::debug('Filled placeholder', [
                             'key' => $key,
-                            'value_length' => strlen($value)
+                            'value_length' => strlen($value),
+                            'is_gabungan' => strpos($key, 'GABUNGAN') !== false
                         ]);
                     } catch (\Exception $e) {
                         Log::warning('Failed to fill placeholder', [
@@ -136,17 +198,104 @@ class KuesioneWordGenerationService
                         ]);
                     }
                 } else {
-                    Log::debug('Placeholder not in template', ['key' => $key]);
+                    Log::debug('Placeholder not in template', [
+                        'key' => $key,
+                        'is_gabungan' => strpos($key, 'GABUNGAN') !== false
+                    ]);
                 }
             }
 
             Log::info('Placeholder filling completed', [
                 'filled' => $filledCount,
                 'total_placeholders' => count($placeholders),
-                'template_vars' => count($availableVars)
+                'template_vars' => count($availableVars),
+                'pending_table_replacements' => count($this->pendingTableReplacements)
             ]);
 
-            // Save Word file
+            // Inject tables BEFORE saving (like LaporanArtefakService does)
+            if (!empty($this->pendingTableReplacements)) {
+                Log::info('Injecting XML tables using replaceXmlBlock', [
+                    'tokens_to_replace' => array_keys($this->pendingTableReplacements),
+                    'available_vars' => $availableVars,
+                    'gabungan_keys' => array_filter(array_keys($this->pendingTableReplacements), function($k) {
+                        return strpos($k, 'GABUNGAN') !== false;
+                    }),
+                    'gabungan_in_template' => [
+                        'GABUNGAN_TINGKAT_I' => in_array('GABUNGAN_TINGKAT_I', $availableVars),
+                        'GABUNGAN_TINGKAT_II' => in_array('GABUNGAN_TINGKAT_II', $availableVars),
+                        'GABUNGAN_TINGKAT_III' => in_array('GABUNGAN_TINGKAT_III', $availableVars),
+                        'GABUNGAN_TINGKAT_IV' => in_array('GABUNGAN_TINGKAT_IV', $availableVars),
+                    ]
+                ]);
+
+                $injectedCount = 0;
+                $skippedPlaceholders = [];
+
+                foreach ($this->pendingTableReplacements as $placeholder => $xmlContent) {
+                    try {
+                        // Check if placeholder exists in template
+                        $existsInTemplate = in_array($placeholder, $availableVars);
+
+                        Log::info('Attempting to inject table', [
+                            'placeholder' => $placeholder,
+                            'exists_in_template' => $existsInTemplate,
+                            'xml_length' => strlen($xmlContent),
+                            'is_gabungan' => strpos($placeholder, 'GABUNGAN') !== false
+                        ]);
+
+                        // Try replaceXmlBlock first
+                        if ($existsInTemplate) {
+                            $this->replaceWithTable($templateProcessor, $placeholder, $xmlContent);
+                            $injectedCount++;
+
+                            Log::info('Injected XML table via replaceXmlBlock', [
+                                'placeholder' => $placeholder,
+                                'xml_length' => strlen($xmlContent)
+                            ]);
+                        } else {
+                            $skippedPlaceholders[] = $placeholder;
+                            Log::warning('Placeholder not found in template variables - SKIPPING INJECTION', [
+                                'placeholder' => $placeholder,
+                                'is_gabungan' => strpos($placeholder, 'GABUNGAN') !== false,
+                                'suggestion' => 'Please add {{' . $placeholder . '}} to your Word template'
+                            ]);
+                            
+                            // Don't try to inject if placeholder doesn't exist in template
+                            // This will prevent corruption
+                        }
+                    } catch (\Exception $e) {
+                        Log::warning('Failed to inject table', [
+                            'placeholder' => $placeholder,
+                            'error' => $e->getMessage(),
+                            'trace' => $e->getTraceAsString()
+                        ]);
+                    }
+                }
+
+                Log::info('Table injection summary', [
+                    'injected' => $injectedCount,
+                    'total' => count($this->pendingTableReplacements),
+                    'skipped' => $skippedPlaceholders,
+                    'skipped_count' => count($skippedPlaceholders),
+                    'gabungan_skipped' => array_filter($skippedPlaceholders, function($p) {
+                        return strpos($p, 'GABUNGAN') !== false;
+                    })
+                ]);
+                
+                // Log important message if GABUNGAN placeholders are skipped
+                $gabunganSkipped = array_filter($skippedPlaceholders, function($p) {
+                    return strpos($p, 'GABUNGAN') !== false;
+                });
+                
+                if (!empty($gabunganSkipped)) {
+                    Log::warning('⚠️ GABUNGAN placeholders not found in template!', [
+                        'skipped_gabungan' => $gabunganSkipped,
+                        'action_required' => 'Please add these placeholders to your Word template: ' . implode(', ', array_map(function($p) { return '{{' . $p . '}}'; }, $gabunganSkipped))
+                    ]);
+                }
+            }
+
+            // Save to temporary location first
             $fileName = 'laporan_kuesioner_' . $laporan->periode . '_' . time() . '.docx';
             $filePath = 'laporan_kuesioner/' . $fileName;
             $fullPath = storage_path('app/' . $filePath);
@@ -157,40 +306,8 @@ class KuesioneWordGenerationService
                 mkdir($directory, 0755, true);
             }
 
-            // Save to temporary location first
-            $tempPath = storage_path('app/temp_' . uniqid() . '.docx');
-            $templateProcessor->saveAs($tempPath);
-
-            // Inject any pending Word table replacements into the saved temp docx
-            if (!empty($this->pendingTableReplacements)) {
-                $zip = new \ZipArchive();
-                if ($zip->open($tempPath) === true) {
-                    $xmlFiles = ['word/document.xml'];
-                    for ($h = 0; $h <= 9; $h++) {
-                        $xmlFiles[] = 'word/header' . $h . '.xml';
-                        $xmlFiles[] = 'word/footer' . $h . '.xml';
-                    }
-
-                    foreach ($xmlFiles as $xmlFile) {
-                        if (!$zip->locateName($xmlFile)) continue;
-                        $xml = $zip->getFromName($xmlFile);
-                        if ($xml === false) continue;
-
-                        foreach ($this->pendingTableReplacements as $token => $tableXml) {
-                            $pattern = '/<w:r[^>]*>\s*<w:t[^>]*>' . preg_quote($token, '/') . '<\/w:t>\s*<\/w:r>/';
-                            $xml = preg_replace($pattern, $tableXml, $xml);
-                        }
-
-                        $zip->addFromString($xmlFile, $xml);
-                    }
-
-                    $zip->close();
-                }
-            }
-            // Move to final location
-            if (!rename($tempPath, $fullPath)) {
-                throw new \Exception('Failed to save Word document');
-            }
+            // Save template processor result
+            $templateProcessor->saveAs($fullPath);
 
             // Update laporan
             $laporan->file_word = $filePath;
@@ -199,7 +316,8 @@ class KuesioneWordGenerationService
             Log::info('Word document generated from template', [
                 'laporan_id' => $laporan->id,
                 'file_path' => $filePath,
-                'filled_placeholders' => $filledCount
+                'filled_placeholders' => $filledCount,
+                'table_replacements' => count($this->pendingTableReplacements)
             ]);
 
             return true;
@@ -212,7 +330,12 @@ class KuesioneWordGenerationService
                 'trace' => $e->getTraceAsString(),
             ]);
 
-            // Fallback ke simple generation
+            // Fallback to simple generation
+            Log::info('Falling back to generateWordFromScratch', [
+                'laporan_id' => $laporan->id,
+                'reason' => 'Template generation failed'
+            ]);
+
             return $this->generateWordFromScratch($laporan);
         }
     }
@@ -270,32 +393,28 @@ class KuesioneWordGenerationService
         // =================================================================
         if (isset($hasilLaporan['PENDAHULUAN_TUJUAN']) || isset($hasilLaporan['HASIL_KUESIONER_TINGKAT_I'])) {
             Log::info('Using AI-generated format for placeholders');
-            
-            // Directly use AI-generated content for Pendahuluan section
+
+            // Use AI-generated content for narrative/text sections
             $placeholders['PENDAHULUAN_TUJUAN'] = $hasilLaporan['PENDAHULUAN_TUJUAN'] ?? $this->generatePendahuluanTujuan($laporan);
-            $placeholders['PENDAHULUAN_WAKTU'] = $hasilLaporan['PENDAHULUAN_WAKTU'] ?? $this->generatePendahuluanWaktu($laporan);
-            $placeholders['PENDAHULUAN_RUANG_LINGKUP'] = $hasilLaporan['PENDAHULUAN_RUANG_LINGKUP'] ?? $this->generatePendahuluanRuangLingkup($laporan);
+            $placeholders['PENDAHULUAN_WAKTU']  = $hasilLaporan['PENDAHULUAN_WAKTU']  ?? $this->generatePendahuluanWaktu($laporan);
 
-            // Use AI-generated hasil kuesioner per tingkat
-            for ($tingkat = 1; $tingkat <= 4; $tingkat++) {
-                $hasilKey = "HASIL_KUESIONER_TINGKAT_" . ($tingkat == 1 ? "I" : ($tingkat == 2 ? "II" : ($tingkat == 3 ? "III" : "IV")));
-                $masukanKey = "MASUKAN_SARAN_TINGKAT_" . ($tingkat == 1 ? "I" : ($tingkat == 2 ? "II" : ($tingkat == 3 ? "III" : "IV")));
-                
-                if (isset($hasilLaporan[$hasilKey])) {
-                    $placeholders[$hasilKey] = $hasilLaporan[$hasilKey];
-                }
-                if (isset($hasilLaporan[$masukanKey])) {
-                    $placeholders[$masukanKey] = $hasilLaporan[$masukanKey];
-                }
-            }
+            // PENDAHULUAN_RUANG_LINGKUP contains a real Word table (Tabel 1 skala likert).
+            // Generate XML table and register it for injection
+            $ruangLingkupXml = $this->generateRuangLingkupXml($laporan);
+            $this->pendingTableReplacements['PENDAHULUAN_RUANG_LINGKUP'] = $ruangLingkupXml;
 
-            // Kesimpulan
-            $placeholders['KESIMPULAN'] = $hasilLaporan['KESIMPULAN'] ?? $this->generateKesimpulanFromDatabase($laporan, $hasilLaporan);
+            // HASIL_KUESIONER_TINGKAT_X and GABUNGAN_TINGKAT_X
+            // Generate XML tables for post-processing replacement
+            $this->generateHasilKuesionePerTingkat($placeholders, $hasilLaporan, $laporan);
+
+            // Kesimpulan and saran from AI (plain text, no table needed)
+            $placeholders['KESIMPULAN']       = $hasilLaporan['KESIMPULAN']       ?? $this->generateKesimpulanFromDatabase($laporan, $hasilLaporan);
             $placeholders['SARAN_REKOMENDASI'] = $hasilLaporan['SARAN_REKOMENDASI'] ?? '';
 
             Log::info('AI-generated format placeholders extracted', [
                 'total_placeholders' => count($placeholders),
-                'has_tingkat_i' => isset($placeholders['HASIL_KUESIONER_TINGKAT_I'])
+                'has_tingkat_i'      => isset($placeholders['HASIL_KUESIONER_TINGKAT_I']),
+                'pending_tables'     => array_keys($this->pendingTableReplacements),
             ]);
 
             return $placeholders;
@@ -308,8 +427,10 @@ class KuesioneWordGenerationService
 
         // Pendahuluan Section
         $placeholders['PENDAHULUAN_TUJUAN'] = $this->generatePendahuluanTujuan($laporan);
-        $placeholders['PENDAHULUAN_WAKTU'] = $this->generatePendahuluanWaktu($laporan);
-        $placeholders['PENDAHULUAN_RUANG_LINGKUP'] = $this->generatePendahuluanRuangLingkup($laporan);
+        $placeholders['PENDAHULUAN_WAKTU']  = $this->generatePendahuluanWaktu($laporan);
+        // Ruang lingkup with proper Word table (not plain text)
+        $ruangLingkupXml = $this->generateRuangLingkupXml($laporan);
+        $this->pendingTableReplacements['PENDAHULUAN_RUANG_LINGKUP'] = $ruangLingkupXml;
 
         // Metadata from hasil_laporan
         if (isset($hasilLaporan['metadata'])) {
@@ -374,7 +495,7 @@ class KuesioneWordGenerationService
             $placeholders['KESIMPULAN'] = $this->generateKesimpulanFromDatabase($laporan, $hasilLaporan);
         }
 
-        // Generate Hasil Kuesioner per Tingkat based on database data
+        // Generate Hasil Kuesioner per Tingkat based on database data (with XML tables)
         $this->generateHasilKuesionePerTingkat($placeholders, $hasilLaporan, $laporan);
 
         Log::info('Complex format placeholders extracted', [
@@ -420,6 +541,108 @@ class KuesioneWordGenerationService
     }
 
     /**
+     * Generate Pendahuluan - Ruang Lingkup as plain text (no table injection)
+     */
+    private function generatePendahuluanRuangLingkupText($laporan)
+    {
+        $hasilLaporan = $laporan->hasil_laporan ?? [];
+        $totalKuesioner = $hasilLaporan['statistik_utama']['total_kuesioner'] ?? 0;
+        $totalResponden = $hasilLaporan['statistik_utama']['total_responden'] ?? 0;
+
+        $text = "Yang menjadi responden pada survei ini adalah mahasiswa yang mengambil mata kuliah prodi, mata kuliah fakultas dan mata kuliah institut. ";
+        $text .= "Adapun pihak terkait yang kualitas layanannya dinilai pada survei ini yaitu dosen, teaching assistant yang berhubungan dengan mata kuliah.\n\n";
+        $text .= "Kuesioner yang dibagikan terdiri dari 17 pertanyaan dengan kuesioner yang dibagikan memiliki 4 kriteria penilaian (skala likert) yaitu Sangat Setuju, Setuju, Cukup Setuju, dan Tidak Setuju. ";
+        $text .= "Agar mempermudah perhitungan kuesioner, kriteria Sangat Setuju Setuju, Cukup Setuju, dan Tidak Setuju akan dihitung dan dilaporkan dalam bentuk indeks skala 4 dengan bobot yang mengikuti Tabel 1.\n\n";
+        $text .= "Tabel 1. Skala Likert Kuesioner\n\n";
+        $text .= "Pernyataan: Tidak setuju (TS) - Kode: TS - Skala: 1\n";
+        $text .= "Pernyataan: Cukup Setuju (CS) - Kode: CS - Skala: 2\n";
+        $text .= "Pernyataan: Setuju (S) - Kode: S - Skala: 3\n";
+        $text .= "Pernyataan: Sangat Setuju (SS) - Kode: SS - Skala: 4";
+
+        return $text;
+    }
+
+    /**
+     * Generate Hasil Kuesioner per Tingkat as formatted text (not XML tokens)
+     * Uses database queries for accurate data
+     */
+    private function generateHasilKuesionePerTingkatAsText(&$placeholders, $hasilLaporan, $laporan)
+    {
+        $userId = $laporan->user_id;
+        $periodeContext = $this->resolveLaporanPeriodeContext($laporan);
+        $semester = $periodeContext['semester'];
+        $jenisUjian = $periodeContext['jenisUjian'];
+
+        // Get user's prodi
+        $user = \App\Models\User::find($userId);
+        $prodiKode = $user && $user->prodi ? $user->prodi->kode_prodi : null;
+
+        Log::info('Generating Hasil Kuesioner per Tingkat as text', [
+            'semester' => $semester,
+            'jenis_ujian' => $jenisUjian,
+            'prodi_kode' => $prodiKode,
+            'user_id' => $userId
+        ]);
+
+        // Query kuesioner_uploads directly
+        $uploads = \App\Models\KuesioneUpload::query()
+            ->where('semester', $semester)
+            ->when($jenisUjian, function($q) use ($jenisUjian) {
+                // Filter by jenis_kuesioner (UTS or UAS)
+                $q->where('jenis_kuesioner', 'like', '%' . $jenisUjian . '%');
+            })
+            ->when($prodiKode, function($q) use ($prodiKode) {
+                $q->whereHas('user', function($uq) use ($prodiKode) {
+                    $uq->whereHas('prodi', function($pq) use ($prodiKode) {
+                        $pq->where('kode_prodi', $prodiKode);
+                    });
+                });
+            })
+            ->with('user.prodi')
+            ->orderBy('tingkat', 'asc')
+            ->orderBy('nama_matakuliah', 'asc')
+            ->get();
+
+        // Group by tingkat
+        $dataByTingkat = $uploads->groupBy(function($item) {
+            $tingkat = $item->tingkat;
+            if (is_numeric($tingkat)) {
+                return (int)$tingkat;
+            }
+            if (in_array($tingkat, ['I', 'II', 'III', 'IV', 'V'])) {
+                return $this->romanToNumber($tingkat);
+            }
+            return $this->extractTingkatFromKode($item->kode_matakuliah);
+        });
+
+        // Generate for each tingkat (I, II, III, IV)
+        for ($i = 1; $i <= 4; $i++) {
+            $tingkatRoman = $this->numberToRoman($i);
+
+            $hasilKey = "HASIL_KUESIONER_TINGKAT_" . $tingkatRoman;
+            $gabunganKey = "GABUNGAN_TINGKAT_" . $tingkatRoman;
+
+            $kuesioneData = $dataByTingkat->get($i, collect());
+
+            if ($kuesioneData->isNotEmpty()) {
+                // Generate as formatted text tables
+                $hasilText = $this->generateHasilKuesioneTableFromUploads($kuesioneData, $i);
+
+                $placeholders[$hasilKey] = $hasilText;
+                $placeholders[$gabunganKey] = $hasilText;
+
+                Log::info("Generated text tables for Tingkat {$tingkatRoman}", [
+                    'hasil_length' => strlen($hasilText),
+                ]);
+            } else {
+                $noDataMsg = "Tidak ada data kuesioner untuk Tingkat {$tingkatRoman}";
+                $placeholders[$hasilKey] = "\n" . $noDataMsg;
+                $placeholders[$gabunganKey] = "\n" . $noDataMsg;
+            }
+        }
+    }
+
+    /**
      * Generate Pendahuluan - Ruang Lingkup
      */
     private function generatePendahuluanRuangLingkup($laporan)
@@ -452,8 +675,7 @@ class KuesioneWordGenerationService
         $userId = $laporan->user_id;
         $periodeContext = $this->resolveLaporanPeriodeContext($laporan);
         $semester = $periodeContext['semester'];
-
-        // Get user's prodi
+        $jenisUjian = $periodeContext['jenisUjian'];
 
         // Get user's prodi
         $user = \App\Models\User::find($userId);
@@ -462,6 +684,10 @@ class KuesioneWordGenerationService
         // Query uploads
         $uploads = \App\Models\KuesioneUpload::query()
             ->where('semester', $semester)
+            ->when($jenisUjian, function($q) use ($jenisUjian) {
+                // Filter by jenis_kuesioner (UTS or UAS)
+                $q->where('jenis_kuesioner', 'like', '%' . $jenisUjian . '%');
+            })
             ->when($prodiKode, function($q) use ($prodiKode) {
                 $q->whereHas('user', function($uq) use ($prodiKode) {
                     $uq->whereHas('prodi', function($pq) use ($prodiKode) {
@@ -517,6 +743,7 @@ class KuesioneWordGenerationService
         $userId = $laporan->user_id;
         $periodeContext = $this->resolveLaporanPeriodeContext($laporan);
         $semester = $periodeContext['semester'];
+        $jenisUjian = $periodeContext['jenisUjian']; // UTS or UAS
 
         // Get user's prodi
         $user = \App\Models\User::find($userId);
@@ -524,6 +751,7 @@ class KuesioneWordGenerationService
 
         Log::info('Generating Hasil Kuesioner per Tingkat from database', [
             'semester' => $semester,
+            'jenis_ujian' => $jenisUjian,
             'prodi_kode' => $prodiKode,
             'user_id' => $userId
         ]);
@@ -531,6 +759,10 @@ class KuesioneWordGenerationService
         // Query kuesioner_uploads directly
         $uploads = \App\Models\KuesioneUpload::query()
             ->where('semester', $semester)
+            ->when($jenisUjian, function($q) use ($jenisUjian) {
+                // Filter by jenis_kuesioner (UTS or UAS)
+                $q->where('jenis_kuesioner', 'like', '%' . $jenisUjian . '%');
+            })
             ->when($prodiKode, function($q) use ($prodiKode) {
                 $q->whereHas('user', function($uq) use ($prodiKode) {
                     $uq->whereHas('prodi', function($pq) use ($prodiKode) {
@@ -545,7 +777,8 @@ class KuesioneWordGenerationService
 
         Log::info('Kuesioner uploads fetched', [
             'total_uploads' => $uploads->count(),
-            'sample_tingkat_values' => $uploads->pluck('tingkat')->unique()->toArray()
+            'sample_tingkat_values' => $uploads->pluck('tingkat')->unique()->toArray(),
+            'sample_jenis_kuesioner' => $uploads->pluck('jenis_kuesioner')->unique()->toArray()
         ]);
 
         // Group by tingkat - cast to integer to ensure proper grouping
@@ -573,7 +806,6 @@ class KuesioneWordGenerationService
             $tingkatRoman = $this->numberToRoman($i);
 
             $hasilKey = "HASIL_KUESIONER_TINGKAT_" . $tingkatRoman;
-            $masukanKey = "MASUKAN_SARAN_TINGKAT_" . $tingkatRoman;
             $gabunganKey = "GABUNGAN_TINGKAT_" . $tingkatRoman;
 
             $kuesioneData = $dataByTingkat->get($i, collect());
@@ -583,38 +815,37 @@ class KuesioneWordGenerationService
                 'key' => $i
             ]);
 
+            $noDataMsg = "Tidak ada data kuesioner untuk Tingkat {$tingkatRoman}";
 
             if ($kuesioneData->isNotEmpty()) {
-                // Prepare Word table tokens and schedule XML replacements
-                $groups = $this->groupMatakuliahUploads($kuesioneData);
+                // Generate table placeholders for template
+                // Store the XML directly for injection (will be injected with replaceXmlBlock)
+                $hasilXml = $this->generateHasilKuesioneTableXml($kuesioneData, $i);
+                $gabunganXml = $this->generateGabunganTableXml($kuesioneData, $i);
+                
+                // BOTH use XML injection now (not text)
+                $this->pendingTableReplacements[$hasilKey] = $hasilXml;
+                $this->pendingTableReplacements[$gabunganKey] = $gabunganXml;
 
-                $hasilToken = '__TABLE_HASIL_TINGKAT_' . $tingkatRoman . '__';
-                $masukanToken = '__TABLE_MASUKAN_TINGKAT_' . $tingkatRoman . '__';
-                $gabunganToken = '__TABLE_GABUNGAN_TINGKAT_' . $tingkatRoman . '__';
+                // IMPORTANT: Set dummy values in $placeholders so the keys exist
+                // This allows the skip logic in setValue loop to work
+                // The actual value doesn't matter because it will be skipped and replaced by XML
+                $placeholders[$hasilKey] = '';
+                $placeholders[$gabunganKey] = '';
 
-                $placeholders[$hasilKey] = $hasilToken;
-                $placeholders[$masukanKey] = $masukanToken;
-
-                // Create XML fragments for the tables
-                $this->pendingTableReplacements[$hasilToken] = $this->generateWordTableXml($groups, $i, 'hasil');
-                $this->pendingTableReplacements[$masukanToken] = $this->generateWordTableXml($groups, $i, 'masukan');
-
-                // Combined fragment: hasil then masukan
-                $this->pendingTableReplacements[$gabunganToken] = $this->pendingTableReplacements[$hasilToken] . '<w:p><w:r><w:t/></w:r></w:p>' . $this->pendingTableReplacements[$masukanToken];
-                $placeholders[$gabunganKey] = $gabunganToken;
-
-                Log::info("Generated content for Tingkat {$tingkatRoman}", [
-                    'hasil_length' => strlen($hasilText),
-                    'masukan_length' => strlen($masukanText),
-                    'gabungan_length' => strlen($gabunganText)
+                Log::info("Prepared content for Tingkat {$tingkatRoman}", [
+                    'hasil_xml_length'    => strlen($hasilXml),
+                    'gabungan_xml_length' => strlen($gabunganXml),
+                    'gabungan_key' => $gabunganKey,
+                    'placeholders_has_gabungan' => isset($placeholders[$gabunganKey]),
+                    'pending_has_gabungan' => isset($this->pendingTableReplacements[$gabunganKey])
                 ]);
             } else {
-                $noDataMsg = "Tidak ada data kuesioner untuk Tingkat {$tingkatRoman}";
+                // When no data exists, set fallback messages for all placeholders
                 $placeholders[$hasilKey] = "\n" . $noDataMsg;
-                $placeholders[$masukanKey] = "";
                 $placeholders[$gabunganKey] = "\n" . $noDataMsg;
 
-                Log::info("No data for Tingkat {$tingkatRoman}");
+                Log::info("No data for Tingkat {$tingkatRoman}, set fallback messages for all placeholders");
             }
         }
     }
@@ -757,84 +988,405 @@ class KuesioneWordGenerationService
     }
 
     /**
-     * Generate Masukan/Saran Table from KuesioneUpload models
+     * Generate Word XML for HASIL_KUESIONER table (per-dosen, one row per kode_mk + dosen)
+     * Kolom: Kode MK | Nama MK | Dosen | Indeks
      */
-    private function generateMasukanSaranTableFromUploads($kuesioneData, $tingkat)
+    private function generateHasilKuesioneTableXml($kuesioneData, $tingkat)
     {
         $tingkatRoman = $this->numberToRoman($tingkat);
-        $groups = $this->groupMatakuliahUploads($kuesioneData);
+        $cols = ['Kode MK', 'Nama MK', 'Dosen', 'Indeks'];
 
-        $text = "Adapun masukan/saran untuk perbaikan mata kuliah ini dapat dilihat pada Tabel " . ($tingkat * 2) . ":\n\n";
-        $text .= "Tabel " . ($tingkat * 2) . ". Masukan/saran setiap Matakuliah\n\n";
-        $text .= "| Kode Matakuliah | Nama Matakuliah | Dosen Pengampu | Masukan/Saran |\n";
-        $text .= "|-----------------|-----------------|----------------|---------------|\n";
+        $xml = '';
 
-        foreach ($groups as $group) {
-            $kodeMk = $group['kode_matakuliah'] ?: '-';
-            $namaMk = $group['nama_matakuliah'] ?: '-';
-            $dosen = !empty($group['dosen']) ? implode(', ', $group['dosen']) : '-';
+        // Paragraph before table
+        $xml .= '<w:p>';
+        $xml .= '<w:pPr><w:spacing w:after="100"/></w:pPr>';
+        $xml .= '<w:r><w:t>Pada tingkat ' . $tingkatRoman . ' terdapat ' . $kuesioneData->count() . ' kuesioner dengan detail sebagai berikut:</w:t></w:r>';
+        $xml .= '</w:p>';
 
-            $rekomendasi = [];
-            foreach ($group['rekomendasi'] as $item) {
-                $rekomendasi[] = $item;
+        // Build table
+        $colWidth = intval(9000 / count($cols));
+
+        $xml .= '<w:tbl>';
+        $xml .= '<w:tblPr>';
+        $xml .= '<w:tblStyle w:val="TableGrid"/>';
+        $xml .= '<w:tblW w:w="9000" w:type="dxa"/>';
+        $xml .= '<w:tblBorders>';
+        $xml .= '<w:top w:val="single" w:sz="4" w:space="0" w:color="000000"/>';
+        $xml .= '<w:left w:val="single" w:sz="4" w:space="0" w:color="000000"/>';
+        $xml .= '<w:bottom w:val="single" w:sz="4" w:space="0" w:color="000000"/>';
+        $xml .= '<w:right w:val="single" w:sz="4" w:space="0" w:color="000000"/>';
+        $xml .= '<w:insideH w:val="single" w:sz="4" w:space="0" w:color="000000"/>';
+        $xml .= '<w:insideV w:val="single" w:sz="4" w:space="0" w:color="000000"/>';
+        $xml .= '</w:tblBorders>';
+        $xml .= '</w:tblPr>';
+
+        $xml .= '<w:tblGrid>';
+        foreach ($cols as $c) {
+            $xml .= '<w:gridCol w:w="' . $colWidth . '"/>';
+        }
+        $xml .= '</w:tblGrid>';
+
+        // Header row
+        $xml .= '<w:tr>';
+        foreach ($cols as $c) {
+            $xml .= '<w:tc>';
+            $xml .= '<w:tcPr><w:tcW w:w="' . $colWidth . '" w:type="dxa"/></w:tcPr>';
+            $xml .= '<w:p><w:pPr><w:jc w:val="center"/></w:pPr>';
+            $xml .= '<w:r><w:rPr><w:b/></w:rPr><w:t>' . $this->escapeXml($c) . '</w:t></w:r>';
+            $xml .= '</w:p></w:tc>';
+        }
+        $xml .= '</w:tr>';
+
+        // Data rows - ONE ROW PER KUESIONER (per dosen)
+        $sumIndices = 0;
+        $countIndices = 0;
+
+        foreach ($kuesioneData as $kuesioner) {
+            $kode = $this->escapeXml($kuesioner->kode_matakuliah ?: '-');
+            $nama = $this->escapeXml($kuesioner->nama_matakuliah ?: '-');
+            $dosen = $this->escapeXml($kuesioner->dosen_pengampu ?: '-');
+            $indeks = is_numeric($kuesioner->index_kepuasan) ? (float)$kuesioner->index_kepuasan : 0;
+
+            if (is_numeric($kuesioner->index_kepuasan)) {
+                $sumIndices += $indeks;
+                $countIndices++;
             }
 
-            if (empty($rekomendasi)) {
-                foreach ($group['area_perbaikan'] as $item) {
-                    $rekomendasi[] = $item;
-                }
-            }
+            $xml .= '<w:tr>';
 
-            if (empty($rekomendasi) && !empty($group['ringkasan'])) {
-                $rekomendasi[] = $group['ringkasan'];
-            }
+            // Kode MK
+            $xml .= '<w:tc>';
+            $xml .= '<w:tcPr><w:tcW w:w="' . $colWidth . '" w:type="dxa"/></w:tcPr>';
+            $xml .= '<w:p><w:r><w:t>' . $kode . '</w:t></w:r></w:p>';
+            $xml .= '</w:tc>';
 
-            if (empty($rekomendasi)) {
-                $rekomendasi[] = 'Perlu peningkatan kualitas pembelajaran.';
-            }
+            // Nama MK
+            $xml .= '<w:tc>';
+            $xml .= '<w:tcPr><w:tcW w:w="' . $colWidth . '" w:type="dxa"/></w:tcPr>';
+            $xml .= '<w:p><w:r><w:t>' . $nama . '</w:t></w:r></w:p>';
+            $xml .= '</w:tc>';
 
-            $rekomendasi = array_unique($rekomendasi);
-            $rekomendasiText = implode('; ', array_slice($rekomendasi, 0, 3));
+            // Dosen
+            $xml .= '<w:tc>';
+            $xml .= '<w:tcPr><w:tcW w:w="' . $colWidth . '" w:type="dxa"/></w:tcPr>';
+            $xml .= '<w:p><w:r><w:t>' . $dosen . '</w:t></w:r></w:p>';
+            $xml .= '</w:tc>';
 
-            $text .= "| {$kodeMk} | {$namaMk} | {$dosen} | {$rekomendasiText} |\n";
+            // Indeks
+            $xml .= '<w:tc>';
+            $xml .= '<w:tcPr><w:tcW w:w="' . $colWidth . '" w:type="dxa"/></w:tcPr>';
+            $xml .= '<w:p><w:pPr><w:jc w:val="center"/></w:pPr>';
+            $xml .= '<w:r><w:t>' . number_format($indeks, 2, '.', '') . '</w:t></w:r>';
+            $xml .= '</w:p></w:tc>';
+
+            $xml .= '</w:tr>';
         }
 
+        $xml .= '</w:tbl>';
+
+        // Footer paragraph
+        $avgIndex = $countIndices > 0 ? round($sumIndices / $countIndices, 2) : 0;
+        $xml .= '<w:p>';
+        $xml .= '<w:pPr><w:spacing w:before="100" w:after="200"/></w:pPr>';
+        $xml .= '<w:r><w:t>Rata-rata Indeks Kepuasan: ' . number_format($avgIndex, 2, '.', '') . '</w:t></w:r>';
+        $xml .= '</w:p>';
+
+        return $xml;
+    }
+
+    /**
+     * Generate Word XML for GABUNGAN table (combined per matakuliah)
+     * Dosens are combined with comma, indeks is averaged
+     * Kolom: Kode MK | Nama MK | Dosen | Indeks
+     */
+    private function generateGabunganTableXml($kuesioneData, $tingkat)
+    {
+        $tingkatRoman = $this->numberToRoman($tingkat);
+        $cols = ['Kode MK', 'Nama MK', 'Dosen', 'Indeks'];
+
+        // Group by kode_mk and nama_mk
+        $grouped = [];
+        foreach ($kuesioneData as $kuesioner) {
+            $kode = trim($kuesioner->kode_matakuliah ?: '');
+            $nama = trim($kuesioner->nama_matakuliah ?: '');
+            $key = strtoupper($kode) . '|' . mb_strtolower($nama);
+
+            if (!isset($grouped[$key])) {
+                $grouped[$key] = [
+                    'kode' => $kode ?: '-',
+                    'nama' => $nama ?: '-',
+                    'dosens' => [],
+                    'indices' => []
+                ];
+            }
+
+            $dosen = trim($kuesioner->dosen_pengampu ?: '');
+            if ($dosen && !in_array($dosen, $grouped[$key]['dosens'])) {
+                $grouped[$key]['dosens'][] = $dosen;
+            }
+
+            if (is_numeric($kuesioner->index_kepuasan)) {
+                $grouped[$key]['indices'][] = (float)$kuesioner->index_kepuasan;
+            }
+        }
+
+        $xml = '';
+
+        // Paragraph before table
+        $xml .= '<w:p>';
+        $xml .= '<w:pPr><w:spacing w:after="100"/></w:pPr>';
+        $xml .= '<w:r><w:t>Gabungan hasil kuesioner per mata kuliah tingkat ' . $tingkatRoman . ':</w:t></w:r>';
+        $xml .= '</w:p>';
+
+        // Build table
+        $colWidth = intval(9000 / count($cols));
+
+        $xml .= '<w:tbl>';
+        $xml .= '<w:tblPr>';
+        $xml .= '<w:tblStyle w:val="TableGrid"/>';
+        $xml .= '<w:tblW w:w="9000" w:type="dxa"/>';
+        $xml .= '<w:tblBorders>';
+        $xml .= '<w:top w:val="single" w:sz="4" w:space="0" w:color="000000"/>';
+        $xml .= '<w:left w:val="single" w:sz="4" w:space="0" w:color="000000"/>';
+        $xml .= '<w:bottom w:val="single" w:sz="4" w:space="0" w:color="000000"/>';
+        $xml .= '<w:right w:val="single" w:sz="4" w:space="0" w:color="000000"/>';
+        $xml .= '<w:insideH w:val="single" w:sz="4" w:space="0" w:color="000000"/>';
+        $xml .= '<w:insideV w:val="single" w:sz="4" w:space="0" w:color="000000"/>';
+        $xml .= '</w:tblBorders>';
+        $xml .= '</w:tblPr>';
+
+        $xml .= '<w:tblGrid>';
+        foreach ($cols as $c) {
+            $xml .= '<w:gridCol w:w="' . $colWidth . '"/>';
+        }
+        $xml .= '</w:tblGrid>';
+
+        // Header row
+        $xml .= '<w:tr>';
+        foreach ($cols as $c) {
+            $xml .= '<w:tc>';
+            $xml .= '<w:tcPr><w:tcW w:w="' . $colWidth . '" w:type="dxa"/></w:tcPr>';
+            $xml .= '<w:p><w:pPr><w:jc w:val="center"/></w:pPr>';
+            $xml .= '<w:r><w:rPr><w:b/></w:rPr><w:t>' . $this->escapeXml($c) . '</w:t></w:r>';
+            $xml .= '</w:p></w:tc>';
+        }
+        $xml .= '</w:tr>';
+
+        // Data rows - ONE ROW PER MATA KULIAH (dosens combined, index averaged)
+        $sumIndices = 0;
+        $countIndices = 0;
+
+        foreach ($grouped as $group) {
+            $kode = $this->escapeXml($group['kode']);
+            $nama = $this->escapeXml($group['nama']);
+            $dosen = $this->escapeXml(!empty($group['dosens']) ? implode(', ', $group['dosens']) : '-');
+
+            $avgIndeks = 0;
+            if (!empty($group['indices'])) {
+                $avgIndeks = array_sum($group['indices']) / count($group['indices']);
+                $sumIndices += array_sum($group['indices']);
+                $countIndices += count($group['indices']);
+            }
+
+            $xml .= '<w:tr>';
+
+            // Kode MK
+            $xml .= '<w:tc>';
+            $xml .= '<w:tcPr><w:tcW w:w="' . $colWidth . '" w:type="dxa"/></w:tcPr>';
+            $xml .= '<w:p><w:r><w:t>' . $kode . '</w:t></w:r></w:p>';
+            $xml .= '</w:tc>';
+
+            // Nama MK
+            $xml .= '<w:tc>';
+            $xml .= '<w:tcPr><w:tcW w:w="' . $colWidth . '" w:type="dxa"/></w:tcPr>';
+            $xml .= '<w:p><w:r><w:t>' . $nama . '</w:t></w:r></w:p>';
+            $xml .= '</w:tc>';
+
+            // Dosen (combined with comma)
+            $xml .= '<w:tc>';
+            $xml .= '<w:tcPr><w:tcW w:w="' . $colWidth . '" w:type="dxa"/></w:tcPr>';
+            $xml .= '<w:p><w:r><w:t>' . $dosen . '</w:t></w:r></w:p>';
+            $xml .= '</w:tc>';
+
+            // Indeks (averaged)
+            $xml .= '<w:tc>';
+            $xml .= '<w:tcPr><w:tcW w:w="' . $colWidth . '" w:type="dxa"/></w:tcPr>';
+            $xml .= '<w:p><w:pPr><w:jc w:val="center"/></w:pPr>';
+            $xml .= '<w:r><w:t>' . number_format($avgIndeks, 2, '.', '') . '</w:t></w:r>';
+            $xml .= '</w:p></w:tc>';
+
+            $xml .= '</w:tr>';
+        }
+
+        $xml .= '</w:tbl>';
+
+        // Footer paragraph
+        $avgIndex = $countIndices > 0 ? round($sumIndices / $countIndices, 2) : 0;
+        $xml .= '<w:p>';
+        $xml .= '<w:pPr><w:spacing w:before="100" w:after="200"/></w:pPr>';
+        $xml .= '<w:r><w:t>Rata-rata Indeks Kepuasan: ' . number_format($avgIndex, 2, '.', '') . '</w:t></w:r>';
+        $xml .= '</w:p>';
+
+        return $xml;
+    }
+
+    /**
+     * Generate GABUNGAN table as plain text (not XML)
+     * This is more reliable than XML injection for GABUNGAN_TINGKAT_X placeholders
+     * 
+     * Kolom: Kode MK | Nama MK | Dosen | Rata-rata Indeks
+     * - Dosen digabung dengan koma (,) jika ada lebih dari 1 dosen
+     * - Indeks adalah rata-rata dari semua kuesioner dengan kode MK dan nama MK yang sama
+     * - Data diambil langsung dari tabel kuesioner_uploads
+     */
+    private function generateGabunganTableAsText($kuesioneData, $tingkat)
+    {
+        $tingkatRoman = $this->numberToRoman($tingkat);
+
+        // Group by kode_mk and nama_mk
+        $grouped = [];
+        foreach ($kuesioneData as $kuesioner) {
+            $kode = trim($kuesioner->kode_matakuliah ?: '');
+            $nama = trim($kuesioner->nama_matakuliah ?: '');
+            
+            // Use kode and nama as composite key
+            $key = strtoupper($kode) . '|' . mb_strtolower($nama);
+
+            if (!isset($grouped[$key])) {
+                $grouped[$key] = [
+                    'kode' => $kode ?: '-',
+                    'nama' => $nama ?: '-',
+                    'dosens' => [],
+                    'indices' => []
+                ];
+            }
+
+            // Collect unique dosens
+            $dosen = trim($kuesioner->dosen_pengampu ?: '');
+            if ($dosen && !in_array($dosen, $grouped[$key]['dosens'])) {
+                $grouped[$key]['dosens'][] = $dosen;
+            }
+
+            // Collect all indices for averaging
+            if (is_numeric($kuesioner->index_kepuasan)) {
+                $grouped[$key]['indices'][] = (float)$kuesioner->index_kepuasan;
+            }
+        }
+
+        // Build text table
+        $text = "\nPada tingkat {$tingkatRoman} terdapat " . count($grouped) . " kuesioner dengan detail sebagai berikut:\n\n";
+        
+        // Add table number
+        $tableNum = ($tingkat * 2) + 1;
+        $text .= "Tabel {$tableNum}. Matakuliah Mahasiswa Tingkat {$tingkatRoman}\n\n";
+
+        // Table header with fixed widths for alignment
+        $text .= str_pad("Kode MK", 15) . " | ";
+        $text .= str_pad("Nama MK", 50) . " | ";
+        $text .= str_pad("Dosen", 45) . " | ";
+        $text .= str_pad("Indeks", 10) . "\n";
+        $text .= str_repeat("-", 125) . "\n";
+
+        // Data rows
+        $sumIndices = 0;
+        $countIndices = 0;
+
+        foreach ($grouped as $group) {
+            $kode = $group['kode'];
+            $nama = $group['nama'];
+            
+            // Truncate nama if too long
+            if (mb_strlen($nama) > 50) {
+                $nama = mb_substr($nama, 0, 47) . '...';
+            }
+
+            // Combine dosens with comma
+            $dosen = !empty($group['dosens']) ? implode(', ', $group['dosens']) : '-';
+            
+            // Truncate dosen if too long
+            if (mb_strlen($dosen) > 45) {
+                $dosen = mb_substr($dosen, 0, 42) . '...';
+            }
+
+            // Calculate average indeks from all kuesioner with same kode MK and nama MK
+            $avgIndeks = 0;
+            if (!empty($group['indices'])) {
+                $avgIndeks = array_sum($group['indices']) / count($group['indices']);
+                $sumIndices += array_sum($group['indices']);
+                $countIndices += count($group['indices']);
+            }
+
+            $text .= str_pad($kode, 15) . " | ";
+            $text .= str_pad($nama, 50) . " | ";
+            $text .= str_pad($dosen, 45) . " | ";
+            $text .= str_pad(number_format($avgIndeks, 2), 10, ' ', STR_PAD_LEFT) . "\n";
+        }
+
+        // Footer with average
+        $avgIndex = $countIndices > 0 ? round($sumIndices / $countIndices, 2) : 0;
         $text .= "\n";
+        $text .= "Rata-rata Indeks Kepuasan: " . number_format($avgIndex, 2) . "\n";
 
         return $text;
     }
 
     /**
      * Generate Word XML for a table from groups data
-     * type: 'hasil' or 'masukan'
+     * DEPRECATED: Replaced by generateHasilKuesioneTableXml and generateGabunganTableXml
+     * Kept for backward compatibility only
      */
     private function generateWordTableXml($groups, $tingkat, $type = 'hasil')
     {
-        $cols = $type === 'hasil'
-            ? ['Kode Matakuliah', 'Nama Matakuliah', 'Dosen Pengampu', 'Indeks Kepuasan']
-            : ['Kode Matakuliah', 'Nama Matakuliah', 'Dosen Pengampu', 'Masukan/Saran'];
+        // Only support 'hasil' type now - masukan/saran functionality removed
+        $cols = ['Kode Matakuliah', 'Nama Matakuliah', 'Dosen Pengampu', 'Indeks Kepuasan'];
 
-        // Paragraph before table
         $tingkatRoman = $this->numberToRoman($tingkat);
         $count = count($groups);
-        $para = '<w:p><w:r><w:t>Pada tingkat ' . $tingkatRoman . ' terdapat ' . $count . ' matakuliah dengan detail sebagai berikut:</w:t></w:r></w:p>';
 
-        // Build table header
-        $tbl = '<w:tbl><w:tblPr><w:tblStyle w:val="TableGrid"/></w:tblPr><w:tblGrid>';
+        $xml = '';
+
+        // Paragraph before table
+        $xml .= '<w:p>';
+        $xml .= '<w:pPr><w:spacing w:after="100"/></w:pPr>';
+        $xml .= '<w:r><w:t>Pada tingkat ' . $tingkatRoman . ' terdapat ' . $count . ' matakuliah dengan detail sebagai berikut:</w:t></w:r>';
+        $xml .= '</w:p>';
+
+        // Build table
         $colWidth = intval(9000 / count($cols));
+
+        $xml .= '<w:tbl>';
+        $xml .= '<w:tblPr>';
+        $xml .= '<w:tblStyle w:val="TableGrid"/>';
+        $xml .= '<w:tblW w:w="9000" w:type="dxa"/>';
+        $xml .= '<w:tblBorders>';
+        $xml .= '<w:top w:val="single" w:sz="4" w:space="0" w:color="000000"/>';
+        $xml .= '<w:left w:val="single" w:sz="4" w:space="0" w:color="000000"/>';
+        $xml .= '<w:bottom w:val="single" w:sz="4" w:space="0" w:color="000000"/>';
+        $xml .= '<w:right w:val="single" w:sz="4" w:space="0" w:color="000000"/>';
+        $xml .= '<w:insideH w:val="single" w:sz="4" w:space="0" w:color="000000"/>';
+        $xml .= '<w:insideV w:val="single" w:sz="4" w:space="0" w:color="000000"/>';
+        $xml .= '</w:tblBorders>';
+        $xml .= '</w:tblPr>';
+
+        $xml .= '<w:tblGrid>';
         foreach ($cols as $c) {
-            $tbl .= '<w:gridCol w:w="' . $colWidth . '"/>';
+            $xml .= '<w:gridCol w:w="' . $colWidth . '"/>';
         }
-        $tbl .= '</w:tblGrid>';
+        $xml .= '</w:tblGrid>';
 
         // Header row
-        $tbl .= '<w:tr>'; 
+        $xml .= '<w:tr>';
         foreach ($cols as $c) {
-            $tbl .= '<w:tc><w:p><w:r><w:t>' . $this->escapeXml($c) . '</w:t></w:r></w:p></w:tc>';
+            $xml .= '<w:tc>';
+            $xml .= '<w:tcPr><w:tcW w:w="' . $colWidth . '" w:type="dxa"/></w:tcPr>';
+            $xml .= '<w:p><w:pPr><w:jc w:val="center"/></w:pPr>';
+            $xml .= '<w:r><w:rPr><w:b/></w:rPr><w:t>' . $this->escapeXml($c) . '</w:t></w:r>';
+            $xml .= '</w:p></w:tc>';
         }
-        $tbl .= '</w:tr>';
+        $xml .= '</w:tr>';
 
-        // Rows
+        // Data rows
         $sumAllIndices = 0;
         $countAllIndices = 0;
         foreach ($groups as $group) {
@@ -842,37 +1394,127 @@ class KuesioneWordGenerationService
             $nama = $this->escapeXml($group['nama_matakuliah'] ?: '-');
             $dosen = $this->escapeXml(!empty($group['dosen']) ? implode(', ', $group['dosen']) : '-');
 
-            $tbl .= '<w:tr>';
-            $tbl .= '<w:tc><w:p><w:r><w:t>' . $kode . '</w:t></w:r></w:p></w:tc>';
-            $tbl .= '<w:tc><w:p><w:r><w:t>' . $nama . '</w:t></w:r></w:p></w:tc>';
-            $tbl .= '<w:tc><w:p><w:r><w:t>' . $dosen . '</w:t></w:r></w:p></w:tc>';
+            $xml .= '<w:tr>';
 
-            if ($type === 'hasil') {
-                $groupIndexCount = count($group['indices']);
-                $groupAvgIndex = $groupIndexCount > 0 ? round(array_sum($group['indices']) / $groupIndexCount, 5) : 0;
-                $sumAllIndices += array_sum($group['indices']);
-                $countAllIndices += $groupIndexCount;
-                $tbl .= '<w:tc><w:p><w:r><w:t>' . $groupAvgIndex . '</w:t></w:r></w:p></w:tc>';
-            } else {
-                $rekom = $group['rekomendasi'] ?? [];
-                if (empty($rekom) && !empty($group['area_perbaikan'])) $rekom = $group['area_perbaikan'];
-                if (empty($rekom) && !empty($group['ringkasan'])) $rekom = [$group['ringkasan']];
-                $rekomText = $this->escapeXml(implode('; ', array_slice($rekom, 0, 3)) ?: '-');
-                $tbl .= '<w:tc><w:p><w:r><w:t>' . $rekomText . '</w:t></w:r></w:p></w:tc>';
-            }
+            // Column 1: Kode
+            $xml .= '<w:tc>';
+            $xml .= '<w:tcPr><w:tcW w:w="' . $colWidth . '" w:type="dxa"/></w:tcPr>';
+            $xml .= '<w:p><w:r><w:t>' . $kode . '</w:t></w:r></w:p>';
+            $xml .= '</w:tc>';
 
-            $tbl .= '</w:tr>';
+            // Column 2: Nama
+            $xml .= '<w:tc>';
+            $xml .= '<w:tcPr><w:tcW w:w="' . $colWidth . '" w:type="dxa"/></w:tcPr>';
+            $xml .= '<w:p><w:r><w:t>' . $nama . '</w:t></w:r></w:p>';
+            $xml .= '</w:tc>';
+
+            // Column 3: Dosen
+            $xml .= '<w:tc>';
+            $xml .= '<w:tcPr><w:tcW w:w="' . $colWidth . '" w:type="dxa"/></w:tcPr>';
+            $xml .= '<w:p><w:r><w:t>' . $dosen . '</w:t></w:r></w:p>';
+            $xml .= '</w:tc>';
+
+            // Column 4: Indeks Kepuasan
+            $groupIndexCount = count($group['indices']);
+            $groupAvgIndex = $groupIndexCount > 0 ? round(array_sum($group['indices']) / $groupIndexCount, 5) : 0;
+            $sumAllIndices += array_sum($group['indices']);
+            $countAllIndices += $groupIndexCount;
+
+            $xml .= '<w:tc>';
+            $xml .= '<w:tcPr><w:tcW w:w="' . $colWidth . '" w:type="dxa"/></w:tcPr>';
+            $xml .= '<w:p><w:pPr><w:jc w:val="center"/></w:pPr>';
+            $xml .= '<w:r><w:t>' . number_format($groupAvgIndex, 5, '.', '') . '</w:t></w:r>';
+            $xml .= '</w:p></w:tc>';
+
+            $xml .= '</w:tr>';
         }
 
-        $tbl .= '</w:tbl>';
+        $xml .= '</w:tbl>';
 
+        // Footer paragraph
         $avgIndex = $countAllIndices > 0 ? round($sumAllIndices / $countAllIndices, 5) : 0;
-        $footer = '';
-        if ($type === 'hasil') {
-            $footer = '<w:p><w:r><w:t>Rata Indeks Kepuasan: ' . $avgIndex . '</w:t></w:r></w:p>';
-        }
+        $xml .= '<w:p>';
+        $xml .= '<w:pPr><w:spacing w:before="100" w:after="200"/></w:pPr>';
+        $xml .= '<w:r><w:t>Rata Indeks Kepuasan: ' . number_format($avgIndex, 5, '.', '') . '</w:t></w:r>';
+        $xml .= '</w:p>';
 
-        return $para . $tbl . $footer;
+        return $xml;
+    }
+
+    /**
+     * Generate Word XML fragment for PENDAHULUAN_RUANG_LINGKUP including
+     * the introductory text and Tabel 1 (Skala Likert) as a real <w:tbl>.
+     */
+    private function generateRuangLingkupXml($laporan)
+    {
+        $xml = '';
+
+        // Paragraph 1
+        $xml .= '<w:p>';
+        $xml .= '<w:pPr><w:spacing w:after="200"/></w:pPr>';
+        $xml .= '<w:r><w:t xml:space="preserve">Yang menjadi responden pada survei ini adalah mahasiswa yang mengambil mata kuliah prodi, mata kuliah fakultas dan mata kuliah institut. Adapun pihak terkait yang kualitas layanannya dinilai pada survei ini yaitu dosen, teaching assistant yang berhubungan dengan mata kuliah.</w:t></w:r>';
+        $xml .= '</w:p>';
+
+        // Paragraph 2
+        $xml .= '<w:p>';
+        $xml .= '<w:pPr><w:spacing w:after="200"/></w:pPr>';
+        $xml .= '<w:r><w:t xml:space="preserve">Kuesioner yang dibagikan terdiri dari 17 pertanyaan dengan kuesioner yang dibagikan memiliki 4 kriteria penilaian (skala likert) yaitu Sangat Setuju, Setuju, Cukup Setuju, dan Tidak Setuju. Agar mempermudah perhitungan kuesioner, kriteria Sangat Setuju, Setuju, Cukup Setuju, dan Tidak Setuju akan dihitung dan dilaporkan dalam bentuk indeks skala 4 dengan bobot yang mengikuti Tabel 1.</w:t></w:r>';
+        $xml .= '</w:p>';
+
+        // Table title
+        $xml .= '<w:p>';
+        $xml .= '<w:pPr><w:spacing w:before="200" w:after="100"/></w:pPr>';
+        $xml .= '<w:r><w:rPr><w:b/></w:rPr><w:t>Tabel 1. Skala Likert Kuesioner</w:t></w:r>';
+        $xml .= '</w:p>';
+
+        // Build Tabel 1: skala likert
+        $xml .= '<w:tbl>';
+        $xml .= '<w:tblPr>';
+        $xml .= '<w:tblStyle w:val="TableGrid"/>';
+        $xml .= '<w:tblW w:w="9000" w:type="dxa"/>';
+        $xml .= '<w:tblBorders>';
+        $xml .= '<w:top w:val="single" w:sz="4" w:space="0" w:color="000000"/>';
+        $xml .= '<w:left w:val="single" w:sz="4" w:space="0" w:color="000000"/>';
+        $xml .= '<w:bottom w:val="single" w:sz="4" w:space="0" w:color="000000"/>';
+        $xml .= '<w:right w:val="single" w:sz="4" w:space="0" w:color="000000"/>';
+        $xml .= '<w:insideH w:val="single" w:sz="4" w:space="0" w:color="000000"/>';
+        $xml .= '<w:insideV w:val="single" w:sz="4" w:space="0" w:color="000000"/>';
+        $xml .= '</w:tblBorders>';
+        $xml .= '</w:tblPr>';
+        $xml .= '<w:tblGrid><w:gridCol w:w="4500"/><w:gridCol w:w="2250"/><w:gridCol w:w="2250"/></w:tblGrid>';
+
+        // Header row
+        $xml .= '<w:tr>';
+        foreach (['Pernyataan', 'Kode', 'Skala'] as $header) {
+            $xml .= '<w:tc>';
+            $xml .= '<w:tcPr><w:tcW w:w="' . ($header === 'Pernyataan' ? '4500' : '2250') . '" w:type="dxa"/></w:tcPr>';
+            $xml .= '<w:p><w:pPr><w:jc w:val="center"/></w:pPr>';
+            $xml .= '<w:r><w:rPr><w:b/></w:rPr><w:t>' . $this->escapeXml($header) . '</w:t></w:r>';
+            $xml .= '</w:p></w:tc>';
+        }
+        $xml .= '</w:tr>';
+
+        // Data rows
+        $rows = [
+            ['Tidak setuju (TS)', 'TS', '1'],
+            ['Cukup Setuju (CS)', 'CS', '2'],
+            ['Setuju (S)', 'S', '3'],
+            ['Sangat Setuju (SS)', 'SS', '4'],
+        ];
+        foreach ($rows as $row) {
+            $xml .= '<w:tr>';
+            foreach ($row as $idx => $cell) {
+                $width = $idx === 0 ? '4500' : '2250';
+                $xml .= '<w:tc>';
+                $xml .= '<w:tcPr><w:tcW w:w="' . $width . '" w:type="dxa"/></w:tcPr>';
+                $xml .= '<w:p><w:r><w:t>' . $this->escapeXml($cell) . '</w:t></w:r></w:p>';
+                $xml .= '</w:tc>';
+            }
+            $xml .= '</w:tr>';
+        }
+        $xml .= '</w:tbl>';
+
+        return $xml;
     }
 
     private function escapeXml($s)
@@ -987,7 +1629,7 @@ class KuesioneWordGenerationService
 
     private function isPlaceholderStartRun($run)
     {
-        return preg_match('#\{\{(?:HASIL_KUESIONER_TINGKAT_|MASUKAN_SARAN_TINGKAT_|GABUNGAN_TINGKAT_)#', $run);
+        return preg_match('#\{\{(?:HASIL_KUESIONER_TINGKAT_|GABUNGAN_TINGKAT_)#', $run);
     }
 
     private function extractTextFromRun($run)
@@ -998,12 +1640,12 @@ class KuesioneWordGenerationService
 
     private function isCompletedPlaceholderText($text)
     {
-        return preg_match('#^\{\{(?:HASIL_KUESIONER_TINGKAT_[A-Z]+|MASUKAN_SARAN_TINGKAT_[A-Z]+|GABUNGAN_TINGKAT_[A-Z]+)\}\}$#', $text);
+        return preg_match('#^\{\{(?:HASIL_KUESIONER_TINGKAT_[A-Z]+|GABUNGAN_TINGKAT_[A-Z]+)\}\}$#', $text);
     }
 
     private function normalizePlaceholderText($text)
     {
-        preg_match('#^\{\{((?:HASIL_KUESIONER_TINGKAT_|MASUKAN_SARAN_TINGKAT_|GABUNGAN_TINGKAT_)[A-Z]+)\}\}$#', $text, $matches);
+        preg_match('#^\{\{((?:HASIL_KUESIONER_TINGKAT_|GABUNGAN_TINGKAT_)[A-Z]+)\}\}$#', $text, $matches);
         return $matches[1] ?? $text;
     }
 
@@ -1368,6 +2010,7 @@ class KuesioneWordGenerationService
             $userId = $laporan->user_id;
             $periodeContext = $this->resolveLaporanPeriodeContext($laporan);
             $semester = $periodeContext['semester'];
+            $jenisUjian = $periodeContext['jenisUjian'];
 
             // Get user's prodi
             $user = \App\Models\User::find($userId);
@@ -1377,6 +2020,10 @@ class KuesioneWordGenerationService
             // Query kuesioner uploads
             $uploads = \App\Models\KuesioneUpload::query()
                 ->where('semester', $semester)
+                ->when($jenisUjian, function($q) use ($jenisUjian) {
+                    // Filter by jenis_kuesioner (UTS or UAS)
+                    $q->where('jenis_kuesioner', 'like', '%' . $jenisUjian . '%');
+                })
                 ->when($prodiKode, function($q) use ($prodiKode) {
                     $q->whereHas('user', function($uq) use ($prodiKode) {
                         $uq->whereHas('prodi', function($pq) use ($prodiKode) {
@@ -1390,7 +2037,8 @@ class KuesioneWordGenerationService
                 ->get();
 
             Log::info('Query completed', [
-                'total_uploads' => $uploads->count()
+                'total_uploads' => $uploads->count(),
+                'jenis_ujian_filter' => $jenisUjian
             ]);
 
             // Initialize PHPWord
@@ -1626,6 +2274,152 @@ class KuesioneWordGenerationService
                 'laporan_id' => $laporan->id,
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
+            ]);
+            return false;
+        }
+    }
+
+    /**
+     * Replace a placeholder with an XML table (like LaporanArtefakService does)
+     * Uses replaceXmlBlock to inject Word XML table directly
+     */
+    private function replaceWithTable(\PhpOffice\PhpWord\TemplateProcessor $tp, string $placeholder, string $tableXml)
+    {
+        try {
+            if (method_exists($tp, 'replaceXmlBlock')) {
+                // Replace the entire paragraph containing the token with the table XML
+                $tp->replaceXmlBlock($placeholder, $tableXml, 'w:p');
+
+                Log::info('Table replaced successfully using replaceXmlBlock', [
+                    'placeholder' => $placeholder,
+                    'xml_preview' => substr($tableXml, 0, 200)
+                ]);
+            } else {
+                // Fallback if method doesn't exist
+                $tp->setValue($placeholder, '[Tabel tidak dapat dirender - method tidak tersedia]');
+
+                Log::warning('replaceXmlBlock method not available', [
+                    'placeholder' => $placeholder
+                ]);
+            }
+        } catch (\Exception $e) {
+            Log::error('replaceWithTable failed', [
+                'placeholder' => $placeholder,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'xml_length' => strlen($tableXml)
+            ]);
+
+            // Try to set error message as placeholder value
+            try {
+                $tp->setValue($placeholder, '[Tabel ' . $placeholder . ' tidak dapat dirender: ' . $e->getMessage() . ']');
+            } catch (\Exception $e2) {
+                Log::error('Even setValue failed', [
+                    'placeholder' => $placeholder,
+                    'error' => $e2->getMessage()
+                ]);
+            }
+        }
+    }
+
+    /**
+     * Replace table tokens (like __TABLE_HASIL_TINGKAT_I__) with actual Word XML tables
+     * Post-processing step after template save
+     * DEPRECATED: Now using replaceWithTable() before save instead (like LaporanArtefakService)
+     */
+    private function replaceTableTokensWithXml($docxPath, $replacements)
+    {
+        if (empty($replacements)) {
+            return true;
+        }
+
+        try {
+            Log::info('Starting table token replacement', [
+                'docx_path' => $docxPath,
+                'tokens_count' => count($replacements)
+            ]);
+
+            // Open DOCX as ZIP
+            $zip = new \ZipArchive();
+            if ($zip->open($docxPath) !== true) {
+                Log::error('Could not open DOCX for table replacement', ['path' => $docxPath]);
+                return false;
+            }
+
+            // Read document.xml
+            $documentXml = $zip->getFromName('word/document.xml');
+            if ($documentXml === false) {
+                $zip->close();
+                Log::error('Could not read document.xml from DOCX');
+                return false;
+            }
+
+            Log::info('Original document.xml length', ['length' => strlen($documentXml)]);
+
+            // Replace each token with its XML - use simple string replacement
+            $replacedCount = 0;
+            foreach ($replacements as $token => $xmlContent) {
+                if (strpos($documentXml, $token) !== false) {
+                    // Simple approach: Replace token directly with XML content
+                    // Find the paragraph containing the token and replace it
+                    $beforeToken = strstr($documentXml, $token, true);
+                    $afterTokenTemp = strstr($documentXml, $token);
+
+                    if ($beforeToken !== false && $afterTokenTemp !== false) {
+                        // Find the start of paragraph before token
+                        $lastPStart = strrpos($beforeToken, '<w:p>');
+                        if ($lastPStart === false) {
+                            $lastPStart = strrpos($beforeToken, '<w:p ');
+                        }
+
+                        // Find the end of paragraph after token
+                        $afterToken = substr($afterTokenTemp, strlen($token));
+                        $pEndPos = strpos($afterToken, '</w:p>');
+
+                        if ($lastPStart !== false && $pEndPos !== false) {
+                            // Extract parts
+                            $before = substr($documentXml, 0, $lastPStart);
+                            $after = substr($afterToken, $pEndPos + 6); // 6 = length of '</w:p>'
+
+                            // Rebuild document with XML table
+                            $documentXml = $before . $xmlContent . $after;
+                            $replacedCount++;
+
+                            Log::info('Replaced token successfully', [
+                                'token' => $token,
+                                'xml_length' => strlen($xmlContent)
+                            ]);
+                        } else {
+                            Log::warning('Could not find paragraph boundaries for token', [
+                                'token' => $token
+                            ]);
+                        }
+                    }
+                } else {
+                    Log::warning('Token not found in document', ['token' => $token]);
+                }
+            }
+
+            Log::info('Modified document.xml length', [
+                'length' => strlen($documentXml),
+                'replaced_count' => $replacedCount
+            ]);
+
+            // Write back to ZIP
+            $zip->addFromString('word/document.xml', $documentXml);
+            $zip->close();
+
+            Log::info('Table tokens successfully replaced', [
+                'docx_path' => $docxPath,
+                'replacements_count' => $replacedCount
+            ]);
+
+            return true;
+
+        } catch (\Exception $e) {
+            Log::error('Failed to replace table tokens', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
             ]);
             return false;
         }

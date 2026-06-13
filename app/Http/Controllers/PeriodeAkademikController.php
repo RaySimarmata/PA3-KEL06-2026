@@ -76,14 +76,17 @@ class PeriodeAkademikController extends Controller
         $request->validate([
             'tahun_ajaran' => 'required|integer|min:2000|max:2100',
             'semester'     => 'required|in:1,2',
-            'start_date'   => 'required|date',
-            'end_date'     => 'nullable|date|after:start_date',
+            'start_date'   => 'required|date|after_or_equal:today',
+            'end_date'     => 'required|date|after:start_date|after_or_equal:today',
         ], [
             'semester.in'      => 'Semester harus dipilih (Ganjil/Genap)',
             'start_date.required' => 'Tanggal mulai wajib diisi',
             'start_date.date'  => 'Format tanggal mulai tidak valid',
+            'start_date.after_or_equal' => 'Tanggal mulai tidak boleh sebelum hari ini',
+            'end_date.required' => 'Tanggal selesai wajib diisi',
             'end_date.date'    => 'Format tanggal selesai tidak valid',
             'end_date.after'   => 'Tanggal selesai harus setelah tanggal mulai',
+            'end_date.after_or_equal' => 'Tanggal selesai tidak boleh sebelum hari ini',
         ]);
 
         /*

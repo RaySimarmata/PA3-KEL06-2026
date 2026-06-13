@@ -3,10 +3,8 @@
 namespace App\Http\Controllers\GKM;
 
 use App\Http\Controllers\Controller;
-use App\Models\Materi;
 use App\Models\RPS;
 use App\Models\Reminder;
-use App\Models\Kuisioner;
 use App\Models\LaporanBulanan;
 use App\Models\LaporanGKM;
 use App\Models\PerkuliahanMonitoringDetail;
@@ -17,6 +15,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use App\Models\HasilAnalisisMongo;
 
 class DashboardController extends Controller
@@ -38,24 +37,74 @@ class DashboardController extends Controller
 
         // Statistik untuk dashboard GKM
         // Status Upload Materi
-        $totalMateri = Materi::count();
-        $materiUploaded = Materi::where('status', 'sudah_upload')->count();
-        $materiBelum = $totalMateri - $materiUploaded;
+        $materiQuery = PerkuliahanMonitoringDetail::query();
+        if ($user->prodi_id) {
+            $materiQuery->where('prodi_id', $user->prodi_id);
+        }
+        if (!empty($semester)) {
+            $materiQuery->where('semester', $semester);
+        }
+        if (!empty($tahun)) {
+            $materiQuery->where('tahun_ajaran', $tahun);
+        }
 
-        // Status RPS
-        $totalRPS = RPS::count();
-        $rpsLengkap = RPS::where('status_rps', 'sudah_divalidasi')->count();
-        $rpsBelum = $totalRPS - $rpsLengkap;
+        $totalMateri = $materiQuery->count();
+        $materiUploaded = (clone $materiQuery)->where('jumlah_upload', '>', 0)->count();
+        $materiBelum = max(0, $totalMateri - $materiUploaded);
+
+        // Status RPS (cek apakah tabel ada dulu)
+        if (Schema::hasTable('rps')) {
+            $totalRPS = RPS::count();
+            $rpsLengkap = RPS::where('status_rps', 'sudah_divalidasi')->count();
+            $rpsBelum = $totalRPS - $rpsLengkap;
+        } else {
+            $totalRPS = 0;
+            $rpsLengkap = 0;
+            $rpsBelum = 0;
+        }
 
         // Status Reminder
-        $remindersPending = Reminder::where('status', 'belum_kirim')->count();
+        $remindersPending = 0;
+        try {
+            $reminderTable = (new Reminder)->getTable();
+            if (Schema::hasTable($reminderTable)) {
+                $remindersPending = Reminder::where('status', 'belum_kirim')->count();
+            }
+        } catch (\Throwable $e) {
+            $remindersPending = 0;
+        }
 
         // Status Kuisioner
-        $kuisionerAktif = Kuisioner::where('status', 'aktif')->count();
+        $kuisionerAktif = 0;
+        try {
+            $kuisionerTable = (new Kuisioner)->getTable();
+            if (Schema::hasTable($kuisionerTable)) {
+                $kuisionerAktif = Kuisioner::where('status', 'aktif')->count();
+            }
+        } catch (\Throwable $e) {
+            $kuisionerAktif = 0;
+        }
 
         // Total laporan kuesioner (LaporanBulanan) and total laporan bulanan/gkm (LaporanGKM)
-        $totalQuestionnaires = LaporanBulanan::count();
-        $totalMonthlyReports = LaporanGKM::count();
+        $totalQuestionnaires = 0;
+        $totalMonthlyReports = 0;
+        try {
+            $laporanBulananTable = (new LaporanBulanan)->getTable();
+            if (Schema::hasTable($laporanBulananTable)) {
+                $totalQuestionnaires = LaporanBulanan::count();
+            }
+        } catch (\Throwable $e) {
+            $totalQuestionnaires = 0;
+        }
+
+        try {
+            $laporanGKMTable = (new LaporanGKM)->getTable();
+            if (Schema::hasTable($laporanGKMTable)) {
+                $totalMonthlyReports = LaporanGKM::count();
+            }
+        } catch (\Throwable $e) {
+            $totalMonthlyReports = 0;
+        }
 
         $stats = [
             'materi_uploaded' => $materiUploaded,

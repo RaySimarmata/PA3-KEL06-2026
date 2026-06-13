@@ -144,18 +144,6 @@ Route::middleware('auth')->group(function () {
     Route::post('/periode-akademik/{id}/activate', [DataMasterController::class, 'activatePeriode'])
         ->name('periode.activate');
 
-    Route::get('/kelas', [DataMasterController::class, 'kelas'])
-        ->name('kelas');
-
-    Route::post('/kelas', [DataMasterController::class, 'storeKelas'])
-        ->name('kelas.store');
-
-    Route::put('/kelas/{id}', [DataMasterController::class, 'updateKelas'])
-        ->name('kelas.update');
-
-    Route::delete('/kelas/{id}', [DataMasterController::class, 'destroyKelas'])
-        ->name('kelas.destroy');
-
     Route::get('/template-laporan', [DataMasterController::class, 'templateLaporan'])
         ->name('template');
 

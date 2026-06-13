@@ -15,19 +15,19 @@ return new class extends Migration
 
     $table->id();
 
-    $table->string('pegawai_id', 50);
+    $table->string('pegawai_id');
     $table->string('nama_dosen')->nullable();
 
     $table->bigInteger('kuliah_id')->nullable();
 
-    $table->string('kode_mk', 50);
+    $table->string('kode_mk');
     $table->string('nama_matkul');
 
     $table->integer('prodi_id')->nullable();
     $table->string('prodi_kode')->nullable();
 
-    $table->string('semester', 10);
-    $table->string('tahun_ajaran', 20);
+    $table->string('semester');
+    $table->string('tahun_ajaran');
 
     $table->integer('tingkat')->nullable();
 
@@ -80,8 +80,13 @@ return new class extends Migration
 
     $table->timestamps();
 
-    // unique index tidak dipasang di sini karena kombinasi kolom melebihi batas MySQL
-    // duplikasi dicek di level aplikasi
+    $table->unique([
+        'pegawai_id',
+        'kode_mk',
+        'semester',
+        'tahun_ajaran',
+        'jenis_materi'
+    ], 'uniq_perkuliahan_compliance');
 });
     }
 

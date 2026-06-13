@@ -38,9 +38,4 @@ class Prodi extends Model
     {
         return $this->hasMany(LaporanGKM::class);
     }
-
-    public function pencapaianKPI()
-    {
-        return $this->hasMany(PencapaianKPI::class);
-    }
 }

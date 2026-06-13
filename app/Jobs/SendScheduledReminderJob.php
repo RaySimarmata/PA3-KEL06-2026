@@ -8,7 +8,7 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use App\Models\JadwalReminder;
-use App\Models\Dosen;
+use App\Models\Dosenn as Dosen;
 use App\Helpers\EmailHelper;
 use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;

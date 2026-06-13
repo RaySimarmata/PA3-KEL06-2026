@@ -63,16 +63,20 @@
                             <tr>
                                 <td class="text-center">{{ $laporan->firstItem() + $index }}</td>
                                 <td class="dosen-name">{{ $item->dosen->nama_dosen ?? '-' }}</td>
-                                <td class="nama-mk">{{ $item->materi->matakuliah->nama_matakuliah ?? '-' }}</td>
+                                <td class="nama-mk">{{ $item->rps->matakuliah->nama_matakuliah ?? '-' }}</td>
                                 <td class="text-center">
-                                    @if($item->materi->jenis_materi == 'RPS')
-                                        <span class="badge-gkm info">RPS</span>
-                                    @else
-                                        <span class="badge-gkm info">Materi</span>
-                                    @endif
+                                    @php
+                                        $artefakLabel =
+                                            $item->jenis_artefak === 'rps'
+                                                ? 'RPS'
+                                                : ($item->jenis_artefak === 'materi'
+                                                    ? 'Materi'
+                                                    : str_replace('_', ' ', ucfirst($item->jenis_artefak)));
+                                    @endphp
+                                    <span class="badge-gkm info">{{ $artefakLabel }}</span>
                                 </td>
                                 <td class="text-center">
-                                    @if($item->status_evaluasi == 'Sesuai')
+                                    @if ($item->status_evaluasi == 'Sesuai')
                                         <span class="badge-gkm success">Sesuai</span>
                                     @else
                                         <span class="badge-gkm warning">Perlu Perbaikan</span>
@@ -82,10 +86,8 @@
                                     {{ $item->created_at->format('d/m/Y') }}
                                 </td>
                                 <td class="text-center">
-                                    <button class="btn btn-sm btn-outline-primary" 
-                                            data-bs-toggle="modal" 
-                                            data-bs-target="#detailModal{{ $item->id }}"
-                                            title="Lihat Detail">
+                                    <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal"
+                                        data-bs-target="#detailModal{{ $item->id }}" title="Lihat Detail">
                                         <i class="bi bi-eye"></i>
                                     </button>
                                 </td>
@@ -106,7 +108,7 @@
         </div>
 
         <!-- Pagination -->
-        @if($laporan->hasPages())
+        @if ($laporan->hasPages())
             <div class="mt-4 d-flex justify-content-center">
                 {{ $laporan->links() }}
             </div>

@@ -114,14 +114,20 @@ Data Periode Akademik {{ $user->prodi ? $user->prodi->kode_prodi : "" }}
                                                 </select>
                                             </div>
                                             <div class="mb-3">
-                                                <label class="form-label">Tanggal Mulai</label>
+                                                <label class="form-label">Tanggal Mulai <span class="text-danger">*</span></label>
                                                 <input type="date" class="form-control" name="tanggal_mulai" 
                                                        value="{{ $periode->tanggal_mulai }}" required>
+                                                <small class="text-muted">
+                                                    <i class="bi bi-calendar-event"></i> Tanggal tidak boleh sebelum hari ini
+                                                </small>
                                             </div>
                                             <div class="mb-3">
-                                                <label class="form-label">Tanggal Akhir</label>
+                                                <label class="form-label">Tanggal Akhir <span class="text-danger">*</span></label>
                                                 <input type="date" class="form-control" name="tanggal_akhir" 
                                                        value="{{ $periode->tanggal_akhir }}" required>
+                                                <small class="text-muted">
+                                                    <i class="bi bi-calendar-event"></i> Tanggal tidak boleh sebelum hari ini
+                                                </small>
                                             </div>
                                         </div>
                                         <div class="modal-footer">
@@ -185,7 +191,11 @@ Data Periode Akademik {{ $user->prodi ? $user->prodi->kode_prodi : "" }}
                     <div class="mb-3">
                         <label class="form-label">Tanggal Mulai <span class="text-danger">*</span></label>
                         <input type="date" class="form-control @error('tanggal_mulai') is-invalid @enderror" 
+                               id="tanggal_mulai_tambah"
                                name="tanggal_mulai" value="{{ old('tanggal_mulai') }}" required>
+                        <small class="text-muted">
+                            <i class="bi bi-calendar-event"></i> Tanggal tidak boleh sebelum hari ini
+                        </small>
                         @error('tanggal_mulai')
                         <div class="invalid-feedback">{{ $message }}</div>
                         @enderror
@@ -193,7 +203,11 @@ Data Periode Akademik {{ $user->prodi ? $user->prodi->kode_prodi : "" }}
                     <div class="mb-3">
                         <label class="form-label">Tanggal Akhir <span class="text-danger">*</span></label>
                         <input type="date" class="form-control @error('tanggal_akhir') is-invalid @enderror" 
+                               id="tanggal_akhir_tambah"
                                name="tanggal_akhir" value="{{ old('tanggal_akhir') }}" required>
+                        <small class="text-muted">
+                            <i class="bi bi-calendar-event"></i> Tanggal tidak boleh sebelum hari ini
+                        </small>
                         @error('tanggal_akhir')
                         <div class="invalid-feedback">{{ $message }}</div>
                         @enderror
@@ -201,10 +215,202 @@ Data Periode Akademik {{ $user->prodi ? $user->prodi->kode_prodi : "" }}
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
-                    <button type="submit" class="btn btn-primary">Simpan</button>
+                    <button type="submit" class="btn btn-primary" id="submitTambahPeriode">Simpan</button>
                 </div>
             </form>
         </div>
     </div>
 </div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Set minimum date ke hari ini untuk semua input tanggal
+        const today = new Date();
+        const todayStr = today.toISOString().split('T')[0];
+        
+        // ===== VALIDASI MODAL TAMBAH PERIODE =====
+        const modalTambah = document.getElementById('tambahPeriodeModal');
+        const tanggalMulaiTambah = document.getElementById('tanggal_mulai_tambah');
+        const tanggalAkhirTambah = document.getElementById('tanggal_akhir_tambah');
+        const formTambah = tanggalMulaiTambah?.closest('form');
+        
+        if (tanggalMulaiTambah && tanggalAkhirTambah) {
+            // Set minimum date
+            tanggalMulaiTambah.setAttribute('min', todayStr);
+            tanggalAkhirTambah.setAttribute('min', todayStr);
+            
+            function validateTambahPeriode() {
+                const tanggalMulai = tanggalMulaiTambah.value;
+                const tanggalAkhir = tanggalAkhirTambah.value;
+                
+                // Clear previous custom validity
+                tanggalMulaiTambah.setCustomValidity('');
+                tanggalAkhirTambah.setCustomValidity('');
+                
+                // Validasi tanggal mulai tidak boleh sebelum hari ini
+                if (tanggalMulai && tanggalMulai < todayStr) {
+                    tanggalMulaiTambah.setCustomValidity('Tanggal mulai tidak boleh sebelum hari ini.');
+                    return false;
+                }
+                
+                // Validasi tanggal akhir tidak boleh sebelum hari ini
+                if (tanggalAkhir && tanggalAkhir < todayStr) {
+                    tanggalAkhirTambah.setCustomValidity('Tanggal selesai tidak boleh sebelum hari ini.');
+                    return false;
+                }
+                
+                // Validasi tanggal akhir tidak boleh sebelum tanggal mulai
+                if (tanggalMulai && tanggalAkhir && tanggalAkhir < tanggalMulai) {
+                    tanggalAkhirTambah.setCustomValidity('Tanggal selesai tidak boleh sebelum tanggal mulai.');
+                    return false;
+                }
+                
+                return true;
+            }
+            
+            tanggalMulaiTambah.addEventListener('change', function() {
+                validateTambahPeriode();
+                if (this.validity.customError) {
+                    this.classList.add('is-invalid');
+                    showErrorMessage(this, this.validationMessage);
+                } else {
+                    this.classList.remove('is-invalid');
+                    removeErrorMessage(this);
+                }
+            });
+            
+            tanggalAkhirTambah.addEventListener('change', function() {
+                validateTambahPeriode();
+                if (this.validity.customError) {
+                    this.classList.add('is-invalid');
+                    showErrorMessage(this, this.validationMessage);
+                } else {
+                    this.classList.remove('is-invalid');
+                    removeErrorMessage(this);
+                }
+            });
+            
+            formTambah?.addEventListener('submit', function(e) {
+                if (!validateTambahPeriode()) {
+                    e.preventDefault();
+                    
+                    if (tanggalMulaiTambah.validity.customError) {
+                        tanggalMulaiTambah.classList.add('is-invalid');
+                        showErrorMessage(tanggalMulaiTambah, tanggalMulaiTambah.validationMessage);
+                    }
+                    
+                    if (tanggalAkhirTambah.validity.customError) {
+                        tanggalAkhirTambah.classList.add('is-invalid');
+                        showErrorMessage(tanggalAkhirTambah, tanggalAkhirTambah.validationMessage);
+                    }
+                    
+                    return false;
+                }
+            });
+        }
+        
+        // ===== VALIDASI MODAL EDIT PERIODE =====
+        document.querySelectorAll('[id^="editPeriodeModal"]').forEach(function(modalEdit) {
+            const form = modalEdit.querySelector('form');
+            const tanggalMulaiEdit = form?.querySelector('input[name="tanggal_mulai"]');
+            const tanggalAkhirEdit = form?.querySelector('input[name="tanggal_akhir"]');
+            
+            if (tanggalMulaiEdit && tanggalAkhirEdit) {
+                // Set minimum date
+                tanggalMulaiEdit.setAttribute('min', todayStr);
+                tanggalAkhirEdit.setAttribute('min', todayStr);
+                
+                function validateEditPeriode() {
+                    const tanggalMulai = tanggalMulaiEdit.value;
+                    const tanggalAkhir = tanggalAkhirEdit.value;
+                    
+                    // Clear previous custom validity
+                    tanggalMulaiEdit.setCustomValidity('');
+                    tanggalAkhirEdit.setCustomValidity('');
+                    
+                    // Validasi tanggal mulai tidak boleh sebelum hari ini
+                    if (tanggalMulai && tanggalMulai < todayStr) {
+                        tanggalMulaiEdit.setCustomValidity('Tanggal mulai tidak boleh sebelum hari ini.');
+                        return false;
+                    }
+                    
+                    // Validasi tanggal akhir tidak boleh sebelum hari ini
+                    if (tanggalAkhir && tanggalAkhir < todayStr) {
+                        tanggalAkhirEdit.setCustomValidity('Tanggal selesai tidak boleh sebelum hari ini.');
+                        return false;
+                    }
+                    
+                    // Validasi tanggal akhir tidak boleh sebelum tanggal mulai
+                    if (tanggalMulai && tanggalAkhir && tanggalAkhir < tanggalMulai) {
+                        tanggalAkhirEdit.setCustomValidity('Tanggal selesai tidak boleh sebelum tanggal mulai.');
+                        return false;
+                    }
+                    
+                    return true;
+                }
+                
+                tanggalMulaiEdit.addEventListener('change', function() {
+                    validateEditPeriode();
+                    if (this.validity.customError) {
+                        this.classList.add('is-invalid');
+                        showErrorMessage(this, this.validationMessage);
+                    } else {
+                        this.classList.remove('is-invalid');
+                        removeErrorMessage(this);
+                    }
+                });
+                
+                tanggalAkhirEdit.addEventListener('change', function() {
+                    validateEditPeriode();
+                    if (this.validity.customError) {
+                        this.classList.add('is-invalid');
+                        showErrorMessage(this, this.validationMessage);
+                    } else {
+                        this.classList.remove('is-invalid');
+                        removeErrorMessage(this);
+                    }
+                });
+                
+                form.addEventListener('submit', function(e) {
+                    if (!validateEditPeriode()) {
+                        e.preventDefault();
+                        
+                        if (tanggalMulaiEdit.validity.customError) {
+                            tanggalMulaiEdit.classList.add('is-invalid');
+                            showErrorMessage(tanggalMulaiEdit, tanggalMulaiEdit.validationMessage);
+                        }
+                        
+                        if (tanggalAkhirEdit.validity.customError) {
+                            tanggalAkhirEdit.classList.add('is-invalid');
+                            showErrorMessage(tanggalAkhirEdit, tanggalAkhirEdit.validationMessage);
+                        }
+                        
+                        return false;
+                    }
+                });
+            }
+        });
+        
+        // Helper functions untuk menampilkan error message
+        function showErrorMessage(inputElement, message) {
+            removeErrorMessage(inputElement);
+            
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'invalid-feedback';
+            errorDiv.style.display = 'block';
+            errorDiv.textContent = message;
+            errorDiv.setAttribute('data-custom-error', 'true');
+            
+            inputElement.parentNode.appendChild(errorDiv);
+        }
+        
+        function removeErrorMessage(inputElement) {
+            const customError = inputElement.parentNode.querySelector('[data-custom-error="true"]');
+            if (customError) {
+                customError.remove();
+            }
+        }
+    });
+</script>
+
 @endsection

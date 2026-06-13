@@ -170,7 +170,7 @@ class AIResponseCacheMongo extends Model
 
         $promptHash = self::generatePromptHash($prompt);
 
-        // exact hash match — must also share the same context key fields
+        // exact hash match
         $exactMatch = self::where('prompt_hash', $promptHash)
             ->where(
                 'created_at',
@@ -179,16 +179,13 @@ class AIResponseCacheMongo extends Model
             )
             ->orderBy('usage_count', 'desc')
             ->orderBy('last_used_at', 'desc')
-            ->get()
-            ->first(function ($candidate) use ($context) {
-                return self::contextMatches($candidate->context_metadata ?? [], $context);
-            });
+            ->first();
 
         if ($exactMatch) {
             return $exactMatch;
         }
 
-        // similarity matching — only consider candidates with the same critical context
+        // similarity matching
         $candidates = self::where(
                 'created_at',
                 '>',
@@ -199,11 +196,6 @@ class AIResponseCacheMongo extends Model
             ->get();
 
         foreach ($candidates as $candidate) {
-
-            // Skip if the periode_triwulan or feature differs — prevents cross-period cache hits
-            if (!self::contextMatches($candidate->context_metadata ?? [], $context)) {
-                continue;
-            }
 
             $similarity = self::calculateSimilarity(
                 $prompt,
@@ -216,27 +208,6 @@ class AIResponseCacheMongo extends Model
         }
 
         return null;
-    }
-
-    /**
-     * Check that critical context keys (feature, type, periode_triwulan) match
-     * between the stored metadata and the current request context.
-     */
-    private static function contextMatches(array $stored, array $current): bool
-    {
-        $criticalKeys = ['feature', 'type', 'periode_triwulan'];
-
-        foreach ($criticalKeys as $key) {
-            $storedVal  = $stored[$key]  ?? null;
-            $currentVal = $current[$key] ?? null;
-
-            // If both sides have a value, they must be equal
-            if ($storedVal !== null && $currentVal !== null && $storedVal !== $currentVal) {
-                return false;
-            }
-        }
-
-        return true;
     }
 
     /**

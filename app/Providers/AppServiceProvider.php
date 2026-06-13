@@ -21,21 +21,6 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        // Paksa URL sesuai APP_URL (penting untuk VPS/Docker/reverse proxy)
-        \URL::forceRootUrl(config('app.url'));
-
-        // Force scheme sesuai APP_URL
-        if (str_starts_with(config('app.url'), 'https://')) {
-            \URL::forceScheme('https');
-        } else {
-            \URL::forceScheme('http');
-        }
-
-        // Force HTTP untuk asset URLs juga
-        if (config('app.asset_url')) {
-            \URL::forceRootUrl(config('app.asset_url'));
-        }
-
         // Gunakan Bootstrap 5 untuk pagination
         Paginator::useBootstrap();
 
