@@ -662,7 +662,7 @@
                             </div>
                         </div>
 
-                        {{-- <a href="{{ route('gkm.kirim-laporan.index') }}"
+                        {{-- Commented out duplicate code`r`n                        <a href="{{ route('gkm.kirim-laporan.index') }}"
                             class="nav-item {{ request()->routeIs('gkm.kirim-laporan.*') ? 'active' : '' }}">
                             <span><i class="bi bi-send"></i> Kirim Laporan</span>
                         </a>
@@ -1230,3 +1230,4 @@
     </body>
 
     </html>
+
