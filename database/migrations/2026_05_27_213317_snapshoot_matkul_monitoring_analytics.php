@@ -15,19 +15,19 @@ return new class extends Migration
 
     $table->id();
 
-    $table->string('pegawai_id');
+    $table->string('pegawai_id', 50);
     $table->string('nama_dosen')->nullable();
 
     $table->bigInteger('kuliah_id')->nullable();
 
-    $table->string('kode_mk');
+    $table->string('kode_mk', 50);
     $table->string('nama_matkul');
 
     $table->integer('prodi_id')->nullable();
     $table->string('prodi_kode')->nullable();
 
-    $table->string('semester');
-    $table->string('tahun_ajaran');
+    $table->string('semester', 10);
+    $table->string('tahun_ajaran', 20);
 
     $table->integer('tingkat')->nullable();
 
