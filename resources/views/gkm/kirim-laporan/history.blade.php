@@ -24,9 +24,9 @@
                             <option value="asc" {{ request('sort') == 'asc' ? 'selected' : '' }}>Terlama</option>
                         </select>
                     </form>
-                    <a href="{{ route('gkm.kirim-laporan.index') }}" class="btn btn-secondary btn-sm">
+                    {{-- <a href="{{ route('gkm.kirim-laporan.index') }}" class="btn btn-secondary btn-sm">
                         <i class="bi bi-arrow-left"></i> Kembali
-                    </a>
+                    </a> --}}
                 </div>
             </div>
         </div>
