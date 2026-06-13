@@ -80,11 +80,9 @@ return new class extends Migration
 
     $table->timestamps();
 
-    // unique index dibuat manual via raw SQL di bawah
+    // unique index tidak dipasang di sini karena kombinasi kolom melebihi batas MySQL
+    // duplikasi dicek di level aplikasi
 });
-
-// Buat unique index dengan prefix length agar tidak melebihi 3072 bytes
-\DB::statement('ALTER TABLE perkuliahan_monitoring_details ADD UNIQUE uniq_perkuliahan_compliance (pegawai_id(50), kode_mk(50), semester(10), tahun_ajaran(20), jenis_materi(20))');
     }
 
     /**
