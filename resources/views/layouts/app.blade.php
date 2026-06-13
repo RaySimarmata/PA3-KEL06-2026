@@ -553,11 +553,7 @@
                         </a>
                         <a href="{{ route('gkm.data-master.index') }}"
                             class="nav-item {{ request()->routeIs('gkm.data-master.*') ? 'active' : '' }}">
-                            <span><i class="bi bi-database"></i> Data Master</span>
-                        </a>
-                         <a href="{{ route('gkm.monitoring-kuesioner.index') }}"
-                            class="nav-item {{ request()->routeIs('gkm.monitoring-kuesioner.*') ? 'active' : '' }}">
-                            <i class="bi bi-database"></i> Pengelolaan Kuesioner
+                            <i class="bi bi-database"></i> Data Master
                         </a>
 
                         <!-- Pengelolaan RPS -->
