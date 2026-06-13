@@ -31,6 +31,11 @@ class AppServiceProvider extends ServiceProvider
             \URL::forceScheme('http');
         }
 
+        // Force HTTP untuk asset URLs juga
+        if (config('app.asset_url')) {
+            \URL::forceRootUrl(config('app.asset_url'));
+        }
+
         // Gunakan Bootstrap 5 untuk pagination
         Paginator::useBootstrap();
 
