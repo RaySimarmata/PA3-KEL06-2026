@@ -80,14 +80,11 @@ return new class extends Migration
 
     $table->timestamps();
 
-    $table->unique([
-        'pegawai_id',
-        'kode_mk',
-        'semester',
-        'tahun_ajaran',
-        'jenis_materi'
-    ], 'uniq_perkuliahan_compliance');
+    // unique index dibuat manual via raw SQL di bawah
 });
+
+// Buat unique index dengan prefix length agar tidak melebihi 3072 bytes
+\DB::statement('ALTER TABLE perkuliahan_monitoring_details ADD UNIQUE uniq_perkuliahan_compliance (pegawai_id(50), kode_mk(50), semester(10), tahun_ajaran(20), jenis_materi(20))');
     }
 
     /**
