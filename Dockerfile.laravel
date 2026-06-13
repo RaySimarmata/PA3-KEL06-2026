@@ -1,6 +1,6 @@
 FROM php:8.2-fpm
 
-# Install system dependencies
+# Install system dependencies including OpenSSL for MongoDB SSL support
 RUN apt-get update && apt-get install -y \
     git \
     curl \
@@ -8,6 +8,8 @@ RUN apt-get update && apt-get install -y \
     libonig-dev \
     libxml2-dev \
     libzip-dev \
+    libssl-dev \
+    pkg-config \
     zip \
     unzip \
     nginx \
@@ -18,7 +20,7 @@ RUN apt-get update && apt-get install -y \
 # Install PHP extensions
 RUN docker-php-ext-install pdo_mysql mbstring exif pcntl bcmath gd zip
 
-# Install MongoDB PHP extension (>=1.21 required by laravel-mongodb 5.7+)
+# Install MongoDB PHP extension with SSL support (>=1.21 required by laravel-mongodb 5.7+)
 RUN pecl install mongodb-1.21.0 && docker-php-ext-enable mongodb
 
 # Install Composer
