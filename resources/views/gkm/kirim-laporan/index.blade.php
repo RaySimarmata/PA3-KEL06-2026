@@ -219,19 +219,19 @@
                         </div>
                     </div>
 
-                    <!-- GARIS PEMISAH + TOMBOL KIRIM & PREVIEW DI KANAN -->
-                    <div class="mt-4 pt-3 border-top d-flex justify-content-end gap-2">
-                        <button type="button" class="btn btn-primary" onclick="sendLaporan()">
-                            <i class="bi bi-send"></i> Kirim Reminder
-                        </button>
-                        <button type="button" class="btn btn-secondary btn-sm" onclick="previewMessage()">
-                            <i class="bi bi-eye"></i> Preview
-                        </button>
-                    </div>
+                <!-- GARIS PEMISAH + TOMBOL KIRIM & PREVIEW DI KANAN -->
+                <div class="mt-4 pt-3 border-top d-flex justify-content-end gap-2">
+                    <button type="button" class="btn btn-success" onclick="sendLaporan()">
+                        <i class="bi bi-send"></i> Kirim Reminder
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary" onclick="previewMessage()">
+                        <i class="bi bi-eye"></i> Preview
+                    </button>
                 </div>
             </div>
-        </form>
-    </div>
+        </div>
+    </form>
+</div>
 
     <!-- Modal Preview (tidak berubah) -->
     <div class="modal fade" id="previewModal" tabindex="-1">

@@ -555,6 +555,10 @@
                             class="nav-item {{ request()->routeIs('gkm.data-master.*') ? 'active' : '' }}">
                             <span><i class="bi bi-database"></i> Data Master</span>
                         </a>
+                         <a href="{{ route('gkm.monitoring-kuesioner.index') }}"
+                            class="nav-item {{ request()->routeIs('gkm.monitoring-kuesioner.*') ? 'active' : '' }}">
+                            <i class="bi bi-database"></i> Pengelolaan Kuesioner
+                        </a>
 
                         <!-- Pengelolaan RPS -->
                         <div class="nav-dropdown {{ request()->routeIs('gkm.monitoring-rps.*') ? 'open' : '' }}">
