@@ -202,6 +202,25 @@ services:
     networks:
       - pa3_network
 
+  # ─────────────────────────────────────────
+  # PHPMYADMIN (Database Management)
+  # ─────────────────────────────────────────
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin:latest
+    container_name: pa3_phpmyadmin
+    restart: unless-stopped
+    depends_on:
+      - mysql
+    environment:
+      PMA_HOST: mysql
+      PMA_PORT: 3306
+      PMA_USER: root
+      PMA_PASSWORD: ${DB_ROOT_PASSWORD:-secret}
+    ports:
+      - "8080:80"
+    networks:
+      - pa3_network
+
 # ─────────────────────────────────────────
 # VOLUMES
 # ─────────────────────────────────────────
