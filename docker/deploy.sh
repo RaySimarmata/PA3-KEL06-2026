@@ -23,7 +23,7 @@ if ! command -v docker compose &> /dev/null; then
 fi
 echo "✓ Docker OK"
 
-# ─── 2. Cek .env ───
+# ─── 2. Cek .env ───   
 echo "[2/7] Checking .env..."
 if [ ! -f ".env" ]; then
     echo "ERROR: File .env tidak ada!"

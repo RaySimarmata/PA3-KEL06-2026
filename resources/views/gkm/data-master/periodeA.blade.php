@@ -213,7 +213,6 @@
                         <div class="col-md-6">
                             <label class="form-label fw-semibold">Tanggal Selesai</label>
                             <input type="date" name="end_date" value="{{ old('end_date') }}" class="form-control">
-                            <small class="text-muted"><i class="bi bi-info-circle"></i> Opsional</small>
                         </div>
                     </div>
                 </div>
