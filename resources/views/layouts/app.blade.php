@@ -666,9 +666,8 @@
                             class="nav-item {{ request()->routeIs('gkm.kirim-laporan.*') ? 'active' : '' }}">
                             <span><i class="bi bi-send"></i> Kirim Laporan</span>
                         </a>
-                        {{--
                         <!-- Reminder Agent -->
-                        <div class="nav-dropdown {{ request()->routeIs('gkm.reminder-agent.*') ? 'open' : '' }}">
+                        <!-- <div class="nav-dropdown {{ request()->routeIs('gkm.reminder-agent.*') ? 'open' : '' }}">
                             <a href="javascript:void(0)"
                                 class="nav-item {{ request()->routeIs('gkm.reminder-agent.*') ? 'active' : '' }}"
                                 onclick="toggleDropdown(this)">
@@ -687,8 +686,7 @@
                                     <span class="menu-text">Log Reminder</span>
                                 </a>
                             </div>
-                        </div>
-                    --}}
+                        </div> -->
                     @elseif (auth()->user()->isGJM())
                         <a href="{{ route('gjm.dashboard') }}"
                             class="nav-item {{ request()->routeIs('gjm.dashboard') ? 'active' : '' }}">
