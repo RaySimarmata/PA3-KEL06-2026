@@ -21,6 +21,19 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        // Paksa semua URL pakai APP_URL (fix untuk Docker/VPS/reverse proxy)
+        // Ini memastikan pagination, redirect, dan semua generated URL pakai host yang benar
+        $appUrl = config('app.url');
+        if ($appUrl) {
+            \URL::forceRootUrl($appUrl);
+
+            if (str_starts_with($appUrl, 'https://')) {
+                \URL::forceScheme('https');
+            } else {
+                \URL::forceScheme('http');
+            }
+        }
+
         // Gunakan Bootstrap 5 untuk pagination
         Paginator::useBootstrap();
 
