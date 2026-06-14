@@ -553,7 +553,7 @@
                         </a>
                         <a href="{{ route('gkm.data-master.index') }}"
                             class="nav-item {{ request()->routeIs('gkm.data-master.*') ? 'active' : '' }}">
-                            <i class="bi bi-database"></i> Data Master
+                            <span><i class="bi bi-database"></i> Data Master</span>
                         </a>
 
                         <!-- Pengelolaan RPS -->
