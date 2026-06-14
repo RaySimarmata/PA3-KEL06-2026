@@ -81,6 +81,7 @@ services:
       WACHAT_INSTANCE_ID: ${WACHAT_INSTANCE_ID}
       WACHAT_URL: ${WACHAT_URL}
     volumes:
+      - ${PROJECT_PATH:-/root/pa3-kel6}:/var/www/html
       - laravel_storage:/var/www/html/storage/app
       - laravel_logs:/var/www/html/storage/logs
     ports:
