@@ -662,10 +662,27 @@
                             </div>
                         </div>
 
-                        <a href="{{ route('gkm.kirim-laporan.index') }}"
-                            class="nav-item {{ request()->routeIs('gkm.kirim-laporan.*') ? 'active' : '' }}">
-                            <span><i class="bi bi-send"></i> Kirim Laporan</span>
-                        </a>
+                        <!-- Kirim Laporan -->
+                        <div class="nav-dropdown {{ request()->routeIs('gkm.kirim-laporan.*') ? 'open' : '' }}">
+                            <a href="javascript:void(0)"
+                                class="nav-item {{ request()->routeIs('gkm.kirim-laporan.*') ? 'active' : '' }}"
+                                onclick="toggleDropdown(this)">
+                                <span><i class="bi bi-send"></i> Kirim Laporan</span>
+                                <i class="bi bi-chevron-down dropdown-icon"></i>
+                            </a>
+                            <div class="dropdown-submenu">
+                                <a href="{{ route('gkm.kirim-laporan.index') }}"
+                                    class="nav-item {{ request()->routeIs('gkm.kirim-laporan.index') ? 'active' : '' }}">
+                                    <i class="bi bi-send menu-icon"></i>
+                                    <span class="menu-text">Kirim Laporan</span>
+                                </a>
+                                <a href="{{ route('gkm.kirim-laporan.history') }}"
+                                    class="nav-item {{ request()->routeIs('gkm.kirim-laporan.history') ? 'active' : '' }}">
+                                    <i class="bi bi-clock-history menu-icon"></i>
+                                    <span class="menu-text">History Pengiriman</span>
+                                </a>
+                            </div>
+                        </div>
                         <!-- Reminder Agent -->
                         <!-- <div class="nav-dropdown {{ request()->routeIs('gkm.reminder-agent.*') ? 'open' : '' }}">
                             <a href="javascript:void(0)"
@@ -750,8 +767,7 @@
                             class="nav-item {{ request()->routeIs('gjm.kirim-laporan.*') ? 'active' : '' }}">
                             <span><i class="bi bi-send"></i> Kirim Laporan</span>
                         </a>
-                    @endif
-                </div>
+                    @endif                </div>
             </div>
 
             <!-- Main Content -->
