@@ -19,7 +19,7 @@
     {{-- TIDAK ADA ALERT SUCCESS --}}
 
     {{-- ERROR VALIDATION --}}
-    @if ($errors->any())
+    @if (isset($errors) && $errors->any())
         <div class="alert-app danger mb-3">
             <i class="bi bi-exclamation-triangle-fill alert-app-icon"></i>
             <div class="alert-app-body">

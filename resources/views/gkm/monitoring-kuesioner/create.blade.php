@@ -22,7 +22,7 @@
                     </div>
                 </div>
 
-                @if ($errors->any())
+                @if (isset($errors) && $errors->any())
                     <div class="alert-gkm danger mb-4">
                         <h6 style="font-weight: 600; margin-bottom: 0.5rem;">
                             <i class="bi bi-exclamation-triangle"></i> Terjadi Kesalahan
@@ -141,7 +141,7 @@
 
                     <input type="hidden" name="selected_matkul" id="selected_matkul" value="">
 
-                    @if ($errors->any())
+                    @if (isset($errors) && $errors->any())
                         <div class="alert-app danger mb-3">
                             <i class="bi bi-exclamation-triangle-fill alert-app-icon"></i>
                             <div class="alert-app-body">

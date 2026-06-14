@@ -42,7 +42,7 @@
                     </div>
                 </div>
                 
-                @if($errors->any())
+                @if (isset($errors) && $errors->any())
                     <div class="alert-gjm danger mb-4">
                         <h6 style="font-weight: 600; margin-bottom: 0.5rem;">
                             <i class="bi bi-exclamation-triangle"></i> Terjadi Kesalahan

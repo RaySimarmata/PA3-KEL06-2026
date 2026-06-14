@@ -23,7 +23,7 @@
         <div class="row">
             <div class="col-lg-8 mx-auto">
                 <!-- Error Messages -->
-                @if($errors->any())
+                @if (isset($errors) && $errors->any())
                     <div class="alert-app danger mb-4">
                         <i class="bi bi-exclamation-triangle-fill alert-app-icon"></i>
                         <div class="alert-app-body">

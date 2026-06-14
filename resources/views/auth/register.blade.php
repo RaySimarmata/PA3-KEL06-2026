@@ -102,7 +102,7 @@
             <p>Sistem GJM dan GKM</p>
         </div>
 
-        @if ($errors->any())
+        @if (isset($errors) && $errors->any())
             <div class="alert alert-danger">
                 <strong>Registrasi Gagal!</strong>
                 <ul style="margin-bottom: 0; margin-top: 5px;">

@@ -299,7 +299,7 @@
                 <div class="system-subtitle">Otomatisasi Administrasi Gugus Jaminan Mutu dan Gugus Kendali Mutu</div>
             </div>
 
-            @if ($errors->any())
+            @if (isset($errors) && $errors->any())
                 <div class="alert alert-danger">
                     <strong>Login Gagal!</strong>
                     <ul>
