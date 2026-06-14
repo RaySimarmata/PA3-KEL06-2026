@@ -887,7 +887,7 @@ $classCode = $prodiClassMap[$prodiKode] ?? 'TRPL';
         );
     })
 
-    ->whereNotNull('d.jabatan_akademik')
+    // ->whereNotNull('d.jabatan_akademik')
 
     // ->whereRaw("
     //     TRIM(UPPER(d.jabatan_akademik)) <> 'A'

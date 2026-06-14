@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8"/>
+<title>GKM Agent Flow</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:#0b1d35;font-family:'Segoe UI',sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;padding:32px 16px;}
+
+.page{width:960px;}
+
+/* title bar */
+.titlebar{display:flex;align-items:center;gap:12px;margin-bottom:22px;}
+.badge{background:#1565c0;color:#90cdf4;font-size:.7rem;font-weight:700;letter-spacing:1.5px;padding:4px 12px;border-radius:20px;border:1px solid #4299e1;}
+.titlebar h1{font-size:1.15rem;font-weight:700;color:#e2e8f0;letter-spacing:.5px;}
+.titlebar p{font-size:.72rem;color:#4a6fa5;margin-top:2px;}
+
+/* ── shared node style ── */
+.box{
+  background:#1a3a6a;
+  border:1.5px solid #2d6abf;
+  border-radius:10px;
+  color:#e2e8f0;
+  display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
+  text-align:center;
+  padding:10px 12px;
+  gap:4px;
+  position:relative;
+}
+.box .icon{font-size:1.5rem;line-height:1;}
+.box .lbl{font-size:.72rem;font-weight:700;line-height:1.3;}
+.box .sub{font-size:.6rem;color:#94a3b8;line-height:1.3;}
+
+/* colour variants */
+.box.teal  {background:#0e3535;border-color:#2c9c94;}
+.box.green {background:#0e2e1a;border-color:#2f855a;}
+.box.orange{background:#2d1900;border-color:#c27d20;}
+.box.red   {background:#2d0a0a;border-color:#c53030;}
+.box.purple{background:#1a1040;border-color:#6b46c1;}
+.box.gray  {background:#1a2233;border-color:#4a5568;}
+.box.out   {background:#0e2c1a;border-color:#38a169;}
+
+/* ── INDEXING ZONE (top dashed box) ── */
+.zone-index{
+  border:1.5px dashed #4299e1;
+  border-radius:14px;
+  background:rgba(26,58,106,.18);
+  padding:22px 28px 18px;
+  position:relative;
+  margin-bottom:36px;
+}
+.zone-label{
+  position:absolute;top:-11px;left:20px;
+  background:#0b1d35;
+  color:#63b3ed;font-size:.68rem;font-weight:700;
+  letter-spacing:1.5px;padding:2px 10px;border-radius:8px;
+  border:1px solid #4299e1;
+}
+.zone-label-right{
+  position:absolute;top:0;right:-14px;
+  writing-mode:vertical-rl;text-orientation:mixed;
+  color:#4a6fa5;font-size:.62rem;font-weight:600;letter-spacing:1px;
+  background:#0b1d35;padding:6px 3px;border-radius:4px;
+}
+
+/* indexing row */
+.idx-row{display:flex;align-items:center;gap:0;}
+.idx-docs{width:160px;height:78px;}
+.idx-chunks{width:180px;height:78px;}
+.idx-nn{width:90px;height:90px;background:none;border:none;padding:0;}
+
+/* ── ARROW helpers ── */
+.arr{display:flex;flex-direction:column;align-items:center;padding:0 8px;}
+.arr-h{display:flex;align-items:center;padding:0 8px;}
+.aline{height:2px;background:#4a6fa5;position:relative;}
+.aline::after{content:'';position:absolute;right:-1px;top:-4px;
+  border:5px solid transparent;border-left:8px solid #4a6fa5;}
+.aline-v{width:2px;background:#4a6fa5;position:relative;margin:0 auto;}
+.aline-v::after{content:'';position:absolute;bottom:-1px;left:-4px;
+  border:5px solid transparent;border-top:8px solid #4a6fa5;}
+.alabel{font-size:.6rem;color:#4a6fa5;white-space:nowrap;margin-top:3px;}
+
+/* ── BOTTOM ZONE ── */
+.zone-bottom{
+  border:1.5px dashed #2d6abf;
+  border-radius:14px;
+  background:rgba(13,25,50,.25);
+  padding:22px 28px 22px;
+  position:relative;
+}
+.zone-label-b{
+  position:absolute;bottom:-11px;right:24px;
+  background:#0b1d35;
+  color:#63b3ed;font-size:.68rem;font-weight:700;
+  letter-spacing:1.5px;padding:2px 10px;border-radius:8px;
+  border:1px solid #4299e1;
+}
+
+/* bottom layout: left column (user/response) + main flow */
+.bottom-grid{display:flex;gap:0;align-items:center;}
+
+.left-col{display:flex;flex-direction:column;align-items:center;gap:0;flex-shrink:0;}
+.user-box{width:88px;height:72px;}
+.resp-box{width:100px;height:72px;}
+
+/* connector between user and response (vertical left) */
+.vert-connector{width:2px;height:36px;background:#4a6fa5;position:relative;margin:0 auto;}
+.vert-connector::after{content:'';position:absolute;bottom:-1px;left:-4px;
+  border:5px solid transparent;border-top:8px solid #4a6fa5;}
+
+/* main flow row */
+.main-flow{display:flex;align-items:center;flex:1;}
+
+/* vector store cylinder */
+.cylinder{
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  width:110px;height:90px;
+  background:#12305a;border:1.5px solid #4299e1;
+  border-radius:50% 50% 8px 8px / 18px 18px 8px 8px;
+  position:relative;flex-shrink:0;
+}
+.cylinder::before{
+  content:'';position:absolute;top:-9px;left:-1px;right:-1px;height:18px;
+  background:#1a4a8a;border:1.5px solid #4299e1;border-radius:50%;
+}
+.cylinder .clbl{font-size:.68rem;font-weight:700;color:#90cdf4;z-index:1;}
+.cylinder .cnodes{font-size:.58rem;color:#94a3b8;z-index:1;line-height:1.7;margin-top:4px;}
+
+/* augment box (big) */
+.augment-box{
+  background:#0f2a4a;border:1.5px solid #2d6abf;border-radius:10px;
+  padding:12px 16px;min-width:170px;
+  display:flex;flex-direction:column;gap:6px;
+}
+.augment-box .aug-title{font-size:.62rem;color:#63b3ed;font-weight:700;letter-spacing:.8px;}
+.aug-row{display:flex;align-items:center;gap:6px;}
+.aug-chip{background:#1a3a6a;border:1px solid #2d6abf;border-radius:6px;
+  font-size:.58rem;color:#e2e8f0;padding:3px 8px;white-space:nowrap;}
+.aug-chip.hl{background:#1a4a8a;border-color:#4299e1;color:#90cdf4;}
+
+/* nn svg */
+.nn-wrap{display:flex;align-items:center;justify-content:center;
+  width:70px;height:70px;flex-shrink:0;}
+
+/* generate ← arrow label */
+.gen-label{font-size:.62rem;color:#4a6fa5;text-align:center;margin-top:4px;}
+
+/* spark banner inside indexing */
+.spark-badge{
+  display:inline-flex;align-items:center;gap:5px;
+  background:#0a2540;border:1px solid #38b2ac;border-radius:6px;
+  font-size:.6rem;color:#81e6d9;padding:2px 8px;margin-top:4px;
+}
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- title -->
+  <div class="titlebar">
+    <div>
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px;">
+        <span class="badge">GKM</span>
+        <h1>Agent Flow — Gugus Kendali Mutu</h1>
+      </div>
+      <p>Monitoring RPS · Kuesioner · Reminder · Laporan Artefak · Institut Teknologi Del</p>
+    </div>
+  </div>
+
+  <!-- ══════════════════ INDEXING ZONE ══════════════════ -->
+  <div class="zone-index">
+    <span class="zone-label">Indexing</span>
+    <span class="zone-label-right">Embedding Model</span>
+
+    <div class="idx-row">
+      <!-- Documents -->
+      <div class="box idx-docs">
+        <span class="icon">📊</span>
+        <span class="lbl">Documents</span>
+        <span class="sub">Kuesioner Excel<br>Data CIS API</span>
+      </div>
+
+      <!-- arrow + Chunking label -->
+      <div class="arr-h" style="gap:0;">
+        <div style="display:flex;flex-direction:column;align-items:center;">
+          <div class="aline" style="width:38px;"></div>
+          <span class="alabel">Chunking</span>
+        </div>
+      </div>
+
+      <!-- Chunks -->
+      <div class="box" style="width:160px;height:78px;gap:3px;">
+        <span class="lbl" style="font-size:.75rem;">Chunks</span>
+        <span class="sub">500 words / overlap 50</span>
+        <!-- lines visual -->
+        <div style="display:flex;flex-direction:column;gap:3px;margin-top:2px;">
+          <div style="width:110px;height:3px;background:#4a6fa5;border-radius:2px;"></div>
+          <div style="width:110px;height:3px;background:#4a6fa5;border-radius:2px;"></div>
+          <div style="width:110px;height:3px;background:#4a6fa5;border-radius:2px;opacity:.6;"></div>
+          <div style="width:110px;height:3px;background:#4a6fa5;border-radius:2px;opacity:.4;"></div>
+        </div>
+      </div>
+
+      <!-- long arrow to NN -->
+      <div class="arr-h" style="flex:1;">
+        <div class="aline" style="flex:1;min-width:60px;"></div>
+      </div>
+
+      <!-- Neural net SVG -->
+      <div class="nn-wrap">
+        <svg width="68" height="68" viewBox="0 0 68 68">
+          <!-- layer 1 -->
+          <circle cx="10" cy="20" r="5" fill="#2d6abf" stroke="#4299e1" stroke-width="1.2"/>
+          <circle cx="10" cy="34" r="5" fill="#2d6abf" stroke="#4299e1" stroke-width="1.2"/>
+          <circle cx="10" cy="48" r="5" fill="#2d6abf" stroke="#4299e1" stroke-width="1.2"/>
+          <!-- layer 2 -->
+          <circle cx="34" cy="14" r="5" fill="#1a5276" stroke="#4299e1" stroke-width="1.2"/>
+          <circle cx="34" cy="28" r="5" fill="#1a5276" stroke="#4299e1" stroke-width="1.2"/>
+          <circle cx="34" cy="42" r="5" fill="#1a5276" stroke="#4299e1" stroke-width="1.2"/>
+          <circle cx="34" cy="56" r="5" fill="#1a5276" stroke="#4299e1" stroke-width="1.2"/>
+          <!-- layer 3 -->
+          <circle cx="58" cy="24" r="5" fill="#2d6abf" stroke="#4299e1" stroke-width="1.2"/>
+          <circle cx="58" cy="44" r="5" fill="#2d6abf" stroke="#4299e1" stroke-width="1.2"/>
+          <!-- connections (simplified) -->
+          <g stroke="#4299e1" stroke-width=".6" opacity=".5">
+            <line x1="15" y1="20" x2="29" y2="14"/><line x1="15" y1="20" x2="29" y2="28"/>
+            <line x1="15" y1="34" x2="29" y2="28"/><line x1="15" y1="34" x2="29" y2="42"/>
+            <line x1="15" y1="48" x2="29" y2="42"/><line x1="15" y1="48" x2="29" y2="56"/>
+            <line x1="39" y1="14" x2="53" y2="24"/><line x1="39" y1="28" x2="53" y2="24"/>
+            <line x1="39" y1="28" x2="53" y2="44"/><line x1="39" y1="42" x2="53" y2="44"/>
+            <line x1="39" y1="56" x2="53" y2="44"/>
+          </g>
+        </svg>
+      </div>
+    </div>
+
+    <!-- spark note -->
+    <div style="margin-top:10px;display:flex;align-items:center;gap:8px;">
+      <span class="spark-badge">🔥 Apache Spark — Clean → Transform Likert → Aggregate → MongoDB hasil_analisis</span>
+      <span class="spark-badge" style="border-color:#9f7aea;color:#d6bcfa;">🍃 MongoDB kuesioner_mongos</span>
+    </div>
+  </div>
+
+  <!-- dashed vertical connector (Vectorize + Indexing labels from img) -->
+  <div style="display:flex;justify-content:flex-end;margin-bottom:0;margin-top:-20px;padding-right:40px;">
+    <div style="display:flex;flex-direction:column;align-items:center;gap:2px;">
+      <span style="font-size:.6rem;color:#4a6fa5;">Vectorize</span>
+      <div style="width:2px;height:18px;background:#4a6fa5;border-radius:1px;"></div>
+      <div style="width:90px;height:26px;background:#1a3a6a;border:1.5px solid #4299e1;border-radius:6px;display:flex;flex-direction:column;justify-content:center;align-items:center;">
+        <div style="display:flex;gap:3px;">
+          <div style="width:12px;height:10px;background:#2d6abf;border-radius:2px;"></div>
+          <div style="width:12px;height:10px;background:#2d6abf;border-radius:2px;"></div>
+          <div style="width:12px;height:10px;background:#4299e1;border-radius:2px;"></div>
+          <div style="width:12px;height:10px;background:#2d6abf;border-radius:2px;"></div>
+        </div>
+      </div>
+      <span style="font-size:.6rem;color:#4a6fa5;">Indexing</span>
+      <div style="width:2px;height:14px;background:#4a6fa5;border-radius:1px;position:relative;">
+        <div style="position:absolute;bottom:-1px;left:-4px;border:5px solid transparent;border-top:7px solid #4a6fa5;"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════ BOTTOM ZONE ══════════════════ -->
+  <div class="zone-bottom" style="margin-top:10px;">
+    <span class="zone-label-b">Augment</span>
+
+    <div class="bottom-grid">
+
+      <!-- LEFT: User + Response -->
+      <div class="left-col" style="margin-right:0;">
+        <div class="box user-box">
+          <span class="icon">👤</span>
+          <span class="lbl">GKM User</span>
+          <span class="sub">per Prodi</span>
+        </div>
+        <!-- down arrow -->
+        <div style="display:flex;flex-direction:column;align-items:center;margin:4px 0;">
+          <div style="width:2px;height:28px;background:#4a6fa5;position:relative;">
+            <div style="position:absolute;bottom:-1px;left:-4px;border:5px solid transparent;border-top:7px solid #4a6fa5;"></div>
+          </div>
+        </div>
+        <div class="box resp-box out">
+          <span class="icon">✅</span>
+          <span class="lbl">Response</span>
+          <span class="sub">Hasil Analisis<br>/ Laporan</span>
+        </div>
+      </div>
+
+      <!-- arrow: user → query -->
+      <div style="display:flex;align-items:center;margin:0 4px;margin-top:-32px;">
+        <div class="aline" style="width:28px;"></div>
+      </div>
+
+      <!-- Query box -->
+      <div class="box" style="width:110px;height:80px;margin-top:-32px;">
+        <span class="icon">💬</span>
+        <span class="lbl">Query</span>
+        <span class="sub">Monitoring<br>Kuesioner</span>
+      </div>
+
+      <!-- arrow → embedding model -->
+      <div style="display:flex;flex-direction:column;align-items:center;margin:0 4px;margin-top:-32px;">
+        <div class="aline" style="width:28px;"></div>
+      </div>
+
+      <!-- Embedding Model (bottom) -->
+      <div style="display:flex;flex-direction:column;align-items:center;margin-top:-32px;flex-shrink:0;">
+        <span style="font-size:.6rem;color:#94a3b8;margin-bottom:4px;">Embedding<br>Model</span>
+        <div class="nn-wrap" style="width:54px;height:54px;">
+          <svg width="54" height="54" viewBox="0 0 54 54">
+            <circle cx="8" cy="16" r="4" fill="#2d6abf" stroke="#4299e1" stroke-width="1"/>
+            <circle cx="8" cy="27" r="4" fill="#2d6abf" stroke="#4299e1" stroke-width="1"/>
+            <circle cx="8" cy="38" r="4" fill="#2d6abf" stroke="#4299e1" stroke-width="1"/>
+            <circle cx="27" cy="11" r="4" fill="#1a5276" stroke="#4299e1" stroke-width="1"/>
+            <circle cx="27" cy="22" r="4" fill="#1a5276" stroke="#4299e1" stroke-width="1"/>
+            <circle cx="27" cy="33" r="4" fill="#1a5276" stroke="#4299e1" stroke-width="1"/>
+            <circle cx="27" cy="44" r="4" fill="#1a5276" stroke="#4299e1" stroke-width="1"/>
+            <circle cx="46" cy="19" r="4" fill="#2d6abf" stroke="#4299e1" stroke-width="1"/>
+            <circle cx="46" cy="35" r="4" fill="#2d6abf" stroke="#4299e1" stroke-width="1"/>
+            <g stroke="#4299e1" stroke-width=".5" opacity=".5">
+              <line x1="12" y1="16" x2="23" y2="11"/><line x1="12" y1="16" x2="23" y2="22"/>
+              <line x1="12" y1="27" x2="23" y2="22"/><line x1="12" y1="27" x2="23" y2="33"/>
+              <line x1="12" y1="38" x2="23" y2="33"/><line x1="12" y1="38" x2="23" y2="44"/>
+              <line x1="31" y1="11" x2="42" y2="19"/><line x1="31" y1="22" x2="42" y2="19"/>
+              <line x1="31" y1="22" x2="42" y2="35"/><line x1="31" y1="33" x2="42" y2="35"/>
+              <line x1="31" y1="44" x2="42" y2="35"/>
+            </g>
+          </svg>
+        </div>
+      </div>
+
+      <!-- arrow Vectorize → vector grid -->
+      <div style="display:flex;flex-direction:column;align-items:center;margin:0 4px;margin-top:-32px;">
+        <span style="font-size:.58rem;color:#4a6fa5;margin-bottom:3px;">Vectorize</span>
+        <div class="aline" style="width:22px;"></div>
+      </div>
+
+      <!-- Vector grid -->
+      <div style="margin-top:-32px;flex-shrink:0;">
+        <div style="background:#1a3a6a;border:1.5px solid #4299e1;border-radius:8px;padding:8px 10px;display:grid;grid-template-columns:repeat(4,14px);gap:3px;">
+          <div style="width:14px;height:14px;background:#2d6abf;border-radius:2px;"></div>
+          <div style="width:14px;height:14px;background:#4299e1;border-radius:2px;"></div>
+          <div style="width:14px;height:14px;background:#2d6abf;border-radius:2px;"></div>
+          <div style="width:14px;height:14px;background:#1a5276;border-radius:2px;"></div>
+          <div style="width:14px;height:14px;background:#1a5276;border-radius:2px;"></div>
+          <div style="width:14px;height:14px;background:#2d6abf;border-radius:2px;"></div>
+          <div style="width:14px;height:14px;background:#4299e1;border-radius:2px;"></div>
+          <div style="width:14px;height:14px;background:#2d6abf;border-radius:2px;"></div>
+        </div>
+      </div>
+
+      <!-- Search arrow + Vector Store cylinder -->
+      <div style="display:flex;align-items:center;margin:0 6px;margin-top:-32px;">
+        <div style="display:flex;flex-direction:column;align-items:center;gap:1px;">
+          <div class="aline" style="width:30px;"></div>
+          <span style="font-size:.58rem;color:#4a6fa5;">Search</span>
+        </div>
+      </div>
+
+      <!-- Cylinder -->
+      <div class="cylinder" style="margin-top:-32px;">
+        <span class="clbl">Vector Store</span>
+        <div class="cnodes">
+          Chunk 1<br>Chunk 2<br>Chunk 3
+        </div>
+      </div>
+
+      <!-- Retrieve → Augment -->
+      <div style="display:flex;flex-direction:column;align-items:flex-start;margin:0 6px;margin-top:-32px;">
+        <span style="font-size:.58rem;color:#4a6fa5;margin-left:4px;">Retrieve</span>
+        <div class="aline" style="width:28px;"></div>
+      </div>
+
+      <!-- Augment box -->
+      <div class="augment-box" style="margin-top:-32px;">
+        <span class="aug-title">AUGMENT</span>
+        <div class="aug-row">
+          <div class="aug-chip hl">Query</div>
+          <div style="font-size:.62rem;color:#4a6fa5;">+</div>
+          <div class="aug-chip">Contexts</div>
+        </div>
+        <div style="width:100%;height:1px;background:#2d4a7a;margin:2px 0;"></div>
+        <span style="font-size:.58rem;color:#94a3b8;">Prompt</span>
+        <div style="display:flex;flex-direction:column;gap:2px;">
+          <div style="width:100%;height:2px;background:#4a6fa5;border-radius:1px;"></div>
+          <div style="width:80%;height:2px;background:#4a6fa5;border-radius:1px;"></div>
+          <div style="width:60%;height:2px;background:#4a6fa5;border-radius:1px;opacity:.6;"></div>
+        </div>
+      </div>
+
+    </div><!-- /bottom-grid -->
+
+    <!-- second row: LLM + Generate label -->
+    <div style="display:flex;align-items:flex-end;margin-top:18px;padding-left:108px;gap:0;">
+
+      <!-- Generate ← label + arrow back -->
+      <div style="display:flex;align-items:center;flex:1;gap:0;">
+        <span style="font-size:.62rem;color:#4a6fa5;margin-right:6px;">Generate</span>
+        <!-- long left arrow back to Response -->
+        <div style="height:2px;background:#4a6fa5;flex:1;position:relative;">
+          <div style="position:absolute;left:-1px;top:-4px;border:5px solid transparent;border-right:8px solid #4a6fa5;"></div>
+        </div>
+      </div>
+
+      <!-- LLM box -->
+      <div class="box red" style="width:130px;height:80px;margin-left:16px;margin-right:16px;">
+        <span class="icon">🤖</span>
+        <span class="lbl">LLM</span>
+        <span class="sub">OpenAI / Groq<br>AIAgentService</span>
+      </div>
+
+      <!-- ← arrow from augment to LLM -->
+      <div style="display:flex;align-items:center;margin-right:8px;">
+        <div class="aline" style="width:28px;transform:rotate(180deg);"></div>
+      </div>
+
+      <!-- arrow from augment box down + label -->
+      <div style="display:flex;flex-direction:column;align-items:center;gap:3px;">
+        <div style="font-size:.58rem;color:#4a6fa5;">Relevant<br>Contexts</div>
+        <div style="font-size:.58rem;color:#94a3b8;margin-top:2px;">Prompt</div>
+      </div>
+
+    </div>
+
+    <!-- RAG steps indicator -->
+    <div style="margin-top:16px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">
+      <div style="background:#0a2540;border:1px solid #2d6abf;border-radius:6px;padding:4px 10px;font-size:.6rem;color:#90cdf4;">① Extract &amp; Index Kuesioner</div>
+      <div style="font-size:.7rem;color:#4a6fa5;">→</div>
+      <div style="background:#0a2540;border:1px solid #2d6abf;border-radius:6px;padding:4px 10px;font-size:.6rem;color:#90cdf4;">② Retrieve Context</div>
+      <div style="font-size:.7rem;color:#4a6fa5;">→</div>
+      <div style="background:#0a2540;border:1px solid #2d6abf;border-radius:6px;padding:4px 10px;font-size:.6rem;color:#90cdf4;">③ Augment Prompt</div>
+      <div style="font-size:.7rem;color:#4a6fa5;">→</div>
+      <div style="background:#0a2540;border:1px solid #c53030;border-radius:6px;padding:4px 10px;font-size:.6rem;color:#fc8181;">④ LLM Generate</div>
+      <div style="font-size:.7rem;color:#4a6fa5;">→</div>
+      <div style="background:#0a2540;border:1px solid #2f855a;border-radius:6px;padding:4px 10px;font-size:.6rem;color:#68d391;">⑤ Response</div>
+    </div>
+
+  </div><!-- /zone-bottom -->
+
+  <!-- footer outputs -->
+  <div style="display:flex;gap:10px;margin-top:20px;flex-wrap:wrap;">
+    <div class="box out" style="flex:1;min-width:140px;height:58px;flex-direction:row;gap:10px;">
+      <span style="font-size:1.2rem;">📊</span>
+      <div style="text-align:left;"><div class="lbl">Hasil Kuesioner</div><div class="sub">index kepuasan + rekomendasi</div></div>
+    </div>
+    <div class="box" style="flex:1;min-width:140px;height:58px;flex-direction:row;gap:10px;background:#2d1900;border-color:#c27d20;">
+      <span style="font-size:1.2rem;">📧</span>
+      <div style="text-align:left;"><div class="lbl">Reminder Dosen</div><div class="sub">Email + WhatsApp API</div></div>
+    </div>
+    <div class="box out" style="flex:1;min-width:140px;height:58px;flex-direction:row;gap:10px;">
+      <span style="font-size:1.2rem;">📄</span>
+      <div style="text-align:left;"><div class="lbl">Laporan Artefak</div><div class="sub">RPS / Materi .docx</div></div>
+    </div>
+    <div class="box" style="flex:1;min-width:140px;height:58px;flex-direction:row;gap:10px;background:#1a1040;border-color:#6b46c1;">
+      <span style="font-size:1.2rem;">📈</span>
+      <div style="text-align:left;"><div class="lbl">Dashboard GKM</div><div class="sub">Monitoring Analytics</div></div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

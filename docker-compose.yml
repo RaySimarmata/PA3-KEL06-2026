@@ -222,6 +222,38 @@ services:
     networks:
       - pa3_network
 
+  # ─────────────────────────────────────────
+  # PORTAINER (Docker Management UI)
+  # ─────────────────────────────────────────
+  portainer:
+    image: portainer/portainer-ce:latest
+    container_name: pa3_portainer
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - portainer_data:/data
+    ports:
+      - "9000:9000"
+    networks:
+      - pa3_network
+
+  # ─────────────────────────────────────────
+  # CODE-SERVER (VS Code di Browser)
+  # ─────────────────────────────────────────
+  code-server:
+    image: codercom/code-server:latest
+    container_name: pa3_codeserver
+    restart: unless-stopped
+    environment:
+      PASSWORD: ${CODE_SERVER_PASSWORD:-codeserver123}
+    volumes:
+      - ${PROJECT_PATH:-/root/PA3-KEL06-2026}:/home/coder/project
+      - codeserver_data:/home/coder/.local
+    ports:
+      - "8888:8080"
+    networks:
+      - pa3_network
+
 # ─────────────────────────────────────────
 # VOLUMES
 # ─────────────────────────────────────────
@@ -233,6 +265,10 @@ volumes:
   laravel_logs:
     driver: local
   ocr_cache:
+    driver: local
+  portainer_data:
+    driver: local
+  codeserver_data:
     driver: local
 
 # ─────────────────────────────────────────
