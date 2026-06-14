@@ -6,6 +6,8 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\API\N8nCallbackController;
 use App\Http\Controllers\GJM\LaporanTriwulanController;
 use App\Http\Controllers\GJM\LaporanSemesterController;
+use App\Http\Controllers\API\GKM\DashboardApiController as GKMDashboardApiController;
+use App\Http\Controllers\API\GJM\DashboardApiController as GJMDashboardApiController;
 
 /*
 |--------------------------------------------------------------------------
@@ -13,25 +15,49 @@ use App\Http\Controllers\GJM\LaporanSemesterController;
 |--------------------------------------------------------------------------
 */
 
-Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
-    return $request->user();
-});
-
-// LOGIN API
+// ─── AUTH ────────────────────────────────────────────────────────────────────
 Route::post('/login', [AuthController::class, 'apiLogin']);
+Route::post('/logout', [AuthController::class, 'apiLogout']);
 
-// N8n Callback
+// ─── N8N CALLBACK ────────────────────────────────────────────────────────────
 Route::post('/n8n/callback', [N8nCallbackController::class, 'handleCallback'])
     ->name('api.n8n.callback');
 
-// AI Prompt Assistant - Triwulan & Semester
+// ─── AUTHENTICATED ROUTES ────────────────────────────────────────────────────
+Route::middleware(['auth:sanctum'])->group(function () {
+
+    // User info
+    Route::get('/user', function (Request $request) {
+        return $request->user();
+    });
+
+});
+
+// ─── SESSION-BASED AUTH ROUTES ───────────────────────────────────────────────
 Route::middleware(['auth'])->group(function () {
-    Route::post('/gjm/ai-prompt/triwulan', [LaporanTriwulanController::class, 'aiPrompt'])
-        ->name('api.gjm.ai-prompt.triwulan');
 
-    Route::post('/gjm/ai-prompt/semester', [LaporanSemesterController::class, 'aiPrompt'])
-        ->name('api.gjm.ai-prompt.semester');
+    // ── GKM Dashboard ──────────────────────────────────────────────────────
+    Route::prefix('gkm')->name('api.gkm.')->group(function () {
+        Route::get('/dashboard', [GKMDashboardApiController::class, 'index'])
+            ->name('dashboard');
+        Route::get('/dashboard/analytics', [GKMDashboardApiController::class, 'analytics'])
+            ->name('dashboard.analytics');
+    });
 
-    Route::post('/ai-assistant/semester', [LaporanSemesterController::class, 'aiAssistant'])
-        ->name('api.ai-assistant.semester');
+    // ── GJM Dashboard ──────────────────────────────────────────────────────
+    Route::prefix('gjm')->name('api.gjm.')->group(function () {
+        Route::get('/dashboard', [GJMDashboardApiController::class, 'index'])
+            ->name('dashboard');
+        Route::post('/dashboard/clear-cache', [GJMDashboardApiController::class, 'clearCache'])
+            ->name('dashboard.clear-cache');
+
+        // AI Prompt Assistant
+        Route::post('/ai-prompt/triwulan', [LaporanTriwulanController::class, 'aiPrompt'])
+            ->name('ai-prompt.triwulan');
+        Route::post('/ai-prompt/semester', [LaporanSemesterController::class, 'aiPrompt'])
+            ->name('ai-prompt.semester');
+        Route::post('/ai-assistant/semester', [LaporanSemesterController::class, 'aiAssistant'])
+            ->name('ai-assistant.semester');
+    });
+
 });
