@@ -18,7 +18,7 @@ Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
 });
 
 // LOGIN API
-Route::post('/login', [AuthController::class, 'login']);
+Route::post('/login', [AuthController::class, 'apiLogin']);
 
 // N8n Callback
 Route::post('/n8n/callback', [N8nCallbackController::class, 'handleCallback'])

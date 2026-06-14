@@ -40,6 +40,32 @@ class AuthController extends Controller
         ])->onlyInput('email');
     }
 
+    public function apiLogin(Request $request)
+    {
+        $credentials = $request->validate([
+            'email' => 'required|email',
+            'password' => 'required',
+        ]);
+
+        if (!Auth::attempt($credentials)) {
+            return response()->json([
+                'message' => 'Email atau password salah.',
+            ], 401);
+        }
+
+        $user = Auth::user();
+
+        return response()->json([
+            'message' => 'Login berhasil.',
+            'user' => [
+                'id'    => $user->id,
+                'name'  => $user->name,
+                'email' => $user->email,
+                'role'  => $user->role,
+            ],
+        ]);
+    }
+
     public function logout(Request $request)
     {
         Auth::logout();
