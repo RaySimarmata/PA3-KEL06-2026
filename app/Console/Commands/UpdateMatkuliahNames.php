@@ -5,7 +5,7 @@ namespace App\Console\Commands;
 use Illuminate\Console\Command;
 use App\Models\KuesioneUpload;
 use App\Models\Matakuliah;
-use App\Services\ExternalApiService;
+use App\Services\ExternalAPIService;
 
 class UpdateMatkuliahNames extends Command
 {
@@ -14,7 +14,7 @@ class UpdateMatkuliahNames extends Command
 
     protected $apiService;
 
-    public function __construct(ExternalApiService $apiService)
+    public function __construct(ExternalAPIService $apiService)
     {
         parent::__construct();
         $this->apiService = $apiService;
