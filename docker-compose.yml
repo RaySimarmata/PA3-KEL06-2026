@@ -21,6 +21,16 @@ services:
       - "3306:3306"
     networks:
       - pa3_network
+    mem_limit: 512m
+    command: >
+      --innodb-buffer-pool-size=128M
+      --innodb-log-file-size=32M
+      --max-connections=50
+      --key-buffer-size=16M
+      --query-cache-size=0
+      --tmp-table-size=32M
+      --max-heap-table-size=32M
+      --performance-schema=OFF
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
       timeout: 10s
@@ -222,6 +232,9 @@ services:
       - "8080:80"
     networks:
       - pa3_network
+    mem_limit: 128m
+    profiles:
+      - tools
 
   # ─────────────────────────────────────────
   # PORTAINER (Docker Management UI)

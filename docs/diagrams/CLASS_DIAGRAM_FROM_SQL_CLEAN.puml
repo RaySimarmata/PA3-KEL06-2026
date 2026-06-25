@@ -1,0 +1,282 @@
+@startuml CLASS_DIAGRAM_FROM_SQL_CLEAN
+
+' =====================================================================
+' STYLING & CONFIGURATION
+' =====================================================================
+!theme cerulean-outline
+skinparam linetype ortho
+skinparam nodesep 60
+skinparam ranksep 80
+skinparam backgroundColor #FAFAFA
+skinparam shadowing false
+
+skinparam class {
+    BackgroundColor #FFFFFF
+    BorderColor #607D8B
+    ArrowColor #37474F
+    FontSize 10
+    FontName Segoe UI
+    BorderThickness 2
+}
+
+' =====================================================================
+' PACKAGE: MASTER DATA
+' =====================================================================
+package "Master Data" #E3F2FD {
+    
+    class prodi <<Entity>> {
+        +id: BIGINT
+        +kode_prodi: VARCHAR(20)
+        +nama_prodi: VARCHAR(255)
+        +nama_singkat: VARCHAR(100)
+        --
+        +dosenKepala()
+        +dosen()
+        +matakuliah()
+        +laporanGKM()
+    }
+    
+    class users <<Entity>> {
+        +id: BIGINT
+        +name: VARCHAR(255)
+        +email: VARCHAR(255)
+        +username: VARCHAR(255)
+        +role: ENUM
+        +prodi_id: BIGINT
+        --
+        +dosen()
+        +prodi()
+        +reminders()
+        +isGKM()
+        +isGJM()
+    }
+    
+    class dosen <<Entity>> {
+        +dosen_id: BIGINT
+        +nip: VARCHAR(50)
+        +nidn: VARCHAR(50)
+        +nama: VARCHAR(255)
+        +email: VARCHAR(255)
+        +prodi_id: BIGINT
+        --
+        +user()
+        +prodi()
+        +rps()
+        +materi()
+    }
+}
+
+' =====================================================================
+' PACKAGE: AKADEMIK
+' =====================================================================
+package "Akademik" #FFF3E0 {
+    
+    class matakuliah <<Entity>> {
+        +id: BIGINT
+        +prodi_id: BIGINT
+        +kode_mk: VARCHAR(20)
+        +nama_mk: VARCHAR(255)
+        +sks: INT
+        +semester: INT
+        +status: ENUM
+        --
+        +prodi()
+        +dosen()
+        +rps()
+    }
+    
+    class periode_akademik <<Entity>> {
+        +id: BIGINT
+        +tahun_ajaran: VARCHAR(20)
+        +semester: ENUM
+        +start_date: DATE
+        +end_date: DATE
+        +is_active: TINYINT
+        --
+        +getActive()
+        +scopeActive()
+    }
+}
+
+' =====================================================================
+' PACKAGE: RPS & MATERI
+' =====================================================================
+package "RPS & Materi" #E8F5E9 {
+    
+    class rps <<Entity>> {
+        +id: BIGINT
+        +matakuliah_id: BIGINT
+        +periode_id: BIGINT
+        +dosen_id: BIGINT
+        +file_rps: VARCHAR(500)
+        +status_upload_rps: ENUM
+        --
+        +matakuliah()
+        +dosen()
+        +monitoring()
+    }
+    
+    class materi <<Entity>> {
+        +id: BIGINT
+        +matakuliah_id: BIGINT
+        +periode_id: BIGINT
+        +dosen_id: BIGINT
+        +judul_materi: VARCHAR(255)
+        +file_materi: VARCHAR(500)
+        +status_upload_materi: ENUM
+        --
+        +matakuliah()
+        +dosen()
+        +monitoring()
+    }
+}
+
+' =====================================================================
+' PACKAGE: KUISIONER
+' =====================================================================
+package "Kuisioner" #F3E5F5 {
+    
+    class kuisioner <<Entity>> {
+        +id: BIGINT
+        +periode_id: BIGINT
+        +matakuliah_id: BIGINT
+        +dosen_id: BIGINT
+        +judul: VARCHAR(255)
+        +periode_kuesioner: ENUM
+        +pertanyaan_id: BIGINT
+        --
+        +pertanyaan()
+        +jawaban()
+    }
+    
+    class pertanyaan_kuisioner <<Entity>> {
+        +id: BIGINT
+        +kuisioner_id: BIGINT
+        +pertanyaan: TEXT
+        +jawaban: TEXT
+        +pilihan_jawaban: ENUM
+        +jumlah_responden: INT
+        --
+        +kuisioner()
+        +jawaban()
+    }
+}
+
+' =====================================================================
+' PACKAGE: REMINDER & LAPORAN
+' =====================================================================
+package "Reminder & Laporan" #FCE4EC {
+    
+    class reminder <<Entity>> {
+        +id: BIGINT
+        +user_id: BIGINT
+        +tipe_reminder: ENUM
+        +judul: VARCHAR(255)
+        +status_pengiriman: ENUM
+        +tanggal_kirim: DATE
+        --
+        +userPembuat()
+        +userPenerima()
+    }
+    
+    class template_laporan <<Entity>> {
+        +id: BIGINT
+        +nama_template: VARCHAR(255)
+        +jenis_template: ENUM
+        +file_template: VARCHAR(500)
+        --
+        +prodi()
+        +laporanBulanan()
+        +scopeActive()
+    }
+    
+    class laporan <<Entity>> {
+        +id: BIGINT
+        +user_id: BIGINT
+        +prodi_id: BIGINT
+        +jenis_laporan: ENUM
+        +template_id: BIGINT
+        +judul_laporan: VARCHAR(255)
+        --
+        +user()
+        +template()
+        +prodi()
+    }
+    
+    class kirim_laporan <<Entity>> {
+        +id: BIGINT
+        +user_id: BIGINT
+        +penerima: TEXT
+        +judul: VARCHAR(255)
+        --
+        +user()
+    }
+}
+
+' =====================================================================
+' RELATIONSHIPS
+' =====================================================================
+
+' Master Data
+users ||--o{ dosen
+users }o--|| prodi
+dosen }o--|| prodi
+
+' Akademik
+matakuliah }o--|| prodi
+
+' RPS & Materi
+rps }o--|| matakuliah
+rps }o--|| periode_akademik
+rps }o--|| dosen
+
+materi }o--|| matakuliah
+materi }o--|| periode_akademik
+materi }o--|| dosen
+
+' Kuisioner
+kuisioner }o--|| periode_akademik
+kuisioner }o--|| matakuliah
+kuisioner }o--|| dosen
+kuisioner ||--|| pertanyaan_kuisioner
+pertanyaan_kuisioner }o--|| kuisioner
+
+' Reminder
+reminder }o--|| users
+reminder }o--o| dosen
+reminder }o--o| matakuliah
+reminder }o--o| rps
+reminder }o--o| materi
+
+' Laporan
+laporan }o--|| users
+laporan }o--|| template_laporan
+laporan }o--o| prodi
+laporan }o--o| periode_akademik
+laporan }o--o| dosen
+
+kirim_laporan }o--|| users
+
+' Notes
+note right of prodi
+  Master entity untuk
+  Program Studi
+end note
+
+note right of users
+  Akun pengguna:
+  - GKM (Gol. Kaprodi)
+  - GJM (Gol. Jabatan)
+end note
+
+note bottom of rps
+  Rencana Pembelajaran
+  Semester per Dosen
+end note
+
+note bottom of kuisioner
+  Evaluasi pembelajaran
+  UTS & UAS
+end note
+
+@enduml

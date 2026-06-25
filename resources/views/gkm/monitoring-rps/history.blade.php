@@ -58,7 +58,7 @@
                             <th style="width: 25%;">Subjek</th>
                             <th style="width: 20%;">Penerima</th>
                             <th style="width: 10%;">Status</th>
-                            <th style="width: 15%;">Keterangan</th>
+                            
                             <th style="width: 10%;">Aksi</th>
                         </tr>
                     </thead>
@@ -77,15 +77,6 @@
                                         <span class="badge-gkm danger">Gagal</span>
                                     @else
                                         <span class="badge-gkm warning">Pending</span>
-                                    @endif
-                                </td>
-                                <td>
-                                    @if ($log->pesan_error)
-                                        <span class="text-sm text-danger" title="{{ $log->pesan_error }}">
-                                            {{ Str::limit($log->pesan_error, 30) }}
-                                        </span>
-                                    @else
-                                        <span class="text-sm" style="color: #28a745;">Email berhasil dikirim</span>
                                     @endif
                                 </td>
                                 <td>

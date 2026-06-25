@@ -869,7 +869,49 @@ private function buildRpsComplianceSummary(int $prodiId, string $semester, strin
 
         foreach ($dosenList as $dosen) {
 
-    $email = $dosen->email ?? $dosen->kontak_email;
+    // =========================
+    // VALIDASI EMAIL & PEMILIHAN EMAIL
+    // =========================
+    $emailList = [];
+    
+    // Cek email dari berbagai field
+    if (!empty($dosen->email)) {
+        $emailList[] = $dosen->email;
+    }
+    if (!empty($dosen->kontak_email)) {
+        $emailList[] = $dosen->kontak_email;
+    }
+    
+    // Parse multiple emails (jika ada yang terpisah dengan koma)
+    $allEmails = [];
+    foreach ($emailList as $emailField) {
+        $emails = array_map('trim', explode(',', $emailField));
+        $allEmails = array_merge($allEmails, $emails);
+    }
+    
+    // Filter email valid
+    $allEmails = array_filter($allEmails, fn($e) => !empty($e) && filter_var($e, FILTER_VALIDATE_EMAIL));
+    $allEmails = array_unique($allEmails); // Remove duplicates
+    
+    if (empty($allEmails)) {
+        // Skip dosen tanpa email
+        $failedCount++;
+        \Log::warning('Dosen tanpa email dilewati', [
+            'pegawai_id' => $dosen->pegawai_id,
+            'nama' => $dosen->nama ?? $dosen->nama_lengkap
+        ]);
+        continue;
+    }
+    
+    // Pilih email: prioritas domain bukan @gmail.com
+    $emailTerpilih = null;
+    if (count($allEmails) > 1) {
+        $nonGmailEmail = array_filter($allEmails, fn($e) => !stripos($e, '@gmail.com'));
+        $emailTerpilih = !empty($nonGmailEmail) ? reset($nonGmailEmail) : reset($allEmails);
+    } else {
+        $emailTerpilih = reset($allEmails);
+    }
+    
     $nomorTelepon = $dosen->nomor_telepon ?? null;
 
     try {
@@ -877,9 +919,9 @@ private function buildRpsComplianceSummary(int $prodiId, string $semester, strin
         // =========================
         // EMAIL
         // =========================
-        if (!empty($email)) {
+        if (!empty($emailTerpilih)) {
 
-            Mail::to($email)->send(
+            Mail::to($emailTerpilih)->send(
                 new ReminderRPSMail(
                     $request->subject,
                     $request->message,
@@ -912,7 +954,7 @@ private function buildRpsComplianceSummary(int $prodiId, string $semester, strin
         // =========================
         LogEmail::create([
             'reminder_id' => null,
-            'penerima_email' => $email,
+            'penerima_email' => $emailTerpilih,
             'subjek' => $request->subject,
             'isi_email' => $request->message,
             'status_pengiriman' => 'success',
@@ -936,7 +978,7 @@ private function buildRpsComplianceSummary(int $prodiId, string $semester, strin
 
         LogEmail::create([
             'reminder_id' => null,
-            'penerima_email' => $email,
+            'penerima_email' => $emailTerpilih,
             'subjek' => $request->subject,
             'isi_email' => $request->message,
             'status_pengiriman' => 'failed',
@@ -949,29 +991,23 @@ private function buildRpsComplianceSummary(int $prodiId, string $semester, strin
 
         \Log::error('Reminder gagal', [
             'pegawai_id' => $dosen->pegawai_id,
-            'email' => $email,
+            'email' => $emailTerpilih,
             'nomor_telepon' => $nomorTelepon,
             'error' => $e->getMessage()
         ]);
     }
 }
 
-        RpsMonitoringSnapshot::where('pegawai_id', $dosen->pegawai_id)
-    ->where('status_rps', 'BELUM UPLOAD')
-    ->update([
-        'reminder_sent' => true,
-        'updated_at' => now()
-    ]);
-
-        return redirect()->route('gkm.monitoring-rps.index')
-            ->with(
-                $failedCount > 0 ? 'warning' : 'success',
-                "Berhasil: {$successCount}, Gagal: {$failedCount}"
-            );
+        return response()->json([
+            'success' => true,
+            'message' => "Berhasil: {$successCount}, Gagal: {$failedCount}"
+        ]);
 
     } catch (\Exception $e) {
-        return redirect()->back()
-            ->with('error', 'Gagal mengirim reminder: ' . $e->getMessage());
+        return response()->json([
+            'success' => false,
+            'message' => 'Gagal mengirim reminder: ' . $e->getMessage()
+        ], 500);
     }
 }
 

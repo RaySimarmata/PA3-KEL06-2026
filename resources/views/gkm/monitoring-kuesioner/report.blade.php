@@ -20,7 +20,7 @@
                         style="pointer-events: auto; cursor: pointer;">
                         <i class="bi bi-printer"></i> Print
                     </button>
-                    <a href="{{ route('gkm.monitoring-kuesioner.show', $kuesioner->id) }}"
+                    <a href="{{ route('gkm.monitoring-kuesioner.index', $kuesioner->id) }}"
                         class="btn btn-secondary btn-kembali">
                         <i class="bi bi-arrow-left"></i> Kembali
                     </a>

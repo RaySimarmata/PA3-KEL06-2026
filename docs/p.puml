@@ -1,0 +1,151 @@
+@startuml
+skinparam classAttributeIconSize 0
+
+' ======================
+' MASTER
+' ======================
+class Prodi {
+  +id: bigint
+  +kode_prodi: string
+  +nama_prodi: string
+  +nama_singkat: string
+}
+
+class User {
+  +id: bigint
+  +name: string
+  +email: string
+  +username: string
+  +password: string
+  +role: enum
+}
+
+class Dosen {
+  +dosen_id: bigint
+  +pegawai_id: bigint
+  +nip: string
+  +nidn: string
+  +nama: string
+  +email: string
+}
+
+' ======================
+' AKADEMIK
+' ======================
+class Matakuliah {
+  +id: bigint
+  +kode_mk: string
+  +nama_mk: string
+  +sks: int
+  +semester: int
+}
+
+class PeriodeAkademik {
+  +id: bigint
+  +tahun_ajaran: string
+  +semester: enum
+  +start_date: date
+  +end_date: date
+}
+
+' ======================
+' RPS & MATERI
+' ======================
+class RPS {
+  +id: bigint
+  +deskripsi: text
+  +file_rps: string
+  +status_upload_rps: enum
+}
+
+class Materi {
+  +id: bigint
+  +judul_materi: string
+  +pertemuan_ke: int
+  +file_materi: string
+}
+
+' ======================
+' KUISIONER
+' ======================
+class Kuisioner {
+  +id: bigint
+  +judul: string
+  +periode_kuesioner: enum
+}
+
+class PertanyaanKuisioner {
+  +id: bigint
+  +pertanyaan: text
+  +jawaban: text
+}
+
+' ======================
+' REMINDER
+' ======================
+class Reminder {
+  +id: bigint
+  +tipe_reminder: enum
+  +judul: string
+  +isi_reminder: text
+}
+
+' ======================
+' LAPORAN
+' ======================
+class TemplateLaporan {
+  +id: bigint
+  +nama_template: string
+  +jenis_template: enum
+}
+
+class Laporan {
+  +id: bigint
+  +jenis_laporan: enum
+  +judul_laporan: string
+  +isi_laporan: text
+}
+
+class KirimLaporan {
+  +id: bigint
+  +penerima: text
+  +cc: text
+  +judul: string
+}
+
+' ======================
+' RELATIONSHIP
+' ======================
+
+Prodi "1" --> "*" User
+Prodi "1" --> "*" Dosen
+Prodi "1" --> "*" Matakuliah
+
+User "1" --> "*" Reminder
+User "1" --> "*" Laporan
+User "1" --> "*" KirimLaporan
+
+Dosen "1" --> "*" RPS
+Dosen "1" --> "*" Materi
+Dosen "1" --> "*" Kuisioner
+Dosen "1" --> "*" Reminder
+Dosen "1" --> "*" Laporan
+
+Matakuliah "1" --> "*" RPS
+Matakuliah "1" --> "*" Materi
+Matakuliah "1" --> "*" Kuisioner
+Matakuliah "1" --> "*" Reminder
+
+PeriodeAkademik "1" --> "*" RPS
+PeriodeAkademik "1" --> "*" Materi
+PeriodeAkademik "1" --> "*" Kuisioner
+PeriodeAkademik "1" --> "*" Laporan
+
+RPS "1" --> "*" Reminder
+Materi "1" --> "*" Reminder
+
+Kuisioner "1" --> "*" PertanyaanKuisioner
+
+TemplateLaporan "1" --> "*" Laporan
+
+@enduml

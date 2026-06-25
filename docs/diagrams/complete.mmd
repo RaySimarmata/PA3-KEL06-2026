@@ -1,0 +1,1612 @@
+```mermaid
+classDiagram
+  title Complete System Class Diagram
+
+  class MODELS {
+  }
+
+  class AIEvaluationResult {
+    +evaluation_name
+    +feature
+    +evaluation_date
+    +avg_wer
+    +total_ocr_tests
+    +avg_relevance
+    +avg_completeness
+    +avg_clarity
+    +avg_accuracy
+    +total_ai_tests
+    +hallucination_count
+    +avg_ambiguity
+    +high_ambiguity_count
+    +avg_ragas_faithfulness
+    +avg_ragas_answer_relevancy
+    +avg_ragas_context_precision
+    +avg_ragas_context_recall
+    +avg_ragas_context_relevancy
+    +avg_ragas_overall
+    +total_ragas_tests
+    +avg_precision
+    +total_retrieval_tests
+    +before_metrics
+    +after_metrics
+    +improvements
+    +summary
+    +strengths
+    +limitations
+    +recommendations
+    +
+    pgetOverallQualityScore()
+    pgetHallucinationRate()
+    pscopeForFeature()
+    pscopeRecent()
+    pgetAmbiguityRateAttribute()
+    pgetRAGASQualityAssessmentAttribute()
+    pgetCombinedQualityScoreAttribute()
+  }
+
+  class AIEvaluationTest {
+    +test_name
+    +test_type
+    +feature
+    +input_query
+    +input_image_path
+    +ground_truth
+    +actual_output
+    +ocr_result
+    +wer_score
+    +precision_score
+    +relevance_score
+    +completeness_score
+    +clarity_score
+    +accuracy_score
+    +has_hallucination
+    +ambiguity_score
+    +ambiguous_parts
+    +ambiguity_notes
+    +ragas_faithfulness
+    +ragas_answer_relevancy
+    +ragas_context_precision
+    +ragas_context_recall
+    +ragas_context_relevancy
+    +ragas_overall_score
+    +rag_context_used
+    +rag_chunks_count
+    +rag_avg_similarity
+    +notes
+    +evaluated_by
+    +evaluated_at
+    +status
+    +
+    pcalculateWER()
+    pgetAverageHumanScore()
+    pscopeOfType()
+    pscopeForFeature()
+    pscopeEvaluated()
+    pcalculateRAGASOverallScore()
+    phasHighAmbiguity()
+    pgetAmbiguityLevelAttribute()
+    pgetRAGASQualityLevelAttribute()
+  }
+
+  class AIResponseCache {
+    +cache_key
+    +prompt_hash
+    +original_prompt
+    +context_metadata
+    +ai_response
+    +ai_provider
+    +ai_model
+    +usage_count
+    +last_used_at
+    +response_length
+    +response_time
+    +similarity_threshold
+    +
+    pincrementUsage()
+  }
+
+  class AIResponseCacheMongo {
+    +cache_key
+    +prompt_hash
+    +original_prompt
+    +context_metadata
+    +ai_response
+    +ai_provider
+    +ai_model
+    +usage_count
+    +last_used_at
+    +response_length
+    +similarity_threshold
+    +
+    pincrementUsage()
+  }
+
+  class Ajaran {
+    +prodi_id
+    +tahun_ajaran
+    +semester
+    +tanggal_mulai
+    +tanggal_akhir
+    +status
+    +
+    pprodi()
+    prps()
+    pmonitoring()
+    plaporanGKM()
+  }
+
+  class DocumentChunk {
+    +template_id
+    +kuesioner_upload_id
+    +source_type
+    +source_id
+    +chunk_text
+    +chunk_index
+    +embedding
+    +metadata
+    +
+    ptemplate()
+    pkuesioneUpload()
+    pcosineSimilarity()
+  }
+
+  class Dosen {
+    +user_id
+    +prodi_id
+    +nama_lengkap
+    +nidn
+    +gelar_akademik
+    +jabatan_akademik
+    +kontak_email
+    +bio
+    +foto_profil
+    +status
+    +is_kaprodi
+    +is_dosen_wali
+    +kelas_wali
+    +
+    puser()
+    pprodi()
+    pmatakuliah()
+    prps()
+    pmateri()
+    pmonitoring()
+    pperwalian()
+    pkuisionerResponses()
+    plaporanGKM()
+    pevaluasiArtefak()
+  }
+
+  class Dosenn {
+    +dosen_id
+    +pegawai_id
+    +user_id
+    +nip
+    +nidn
+    +nama
+    +inisial_nama
+    +email
+    +prodi_id
+    +prodi
+    +jabatan_akademik
+    +jabatan_akademik_desc
+    +jenjang_pendidikan
+    +
+  }
+
+  class EmbeddingsCache {
+    +text_hash
+    +embedding
+    +model
+    +
+  }
+
+  class EvaluasiArtefak {
+    +evaluator_id
+    +rps_id
+    +jenis_artefak
+    +skor_evaluasi
+    +catatan_evaluasi
+    +status_evaluasi
+    +tanggal_evaluasi
+    +saran_perbaikan
+    +tanggal_revisi_selesai
+    +jumlah_revisi
+    +
+    pdosen()
+    prps()
+  }
+
+  class HasilAnalisisMongo {
+  }
+
+  class JabatanAkademik {
+    +kode
+    +nama
+  }
+
+  class JadwalDosen {
+    +pegawai_id
+    +kode_mk
+    +kuliah_id
+    +semester
+    +tahun_ajaran
+    +kelas
+    +is_manual
+    +
+    pdosen()
+  }
+
+  class JadwalReminder {
+    +prodi_id
+    +nama_jadwal
+    +tipe_reminder
+    +jam_pengiriman
+    +tanggal_mulai
+    +tanggal_selesai
+    +waktu_pengiriman
+    +frekuensi
+    +template_pesan
+    +pesan_template
+    +status
+    +last_sent_at
+    +is_active
+    +dibuat_oleh
+    +catatan
+    +
+    pdibuatOleh()
+    pisActiveNow()
+    pgetStatusText()
+    pgetStatusBadgeClass()
+  }
+
+  class JawabanKuisioner {
+    +kuisioner_id
+    +pertanyaan_id
+    +dosen_id
+    +jawaban_teks
+    +jawaban_nilai
+    +tanggal_jawab
+    +
+    pkuisioner()
+    ppertanyaan()
+    pdosen()
+  }
+
+  class Kelas {
+    +prodi_id
+    +kode_kelas
+    +tingkat
+    +program_studi
+    +tahun_angkatan
+    +status
+    +
+    pprodi()
+    pscopeByProdi()
+    pscopeAktif()
+  }
+
+  class KirimLaporanHistory {
+    +user_id
+    +recipients
+    +cc
+    +subject
+    +message
+    +laporan_ids
+    +attachment_names
+    +recipient_statuses
+    +sent_count
+    +recipient_count
+    +failed_count
+    +status
+    +error_message
+    +
+    puser()
+  }
+
+  class KuesioneUpload {
+    +nama_file
+    +file_path
+    +periode
+    +semester
+    +nama_matakuliah
+    +jenis_kuesioner
+    +kode_matakuliah
+    +dosen_pengampu
+    +tingkat
+    +pegawai_id
+    +kuliah_id
+    +user_id
+    +deskripsi
+    +total_responden
+    +hasil_analisis
+    +status
+    +source
+    +sumber_data
+    +index_kepuasan
+    +persen_kepuasan
+    puser()
+  }
+
+  class KuesionerMongo {
+    +kuesioner_id
+    +judul_kuesioner
+    +kode_mk
+    +periode
+    +raw_data
+    +updated_at
+    +created_at
+  }
+
+  class Kuisioner {
+    +judul_kuisioner
+    +deskripsi_kuisioner
+    +tipe_kuisioner
+    +tanggal_mulai
+    +tanggal_selesai
+    +status_kuisioner
+    +
+    ppertanyaan()
+    pjawaban()
+  }
+
+  class LaporanBulanan {
+    +periode
+    +bulan
+    +tahun
+    +user_id
+    +periode_akademik_id
+    +template_id
+    +judul_laporan
+    +total_kuesioner
+    +total_responden
+    +index_kepuasan_rata_rata
+    +persen_kepuasan_rata_rata
+    +hasil_laporan
+    +konten
+    +metadata
+    +generated_by
+    +file_word
+    +file_pdf
+    +status
+    +tipe_laporan
+    +error_message
+    +
+    puser()
+    pprodi()
+    ptemplate()
+    pperiodeAkademik()
+    pscopePeriode()
+    pscopeUser()
+    pscopeStatus()
+    pgetStatusBadgeAttribute()
+    pgetStatusLabelAttribute()
+    pgetFormattedPeriodeAttribute()
+  }
+
+  class LaporanGJM {
+    +ajaran_id
+    +template_id
+    +periode_mulai
+    +periode_akhir
+    +jenis_laporan
+    +program_studi
+    +ringkasan_mutu_institusi
+    +analisis_kepatuhan
+    +temuan_utama
+    +rekomendasi_perbaikan
+    +rencana_tindakan
+    +file_laporan
+    +dokumen_path
+    +dokumen_hasil_path
+    +ppt_path
+    +ppt_generated_at
+    +status_laporan
+    +tanggal_submit
+    +reviewed_by
+    +tanggal_review
+    +catatan_review
+    +jumlah_prodi_terlibat
+    +jumlah_laporan_gkm_diterima
+    +created_by
+    +instruksi_prompt
+    +ai_preview_draft
+    +ai_sections
+    +ai_file_details
+    +ai_preview_created_at
+    +ai_preview_used_for_generation
+    +ocr_data
+    +has_ocr_data
+    +// RAGAS Metrics for VMTS
+        ragas_faithfulness
+    +ragas_answer_relevancy
+    +ragas_context_precision
+    +ragas_context_recall
+    +ragas_context_relevancy
+    +ragas_overall_score
+    +// RAG Metadata
+        rag_chunks_count
+    +rag_avg_similarity
+    +rag_contexts
+    +ragas_evaluation_type
+    +ragas_evaluated_at
+    +
+    pajaran()
+    ptemplate()
+    previewedBy()
+    pcreatedBy()
+    pgetPeriodeTriwulanAttribute()
+    pgetPeriodeSemesterAttribute()
+    pgetTahunAttribute()
+    pgetStatusBadgeClass()
+    pgetJenisLaporanLabel()
+    pgetPeriodeLabel()
+  }
+
+  class LaporanGKM {
+    +prodi_id
+    +user_id
+    +template_id
+    +ajaran_id
+    +jenis_laporan
+    +periode
+    +bulan
+    +tahun
+    +periode_laporan
+    +file_laporan
+    +file_word
+    +file_pdf
+    +kepatuhan_rps
+    +kepatuhan_materi
+    +hasil_kuisioner
+    +catatan_laporan
+    +status_laporan
+    +status
+    +konten_laporan
+    +total_rps
+    +total_materi
+    +error_message
+    +tanggal_buat_laporan
+    +tanggal_validasi
+    +validated_by
+    +generated_at
+    +ai_preview_draft
+    +ai_sections
+    +ai_preview_updated_at
+    +ai_preview_used_for_generation
+    +
+    pgetFormattedPeriodeAttribute()
+    pgetStatusLabelAttribute()
+    pgetStatusBadgeAttribute()
+    pprodi()
+    puser()
+    ptemplate()
+    pajaran()
+    pvalidatedByUser()
+  }
+
+  class LogEmail {
+    +reminder_id
+    +prodi_id
+    +penerima_email
+    +subjek
+    +isi_email
+    +status_pengiriman
+    +pesan_error
+    +tanggal_pengiriman
+    +percobaan_kirim
+    +
+    preminder()
+    pprodi()
+  }
+
+  class Matakuliah {
+    +prodi_id
+    +kode_mk
+    +nama_mk
+    +deskripsi
+    +capaian_pembelajaran
+    +sks
+    +semester
+    +jenis_mk
+    +status
+    +
+    pprodi()
+    pdosen()
+    prps()
+  }
+
+  class Materi {
+    +rps_id
+    +matakuliah_id
+    +dosen_id
+    +judul_materi
+    +deskripsi_materi
+    +file_materi
+    +jenis_file
+    +status_upload_materi
+    +tanggal_upload_materi
+    +lokasi_upload
+    +
+    prps()
+    pmatakuliah()
+    pdosen()
+    pevaluasiArtefak()
+    pmonitoring()
+  }
+
+  class MatkulDosen {
+    +kode_mk
+    +nama_mk
+    +pegawai_id
+    pdosen()
+  }
+
+  class Monitoring {
+    +dosen_id
+    +matakuliah_id
+    +ajaran_id
+    +rps_id
+    +materi_id
+    +status_rps
+    +status_materi
+    +status_kuisioner
+    +status_perwalian
+    +persentase_kepatuhan
+    +catatan_monitoring
+    +tanggal_monitoring
+    +
+    pdosen()
+    pmatakuliah()
+    pajaran()
+    prps()
+    pmateri()
+  }
+
+  class PencapaianKPI {
+    +prodi_id
+    +nama_kpi
+    +target_kpi
+    +pencapaian_kpi
+    +persentase_pencapaian
+    +periode
+    +catatan_kpi
+    +
+    pprodi()
+  }
+
+  class PeriodeAkademik {
+    +tahun_ajaran
+    +semester
+    +semester_label
+    +start_date
+    +end_date
+    +// 🔥 tambah
+        is_active
+    +
+    pscopeActive()
+    psetSemesterAttribute()
+  }
+
+  class PerkuliahanMonitoringDetail {
+    +pegawai_id
+    +nama_dosen
+    +kode_mk
+    +nama_matkul
+    +prodi_kode
+    +prodi_id
+    +semester
+    +tahun_ajaran
+    +tingkat
+    +jenis_materi
+    +// analytics fields
+        total_minggu
+    +jumlah_upload
+    +jumlah_terlambat
+    +jumlah_belum_upload
+    +persentase_kepatuhan
+    +status_kepatuhan
+    +// JSON data minggu
+        detail_weeks
+    +// optional trace data
+        raw_data
+    +
+    pdosen()
+  }
+
+  class PerkuliahanMonitoringSnapshot {
+    +pegawai_id
+    +prodi_kode
+    +prodi_id
+    +semester
+    +tahun_ajaran
+    +kuliah_id
+    +kode_mk
+    +nama_matkul
+    +tingkat
+    +jenis_materi
+    +status_upload
+    +reminder_sent
+    +raw_data
+    +
+    pdosen()
+    pprodi()
+    pscopeByPeriode()
+    pscopeByProdi()
+    pscopeByTingkat()
+    pscopeByJenisMateri()
+    pscopeByStatus()
+    pscopeReminderNotSent()
+    pscopeBelumUpload()
+    pmarkReminderSent()
+  }
+
+  class PertanyaanKuisioner {
+    +kuisioner_id
+    +nomor_urut
+    +teks_pertanyaan
+    +tipe_pertanyaan
+    +opsi_jawaban
+    +
+    pkuisioner()
+    pjawaban()
+  }
+
+  class Perwaliaan {
+    +dosen_pembimbing_id
+    +jumlah_mahasiswa_bimbing
+    +status_perwalian
+    +periode_perwalian
+    +catatan_perwalian
+    +tanggal_update
+    +
+    pdosenPembimbing()
+  }
+
+  class Prodi {
+    +nama_prodi
+    +kode_prodi
+    +nama_singkat
+    +deskripsi
+    +kaprodi_id
+    +
+    pdosenKepala()
+    pdosen()
+    pmatakuliah()
+    plaporanGKM()
+  }
+
+  class RPS {
+    +matakuliah_id
+    +ajaran_id
+    +dosen_id
+    +file_rps
+    +status_upload_rps
+    +tanggal_upload_rps
+    +status_review_rps
+    +feedback_review_rps
+    +
+    pmatakuliah()
+    pajaran()
+    pdosen()
+    pevaluasiArtefak()
+    pmonitoring()
+  }
+
+  class Reminder {
+    +user_pembuat_id
+    +user_penerima_id
+    +tipe_reminder
+    +subjek_reminder
+    +isi_reminder
+    +tanggal_pengiriman
+    +status_pengiriman
+    +catatan_reminder
+    +
+    puserPembuat()
+    puserPenerima()
+    plogEmail()
+  }
+
+  class RpsMonitoringSnapshot {
+    +pegawai_id
+    +prodi_kode
+    +prodi_id
+    +semester
+    +tahun_ajaran
+    +kuliah_id
+    +kode_mk
+    +nama_matkul
+    +status_rps
+    +reminder_sent
+    +raw_data
+    +
+    pdosen()
+    pprodi()
+    pscopeByPeriode()
+    pscopeByProdi()
+    pscopeByStatus()
+    pscopeReminderNotSent()
+    pmarkReminderSent()
+  }
+
+  class TemplateLaporan {
+    +prodi_id
+    +nama_template
+    +nama_file
+    +jenis_file
+    +file_path
+    +ukuran_file
+    +uploaded_by
+    +jenis_template
+    +jenis_laporan
+    +struktur_template
+    +contoh_konten
+    +is_active
+    +is_indexed
+    +indexed_at
+    +total_chunks
+    +structure_metadata
+    +
+    pprodi()
+    puploader()
+    plaporanBulanan()
+    pscopeActive()
+    pscopeJenis()
+  }
+
+  class User {
+    +name
+    +username
+    +// ✅ DITAMBAHKAN
+        email
+    +password
+    +role
+    +prodi_id
+    +is_active
+    +
+    pcasts()
+    pdosen()
+    pprodi()
+    preminders()
+    pisGKM()
+    pisGJM()
+    pisDosen()
+    pgetProdiNameAttribute()
+  }
+
+  class SERVICES {
+  }
+
+  class AIAgentService {
+    pgenerateReminderMessage()
+    pextractAndIndexKuesioneData()
+    phitungStatistikDariApi()
+    panalyzeFromApi()
+    pretrieveRelevantContext()
+    paugmentPromptWithContext()
+    panalyzeKuesioner()
+    pcallAI()
+    pgenerateText()
+    pbuildReminderPrompt()
+  }
+
+  class AICacheService {
+    pgetCachedResponse()
+    pcacheResponse()
+    pcleanOldEntries()
+    pgetStatistics()
+    pinvalidateByContext()
+    psetSimilarityThreshold()
+    psetMaxCacheAge()
+  }
+
+  class AIEvaluationService {
+    pcreateOCRTest()
+    pcreateAIResponseTest()
+    pevaluateAIResponse()
+    pevaluateWithRAGAS()
+    pcreateAndEvaluateWithRAGAS()
+    pgenerateEvaluationResult()
+    pcompareBeforeAfter()
+    pgenerateSummary()
+    pidentifyStrengths()
+    pidentifyLimitations()
+  }
+
+  class AIPreviewCacheService {
+    psaveAIPreview()
+    pgetAIPreview()
+    pparseAIPreview()
+    pgetSection()
+    pgetAllSections()
+    pmarkAsUsedForGeneration()
+    pclearAIPreview()
+    pgetPreviewStats()
+    pgetFileDetails()
+    pgetOCRData()
+  }
+
+  class APITokenManager {
+    pgetToken()
+    prefreshToken()
+    pisTokenValid()
+    pclearToken()
+    pgetTokenInfo()
+  }
+
+  class AdvancedChunkingService {
+    pchunkWithStructure()
+    pchunkBySection()
+    psplitLargeSection()
+    pchunkSemantic()
+    pchunkWithMetadata()
+  }
+
+  class ChunkingService {
+    pchunkText()
+    pcleanText()
+    psplitIntoSentences()
+    pchunkWithMetadata()
+  }
+
+  class ClaudeAIService {
+    pchat()
+    pask()
+    preadAndSummarize()
+    pcontainsFileAccessError()
+    pfollowUp()
+    pcallClaudeAPI()
+    pcallFallbackAPI()
+    pcallOpenAIAPI()
+    pcallHuggingFaceAPI()
+    pcallOpenRouterAPI()
+  }
+
+  class DocumentStructureService {
+    pextractStructure()
+    pextractSections()
+    pisHeading()
+    pextractFormatting()
+    pdetectIndentation()
+    pextractPatterns()
+    pextractMetadata()
+    pgenerateFormatInstructions()
+  }
+
+  class EmbeddingService {
+    pgenerateEmbedding()
+    pgenerateEmbeddings()
+    pcallEmbeddingAPI()
+    pcallOpenAI()
+    pcallLocalModel()
+    pgenerateSimpleEmbedding()
+    pcosineSimilarity()
+  }
+
+  class EnhancedAIPromptService {
+    pbuildComprehensiveSystemPrompt()
+    pbuildComprehensiveUserMessage()
+    pprocessFileWithEnhancedExtraction()
+    pformatStructure()
+    pformatDetails()
+    pcontainsFileAccessError()
+  }
+
+  class EnhancedFileExtractionService {
+    pextractWithDetails()
+    pextractExcelStructure()
+    pextractExcelDetails()
+    pextractImageStructure()
+    pextractImageDetails()
+    pextractDocumentStructure()
+    pextractDocumentDetails()
+    pextractPdfStructure()
+    pextractPdfDetails()
+    pcolumnLetterToNumber()
+  }
+
+  class EnhancedLaporanService {
+    pprocessImagesForLaporan()
+    pgenerateEnhancedPreview()
+    pgetRagContextForLaporan()
+    pbuildEnhancedContext()
+    pbuildEnhancedPreviewDraft()
+    pindexOCRText()
+    pgetLaporanStats()
+    pclearLaporanData()
+  }
+
+  class ExternalAPIService {
+    pgetToken()
+    pgetAccessToken()
+    pcallApi()
+    pgetDosenFromAPI()
+    pgetDosen()
+    pgetFilteredDosen()
+    pgetFilteredDosen()
+    pgetDosenByProdiIds()
+    pgetDosenByProdiIds()
+    pgetDosenById()
+  }
+
+  class FileRelevanceValidationService {
+    pvalidateFileRelevance()
+    pextractFileContent()
+    pvalidateWithAI()
+  }
+
+  class FileValidationService {
+    pvalidateExtraction()
+    pgetSuggestions()
+    pcheckSystemCapabilities()
+    pcommandExists()
+    pgetExtractionReport()
+  }
+
+  class GeminiAIService {
+    pgenerateText()
+    pgenerateReportSections()
+    pgenerateSummary()
+    pcallGeminiAPI()
+    pbuildSectionPrompt()
+    pcheckQuota()
+    ptrackUsage()
+    penforceRateLimit()
+    phandleQuotaExceeded()
+    pgetCacheKey()
+  }
+
+  class ImageContentValidationService {
+    pvalidateImageRelevance()
+    pcalculateRelevanceScore()
+    pisLikelyLogoOrSimpleImage()
+    pgenerateValidationReason()
+    pnormalizeText()
+    pvalidateImagesBatch()
+  }
+
+  class KuesioneWordGenerationService {
+    pgenerateWordDocument()
+    presolveTemplatePath()
+    pgenerateWordFromTemplate()
+    pextractPlaceholdersFromLaporan()
+    pgeneratePendahuluanTujuan()
+    pgeneratePendahuluanWaktu()
+    pgeneratePendahuluanRuangLingkupText()
+    pgenerateHasilKuesionePerTingkatAsText()
+    pgeneratePendahuluanRuangLingkup()
+    pgenerateKesimpulanFromDatabase()
+  }
+
+  class LaporanArtefakService {
+    pgenerateLaporan()
+    pensureCompleteNarasi()
+    pbuildDefaultHasilPemeriksaan()
+    pbuildDefaultAnalisisKetercapaian()
+    pcollectArtefakData()
+    pextractNarasiFromAIPreview()
+    pparseAIPreviewSections()
+    pnormalizeAIPreviewSectionKey()
+    pgenerateNarasiWithAI()
+    pbuildPlaceholderMap()
+  }
+
+  class LaporanKuesioneService {
+    pcollectKuesioneData()
+    paggregateStatistik()
+    pextractTingkatFromKode()
+    pgetMatakuliahGroupKey()
+    presolvePeriodeContext()
+    pbuildContext()
+    paugmentPromptWithTemplate()
+    pgenerateLaporan()
+    pcallAI()
+    pgetActiveTemplate()
+  }
+
+  class LaporanSemesterService {
+    pgenerate()
+    pextractPlaceholdersFromAIPreview()
+    pcleanMarkdown()
+    pgenerateLegacy()
+    pcollectGKMDataForPeriod()
+    pbuildPrompt()
+    ppreparePlaceholders()
+    pcleanAiValue()
+    pgenerateWordDocument()
+    pfixSplitPlaceholders()
+  }
+
+  class LaporanTriwulanService {
+    pgenerate()
+    pextractPlaceholdersFromAIPreview()
+    pcleanMarkdown()
+    pgenerateLegacy()
+    pcollectGKMDataForPeriod()
+    pbuildPrompt()
+    ppreparePlaceholders()
+    pcleanAiValue()
+    pgenerateWordDocument()
+    pfixSplitPlaceholders()
+  }
+
+  class MarkdownPostProcessor {
+    pfixSeparatedTabel1()
+    pensureTabel1Exists()
+    pprocess()
+  }
+
+  class N8nService {
+    ptriggerLaporanGeneration()
+    ptriggerLaporanKuesioneGeneration()
+    pcheckHealth()
+    pgetExecutionStatus()
+    pgetHeaders()
+  }
+
+  class OCRService {
+    pextractText()
+    pextractTextFromImage()
+    pextractTextBatch()
+    ppreprocessImage()
+    ppreprocessWithImageMagick()
+    ppreprocessWithGD()
+    pisTesseractAvailable()
+    pextractWithGDFallback()
+    prunTesseract()
+    prunTesseractCLI()
+  }
+
+  class PPTGenerationService {
+    pgenerateFromLaporan()
+    pbuildPPTStructureFromPreview()
+    pextractBulletPointsManually()
+    pcreatePowerPointFile()
+    pcreateSlideContent()
+    pcreateTitleSlide()
+    pcreateSectionSlide()
+    pcreateContentSlide()
+    pcreateSummarySlide()
+  }
+
+  class PromptSemesterService {
+    pprocessPrompt()
+    preadAndSummarizeFile()
+    pbuildSystemPrompt()
+    pbuildUserMessage()
+    pextractReferenceFile()
+    pfetchTemplateContext()
+    pparseResponseToSections()
+  }
+
+  class PromptTriwulanService {
+    pprocessPrompt()
+    preadAndSummarizeFile()
+    pbuildSystemPrompt()
+    pbuildUserMessage()
+    pextractReferenceFile()
+    pfetchTemplateContext()
+    pparseResponseToSections()
+  }
+
+  class RAGASEvaluationService {
+    pevaluateVMTS()
+    pcalculateFaithfulness()
+    pcalculateAnswerRelevancy()
+    pcalculateContextPrecision()
+    pcalculateContextRecall()
+    pcalculateContextRelevancy()
+    pcalculateOverallScore()
+    pextractScore()
+    pnormalizeScore()
+    pcalculateAvgLength()
+  }
+
+  class RAGRetrievalService {
+    pretrieveContext()
+    pbuildContextText()
+    pextractMetadata()
+    pretrieveAndRank()
+    prerank()
+    pcalculateRecencyBoost()
+  }
+
+  class TextExtractionService {
+    pextractFromFile()
+    pgetFullPath()
+    pextractFromText()
+    pextractFromDocx()
+    pextractTextFromElements()
+    pextractFromDocxFallback()
+    pextractFromPdf()
+    pextractFromDoc()
+    pextractFromExcel()
+    pcommandExists()
+  }
+
+  class UnifiedAIService {
+    ploadProviderConfig()
+    pgenerateText()
+    pgenerateChat()
+    ptrimMessagesIfNeeded()
+    pgetModelContextWindow()
+    pfallbackToGemini()
+    pcallOpenAICompatibleAPI()
+    pcallOpenAICompatibleChatAPI()
+    pcallClaudeAPI()
+    pcallClaudeChatAPI()
+  }
+
+  class VMTSAIAssistantService {
+    pprocessChat()
+    pextractFileContent()
+    pextractExcelContent()
+    pformatExcelDataAsStructuredText()
+    pisSectionHeader()
+    pformatTableData()
+    pextractPdfContent()
+    pextractWordContent()
+    pbuildSystemContext()
+    pbuildEnhancedPrompt()
+  }
+
+  class VMTSExcelService {
+    pextractVMTSData()
+    pgenerateReportContent()
+    pvalidateExcelStructure()
+    pgetExcelPreview()
+  }
+
+  class VectorDatabaseService {
+    pindexDocument()
+    pindexKuesioner()
+    psearch()
+    pextractTextFromKuesioner()
+    pdeleteKuesioneIndex()
+    preindexPeriode()
+  }
+
+  class WhatsAppService {
+    psendMessage()
+  }
+
+  class CONTROLLERS {
+  }
+
+  class Http\Controllers\Admin\AICacheController {
+    pindex()
+    pclean()
+    pstats()
+    pinvalidate()
+  }
+
+  class Http\Controllers\API\GJM\DashboardApiController {
+    pindex()
+    pclearCache()
+  }
+
+  class Http\Controllers\API\GKM\DashboardApiController {
+    pindex()
+    panalytics()
+    pbuildAnalytics()
+    pgetKepuasanProdiValue()
+    pgetCombinedCompliancePercent()
+    pgetMateriCompliancePercent()
+    pgetRpsCompliancePercent()
+  }
+
+  class Http\Controllers\API\N8nCallbackController {
+    plaporanCallback()
+    pkuesioneCallback()
+    preceiveDocument()
+    pgetLaporanStatus()
+  }
+
+  class Http\Controllers\AuthController {
+    pshowLogin()
+    plogin()
+    papiLogin()
+    papiLogout()
+    plogout()
+    pshowRegister()
+    pregister()
+  }
+
+  class Http\Controllers\Controller {
+  }
+
+  class Http\Controllers\GJM\BuatLaporanController {
+    pindex()
+    ptriwulan()
+    psemester()
+    pstore()
+    pshow()
+  }
+
+  class Http\Controllers\GJM\BuatPPTController {
+    pindex()
+    pgenerate()
+    pdownload()
+    pdelete()
+    parchive()
+  }
+
+  class Http\Controllers\GJM\DashboardController {
+    pindex()
+    pgenerateCacheKey()
+    pclearCache()
+    pAnalisis()
+  }
+
+  class Http\Controllers\GJM\KirimLaporanController {
+    pindex()
+    pgenerateMessage()
+    psend()
+  }
+
+  class Http\Controllers\GJM\LaporanGJMController {
+    pindex()
+    pcreate()
+    pshow()
+    pdetail()
+    pdownload()
+    plaporanBulanan()
+    plaporanTahunan()
+    pgenerate()
+    pdestroy()
+  }
+
+  class Http\Controllers\GJM\LaporanSemesterController {
+    pcreate()
+    paiPrompt()
+    psavePreview()
+    psectionTitleToKey()
+    pstore()
+    pextractTemplateStructure()
+    pextractTextFromElement()
+    pcategorizeFile()
+    pgetGKMSemesterReports()
+    pcreateDraft()
+  }
+
+  class Http\Controllers\GJM\LaporanTriwulanController {
+    pcreate()
+    pcreateDraft()
+    paiPrompt()
+    psavePreview()
+    psectionTitleToKey()
+    pstore()
+    pextractTemplateStructure()
+    pextractTextFromElement()
+    pcategorizeFile()
+    pgetGKMTriwulanReports()
+  }
+
+  class Http\Controllers\GJM\LaporanVMTSController {
+    pindex()
+    pcreate()
+    pshow()
+    pdownload()
+    pdestroy()
+    pstore()
+    pparseMarkdownToWordSafe()
+    prenderSimpleTable()
+    pparseMarkdownToWord()
+    prenderMarkdownTableToWord()
+  }
+
+  class Http\Controllers\GJM\ModelEvaluationController {
+    pindex()
+    pgetData()
+    pgetOverviewStats()
+    pgetOverviewStatsFromLaporanGJM()
+    pgetPerformanceMetrics()
+    pgetPerformanceMetricsFromLaporanGJM()
+    pgetUsageStats()
+    pgetCacheStats()
+    pgetErrorStats()
+    pgetTimelineData()
+  }
+
+  class Http\Controllers\GJM\OCRUploadController {
+    puploadImages()
+    pgenerateEnhancedPreview()
+    pgetLaporanStats()
+    pgetUsageStats()
+    pgetOCRStats()
+    pclearLaporanData()
+  }
+
+  class Http\Controllers\GJM\PromptSemesterController {
+    preadFile()
+    pchat()
+    pdiagnostic()
+    pbuildSystemPrompt()
+    pparseSections()
+    pisImageFile()
+    pprocessImageWithVision()
+    pprocessImageWithClaudeVision()
+    pprocessImageWithOCR()
+    pgetGKMReportsContext()
+  }
+
+  class Http\Controllers\GJM\PromptTriwulanController {
+    preadFile()
+    pchat()
+    pbuildSystemPrompt()
+    pparseSections()
+    pisImageFile()
+    pprocessImageWithVision()
+    pprocessImageWithClaudeVision()
+    pprocessImageWithOCR()
+    pgetGKMReportsContext()
+    pgetAIConfigErrorMessage()
+  }
+
+  class Http\Controllers\GJM\PromptVMTSController {
+    pindex()
+    pchat()
+    pdownloadWord()
+    pbuildVMTSSystemPrompt()
+    pparseSections()
+    prenderMarkdownToWord()
+    prenderTableToWord()
+    paddInlineMarkdown()
+  }
+
+  class Http\Controllers\GJM\RecapLaporanController {
+    pindex()
+    pgrafikKepatuhan()
+    pevaluasi()
+  }
+
+  class Http\Controllers\GJM\TemplateLaporanController {
+    pindexSemester()
+    puploadSemester()
+    pstoreSemester()
+    pstoreTemplate()
+    ptoggle()
+    preindex()
+    pdestroy()
+    pdownload()
+    pindexTriwulan()
+    puploadTriwulan()
+  }
+
+  class Http\Controllers\GJM\ValidasiLaporanController {
+    pindex()
+    pshow()
+    papprove()
+    preject()
+  }
+
+  class Http\Controllers\GJM\VMTSAIAssistantController {
+    pindex()
+    pchat()
+    pdownloadWord()
+  }
+
+  class Http\Controllers\GKM\DashboardController {
+    pindex()
+    panalytics()
+    pgetKepuasanProdiValue()
+    pgetCombinedCompliancePercent()
+    pgetMateriCompliancePercent()
+    pgetRpsCompliancePercent()
+    ploadAnalyticsData()
+  }
+
+  class Http\Controllers\GKM\DataMasterApiController {
+    pgetToken()
+    pcallApi()
+    pmonitoringRps()
+    pgetMonitoringRps()
+    pmonitoringMateri()
+    pmonitoringMateriData()
+    ptampilDosen()
+    pceklistRPS()
+    pgenerateReminderMessage()
+    pDmatakuliah()
+  }
+
+  class Http\Controllers\GKM\DataMasterController {
+    pindex()
+    pdosenPengajar()
+    pstoreDosen()
+    pupdateEmail()
+    pupdateDosen()
+    pdestroyDosen()
+    pmatakuliah()
+    pstoreMatakuliah()
+    pupdateMatakuliah()
+    pdestroyMatakuliah()
+  }
+
+  class Http\Controllers\GKM\KirimLaporanController {
+    pindex()
+    pgenerateMessage()
+    phistory()
+    psend()
+  }
+
+  class Http\Controllers\GKM\LaporanArtefakController {
+    pindex()
+    pcreate()
+    pcreateDraft()
+    paiPrompt()
+    papiGet()
+    pparseMarkdownSections()
+    psavePreview()
+    psectionTitleToKey()
+    pcategorizeArtefakFile()
+    pextractTemplateStructure()
+  }
+
+  class Http\Controllers\GKM\LaporanKuesioneController {
+    pindex()
+    pcreate()
+    pstore()
+    pshow()
+    pdestroy()
+    pdownload()
+    pcreateDraft()
+    paiPrompt()
+    psavePreview()
+    pgenerateWordDocument()
+  }
+
+  class Http\Controllers\GKM\LaporanKuesioneControllerExtension {
+    paiPromptSmart()
+    pgenerateDirectFromDatabase()
+    pgenerateWithAI()
+  }
+
+  class Http\Controllers\GKM\MonitoringKuesioneController {
+    pgetPeriodeAktif()
+    pindex()
+    pcreate()
+    pstore()
+    pshow()
+    pdestroy()
+    pdownload()
+    pgenerateReport()
+    preprocess()
+    pindexApi()
+  }
+
+  class Http\Controllers\GKM\MonitoringPerkuliahanController {
+    pgenerateDynamicTahunAjaran()
+    pindex()
+    pgetMonitoringData()
+    pexportPdf()
+    pclearCache()
+    pkirimPengingat()
+    preminderMateri()
+    pfilterRemindersByMode()
+    psavePerkuliahanSnapshot()
+    psavePerkuliahanComplianceSnapshot()
+  }
+
+  class Http\Controllers\GKM\MonitoringRPSController {
+    pindex()
+    pgetMonitoringRpsData()
+    psyncSemuaJadwal()
+    pexportPdf()
+    pbuildMonitoringData()
+    psaveSnapshotToDB()
+    psaveRpsComplianceSnapshot()
+    pgetRpsComplianceSummary()
+    pbuildRpsComplianceSummary()
+    pclearCache()
+  }
+
+  class Http\Controllers\GKM\PelaporanController {
+    pindex()
+    plaporanArtefak()
+    plaporanKuisioner()
+    pgenerate()
+  }
+
+  class Http\Controllers\GKM\ReminderAgentController {
+    pindex()
+    pjadwal()
+    plogEmail()
+    pstoreJadwal()
+    peditJadwal()
+    pupdateJadwal()
+    pdestroyJadwal()
+  }
+
+  class Http\Controllers\PeriodeAkademikController {
+    pindex()
+    pstore()
+    pgetActive()
+    psetActive()
+  }
+
+  Ajaran <-- Prodi : belongsTo
+  Ajaran -->"1..*" RPS : hasMany
+  Ajaran -->"1..*" Monitoring : hasMany
+  Ajaran -->"1..*" LaporanGKM : hasMany
+  DocumentChunk <-- TemplateLaporan : belongsTo
+  DocumentChunk <-- KuesioneUpload : belongsTo
+  Dosen <-- User : belongsTo
+  Dosen <-- Prodi : belongsTo
+  Dosen -->"1..*" RPS : hasMany
+  Dosen -->"1..*" Materi : hasMany
+  Dosen -->"1..*" Monitoring : hasMany
+  Dosen -->"1..*" Perwaliaan : hasMany
+  Dosen -->"1..*" JawabanKuisioner : hasMany
+  Dosen -->"1..*" LaporanGKM : hasMany
+  Dosen -->"1..*" EvaluasiArtefak : hasMany
+  Dosen "*"--"*" Matakuliah : belongsToMany
+  EvaluasiArtefak <-- Dosen : belongsTo
+  EvaluasiArtefak <-- RPS : belongsTo
+  JadwalDosen <-- Dosenn : belongsTo
+  JadwalReminder <-- User : belongsTo
+  JawabanKuisioner <-- Kuisioner : belongsTo
+  JawabanKuisioner <-- PertanyaanKuisioner : belongsTo
+  JawabanKuisioner <-- Dosen : belongsTo
+  Kelas <-- Prodi : belongsTo
+  KirimLaporanHistory <-- User : belongsTo
+  KuesioneUpload <-- User : belongsTo
+  Kuisioner -->"1..*" PertanyaanKuisioner : hasMany
+  Kuisioner -->"1..*" JawabanKuisioner : hasMany
+  LaporanBulanan <-- User : belongsTo
+  LaporanBulanan <-- TemplateLaporan : belongsTo
+  LaporanBulanan <-- PeriodeAkademik : belongsTo
+  LaporanGJM <-- Ajaran : belongsTo
+  LaporanGJM <-- TemplateLaporan : belongsTo
+  LaporanGJM <-- User : belongsTo
+  LaporanGJM <-- User : belongsTo
+  LaporanGKM <-- Prodi : belongsTo
+  LaporanGKM <-- User : belongsTo
+  LaporanGKM <-- TemplateLaporan : belongsTo
+  LaporanGKM <-- Ajaran : belongsTo
+  LaporanGKM <-- User : belongsTo
+  LogEmail <-- Reminder : belongsTo
+  LogEmail <-- Prodi : belongsTo
+  Matakuliah <-- Prodi : belongsTo
+  Matakuliah -->"1..*" RPS : hasMany
+  Matakuliah "*"--"*" Dosen : belongsToMany
+  Materi <-- RPS : belongsTo
+  Materi <-- Matakuliah : belongsTo
+  Materi <-- Dosen : belongsTo
+  Materi --> EvaluasiArtefak : hasOne
+  Materi -->"1..*" Monitoring : hasMany
+  MatkulDosen <-- Dosenn : belongsTo
+  Monitoring <-- Dosen : belongsTo
+  Monitoring <-- Matakuliah : belongsTo
+  Monitoring <-- Ajaran : belongsTo
+  Monitoring <-- RPS : belongsTo
+  Monitoring <-- Materi : belongsTo
+  PencapaianKPI <-- Prodi : belongsTo
+  PerkuliahanMonitoringDetail <-- Dosenn : belongsTo
+  PerkuliahanMonitoringSnapshot <-- Dosenn : belongsTo
+  PerkuliahanMonitoringSnapshot <-- Prodi : belongsTo
+  PertanyaanKuisioner <-- Kuisioner : belongsTo
+  PertanyaanKuisioner -->"1..*" JawabanKuisioner : hasMany
+  Perwaliaan <-- Dosen : belongsTo
+  Prodi <-- Dosen : belongsTo
+  Prodi -->"1..*" Dosen : hasMany
+  Prodi -->"1..*" Matakuliah : hasMany
+  Prodi -->"1..*" LaporanGKM : hasMany
+  RPS <-- Matakuliah : belongsTo
+  RPS <-- Ajaran : belongsTo
+  RPS <-- Dosen : belongsTo
+  RPS --> EvaluasiArtefak : hasOne
+  RPS -->"1..*" Monitoring : hasMany
+  Reminder <-- User : belongsTo
+  Reminder <-- User : belongsTo
+  Reminder -->"1..*" LogEmail : hasMany
+  RpsMonitoringSnapshot <-- Dosenn : belongsTo
+  RpsMonitoringSnapshot <-- Prodi : belongsTo
+  TemplateLaporan <-- Prodi : belongsTo
+  TemplateLaporan <-- User : belongsTo
+  TemplateLaporan -->"1..*" LaporanBulanan : hasMany
+  User <-- Prodi : belongsTo
+  User --> Dosen : hasOne
+  User -->"1..*" Reminder : hasMany
+```

@@ -495,7 +495,7 @@
             const dosenCheckboxes = document.querySelectorAll('.dosen-checkbox:checked');
             
             if (dosenCheckboxes.length === 0) {
-                alert('Silakan pilih minimal satu dosen');
+                showTemporaryAlert('warning', 'Silakan pilih minimal satu dosen');
                 return;
             }
 
@@ -530,15 +530,14 @@
             .then(data => {
                 if (data.success) {
                     document.getElementById('message').value = data.message;
-                    // Show success toast
-                    showToast('Pesan berhasil di-generate', 'success');
+                    showTemporaryAlert('success', 'Pesan berhasil di-generate');
                 } else {
-                    alert('Error: ' + (data.message || 'Unknown error'));
+                    showTemporaryAlert('danger', 'Error: ' + (data.message || 'Unknown error'));
                 }
             })
             .catch(error => {
                 console.error('Error:', error);
-                alert('Gagal generate pesan: ' + error.message);
+                showTemporaryAlert('danger', 'Gagal generate pesan: ' + error.message);
             })
             .finally(() => {
                 btn.disabled = false;
@@ -547,7 +546,7 @@
 
         } catch (error) {
             console.error('Error:', error);
-            alert('Terjadi kesalahan: ' + error.message);
+            showTemporaryAlert('danger', 'Terjadi kesalahan: ' + error.message);
         }
     }
 
@@ -556,7 +555,7 @@
         const message = document.getElementById('message').value;
 
         if (!subject || !message) {
-            alert('Subjek dan isi pesan harus diisi');
+            showTemporaryAlert('warning', 'Subjek dan isi pesan harus diisi');
             return;
         }
 
@@ -572,7 +571,7 @@
             const dosenCheckboxes = document.querySelectorAll('.dosen-checkbox:checked');
             
             if (dosenCheckboxes.length === 0) {
-                alert('Silakan pilih minimal satu dosen');
+                showTemporaryAlert('warning', 'Silakan pilih minimal satu dosen');
                 return;
             }
 
@@ -580,103 +579,116 @@
             const message = document.getElementById('message').value;
 
             if (!subject || !message) {
-                alert('Subjek dan isi pesan harus diisi');
+                showTemporaryAlert('warning', 'Subjek dan isi pesan harus diisi');
                 return;
             }
 
             const dosenIds = Array.from(dosenCheckboxes).map(cb => cb.value);
 
             // Confirm before sending
-            if (!confirm(`Apakah Anda yakin ingin mengirim reminder ke ${dosenIds.length} dosen?`)) {
-                return;
-            }
-
-            // Show loading state
-            const btn = event.target.closest('button');
-            const originalText = btn.innerHTML;
-            btn.disabled = true;
-            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Mengirim...';
-
-            fetch('{{ route("gkm.monitoring-perkuliahan.materi.send") }}', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('input[name="_token"]').value,
-                    'Accept': 'application/json'
-                },
-                body: JSON.stringify({
-                    dosen_ids: dosenIds,
-                    subject: subject,
-                    pesan: message
-                })
-            })
-            .then(response => {
-                // Log response for debugging
-                console.log('Response status:', response.status);
-                console.log('Response headers:', response.headers);
-                
-                // Try to parse as JSON
-                return response.text().then(text => {
-                    try {
-                        return JSON.parse(text);
-                    } catch (e) {
-                        console.error('Failed to parse JSON:', text);
-                        throw new Error('Invalid response format: ' + text.substring(0, 200));
-                    }
-                });
-            })
-            .then(data => {
-                if (data.success) {
-                    alert('Reminder berhasil dikirim ke ' + dosenIds.length + ' dosen');
-                    // Clear selection
-                    deselectAll();
-                    // Reload data
-                    currentPage = 1;
-                    loadDosenData();
-                    // Clear form
-                    document.getElementById('message').value = '';
-                } else {
-                    const errorMsg = data.message || 'Gagal mengirim reminder';
-                    alert('Error: ' + errorMsg);
-                    if (data.errors && data.errors.length > 0) {
-                        console.error('Detailed errors:', data.errors);
-                    }
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                alert('Gagal mengirim reminder: ' + error.message);
-            })
-            .finally(() => {
-                btn.disabled = false;
-                btn.innerHTML = originalText;
+            AppConfirm.custom({
+                type: 'process',
+                title: 'Kirim Reminder?',
+                message: `Apakah Anda yakin ingin mengirim reminder ke ${dosenIds.length} dosen?`,
+                okText: 'Ya, Kirim'
+            }, function() {
+                doSendReminder(dosenIds, subject, message);
             });
 
         } catch (error) {
             console.error('Error:', error);
-            alert('Terjadi kesalahan: ' + error.message);
+            showTemporaryAlert('danger', 'Terjadi kesalahan: ' + error.message);
         }
     }
 
-    function showToast(message, type = 'info') {
-        const alertClass = type === 'success' ? 'alert-success' : 'alert-info';
-        const icon = type === 'success' ? 'bi-check-circle-fill' : 'bi-info-circle-fill';
+    function doSendReminder(dosenIds, subject, message) {
+        const formData = new FormData();
+        formData.append('_token', document.querySelector('input[name="_token"]').value);
+        formData.append('subjek', subject);
+        formData.append('pesan', message);
         
-        const toastHtml = `
-            <div class="alert ${alertClass} alert-dismissible fade show" role="alert">
-                <i class="bi ${icon} me-2"></i> ${message}
-                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-            </div>
-        `;
-        
-        const container = document.createElement('div');
-        container.innerHTML = toastHtml;
-        document.body.appendChild(container.firstElementChild);
-        
-        // Auto-dismiss after 5 seconds
+        dosenIds.forEach(id => {
+            formData.append('dosen_ids[]', id);
+        });
+
+        // Disable button saat loading
+        const btn = event.target?.closest('button') || document.querySelector('button[onclick="sendReminder()"]');
+        const originalHTML = btn ? btn.innerHTML : '';
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Mengirim...';
+        }
+
+        fetch('{{ route("gkm.monitoring-perkuliahan.materi.send") }}', {
+            method: 'POST',
+            body: formData
+        })
+        .then(res => res.json().then(data => ({ ok: res.ok, data })))
+        .then(({ ok, data }) => {
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = originalHTML;
+            }
+            
+            if (ok && data.success) {
+                showTemporaryAlert('success', data.message);
+                // Clear form setelah sukses
+                setTimeout(() => {
+                    document.getElementById('subject').value = '';
+                    document.getElementById('message').value = '';
+                    document.querySelectorAll('.dosen-checkbox').forEach(cb => cb.checked = false);
+                    document.getElementById('selectAllCheckbox').checked = false;
+                    currentPage = 1;
+                    loadDosenData();
+                }, 1500);
+            } else {
+                showTemporaryAlert('danger', data.message || 'Gagal mengirim reminder');
+            }
+        })
+        .catch(err => {
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = originalHTML;
+            }
+            showTemporaryAlert('danger', 'Error: ' + err.message);
+        });
+    }
+
+    function showTemporaryAlert(type, message) {
+        const alertDiv = document.createElement('div');
+        const alertClass = type === 'warning' ? 'warning' : type;
+        const icon = type === 'success' ? 'check-circle-fill' 
+                   : type === 'danger' ? 'exclamation-triangle-fill' 
+                   : type === 'warning' ? 'exclamation-triangle-fill'
+                   : 'info-circle-fill';
+        alertDiv.className = `alert-app ${alertClass} mb-3`;
+        alertDiv.innerHTML = `
+            <i class="bi bi-${icon} alert-app-icon"></i>
+            <div class="alert-app-body">${message}</div>
+            <button type="button" class="alert-app-close" onclick="this.parentElement.remove()">
+                <i class="bi bi-x-lg"></i>
+            </button>`;
+
+        // Insert di awal form
+        const form = document.getElementById('reminderForm');
+        if (form && form.parentElement) {
+            form.parentElement.insertBefore(alertDiv, form);
+        } else {
+            document.body.prepend(alertDiv);
+        }
+
+        // Scroll ke atas agar alert terlihat
+        alertDiv.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
         setTimeout(() => {
-            container.firstElementChild?.remove();
-        }, 5000);
+            alertDiv.style.transition = 'opacity .4s';
+            alertDiv.style.opacity = '0';
+            setTimeout(() => alertDiv.remove(), 400);
+        }, 4000);
+    }
+
+    function showToast(message, type = 'info') {
+        showTemporaryAlert(type, message);
     }
 </script>
 @endsection

@@ -1,0 +1,269 @@
+@startuml ERD_Simplified_PA3_KEL06
+
+skinparam linetype ortho
+skinparam classAttributeIconSize 0
+skinparam class {
+    BackgroundColor #E8F5E9
+    BorderColor #2E7D32
+    ArrowColor #1B5E20
+}
+hide circle
+hide methods
+
+package "MASTER DATA" #FFFDE7 {
+    class Prodi {
+        + id
+        --
+        kode_prodi
+        nama_prodi
+        kaprodi_id
+    }
+    
+    class Users {
+        + id
+        --
+        name
+        email
+        username
+        role
+        prodi_id
+    }
+    
+    class Dosen {
+        + id
+        --
+        user_id (FK)
+        nama_lengkap
+        nidn
+        prodi_id (FK)
+        jabatan_akademik
+    }
+    
+    class Matakuliah {
+        + id
+        --
+        prodi_id (FK)
+        kode_mk
+        nama_mk
+        sks
+        semester
+    }
+    
+    class Ajaran {
+        + id
+        --
+        tahun_ajaran
+        semester
+        tanggal_mulai
+        tanggal_akhir
+        status
+    }
+}
+
+package "PEMBELAJARAN" #E3F2FD {
+    class RPS {
+        + id
+        --
+        matakuliah_id (FK)
+        ajaran_id (FK)
+        dosen_id (FK)
+        status_rps
+        file_rps
+    }
+    
+    class Materi {
+        + id
+        --
+        rps_id (FK)
+        judul_materi
+        pertemuan_ke
+        file_materi
+        status
+    }
+}
+
+package "KUESIONER" #FCE4EC {
+    class Kuisioner {
+        + id
+        --
+        ajaran_id (FK)
+        judul
+        target
+        status
+    }
+    
+    class KuesioneUpload {
+        + id
+        --
+        matakuliah_id (FK)
+        file_path
+        hasil_analisis (JSON)
+        status
+    }
+}
+
+package "MONITORING" #F3E5F5 {
+    class Monitoring {
+        + id
+        --
+        ajaran_id (FK)
+        prodi_id (FK)
+        jenis_monitoring
+        persentase_kepatuhan
+    }
+    
+    class RpsMonitoringSnapshot {
+        + id
+        --
+        prodi_id (FK)
+        ajaran_id (FK)
+        snapshot_date
+        persentase_completion
+    }
+}
+
+package "LAPORAN GKM" #FFF3E0 {
+    class LaporanGKM {
+        + id
+        --
+        prodi_id (FK)
+        ajaran_id (FK)
+        dosen_ketua (FK)
+        jenis_laporan
+        status_laporan
+        file_laporan
+    }
+    
+    class EvaluasiArtefak {
+        + id
+        --
+        laporan_gkm_id (FK)
+        dosen_id (FK)
+        jenis_artefak
+        file_artefak
+    }
+}
+
+package "LAPORAN GJM + AI/RAG" #E1F5FE {
+    class TemplateLaporan {
+        + id
+        --
+        nama_template
+        jenis_laporan
+        prodi_id (FK)
+        struktur_template
+    }
+    
+    class LaporanGJM {
+        + id
+        --
+        ajaran_id (FK)
+        template_id (FK)
+        jenis_laporan
+        status_laporan
+        ai_query
+        ai_response
+        rag_sources (JSON)
+        ragas_faithfulness
+    }
+    
+    class DocumentChunk {
+        + id
+        --
+        template_id (FK)
+        chunk_text
+        embedding_vector
+        metadata (JSON)
+    }
+    
+    class AIResponseCache {
+        + id
+        --
+        query_hash
+        response
+        model_name
+        hit_count
+    }
+}
+
+package "REMINDER & EMAIL" #FFEBEE {
+    class Reminder {
+        + id
+        --
+        dosen_id (FK)
+        rps_id (FK)
+        jenis_reminder
+        status_pengiriman
+    }
+    
+    class LogEmail {
+        + id
+        --
+        reminder_id (FK)
+        penerima_email
+        status_pengiriman
+    }
+}
+
+' ====================================
+' RELASI UTAMA
+' ====================================
+
+' Master Data Relations
+Prodi "1" -- "0..*" Users : has
+Prodi "1" -- "0..*" Dosen : has
+Prodi "1" -- "0..*" Matakuliah : has
+Prodi "1" -- "0..*" Ajaran : has
+Prodi "1" -- "0..*" LaporanGKM : creates
+Prodi "1" -- "0..*" Monitoring : monitors
+
+Users "1" -- "0..1" Dosen : profile
+
+' Pembelajaran Relations
+Matakuliah "1" -- "0..*" RPS : has
+RPS "1" -- "0..*" Materi : contains
+Dosen "1" -- "0..*" RPS : creates
+Ajaran "1" -- "0..*" RPS : in periode
+
+' Kuesioner Relations
+Ajaran "1" -- "0..*" Kuisioner : has
+Matakuliah "1" -- "0..*" KuesioneUpload : evaluated in
+
+' Monitoring Relations
+Prodi "1" -- "0..*" RpsMonitoringSnapshot : snapshot
+Ajaran "1" -- "0..*" Monitoring : monitored in
+
+' Laporan GKM Relations
+Dosen "1" -- "0..*" LaporanGKM : leads
+LaporanGKM "1" -- "0..*" EvaluasiArtefak : includes
+
+' Laporan GJM Relations
+TemplateLaporan "1" -- "0..*" LaporanGJM : uses
+TemplateLaporan "1" -- "0..*" DocumentChunk : chunked
+Ajaran "1" -- "0..*" LaporanGJM : reported in
+
+' Reminder Relations
+Dosen "1" -- "0..*" Reminder : receives
+Reminder "1" -- "0..*" LogEmail : logs
+
+note top of Prodi
+    <b>Program Studi</b>
+    Central entity untuk
+    organisasi akademik
+end note
+
+note right of LaporanGJM
+    <b>AI-Powered Report</b>
+    - RAG retrieval
+    - RAGAS evaluation
+    - OCR support
+    - PPT generation
+end note
+
+note bottom of DocumentChunk
+    <b>Vector Embeddings</b>
+    Untuk semantic search
+    dan RAG retrieval
+end note
+
+@enduml

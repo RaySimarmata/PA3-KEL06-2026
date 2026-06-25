@@ -1,0 +1,296 @@
+---
+title: Class Diagram - Sistem Monitoring Mutu Akademik (dari Draw.io)
+---
+classDiagram
+    %% =====================================================================
+    %% DOMAIN: MASTER DATA
+    %% =====================================================================
+    
+    class Prodi {
+        -id : BIGINT
+        -kode_prodi : VARCHAR(20)
+        -nama_prodi : VARCHAR(255)
+        -nama_singkat : VARCHAR(100)
+        --
+        +dosenKepala() BelongsTo
+        +dosen() HasMany
+        +matakuliah() HasMany
+        +laporanGKM() HasMany
+    }
+    
+    class Users {
+        -id : BIGINT
+        -name : VARCHAR(255)
+        -email : VARCHAR(255)
+        -username : VARCHAR(255)
+        -password : VARCHAR(255)
+        -role : ENUM
+        -prodi_id : BIGINT
+        --
+        +dosen() HasOne
+        +prodi() BelongsTo
+        +reminders() HasMany
+        +isGKM() boolean
+        +isGJM() boolean
+        +isDosen() boolean
+        +getProdiNameAttribute() string
+        #casts() array
+    }
+    
+    class Dosen {
+        -dosen_id : BIGINT
+        -pegawai_id : BIGINT
+        -nip : VARCHAR(50)
+        -nidn : VARCHAR(50)
+        -nama : VARCHAR(255)
+        -inisial_nama : VARCHAR(50)
+        -email : VARCHAR(255)
+        -nomor_telepon : VARCHAR(20)
+        -prodi_id : BIGINT
+        -jabatan_akademik : VARCHAR(255)
+        --
+        +user() BelongsTo
+        +prodi() BelongsTo
+        +matakuliah() BelongsToMany
+        +rps() HasMany
+        +materi() HasMany
+        +monitoring() HasMany
+        +kuisionerResponses() HasMany
+        +laporanGKM() HasMany
+        +evaluasiArtefak() HasMany
+        +scopeKaprodi() Builder
+        +scopeDosenWali() Builder
+        +getKelasListByProdi(prodiId) array
+    }
+    
+    %% =====================================================================
+    %% DOMAIN: AKADEMIK
+    %% =====================================================================
+    
+    class Matakuliah {
+        -id : BIGINT
+        -prodi_id : BIGINT
+        -kode_mk : VARCHAR(20)
+        -nama_mk : VARCHAR(255)
+        -sks : INT
+        -semester : INT
+        -status : ENUM
+        --
+        +prodi() BelongsTo
+        +dosen() BelongsToMany
+        +rps() HasMany
+    }
+    
+    class PeriodeAkademik {
+        -id : BIGINT
+        -tahun_ajaran : VARCHAR(20)
+        -semester : ENUM
+        -start_date : DATE
+        -end_date : DATE
+        -is_active : TINYINT
+        --
+        +getActive() PeriodeAkademik
+        +scopeActive(query) Builder
+        +setSemesterAttribute(value) void
+    }
+    
+    %% =====================================================================
+    %% DOMAIN: RPS & MATERI
+    %% =====================================================================
+    
+    class RPS {
+        -id : BIGINT
+        -matakuliah_id : BIGINT
+        -periode_id : BIGINT
+        -dosen_id : BIGINT
+        -deskripsi : TEXT
+        -file_rps : VARCHAR(500)
+        -status_upload_rps : ENUM
+        --
+        +matakuliah() BelongsTo
+        +ajaran() BelongsTo
+        +dosen() BelongsTo
+        +evaluasiArtefak() HasOne
+        +monitoring() HasMany
+    }
+    
+    class Materi {
+        -id : BIGINT
+        -matakuliah_id : BIGINT
+        -periode_id : BIGINT
+        -dosen_id : BIGINT
+        -judul_materi : VARCHAR(255)
+        -deskripsi : TEXT
+        -pertemuan_ke : INT
+        -file_materi : VARCHAR(500)
+        -tanggal_upload : DATE
+        -status_upload_materi : ENUM
+        -catatan : TEXT
+        --
+        +rps() BelongsTo
+        +matakuliah() BelongsTo
+        +dosen() BelongsTo
+        +evaluasiArtefak() HasOne
+        +monitoring() HasMany
+    }
+    
+    %% =====================================================================
+    %% DOMAIN: KUISIONER
+    %% =====================================================================
+    
+    class Kuisioner {
+        -id : BIGINT
+        -periode_id : BIGINT
+        -matakuliah_id : BIGINT
+        -dosen_id : BIGINT
+        -judul : VARCHAR(255)
+        -periode_kuesioner : ENUM
+        -pertanyaan_id : BIGINT
+        --
+        +pertanyaan() HasMany
+        +jawaban() HasMany
+    }
+    
+    class PertanyaanKuisioner {
+        -id : BIGINT
+        -kuisioner_id : BIGINT
+        -pertanyaan : TEXT
+        -jawaban : TEXT
+        -pilihan_jawaban : ENUM
+        -jumlah_responden : INT
+        --
+        +kuisioner() BelongsTo
+        +jawaban() HasMany
+    }
+    
+    %% =====================================================================
+    %% DOMAIN: REMINDER & LAPORAN
+    %% =====================================================================
+    
+    class Reminder {
+        -id : BIGINT
+        -user_id : BIGINT
+        -dosen_id : BIGINT
+        -matakuliah_id : BIGINT
+        -rps_id : BIGINT
+        -materi_id : BIGINT
+        -tipe_reminder : ENUM
+        -judul : VARCHAR(255)
+        -isi_reminder : TEXT
+        -status_pengiriman : ENUM
+        -tanggal_kirim : DATE
+        --
+        +userPembuat() BelongsTo
+        +userPenerima() BelongsTo
+        +logEmail() HasMany
+    }
+    
+    class TemplateLaporan {
+        -id : BIGINT
+        -nama_template : VARCHAR(255)
+        -jenis_template : ENUM
+        -file_template : VARCHAR(500)
+        --
+        +prodi() BelongsTo
+        +uploader() BelongsTo
+        +laporanBulanan() HasMany
+        +scopeActive(query) Builder
+        +scopeJenis(query, jenis) Builder
+    }
+    
+    class Laporan {
+        -id : BIGINT
+        -user_id : BIGINT
+        -dosen_id : BIGINT
+        -prodi_id : BIGINT
+        -jenis_laporan : ENUM
+        -periode_id : BIGINT
+        -template_id : BIGINT
+        -judul_laporan : VARCHAR(255)
+        -isi_laporan : TEXT
+        --
+        +user() BelongsTo
+        +template() BelongsTo
+        +prodi() BelongsTo
+        +ajaran() BelongsTo
+        +validatedByUser() BelongsTo
+        +getFormattedPeriodeAttribute() string
+        +getStatusLabelAttribute() string
+        +getStatusBadgeAttribute() string
+    }
+    
+    class KirimLaporan {
+        -id : BIGINT
+        -user_id : BIGINT
+        -penerima : TEXT
+        -cc : TEXT
+        -judul : VARCHAR(255)
+        -isi_pesan : TEXT
+        --
+        +user() BelongsTo
+    }
+    
+    %% =====================================================================
+    %% RELASI ANTAR ENTITAS
+    %% =====================================================================
+    
+    %% Master Data Relations
+    Users "1" --> "*" Dosen : memiliki
+    Users "*" --> "1" Prodi : milik dari
+    Dosen "*" --> "1" Prodi : milik dari
+    
+    %% Akademik Relations
+    Matakuliah "*" --> "1" Prodi : ditawarkan oleh
+    Matakuliah "*" --* "*" Dosen : diajar oleh
+    
+    %% RPS & Materi Relations
+    RPS "*" --> "1" Matakuliah : untuk
+    RPS "*" --> "1" PeriodeAkademik : berlaku pada
+    RPS "*" --> "1" Dosen : dibuat oleh
+    
+    Materi "*" --> "1" Matakuliah : milik
+    Materi "*" --> "1" PeriodeAkademik : berlaku pada
+    Materi "*" --> "1" Dosen : diunggah oleh
+    Materi "*" --> "0..1" RPS : bagian dari
+    
+    %% Kuisioner Relations
+    Kuisioner "*" --> "1" PeriodeAkademik : pada periode
+    Kuisioner "*" --> "1" Matakuliah : evaluasi
+    Kuisioner "*" --> "1" Dosen : untuk
+    Kuisioner "1" --> "1" PertanyaanKuisioner : referensi
+    PertanyaanKuisioner "*" --> "1" Kuisioner : bagian dari
+    
+    %% Reminder Relations (Mandatory)
+    Reminder "*" --> "1" Users : dikirim ke
+    
+    %% Reminder Relations (Optional - dotted)
+    Reminder "*" ..> "0..1" Dosen : tentang
+    Reminder "*" ..> "0..1" Matakuliah : tentang
+    Reminder "*" ..> "0..1" RPS : tentang
+    Reminder "*" ..> "0..1" Materi : tentang
+    
+    %% Laporan Relations
+    Laporan "*" --> "1" Users : dibuat oleh
+    Laporan "*" --> "1" TemplateLaporan : menggunakan
+    
+    %% Laporan Relations (Optional - dotted)
+    Laporan "*" ..> "0..1" Prodi : untuk
+    Laporan "*" ..> "0..1" PeriodeAkademik : pada
+    Laporan "*" ..> "0..1" Dosen : tentang
+    
+    KirimLaporan "*" --> "1" Users : dikirim oleh
+    
+    %% Template Relations
+    TemplateLaporan "*" --> "0..1" Prodi : untuk
+    TemplateLaporan "*" --> "1" Users : diunggah oleh
+    
+    %% =====================================================================
+    %% NOTES
+    %% =====================================================================
+    
+    note for Prodi "Program Studi\nEntitas master untuk jurusan"
+    note for Users "Akun Pengguna\nRole: GKM atau GJM"
+    note for RPS "RPS = Rencana Pembelajaran Semester\nDokumen wajib per mata kuliah"
+    note for Kuisioner "Kuesioner Evaluasi\nPeriode: UTS atau UAS"
+    note for Reminder "Pengingat untuk dosen\nBisa tentang RPS, Materi, dll"
+    note for Laporan "Laporan monitoring\nTriwulan, Semester, VMTS"

@@ -1,0 +1,525 @@
+@startuml
+title Service Layer
+
+class AIAgentService {
+  #provider
+  #apiKey
+  #baseUrl
+  #model
+  --
+  +generateReminderMessage(dosenList, userProdi, type)
+  -extractAndIndexKuesioneData(excelData)
+  -hitungStatistikDariApi(apiData)
+  +analyzeFromApi(kuesioner, indexedData)
+  -retrieveRelevantContext(indexedData)
+  -augmentPromptWithContext(kuesioner, retrievedContext)
+  +analyzeKuesioner(kuesioner, excelData)
+  -callAI(systemMessage, userPrompt, maxTokens)
+  +generateText(prompt, maxTokens)
+  -buildReminderPrompt(dosenList, userProdi, type)
+}
+
+class AICacheService {
+  --
+  +getCachedResponse(string prompt, array context)
+  +cacheResponse(string prompt, array context, string response, string provider, string model, float responseTime)
+  +cleanOldEntries()
+  +getStatistics()
+  +invalidateByContext(array contextFilter)
+  +setSimilarityThreshold(float threshold)
+  +setMaxCacheAge(int days)
+}
+
+class AIEvaluationService {
+  #ragasService
+  --
+  +createOCRTest(array data)
+  +createAIResponseTest(array data)
+  +evaluateAIResponse(int testId, int relevance, int completeness, int clarity, int accuracy, bool hasHallucination, int ambiguityScore, array ambiguousParts, string notes, string evaluatedBy)
+  +evaluateWithRAGAS(int testId, string question, string answer, array contexts, string groundTruth)
+  +createAndEvaluateWithRAGAS(array data)
+  +generateEvaluationResult(string name, string feature)
+  +compareBeforeAfter(int beforeId, int afterId)
+  -generateSummary(tests)
+  -identifyStrengths(tests)
+  -identifyLimitations(tests)
+}
+
+class AIPreviewCacheService {
+  --
+  +saveAIPreview(int laporanId, string aiPreviewDraft, array sections, array ocrImages, array fileDetails)
+  +getAIPreview(int laporanId)
+  +parseAIPreview(string aiPreview)
+  +getSection(int laporanId, string sectionKey)
+  +getAllSections(int laporanId)
+  +markAsUsedForGeneration(int laporanId)
+  +clearAIPreview(int laporanId)
+  +getPreviewStats(int laporanId)
+  +getFileDetails(int laporanId)
+  +getOCRData(int laporanId)
+}
+
+class APITokenManager {
+  #baseUrl
+  #username
+  #password
+  #cacheKey
+  #cacheExpiry
+  --
+  +getToken()
+  +refreshToken()
+  #isTokenValid(token)
+  +clearToken()
+  +getTokenInfo()
+}
+
+class AdvancedChunkingService {
+  -chunkSize
+  -chunkOverlap
+  -structureService
+  --
+  +chunkWithStructure(string text, string documentType)
+  -chunkBySection(string text, array structure)
+  -splitLargeSection(string text, string sectionTitle)
+  -chunkSemantic(string text)
+  +chunkWithMetadata(string text, array metadata, string documentType)
+}
+
+class ChunkingService {
+  -chunkSize
+  -chunkOverlap
+  --
+  +chunkText(string text)
+  -cleanText(string text)
+  -splitIntoSentences(string text)
+  +chunkWithMetadata(string text, array metadata)
+}
+
+class ClaudeAIService {
+  --
+  +chat(string systemPrompt, array messages, int maxTokens)
+  +ask(string systemPrompt, string userMessage, int maxTokens)
+  +readAndSummarize(string extractedText, string systemContext, string instructions, int maxTokens)
+  -containsFileAccessError(string response)
+  +followUp(string systemPrompt, string previousAIResponse, string userFollowUp, string fileContext, int maxTokens)
+  -callClaudeAPI(string systemPrompt, array messages, int maxTokens)
+  -callFallbackAPI(string systemPrompt, array messages, int maxTokens)
+  -callOpenAIAPI(string systemPrompt, array messages, int maxTokens)
+  -callHuggingFaceAPI(string systemPrompt, array messages, int maxTokens)
+  -callOpenRouterAPI(string systemPrompt, array messages, int maxTokens)
+}
+
+class DocumentStructureService {
+  --
+  +extractStructure(string content)
+  -extractSections(string content)
+  -isHeading(string line)
+  -extractFormatting(string content)
+  -detectIndentation(string content)
+  -extractPatterns(string content)
+  -extractMetadata(string content)
+  +generateFormatInstructions(array structure)
+}
+
+class EmbeddingService {
+  -provider
+  -model
+  -apiKey
+  -baseUrl
+  --
+  +generateEmbedding(string text)
+  +generateEmbeddings(array texts)
+  -callEmbeddingAPI(string text)
+  -callOpenAI(string text)
+  -callLocalModel(string text)
+  -generateSimpleEmbedding(string text, int dimensions)
+  +cosineSimilarity(array embedding1, array embedding2)
+}
+
+class EnhancedAIPromptService {
+  #enhancedExtraction
+  #claudeService
+  --
+  +buildComprehensiveSystemPrompt(string reportType, string templateStructure, array gkmContext)
+  +buildComprehensiveUserMessage(string extractedText, array fileDetails, string userInstructions)
+  +processFileWithEnhancedExtraction(string filePath, string systemContext, string userInstructions, int maxTokens)
+  -formatStructure(array structure)
+  -formatDetails(array details)
+  -containsFileAccessError(string response)
+}
+
+class EnhancedFileExtractionService {
+  #textExtraction
+  --
+  +extractWithDetails(string filePath)
+  -extractExcelStructure(string fullPath)
+  -extractExcelDetails(string fullPath)
+  -extractImageStructure(string fullPath)
+  -extractImageDetails(string fullPath)
+  -extractDocumentStructure(string fullPath)
+  -extractDocumentDetails(string fullPath)
+  -extractPdfStructure(string fullPath)
+  -extractPdfDetails(string fullPath)
+  -columnLetterToNumber(string letter)
+}
+
+class EnhancedLaporanService {
+  #ocrService
+  #aiService
+  #chunkingService
+  #vectorDbService
+  #ragService
+  #aiPreviewCacheService
+  --
+  +processImagesForLaporan(int laporanId, array imagePaths)
+  +generateEnhancedPreview(int laporanId, string userPrompt)
+  -getRagContextForLaporan(int laporanId, string query)
+  -buildEnhancedContext(LaporanGJM laporan, array ocrData, array ragContext, string userPrompt)
+  -buildEnhancedPreviewDraft(array sections, string periode, string tahun, array ocrData)
+  -indexOCRText(int laporanId, string ocrText)
+  +getLaporanStats(int laporanId)
+  +clearLaporanData(int laporanId)
+}
+
+class ExternalAPIService {
+  #baseUrl
+  #token
+  #timeout
+  --
+  -getToken(forceRefresh)
+  +getAccessToken()
+  -callApi(url, params, method)
+  +getDosenFromAPI()
+  +getDosen()
+  +getFilteredDosen()
+  +getFilteredDosen()
+  +getDosenByProdiIds(prodiIds)
+  +getDosenByProdiIds(prodiIds)
+  +getDosenById(id)
+}
+
+class FileRelevanceValidationService {
+  #aiService
+  #textExtractionService
+  #ocrService
+  --
+  +validateFileRelevance(array files, string reportType)
+  #extractFileContent(file, string extension)
+  #validateWithAI(array extractedContents, string reportType)
+}
+
+class FileValidationService {
+  --
+  +validateExtraction(array extraction, string fileName)
+  -getSuggestions(string fileName, array extraction)
+  +checkSystemCapabilities()
+  -commandExists(string command)
+  +getExtractionReport(array extraction, string fileName)
+}
+
+class GeminiAIService {
+  -apiKey
+  -model
+  -baseUrl
+  -dailyLimit
+  -rpmLimit
+  -cacheEnabled
+  -cacheTTL
+  --
+  +generateText(string prompt, array options)
+  +generateReportSections(string context, array sections, array metadata)
+  +generateSummary(array chunks, int maxLength)
+  -callGeminiAPI(string prompt, array options)
+  -buildSectionPrompt(string context, string sectionName, string sectionPrompt, array metadata)
+  -checkQuota()
+  -trackUsage()
+  -enforceRateLimit()
+  -handleQuotaExceeded(string prompt)
+  -getCacheKey(string prompt, array options)
+}
+
+class ImageContentValidationService {
+  #ocrService
+  -triwulanRelevantKeywords
+  -irrelevantKeywords
+  --
+  +validateImageRelevance(string imagePath, string reportType)
+  -calculateRelevanceScore(string text, string reportType)
+  -isLikelyLogoOrSimpleImage(string text)
+  -generateValidationReason(bool isValid, float relevanceScore, string extractedText)
+  -normalizeText(string text)
+  +validateImagesBatch(array imagePaths, string reportType)
+}
+
+class KuesioneWordGenerationService {
+  -pendingTableReplacements
+  --
+  +generateWordDocument(laporan)
+  -resolveTemplatePath(template)
+  -generateWordFromTemplate(laporan, template)
+  -extractPlaceholdersFromLaporan(laporan)
+  -generatePendahuluanTujuan(laporan)
+  -generatePendahuluanWaktu(laporan)
+  -generatePendahuluanRuangLingkupText(laporan)
+  -generateHasilKuesionePerTingkatAsText(placeholders, hasilLaporan, laporan)
+  -generatePendahuluanRuangLingkup(laporan)
+  -generateKesimpulanFromDatabase(laporan, hasilLaporan)
+}
+
+class LaporanArtefakService {
+  -apiKey
+  -baseUrl
+  -model
+  -textExtractionService
+  -structureService
+  -advancedChunkingService
+  --
+  +generateLaporan(laporanId)
+  #ensureCompleteNarasi(narasiAI, dataArtefak)
+  #buildDefaultHasilPemeriksaan(dataArtefak)
+  #buildDefaultAnalisisKetercapaian(dataArtefak)
+  #collectArtefakData(laporan)
+  #extractNarasiFromAIPreview(aiPreviewDraft, aiSections)
+  #parseAIPreviewSections(string text)
+  #normalizeAIPreviewSectionKey(string title)
+  #generateNarasiWithAI(dataArtefak)
+  #buildPlaceholderMap(dataArtefak, laporan, narasiAI)
+}
+
+class LaporanKuesioneService {
+  -apiKey
+  -baseUrl
+  -model
+  -textExtractionService
+  -structureService
+  -advancedChunkingService
+  --
+  +collectKuesioneData(periode, prodiId, tipeLaporan)
+  +aggregateStatistik(kuesioneList)
+  -extractTingkatFromKode(kodeMk)
+  -getMatakuliahGroupKey(array kuesioner)
+  -resolvePeriodeContext(periode)
+  +buildContext(aggregatedData, periode, prodi, tipeLaporan)
+  +augmentPromptWithTemplate(template, context, periode, tipeLaporan)
+  +generateLaporan(periode, prodiId, templateId, tipeLaporan)
+  -callAI(systemMessage, userPrompt, maxTokens)
+  +getActiveTemplate(jenisTemplate)
+}
+
+class LaporanSemesterService {
+  #aiAgentService
+  #ragRetrievalService
+  #ragasService
+  --
+  +generate(laporanId)
+  -extractPlaceholdersFromAIPreview(preview, periode, tahun, laporan)
+  -cleanMarkdown(text)
+  +generateLegacy(laporanId)
+  -collectGKMDataForPeriod(periodeMulai, periodeAkhir)
+  -buildPrompt(dataContext, templateContext, periode, tahun, judul)
+  -preparePlaceholders(result, periode, tahun, laporan)
+  -cleanAiValue(string value)
+  -generateWordDocument(laporan, placeholders)
+  -fixSplitPlaceholders(string templatePath)
+}
+
+class LaporanTriwulanService {
+  #aiAgentService
+  #ragRetrievalService
+  #ragasService
+  --
+  +generate(laporanId)
+  -extractPlaceholdersFromAIPreview(preview, periode, tahun, laporan)
+  -cleanMarkdown(text)
+  +generateLegacy(laporanId)
+  -collectGKMDataForPeriod(periodeMulai, periodeAkhir)
+  -buildPrompt(dataContext, templateContext, periode, tahun, judul)
+  -preparePlaceholders(result, periode, tahun, laporan)
+  -cleanAiValue(string value)
+  -generateWordDocument(laporan, placeholders)
+  -fixSplitPlaceholders(string templatePath)
+}
+
+class MarkdownPostProcessor {
+  --
+  +fixSeparatedTabel1(markdown)
+  +ensureTabel1Exists(markdown)
+  +process(markdown)
+}
+
+class N8nService {
+  #baseUrl
+  #apiKey
+  #timeout
+  --
+  +triggerLaporanGeneration(laporanId, data)
+  +triggerLaporanKuesioneGeneration(laporanId, data)
+  +checkHealth()
+  +getExecutionStatus(executionId)
+  #getHeaders()
+}
+
+class OCRService {
+  -supportedFormats
+  -languages
+  -cacheEnabled
+  -cacheTTL
+  --
+  +extractText(string imagePath)
+  +extractTextFromImage(string imagePath)
+  +extractTextBatch(array imagePaths)
+  -preprocessImage(string imagePath)
+  -preprocessWithImageMagick(string inputPath, string outputPath)
+  -preprocessWithGD(string inputPath, string outputPath)
+  -isTesseractAvailable()
+  -extractWithGDFallback(string imagePath)
+  -runTesseract(string imagePath)
+  -runTesseractCLI(string imagePath)
+}
+
+class PPTGenerationService {
+  #claudeService
+  #textExtraction
+  --
+  +generateFromLaporan(laporanId, judulPresentasi)
+  -buildPPTStructureFromPreview(preview, judulPresentasi, laporan)
+  -extractBulletPointsManually(content)
+  -createPowerPointFile(structure, judulPresentasi)
+  -createSlideContent(slide, slideData)
+  -createTitleSlide(slide, slideData)
+  -createSectionSlide(slide, slideData)
+  -createContentSlide(slide, slideData)
+  -createSummarySlide(slide, slideData)
+}
+
+class PromptSemesterService {
+  --
+  +processPrompt(string userPrompt, UploadedFile referenceFile, int templateId, array periodeInfo, string previousDraft)
+  +readAndSummarizeFile(UploadedFile file, int templateId, array periodeInfo)
+  -buildSystemPrompt(array periodeInfo, string templateContext)
+  -buildUserMessage(string userPrompt, string fileContext, array periodeInfo)
+  -extractReferenceFile(UploadedFile file)
+  -fetchTemplateContext(int templateId)
+  -parseResponseToSections(string response)
+}
+
+class PromptTriwulanService {
+  --
+  +processPrompt(string userPrompt, UploadedFile referenceFile, int templateId, array periodeInfo, string previousDraft)
+  +readAndSummarizeFile(UploadedFile file, int templateId, array periodeInfo)
+  -buildSystemPrompt(array periodeInfo, string templateContext)
+  -buildUserMessage(string userPrompt, string fileContext, array periodeInfo)
+  -extractReferenceFile(UploadedFile file)
+  -fetchTemplateContext(int templateId)
+  -parseResponseToSections(string response)
+}
+
+class RAGASEvaluationService {
+  #aiService
+  --
+  +evaluateVMTS(string question, string answer, array contexts, array groundTruth)
+  -calculateFaithfulness(string answer, array contexts)
+  -calculateAnswerRelevancy(string question, string answer)
+  -calculateContextPrecision(string question, array contexts, string answer)
+  -calculateContextRecall(string answer, array contexts, array groundTruth)
+  -calculateContextRelevancy(string question, array contexts)
+  -calculateOverallScore(array metrics)
+  -extractScore(string response)
+  -normalizeScore(float score)
+  -calculateAvgLength(array contexts)
+}
+
+class RAGRetrievalService {
+  -vectorDbService
+  -topK
+  -similarityThreshold
+  --
+  +retrieveContext(string query, array filters)
+  -buildContextText(array results)
+  -extractMetadata(array results)
+  +retrieveAndRank(string query, array filters, array rankingWeights)
+  -rerank(array results, array weights)
+  -calculateRecencyBoost(string createdAt)
+}
+
+class TextExtractionService {
+  --
+  +extractFromFile(string filePath)
+  -getFullPath(string filePath)
+  -extractFromText(string fullPath)
+  -extractFromDocx(string fullPath)
+  -extractTextFromElements(elements)
+  -extractFromDocxFallback(string fullPath)
+  -extractFromPdf(string fullPath)
+  -extractFromDoc(string fullPath)
+  -extractFromExcel(string fullPath)
+  -commandExists(string command)
+}
+
+class UnifiedAIService {
+  -provider
+  -apiKey
+  -baseUrl
+  -model
+  -cacheEnabled
+  -cacheTTL
+  --
+  -loadProviderConfig()
+  +generateText(string prompt, array options)
+  +generateChat(array messages, array options)
+  -trimMessagesIfNeeded(array messages, array options)
+  -getModelContextWindow()
+  -fallbackToGemini(string prompt, array options, float startTime)
+  -callOpenAICompatibleAPI(string prompt, array options)
+  -callOpenAICompatibleChatAPI(array messages, array options)
+  -callClaudeAPI(string prompt, array options)
+  -callClaudeChatAPI(array messages, array options)
+}
+
+class VMTSAIAssistantService {
+  #unifiedAIService
+  #textExtractionService
+  #cacheService
+  #ragasService
+  --
+  +processChat(userMessage, uploadedFiles, conversationHistory)
+  -extractFileContent(file)
+  -extractExcelContent(filePath)
+  -formatExcelDataAsStructuredText(data, sheetName)
+  -isSectionHeader(text, filledCells, totalCells)
+  -formatTableData(tableData)
+  -extractPdfContent(filePath)
+  -extractWordContent(filePath)
+  -buildSystemContext()
+  -buildEnhancedPrompt(userMessage, fileContents, conversationHistory)
+}
+
+class VMTSExcelService {
+  --
+  +extractVMTSData(string filePath)
+  +generateReportContent(array vmtsData, string judul, string periode)
+  +validateExcelStructure(string filePath)
+  +getExcelPreview(string filePath)
+}
+
+class VectorDatabaseService {
+  -embeddingService
+  -chunkingService
+  --
+  +indexDocument(array documentData)
+  +indexKuesioner(KuesioneUpload kuesioner)
+  +search(string query, int topK, array filters)
+  -extractTextFromKuesioner(KuesioneUpload kuesioner)
+  +deleteKuesioneIndex(int kuesioneId)
+  +reindexPeriode(string periode, int prodiId)
+}
+
+class WhatsAppService {
+  --
+  +sendMessage(phone, message)
+}
+
+
+' Relationships
+
+@enduml

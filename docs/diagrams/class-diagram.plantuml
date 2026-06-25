@@ -1,0 +1,906 @@
+@startuml
+title Domain Models
+
+class AIEvaluationResult {
+  +evaluation_name
+  +feature
+  +evaluation_date
+  +avg_wer
+  +total_ocr_tests
+  +avg_relevance
+  +avg_completeness
+  +avg_clarity
+  +avg_accuracy
+  +total_ai_tests
+  +hallucination_count
+  +avg_ambiguity
+  +high_ambiguity_count
+  +avg_ragas_faithfulness
+  +avg_ragas_answer_relevancy
+  +avg_ragas_context_precision
+  +avg_ragas_context_recall
+  +avg_ragas_context_relevancy
+  +avg_ragas_overall
+  +total_ragas_tests
+  +avg_precision
+  +total_retrieval_tests
+  +before_metrics
+  +after_metrics
+  +improvements
+  +summary
+  +strengths
+  +limitations
+  +recommendations
+  +
+  --
+  +getOverallQualityScore()
+  +getHallucinationRate()
+  +scopeForFeature(query, feature)
+  +scopeRecent(query, days)
+  +getAmbiguityRateAttribute()
+  +getRAGASQualityAssessmentAttribute()
+  +getCombinedQualityScoreAttribute()
+}
+
+class AIEvaluationTest {
+  +test_name
+  +test_type
+  +feature
+  +input_query
+  +input_image_path
+  +ground_truth
+  +actual_output
+  +ocr_result
+  +wer_score
+  +precision_score
+  +relevance_score
+  +completeness_score
+  +clarity_score
+  +accuracy_score
+  +has_hallucination
+  +ambiguity_score
+  +ambiguous_parts
+  +ambiguity_notes
+  +ragas_faithfulness
+  +ragas_answer_relevancy
+  +ragas_context_precision
+  +ragas_context_recall
+  +ragas_context_relevancy
+  +ragas_overall_score
+  +rag_context_used
+  +rag_chunks_count
+  +rag_avg_similarity
+  +notes
+  +evaluated_by
+  +evaluated_at
+  +status
+  +
+  --
+  +calculateWER()
+  +getAverageHumanScore()
+  +scopeOfType(query, type)
+  +scopeForFeature(query, feature)
+  +scopeEvaluated(query)
+  +calculateRAGASOverallScore()
+  +hasHighAmbiguity()
+  +getAmbiguityLevelAttribute()
+  +getRAGASQualityLevelAttribute()
+}
+
+class AIResponseCache {
+  +cache_key
+  +prompt_hash
+  +original_prompt
+  +context_metadata
+  +ai_response
+  +ai_provider
+  +ai_model
+  +usage_count
+  +last_used_at
+  +response_length
+  +response_time
+  +similarity_threshold
+  +
+  --
+  +incrementUsage()
+}
+
+class AIResponseCacheMongo {
+  +cache_key
+  +prompt_hash
+  +original_prompt
+  +context_metadata
+  +ai_response
+  +ai_provider
+  +ai_model
+  +usage_count
+  +last_used_at
+  +response_length
+  +similarity_threshold
+  +
+  --
+  +incrementUsage()
+}
+
+class Ajaran {
+  +prodi_id
+  +tahun_ajaran
+  +semester
+  +tanggal_mulai
+  +tanggal_akhir
+  +status
+  +
+  --
+  +prodi()
+  +rps()
+  +monitoring()
+  +laporanGKM()
+}
+
+class DocumentChunk {
+  +template_id
+  +kuesioner_upload_id
+  +source_type
+  +source_id
+  +chunk_text
+  +chunk_index
+  +embedding
+  +metadata
+  +
+  --
+  +template()
+  +kuesioneUpload()
+  +cosineSimilarity(array otherEmbedding)
+}
+
+class Dosen {
+  +user_id
+  +prodi_id
+  +nama_lengkap
+  +nidn
+  +gelar_akademik
+  +jabatan_akademik
+  +kontak_email
+  +bio
+  +foto_profil
+  +status
+  +is_kaprodi
+  +is_dosen_wali
+  +kelas_wali
+  +
+  --
+  +user()
+  +prodi()
+  +matakuliah()
+  +rps()
+  +materi()
+  +monitoring()
+  +perwalian()
+  +kuisionerResponses()
+  +laporanGKM()
+  +evaluasiArtefak()
+}
+
+class Dosenn {
+  +dosen_id
+  +pegawai_id
+  +user_id
+  +nip
+  +nidn
+  +nama
+  +inisial_nama
+  +email
+  +prodi_id
+  +prodi
+  +jabatan_akademik
+  +jabatan_akademik_desc
+  +jenjang_pendidikan
+  +
+  --
+}
+
+class EmbeddingsCache {
+  +text_hash
+  +embedding
+  +model
+  +
+  --
+}
+
+class EvaluasiArtefak {
+  +evaluator_id
+  +rps_id
+  +jenis_artefak
+  +skor_evaluasi
+  +catatan_evaluasi
+  +status_evaluasi
+  +tanggal_evaluasi
+  +saran_perbaikan
+  +tanggal_revisi_selesai
+  +jumlah_revisi
+  +
+  --
+  +dosen()
+  +rps()
+}
+
+class HasilAnalisisMongo {
+  #connection
+  #table
+  #primaryKey
+  #guarded
+  +timestamps
+  --
+}
+
+class JabatanAkademik {
+  +kode
+  +nama
+  --
+}
+
+class JadwalDosen {
+  +pegawai_id
+  +kode_mk
+  +kuliah_id
+  +semester
+  +tahun_ajaran
+  +kelas
+  +is_manual
+  +
+  --
+  +dosen()
+}
+
+class JadwalReminder {
+  +prodi_id
+  +nama_jadwal
+  +tipe_reminder
+  +jam_pengiriman
+  +tanggal_mulai
+  +tanggal_selesai
+  +waktu_pengiriman
+  +frekuensi
+  +template_pesan
+  +pesan_template
+  +status
+  +last_sent_at
+  +is_active
+  +dibuat_oleh
+  +catatan
+  +
+  --
+  +dibuatOleh()
+  +isActiveNow()
+  +getStatusText()
+  +getStatusBadgeClass()
+}
+
+class JawabanKuisioner {
+  +kuisioner_id
+  +pertanyaan_id
+  +dosen_id
+  +jawaban_teks
+  +jawaban_nilai
+  +tanggal_jawab
+  +
+  --
+  +kuisioner()
+  +pertanyaan()
+  +dosen()
+}
+
+class Kelas {
+  +prodi_id
+  +kode_kelas
+  +tingkat
+  +program_studi
+  +tahun_angkatan
+  +status
+  +
+  --
+  +prodi()
+  +scopeByProdi(query, prodiId)
+  +scopeAktif(query)
+}
+
+class KirimLaporanHistory {
+  +user_id
+  +recipients
+  +cc
+  +subject
+  +message
+  +laporan_ids
+  +attachment_names
+  +recipient_statuses
+  +sent_count
+  +recipient_count
+  +failed_count
+  +status
+  +error_message
+  +
+  --
+  +user()
+}
+
+class KuesioneUpload {
+  +nama_file
+  +file_path
+  +periode
+  +semester
+  +nama_matakuliah
+  +jenis_kuesioner
+  +kode_matakuliah
+  +dosen_pengampu
+  +tingkat
+  +pegawai_id
+  +kuliah_id
+  +user_id
+  +deskripsi
+  +total_responden
+  +hasil_analisis
+  +status
+  +source
+  +sumber_data
+  +index_kepuasan
+  +persen_kepuasan
+  --
+  +user()
+}
+
+class KuesionerMongo {
+  +kuesioner_id
+  +judul_kuesioner
+  +kode_mk
+  +periode
+  +raw_data
+  +updated_at
+  +created_at
+  --
+}
+
+class Kuisioner {
+  +judul_kuisioner
+  +deskripsi_kuisioner
+  +tipe_kuisioner
+  +tanggal_mulai
+  +tanggal_selesai
+  +status_kuisioner
+  +
+  --
+  +pertanyaan()
+  +jawaban()
+}
+
+class LaporanBulanan {
+  +periode
+  +bulan
+  +tahun
+  +user_id
+  +periode_akademik_id
+  +template_id
+  +judul_laporan
+  +total_kuesioner
+  +total_responden
+  +index_kepuasan_rata_rata
+  +persen_kepuasan_rata_rata
+  +hasil_laporan
+  +konten
+  +metadata
+  +generated_by
+  +file_word
+  +file_pdf
+  +status
+  +tipe_laporan
+  +error_message
+  +
+  --
+  +user()
+  +prodi()
+  +template()
+  +periodeAkademik()
+  +scopePeriode(query, periode)
+  +scopeUser(query, userId)
+  +scopeStatus(query, status)
+  +getStatusBadgeAttribute()
+  +getStatusLabelAttribute()
+  +getFormattedPeriodeAttribute()
+}
+
+class LaporanGJM {
+  +ajaran_id
+  +template_id
+  +periode_mulai
+  +periode_akhir
+  +jenis_laporan
+  +program_studi
+  +ringkasan_mutu_institusi
+  +analisis_kepatuhan
+  +temuan_utama
+  +rekomendasi_perbaikan
+  +rencana_tindakan
+  +file_laporan
+  +dokumen_path
+  +dokumen_hasil_path
+  +ppt_path
+  +ppt_generated_at
+  +status_laporan
+  +tanggal_submit
+  +reviewed_by
+  +tanggal_review
+  +catatan_review
+  +jumlah_prodi_terlibat
+  +jumlah_laporan_gkm_diterima
+  +created_by
+  +instruksi_prompt
+  +ai_preview_draft
+  +ai_sections
+  +ai_file_details
+  +ai_preview_created_at
+  +ai_preview_used_for_generation
+  +ocr_data
+  +has_ocr_data
+  +// RAGAS Metrics for VMTS
+        ragas_faithfulness
+  +ragas_answer_relevancy
+  +ragas_context_precision
+  +ragas_context_recall
+  +ragas_context_relevancy
+  +ragas_overall_score
+  +// RAG Metadata
+        rag_chunks_count
+  +rag_avg_similarity
+  +rag_contexts
+  +ragas_evaluation_type
+  +ragas_evaluated_at
+  +
+  --
+  +ajaran()
+  +template()
+  +reviewedBy()
+  +createdBy()
+  +getPeriodeTriwulanAttribute()
+  +getPeriodeSemesterAttribute()
+  +getTahunAttribute()
+  +getStatusBadgeClass()
+  +getJenisLaporanLabel()
+  +getPeriodeLabel()
+}
+
+class LaporanGKM {
+  +prodi_id
+  +user_id
+  +template_id
+  +ajaran_id
+  +jenis_laporan
+  +periode
+  +bulan
+  +tahun
+  +periode_laporan
+  +file_laporan
+  +file_word
+  +file_pdf
+  +kepatuhan_rps
+  +kepatuhan_materi
+  +hasil_kuisioner
+  +catatan_laporan
+  +status_laporan
+  +status
+  +konten_laporan
+  +total_rps
+  +total_materi
+  +error_message
+  +tanggal_buat_laporan
+  +tanggal_validasi
+  +validated_by
+  +generated_at
+  +ai_preview_draft
+  +ai_sections
+  +ai_preview_updated_at
+  +ai_preview_used_for_generation
+  +
+  --
+  +getFormattedPeriodeAttribute()
+  +getStatusLabelAttribute()
+  +getStatusBadgeAttribute()
+  +prodi()
+  +user()
+  +template()
+  +ajaran()
+  +validatedByUser()
+}
+
+class LogEmail {
+  +reminder_id
+  +prodi_id
+  +penerima_email
+  +subjek
+  +isi_email
+  +status_pengiriman
+  +pesan_error
+  +tanggal_pengiriman
+  +percobaan_kirim
+  +
+  --
+  +reminder()
+  +prodi()
+}
+
+class Matakuliah {
+  +prodi_id
+  +kode_mk
+  +nama_mk
+  +deskripsi
+  +capaian_pembelajaran
+  +sks
+  +semester
+  +jenis_mk
+  +status
+  +
+  --
+  +prodi()
+  +dosen()
+  +rps()
+}
+
+class Materi {
+  +rps_id
+  +matakuliah_id
+  +dosen_id
+  +judul_materi
+  +deskripsi_materi
+  +file_materi
+  +jenis_file
+  +status_upload_materi
+  +tanggal_upload_materi
+  +lokasi_upload
+  +
+  --
+  +rps()
+  +matakuliah()
+  +dosen()
+  +evaluasiArtefak()
+  +monitoring()
+}
+
+class MatkulDosen {
+  +kode_mk
+  +nama_mk
+  +pegawai_id
+  --
+  +dosen()
+}
+
+class Monitoring {
+  +dosen_id
+  +matakuliah_id
+  +ajaran_id
+  +rps_id
+  +materi_id
+  +status_rps
+  +status_materi
+  +status_kuisioner
+  +status_perwalian
+  +persentase_kepatuhan
+  +catatan_monitoring
+  +tanggal_monitoring
+  +
+  --
+  +dosen()
+  +matakuliah()
+  +ajaran()
+  +rps()
+  +materi()
+}
+
+class PencapaianKPI {
+  +prodi_id
+  +nama_kpi
+  +target_kpi
+  +pencapaian_kpi
+  +persentase_pencapaian
+  +periode
+  +catatan_kpi
+  +
+  --
+  +prodi()
+}
+
+class PeriodeAkademik {
+  +tahun_ajaran
+  +semester
+  +semester_label
+  +start_date
+  +end_date
+  +// 🔥 tambah
+        is_active
+  +
+  --
+  +scopeActive(query)
+  +setSemesterAttribute(value)
+}
+
+class PerkuliahanMonitoringDetail {
+  +pegawai_id
+  +nama_dosen
+  +kode_mk
+  +nama_matkul
+  +prodi_kode
+  +prodi_id
+  +semester
+  +tahun_ajaran
+  +tingkat
+  +jenis_materi
+  +// analytics fields
+        total_minggu
+  +jumlah_upload
+  +jumlah_terlambat
+  +jumlah_belum_upload
+  +persentase_kepatuhan
+  +status_kepatuhan
+  +// JSON data minggu
+        detail_weeks
+  +// optional trace data
+        raw_data
+  +
+  --
+  +dosen()
+}
+
+class PerkuliahanMonitoringSnapshot {
+  +pegawai_id
+  +prodi_kode
+  +prodi_id
+  +semester
+  +tahun_ajaran
+  +kuliah_id
+  +kode_mk
+  +nama_matkul
+  +tingkat
+  +jenis_materi
+  +status_upload
+  +reminder_sent
+  +raw_data
+  +
+  --
+  +dosen()
+  +prodi()
+  +scopeByPeriode(query, semester, tahunAjaran)
+  +scopeByProdi(query, prodiId)
+  +scopeByTingkat(query, tingkat)
+  +scopeByJenisMateri(query, jenisMateri)
+  +scopeByStatus(query, status)
+  +scopeReminderNotSent(query)
+  +scopeBelumUpload(query)
+  +markReminderSent()
+}
+
+class PertanyaanKuisioner {
+  +kuisioner_id
+  +nomor_urut
+  +teks_pertanyaan
+  +tipe_pertanyaan
+  +opsi_jawaban
+  +
+  --
+  +kuisioner()
+  +jawaban()
+}
+
+class Perwaliaan {
+  +dosen_pembimbing_id
+  +jumlah_mahasiswa_bimbing
+  +status_perwalian
+  +periode_perwalian
+  +catatan_perwalian
+  +tanggal_update
+  +
+  --
+  +dosenPembimbing()
+}
+
+class Prodi {
+  +nama_prodi
+  +kode_prodi
+  +nama_singkat
+  +deskripsi
+  +kaprodi_id
+  +
+  --
+  +dosenKepala()
+  +dosen()
+  +matakuliah()
+  +laporanGKM()
+}
+
+class RPS {
+  +matakuliah_id
+  +ajaran_id
+  +dosen_id
+  +file_rps
+  +status_upload_rps
+  +tanggal_upload_rps
+  +status_review_rps
+  +feedback_review_rps
+  +
+  --
+  +matakuliah()
+  +ajaran()
+  +dosen()
+  +evaluasiArtefak()
+  +monitoring()
+}
+
+class Reminder {
+  +user_pembuat_id
+  +user_penerima_id
+  +tipe_reminder
+  +subjek_reminder
+  +isi_reminder
+  +tanggal_pengiriman
+  +status_pengiriman
+  +catatan_reminder
+  +
+  --
+  +userPembuat()
+  +userPenerima()
+  +logEmail()
+}
+
+class RpsMonitoringSnapshot {
+  +pegawai_id
+  +prodi_kode
+  +prodi_id
+  +semester
+  +tahun_ajaran
+  +kuliah_id
+  +kode_mk
+  +nama_matkul
+  +status_rps
+  +reminder_sent
+  +raw_data
+  +
+  --
+  +dosen()
+  +prodi()
+  +scopeByPeriode(query, semester, tahunAjaran)
+  +scopeByProdi(query, prodiId)
+  +scopeByStatus(query, status)
+  +scopeReminderNotSent(query)
+  +markReminderSent()
+}
+
+class TemplateLaporan {
+  +prodi_id
+  +nama_template
+  +nama_file
+  +jenis_file
+  +file_path
+  +ukuran_file
+  +uploaded_by
+  +jenis_template
+  +jenis_laporan
+  +struktur_template
+  +contoh_konten
+  +is_active
+  +is_indexed
+  +indexed_at
+  +total_chunks
+  +structure_metadata
+  +
+  --
+  +prodi()
+  +uploader()
+  +laporanBulanan()
+  +scopeActive(query)
+  +scopeJenis(query, jenis)
+}
+
+class User {
+  +name
+  +username
+  +// ✅ DITAMBAHKAN
+        email
+  +password
+  +role
+  +prodi_id
+  +is_active
+  +
+  --
+  #casts()
+  +dosen()
+  +prodi()
+  +reminders()
+  +isGKM()
+  +isGJM()
+  +isDosen()
+  +getProdiNameAttribute()
+}
+
+
+' Relationships
+Ajaran <-- Prodi : belongsTo
+Ajaran -->"*" RPS : hasMany
+Ajaran -->"*" Monitoring : hasMany
+Ajaran -->"*" LaporanGKM : hasMany
+DocumentChunk <-- TemplateLaporan : belongsTo
+DocumentChunk <-- KuesioneUpload : belongsTo
+Dosen <-- User : belongsTo
+Dosen <-- Prodi : belongsTo
+Dosen -->"*" RPS : hasMany
+Dosen -->"*" Materi : hasMany
+Dosen -->"*" Monitoring : hasMany
+Dosen -->"*" Perwaliaan : hasMany
+Dosen -->"*" JawabanKuisioner : hasMany
+Dosen -->"*" LaporanGKM : hasMany
+Dosen -->"*" EvaluasiArtefak : hasMany
+Dosen "*"--"*" Matakuliah : belongsToMany
+EvaluasiArtefak <-- Dosen : belongsTo
+EvaluasiArtefak <-- RPS : belongsTo
+JadwalDosen <-- Dosenn : belongsTo
+JadwalReminder <-- User : belongsTo
+JawabanKuisioner <-- Kuisioner : belongsTo
+JawabanKuisioner <-- PertanyaanKuisioner : belongsTo
+JawabanKuisioner <-- Dosen : belongsTo
+Kelas <-- Prodi : belongsTo
+KirimLaporanHistory <-- User : belongsTo
+KuesioneUpload <-- User : belongsTo
+Kuisioner -->"*" PertanyaanKuisioner : hasMany
+Kuisioner -->"*" JawabanKuisioner : hasMany
+LaporanBulanan <-- User : belongsTo
+LaporanBulanan <-- TemplateLaporan : belongsTo
+LaporanBulanan <-- PeriodeAkademik : belongsTo
+LaporanGJM <-- Ajaran : belongsTo
+LaporanGJM <-- TemplateLaporan : belongsTo
+LaporanGJM <-- User : belongsTo
+LaporanGJM <-- User : belongsTo
+LaporanGKM <-- Prodi : belongsTo
+LaporanGKM <-- User : belongsTo
+LaporanGKM <-- TemplateLaporan : belongsTo
+LaporanGKM <-- Ajaran : belongsTo
+LaporanGKM <-- User : belongsTo
+LogEmail <-- Reminder : belongsTo
+LogEmail <-- Prodi : belongsTo
+Matakuliah <-- Prodi : belongsTo
+Matakuliah -->"*" RPS : hasMany
+Matakuliah "*"--"*" Dosen : belongsToMany
+Materi <-- RPS : belongsTo
+Materi <-- Matakuliah : belongsTo
+Materi <-- Dosen : belongsTo
+Materi --> EvaluasiArtefak : hasOne
+Materi -->"*" Monitoring : hasMany
+MatkulDosen <-- Dosenn : belongsTo
+Monitoring <-- Dosen : belongsTo
+Monitoring <-- Matakuliah : belongsTo
+Monitoring <-- Ajaran : belongsTo
+Monitoring <-- RPS : belongsTo
+Monitoring <-- Materi : belongsTo
+PencapaianKPI <-- Prodi : belongsTo
+PerkuliahanMonitoringDetail <-- Dosenn : belongsTo
+PerkuliahanMonitoringSnapshot <-- Dosenn : belongsTo
+PerkuliahanMonitoringSnapshot <-- Prodi : belongsTo
+PertanyaanKuisioner <-- Kuisioner : belongsTo
+PertanyaanKuisioner -->"*" JawabanKuisioner : hasMany
+Perwaliaan <-- Dosen : belongsTo
+Prodi <-- Dosen : belongsTo
+Prodi -->"*" Dosen : hasMany
+Prodi -->"*" Matakuliah : hasMany
+Prodi -->"*" LaporanGKM : hasMany
+RPS <-- Matakuliah : belongsTo
+RPS <-- Ajaran : belongsTo
+RPS <-- Dosen : belongsTo
+RPS --> EvaluasiArtefak : hasOne
+RPS -->"*" Monitoring : hasMany
+Reminder <-- User : belongsTo
+Reminder <-- User : belongsTo
+Reminder -->"*" LogEmail : hasMany
+RpsMonitoringSnapshot <-- Dosenn : belongsTo
+RpsMonitoringSnapshot <-- Prodi : belongsTo
+TemplateLaporan <-- Prodi : belongsTo
+TemplateLaporan <-- User : belongsTo
+TemplateLaporan -->"*" LaporanBulanan : hasMany
+User <-- Prodi : belongsTo
+User --> Dosen : hasOne
+User -->"*" Reminder : hasMany
+
+@enduml

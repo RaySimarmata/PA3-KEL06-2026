@@ -1,0 +1,502 @@
+@startuml SRS Class Diagram - Sistem Monitoring Akademik
+
+!theme plain
+skinparam backgroundColor #FFFFFF
+skinparam componentStyle rectangle
+skinparam defaultFontName 'Segoe UI'
+skinparam defaultFontSize 11
+
+skinparam class {
+    BackgroundColor #F8F9FA
+    BorderColor #2C3E50
+    BorderThickness 2
+    FontColor #2C3E50
+    HeaderBackgroundColor #3498DB
+    HeaderFontColor #FFFFFF
+    AttributeFontColor #555555
+    ArrowColor #7F8C8D
+    ArrowFontColor #555555
+}
+
+skinparam package {
+    BackgroundColor #ECF0F1
+    BorderColor #34495E
+    FontColor #2C3E50
+    FontStyle bold
+    BorderThickness 2
+}
+
+title Diagram Kelas - Sistem Monitoring Akademik dengan AI/RAG\n(Software Requirements Specification)
+
+' ==================== PACKAGE: USER MANAGEMENT ====================
+package "1. Manajemen Pengguna" #E8F4F8 {
+    class User <<Entity>> {
+        + id : Integer
+        + name : String
+        + username : String
+        + email : String
+        + password : String
+        + role : Enum {GKM, GJM, Dosen}
+        + prodi_id : Integer
+        + is_active : Boolean
+        --
+        + authenticate()
+        + hasRole(role : String) : Boolean
+        + belongsToProdi() : Prodi
+        + getDashboardData()
+    }
+    
+    class Dosen <<Entity>> {
+        + id : Integer
+        + user_id : Integer
+        + prodi_id : Integer
+        + nama_lengkap : String
+        + nidn : String
+        + gelar_akademik : String
+        + jabatan_akademik : String
+        + kontak_email : String
+        + status : Enum {Aktif, Non-Aktif}
+        --
+        + getRPS() : List<RPS>
+        + getMateri() : List<Materi>
+        + getMonitoringStatus() : MonitoringStatus
+        + isKaprodi() : Boolean
+    }
+    
+    class Prodi <<Entity>> {
+        + id : Integer
+        + nama_prodi : String
+        + kode_prodi : String
+        + nama_singkat : String
+        + kaprodi_id : Integer
+        --
+        + getAllDosen() : List<Dosen>
+        + getMatakuliah() : List<Matakuliah>
+        + getLaporanGKM() : List<LaporanGKM>
+    }
+}
+
+' ==================== PACKAGE: ACADEMIC MANAGEMENT ====================
+package "2. Manajemen Akademik" #FFF4E6 {
+    class Matakuliah <<Entity>> {
+        + id : Integer
+        + prodi_id : Integer
+        + kode_mk : String
+        + nama_mk : String
+        + sks : Integer
+        + semester : Integer
+        + capaian_pembelajaran : Text
+        + jenis_mk : Enum {Wajib, Pilihan}
+        --
+        + getDosenPengampu() : List<Dosen>
+        + getRPS() : List<RPS>
+    }
+    
+    class Ajaran <<Entity>> {
+        + id : Integer
+        + tahun_ajaran : String
+        + semester : Enum {Ganjil, Genap}
+        + tanggal_mulai : Date
+        + tanggal_akhir : Date
+        + status : Enum {Aktif, Selesai}
+        --
+        + isActive() : Boolean
+        + getPeriodeLabel() : String
+    }
+    
+    class RPS <<Entity>> {
+        + id : Integer
+        + matakuliah_id : Integer
+        + ajaran_id : Integer
+        + dosen_id : Integer
+        + file_rps : String
+        + status_upload_rps : Enum {Uploaded, Not Uploaded}
+        + tanggal_upload_rps : DateTime
+        + status_review_rps : Enum {Approved, Pending, Rejected}
+        --
+        + upload(file : File) : Boolean
+        + review(status : String, feedback : String)
+        + getEvaluasi() : EvaluasiArtefak
+    }
+    
+    class Materi <<Entity>> {
+        + id : Integer
+        + rps_id : Integer
+        + matakuliah_id : Integer
+        + dosen_id : Integer
+        + judul_materi : String
+        + deskripsi_materi : Text
+        + file_materi : String
+        + jenis_file : Enum {PDF, PPT, Video, Lainnya}
+        + status_upload_materi : Enum {Uploaded, Late, Not Uploaded}
+        + tanggal_upload_materi : DateTime
+        --
+        + upload(file : File) : Boolean
+        + getWeekNumber() : Integer
+    }
+}
+
+' ==================== PACKAGE: MONITORING ====================
+package "3. Monitoring & Evaluasi" #E8F8F5 {
+    class Monitoring <<Entity>> {
+        + id : Integer
+        + dosen_id : Integer
+        + matakuliah_id : Integer
+        + ajaran_id : Integer
+        + rps_id : Integer
+        + status_rps : Enum {Complete, Incomplete}
+        + status_materi : Enum {On Time, Late, Missing}
+        + status_kuisioner : Enum {Complete, Incomplete}
+        + persentase_kepatuhan : Float
+        + tanggal_monitoring : DateTime
+        --
+        + calculateCompliance() : Float
+        + generateReport() : Report
+    }
+    
+    class EvaluasiArtefak <<Entity>> {
+        + id : Integer
+        + evaluator_id : Integer
+        + rps_id : Integer
+        + jenis_artefak : Enum {RPS, Materi}
+        + skor_evaluasi : Float
+        + catatan_evaluasi : Text
+        + status_evaluasi : Enum {Approved, Revision, Rejected}
+        + tanggal_evaluasi : DateTime
+        + saran_perbaikan : Text
+        --
+        + approve()
+        + requestRevision(saran : String)
+        + reject(alasan : String)
+    }
+    
+    class PerkuliahanMonitoringSnapshot <<Entity>> {
+        + id : Integer
+        + pegawai_id : String
+        + prodi_id : Integer
+        + semester : String
+        + tahun_ajaran : String
+        + kode_mk : String
+        + nama_matkul : String
+        + tingkat : String
+        + jenis_materi : String
+        + status_upload : Enum
+        + reminder_sent : Boolean
+        --
+        + needsReminder() : Boolean
+        + markReminderSent()
+    }
+}
+
+' ==================== PACKAGE: QUESTIONNAIRE ====================
+package "4. Sistem Kuesioner" #FCE4EC {
+    class Kuisioner <<Entity>> {
+        + id : Integer
+        + judul_kuisioner : String
+        + deskripsi_kuisioner : Text
+        + tipe_kuisioner : Enum {Kepuasan, Evaluasi}
+        + tanggal_mulai : Date
+        + tanggal_selesai : Date
+        + status_kuisioner : Enum {Active, Closed}
+        --
+        + getPertanyaan() : List<PertanyaanKuisioner>
+        + getResponden() : Integer
+        + closeKuisioner()
+    }
+    
+    class KuesioneUpload <<Entity>> {
+        + id : Integer
+        + nama_file : String
+        + file_path : String
+        + periode : String
+        + semester : String
+        + nama_matakuliah : String
+        + dosen_pengampu : String
+        + total_responden : Integer
+        + index_kepuasan : Float
+        + status : Enum {Processing, Completed, Failed}
+        --
+        + processFile() : Boolean
+        + extractData() : JSON
+        + generateAnalysis() : String
+    }
+    
+    class PertanyaanKuisioner <<Entity>> {
+        + id : Integer
+        + kuisioner_id : Integer
+        + nomor_urut : Integer
+        + teks_pertanyaan : Text
+        + tipe_pertanyaan : Enum {Multiple Choice, Text, Rating}
+        + opsi_jawaban : JSON
+        --
+        + getJawaban() : List<JawabanKuisioner>
+    }
+    
+    class JawabanKuisioner <<Entity>> {
+        + id : Integer
+        + kuisioner_id : Integer
+        + pertanyaan_id : Integer
+        + dosen_id : Integer
+        + jawaban_teks : Text
+        + jawaban_nilai : Float
+        + tanggal_jawab : DateTime
+        --
+        + validate() : Boolean
+    }
+}
+
+' ==================== PACKAGE: AI & RAG SYSTEM ====================
+package "5. Sistem AI & RAG (Retrieval-Augmented Generation)" #FFF9C4 {
+    class DocumentChunk <<Entity>> {
+        + id : Integer
+        + template_id : Integer
+        + kuesioner_upload_id : Integer
+        + source_type : Enum {Template, Kuesioner}
+        + chunk_text : Text
+        + chunk_index : Integer
+        + embedding : Vector
+        + metadata : JSON
+        --
+        + generateEmbedding() : Vector
+        + calculateSimilarity(query : Vector) : Float
+        + retrieveContext() : Text
+    }
+    
+    class AIResponseCache <<Entity>> {
+        + id : Integer
+        + cache_key : String
+        + prompt_hash : String
+        + original_prompt : Text
+        + ai_response : Text
+        + ai_provider : Enum {OpenAI, Gemini, Claude}
+        + ai_model : String
+        + usage_count : Integer
+        + last_used_at : DateTime
+        --
+        + findSimilar(prompt : String) : AIResponseCache
+        + incrementUsage()
+        + isValid() : Boolean
+    }
+    
+    class AIEvaluationResult <<Entity>> {
+        + id : Integer
+        + evaluation_name : String
+        + feature : String
+        + evaluation_date : Date
+        + avg_ragas_faithfulness : Float
+        + avg_ragas_answer_relevancy : Float
+        + avg_ragas_context_precision : Float
+        + avg_ragas_context_recall : Float
+        + hallucination_count : Integer
+        + summary : Text
+        --
+        + calculateOverallScore() : Float
+        + getQualityLevel() : String
+    }
+    
+    note right of DocumentChunk
+        **RAG System Core**
+        Menyimpan chunks dokumen
+        dalam vector database untuk
+        retrieval context AI
+    end note
+    
+    note right of AIResponseCache
+        **Performance Optimization**
+        Cache respons AI untuk
+        reduce API cost dan
+        improve response time
+    end note
+}
+
+' ==================== PACKAGE: REPORTING ====================
+package "6. Sistem Pelaporan" #E3F2FD {
+    class TemplateLaporan <<Entity>> {
+        + id : Integer
+        + prodi_id : Integer
+        + nama_template : String
+        + file_path : String
+        + jenis_template : Enum {GKM, GJM}
+        + jenis_laporan : Enum {Bulanan, Triwulan, Semester}
+        + is_active : Boolean
+        + is_indexed : Boolean
+        + total_chunks : Integer
+        --
+        + indexDocument() : Integer
+        + getChunks() : List<DocumentChunk>
+    }
+    
+    class LaporanGKM <<Entity>> {
+        + id : Integer
+        + prodi_id : Integer
+        + user_id : Integer
+        + template_id : Integer
+        + ajaran_id : Integer
+        + jenis_laporan : Enum {Bulanan, Triwulan, Semester}
+        + periode : String
+        + bulan : String
+        + tahun : String
+        + konten_laporan : Text
+        + total_rps : Integer
+        + total_materi : Integer
+        + file_word : String
+        + file_pdf : String
+        + status_laporan : Enum {Draft, Processing, Completed}
+        + ai_sections : JSON
+        --
+        + generateWithAI() : Boolean
+        + exportToWord() : String
+        + exportToPDF() : String
+        + validate() : Boolean
+    }
+    
+    class LaporanGJM <<Entity>> {
+        + id : Integer
+        + ajaran_id : Integer
+        + template_id : Integer
+        + jenis_laporan : Enum {Triwulan, Semester}
+        + periode_mulai : Date
+        + periode_akhir : Date
+        + ringkasan_mutu_institusi : Text
+        + analisis_kepatuhan : Text
+        + temuan_utama : Text
+        + rekomendasi_perbaikan : Text
+        + status_laporan : Enum {Draft, Processing, Completed, Approved}
+        + jumlah_prodi_terlibat : Integer
+        + jumlah_laporan_gkm_diterima : Integer
+        --
+        + ragas_faithfulness : Float
+        + ragas_answer_relevancy : Float
+        + ragas_context_precision : Float
+        + ragas_overall_score : Float
+        + ocr_data : JSON
+        + ppt_path : String
+        --
+        + generateWithRAG() : Boolean
+        + processOCR(image : File) : JSON
+        + generatePPT() : String
+        + evaluateWithRAGAS() : Float
+    }
+    
+    note right of LaporanGJM
+        **Advanced AI Features**
+        - RAG for content generation
+        - OCR for image processing
+        - RAGAS for quality evaluation
+        - Auto PPT generation
+    end note
+}
+
+' ==================== PACKAGE: NOTIFICATION ====================
+package "7. Sistem Pengingat & Notifikasi" #F3E5F5 {
+    class JadwalReminder <<Entity>> {
+        + id : Integer
+        + prodi_id : Integer
+        + nama_jadwal : String
+        + tipe_reminder : Enum {RPS, Materi, Kuesioner}
+        + jam_pengiriman : Time
+        + tanggal_mulai : Date
+        + tanggal_selesai : Date
+        + frekuensi : Enum {Harian, Mingguan, Bulanan}
+        + is_active : Boolean
+        --
+        + schedule() : Boolean
+        + execute() : List<Reminder>
+    }
+    
+    class Reminder <<Entity>> {
+        + id : Integer
+        + user_pembuat_id : Integer
+        + user_penerima_id : Integer
+        + tipe_reminder : Enum {RPS, Materi, Kuesioner}
+        + subjek_reminder : String
+        + isi_reminder : Text
+        + tanggal_pengiriman : DateTime
+        + status_pengiriman : Enum {Sent, Failed, Pending}
+        --
+        + send() : Boolean
+        + retry() : Boolean
+    }
+    
+    class LogEmail <<Entity>> {
+        + id : Integer
+        + reminder_id : Integer
+        + prodi_id : Integer
+        + penerima_email : String
+        + subjek : String
+        + isi_email : Text
+        + status_pengiriman : Enum {Success, Failed}
+        + tanggal_pengiriman : DateTime
+        --
+        + logSuccess()
+        + logFailure(error : String)
+    }
+}
+
+' ==================== RELATIONSHIPS ====================
+
+' User Management
+User "1" -- "0..1" Dosen : has >
+User "*" -- "1" Prodi : belongs to >
+Prodi "1" -- "*" Dosen : has >
+
+' Academic
+Prodi "1" -- "*" Matakuliah : offers >
+Matakuliah "*" -- "*" Dosen : taught by >
+Matakuliah "1" -- "*" RPS : has >
+RPS "1" -- "*" Materi : contains >
+RPS "*" -- "1" Ajaran : in period >
+RPS "*" -- "1" Dosen : created by >
+
+' Monitoring
+Dosen "1" -- "*" Monitoring : monitored by >
+Monitoring "*" -- "1" Matakuliah : for >
+Monitoring "*" -- "1" Ajaran : in period >
+RPS "1" -- "0..1" EvaluasiArtefak : evaluated by >
+Dosen "1" -- "*" EvaluasiArtefak : evaluates >
+
+' Questionnaire
+Kuisioner "1" -- "*" PertanyaanKuisioner : contains >
+PertanyaanKuisioner "1" -- "*" JawabanKuisioner : answered by >
+Dosen "1" -- "*" JawabanKuisioner : answers >
+User "1" -- "*" KuesioneUpload : uploads >
+
+' AI & RAG
+TemplateLaporan "1" -- "*" DocumentChunk : indexed as >
+KuesioneUpload "1" -- "*" DocumentChunk : processed into >
+DocumentChunk "*" .. "*" LaporanGJM : provides context >
+AIResponseCache "*" .. "*" LaporanGKM : caches for >
+
+' Reporting
+Prodi "1" -- "*" LaporanGKM : generates >
+User "1" -- "*" LaporanGKM : creates >
+TemplateLaporan "1" -- "*" LaporanGKM : based on >
+TemplateLaporan "1" -- "*" LaporanGJM : based on >
+Ajaran "1" -- "*" LaporanGKM : for period >
+Ajaran "1" -- "*" LaporanGJM : for period >
+
+' Notification
+Prodi "1" -- "*" JadwalReminder : has >
+JadwalReminder "1" -- "*" Reminder : generates >
+User "1" -- "*" Reminder : sends >
+User "1" -- "*" Reminder : receives >
+Reminder "1" -- "*" LogEmail : logs >
+
+' ==================== LEGEND ====================
+legend right
+    |= Symbol |= Keterangan |
+    | <<Entity>> | Domain Entity |
+    | -- | Separator |
+    | + | Public attribute/method |
+    | "1" -- "*" | One to Many |
+    | "*" -- "*" | Many to Many |
+    | .. | Dependency |
+    
+    **Catatan Khusus:**
+    - Package 5 (AI & RAG) adalah fitur teknis utama
+    - DocumentChunk menyimpan embedding vector
+    - RAGAS metrics untuk evaluasi kualitas AI
+    - OCR untuk process image input
+endlegend
+
+@enduml

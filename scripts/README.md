@@ -1,272 +1,387 @@
-# Scripts Directory
+# 🚀 Class Diagram Generator Script
 
-Kumpulan script untuk PaddleOCR installation dan testing.
-
-## 📁 File Structure
-
-```
-scripts/
-├── install_paddleocr.sh      # Installation script untuk Linux/Mac
-├── install_paddleocr.ps1     # Installation script untuk Windows PowerShell
-├── install_paddleocr.bat     # Installation script untuk Windows CMD
-├── test_paddleocr.py         # Script untuk test instalasi
-├── paddleocr_service.py      # PaddleOCR service untuk Laravel
-├── create_test_images.py     # Script untuk membuat test images
-└── README.md                 # File ini
-```
-
-## 🚀 Quick Start
-
-### 1. Installation
-
-**Windows (CMD):**
-```cmd
-conda activate paddleocr
-scripts\install_paddleocr.bat
-```
-
-**Windows (PowerShell):**
-```powershell
-conda activate paddleocr
-powershell -ExecutionPolicy Bypass -File scripts/install_paddleocr.ps1
-```
-
-**Linux/Mac:**
-```bash
-conda activate paddleocr
-chmod +x scripts/install_paddleocr.sh
-./scripts/install_paddleocr.sh
-```
-
-### 2. Testing
-
-```bash
-# Test instalasi
-python scripts/test_paddleocr.py
-
-# Test dengan file
-python scripts/paddleocr_service.py path/to/file.pdf
-```
-
-## 📝 Script Details
-
-### install_paddleocr.sh / .ps1 / .bat
-
-Script instalasi otomatis yang akan:
-- Check conda environment
-- Install PaddlePaddle 2.5.2
-- Install PaddleOCR
-- Install PyMuPDF untuk PDF support
-- Install dependencies (Pillow, NumPy, OpenCV)
-- Verify instalasi
-
-**Usage:**
-```bash
-# Linux/Mac
-./scripts/install_paddleocr.sh
-
-# Windows PowerShell
-powershell -ExecutionPolicy Bypass -File scripts/install_paddleocr.ps1
-
-# Windows CMD
-scripts\install_paddleocr.bat
-```
-
-### test_paddleocr.py
-
-Script untuk testing dan verifikasi instalasi PaddleOCR.
-
-**Features:**
-- Test semua imports (PaddlePaddle, PaddleOCR, PyMuPDF, dll)
-- Test basic functionality
-- Display version information
-- Comprehensive error reporting
-
-**Usage:**
-```bash
-python scripts/test_paddleocr.py
-```
-
-**Expected Output:**
-```
-==================================================
-Testing PaddleOCR Installation
-==================================================
-
-1. Testing PaddlePaddle import...
-   ✓ PaddlePaddle version: 2.5.2
-2. Testing PaddleOCR import...
-   ✓ PaddleOCR imported successfully
-...
-✓ All tests PASSED!
-```
-
-### paddleocr_service.py
-
-Service utama untuk OCR processing yang dapat dipanggil dari PHP/Laravel.
-
-**Features:**
-- Process image files (PNG, JPG, JPEG, BMP, TIFF)
-- Process PDF files (multi-page support)
-- JSON output untuk easy integration
-- Configurable language dan GPU support
-- Confidence scoring
-- Line-by-line text extraction
-
-**Usage:**
-
-```bash
-# Basic usage
-python scripts/paddleocr_service.py path/to/file.pdf
-
-# With options
-python scripts/paddleocr_service.py path/to/file.pdf --lang id --dpi 300
-
-# With GPU
-python scripts/paddleocr_service.py path/to/file.jpg --gpu
-
-# Help
-python scripts/paddleocr_service.py --help
-```
-
-**Arguments:**
-- `file` - Path to image or PDF file (required)
-- `--lang` - Language code (default: id)
-- `--gpu` - Use GPU acceleration
-- `--dpi` - DPI for PDF conversion (default: 300)
-
-**Output Format:**
-
-For images:
-```json
-{
-  "success": true,
-  "file": "path/to/image.jpg",
-  "text": "Extracted text...",
-  "confidence": 95.5,
-  "lines": [
-    {"text": "Line 1", "confidence": 96.2},
-    {"text": "Line 2", "confidence": 94.8}
-  ],
-  "word_count": 150
-}
-```
-
-For PDFs:
-```json
-{
-  "success": true,
-  "file": "path/to/document.pdf",
-  "total_pages": 5,
-  "text": "Combined text from all pages...",
-  "average_confidence": 93.5,
-  "pages": [
-    {
-      "page": 1,
-      "text": "Page 1 text...",
-      "confidence": 95.0,
-      "lines": [...],
-      "word_count": 200
-    }
-  ]
-}
-```
-
-### create_test_images.py
-
-Script untuk membuat test images dengan teks Indonesia.
-
-**Usage:**
-```bash
-python scripts/create_test_images.py
-```
-
-## 🔧 Integration with Laravel
-
-### Calling from PHP
-
-```php
-use Symfony\Component\Process\Process;
-
-$process = new Process([
-    'python',
-    base_path('scripts/paddleocr_service.py'),
-    $filePath,
-    '--lang', 'id'
-]);
-
-$process->run();
-
-if ($process->isSuccessful()) {
-    $result = json_decode($process->getOutput(), true);
-    
-    if ($result['success']) {
-        $text = $result['text'];
-        $confidence = $result['confidence'];
-        // Process hasil OCR...
-    }
-}
-```
-
-### Using OCRService.php
-
-OCRService.php sudah diupdate untuk support PaddleOCR:
-
-```php
-use App\Services\OCRService;
-
-$ocrService = new OCRService();
-$result = $ocrService->extractTextFromPDF($pdfPath, 'paddleocr');
-
-if ($result['success']) {
-    $text = $result['text'];
-    $confidence = $result['confidence'];
-}
-```
-
-## 🐛 Troubleshooting
-
-### Script tidak executable (Linux/Mac)
-
-```bash
-chmod +x scripts/install_paddleocr.sh
-```
-
-### PowerShell execution policy error
-
-```powershell
-powershell -ExecutionPolicy Bypass -File scripts/install_paddleocr.ps1
-```
-
-### Python not found
-
-Pastikan Python dan Conda sudah terinstall dan ada di PATH:
-```bash
-python --version
-conda --version
-```
-
-### Import errors
-
-Jalankan test script untuk diagnosa:
-```bash
-python scripts/test_paddleocr.py
-```
-
-## 📚 Documentation
-
-- [Quick Start Guide](../PADDLEOCR_QUICKSTART.md)
-- [Full Installation Guide](../PADDLEOCR_INSTALLATION.md)
-- [OCR Implementation Summary](../OCR_IMPLEMENTATION_SUMMARY.md)
-
-## 🆘 Support
-
-Jika mengalami masalah:
-1. Jalankan `python scripts/test_paddleocr.py` untuk diagnosa
-2. Check log error di console
-3. Baca troubleshooting guide di dokumentasi
-4. Hubungi tim development
+Auto-generate UML Class Diagrams dari Laravel codebase.
 
 ---
 
-**Happy OCR-ing!** 🚀
+## � Features
+
+- ✅ **Auto-scan** Laravel Models, Services, Controllers
+- ✅ **Extract relationships** (belongsTo, hasMany, etc.)
+- ✅ **Parse dependencies** (constructor injection)
+- ✅ **Multiple formats**: PlantUML, Mermaid, JSON
+- ✅ **Selective generation**: Models-only, Services-only, etc.
+- ✅ **Zero dependencies**: Pure PHP script
+
+---
+
+## 🎯 Quick Start
+
+### Generate Complete Diagram
+
+```bash
+php scripts/generate-class-diagram.php --full
+```
+
+Output: `docs/diagrams/class-diagram.plantuml`
+
+### Generate Models Only
+
+```bash
+php scripts/generate-class-diagram.php --models-only
+```
+
+### Generate with Mermaid Format
+
+```bash
+php scripts/generate-class-diagram.php --full --format=mermaid
+```
+
+---
+
+## 📖 Usage
+
+```bash
+php scripts/generate-class-diagram.php [OPTIONS]
+```
+
+### Options
+
+| Option | Description | Example |
+|--------|-------------|---------|
+| `--format=<type>` | Output format: `plantuml`, `mermaid`, `json` | `--format=plantuml` |
+| `--output=<path>` | Custom output path | `--output=my-diagram.puml` |
+| `--models-only` | Generate Models only | |
+| `--services-only` | Generate Services only | |
+| `--controllers-only` | Generate Controllers only | |
+| `--full` | Generate complete diagram | |
+
+### Examples
+
+```bash
+# 1. Generate Models in PlantUML format
+php scripts/generate-class-diagram.php --models-only --format=plantuml
+
+# 2. Generate Services in Mermaid format
+php scripts/generate-class-diagram.php --services-only --format=mermaid
+
+# 3. Generate complete in JSON (for processing)
+php scripts/generate-class-diagram.php --full --format=json --output=data.json
+
+# 4. Generate Models to specific location
+php scripts/generate-class-diagram.php --models-only --output=docs/models-diagram.puml
+```
+
+---
+
+## 📊 Output Formats
+
+### 1. PlantUML (`.puml`)
+
+**Best for:** Documentation, presentations, high-quality exports
+
+```plantuml
+@startuml
+class User {
+  +id: int
+  +name: string
+  +email: string
+  --
+  +prodi(): BelongsTo
+  +dosen(): HasOne
+}
+
+class Dosen {
+  +id: int
+  +nama_lengkap: string
+  --
+  +user(): BelongsTo
+  +matakuliah(): BelongsToMany
+}
+
+User "1" --> "0..1" Dosen
+@enduml
+```
+
+**View online:** https://www.plantuml.com/plantuml/uml/
+
+### 2. Mermaid (`.mmd`)
+
+**Best for:** GitHub documentation, markdown files
+
+```mermaid
+classDiagram
+  class User {
+    +id
+    +name
+    +email
+    +prodi()
+    +dosen()
+  }
+  
+  class Dosen {
+    +id
+    +nama_lengkap
+    +user()
+  }
+  
+  User --> Dosen
+```
+
+**Native support:** GitHub, GitLab, Notion
+
+### 3. JSON (`.json`)
+
+**Best for:** Further processing, custom tools
+
+```json
+{
+  "User": {
+    "type": "model",
+    "fillable": ["name", "email", "role"],
+    "relationships": [
+      {"type": "belongsTo", "related": "Prodi"},
+      {"type": "hasOne", "related": "Dosen"}
+    ]
+  }
+}
+```
+
+---
+
+## 🎨 Viewing & Converting Diagrams
+
+### Online Viewers
+
+#### PlantUML Online
+1. Go to https://www.plantuml.com/plantuml/uml/
+2. Paste your `.puml` content
+3. Download PNG/SVG/PDF
+
+#### Mermaid Live
+1. Go to https://mermaid.live/
+2. Paste your `.mmd` content
+3. Download PNG/SVG
+
+### VSCode Extensions
+
+Install extensions:
+```bash
+# PlantUML
+code --install-extension jebbs.plantuml
+
+# Mermaid Preview
+code --install-extension vstirbu.vscode-mermaid-preview
+```
+
+Then:
+- Open `.puml` or `.mmd` file
+- Press `Alt + D` to preview
+
+### Command Line (PlantUML)
+
+```bash
+# Install PlantUML (requires Java)
+# Windows: choco install plantuml
+# Mac: brew install plantuml
+# Linux: apt install plantuml
+
+# Generate PNG
+plantuml docs/diagrams/class-diagram.puml
+
+# Generate SVG (recommended)
+plantuml -tsvg docs/diagrams/class-diagram.puml
+
+# Generate PDF (for documentation)
+plantuml -tpdf docs/diagrams/class-diagram.puml
+```
+
+---
+
+## 🔧 Integration with CI/CD
+
+### GitHub Actions
+
+Create `.github/workflows/generate-diagrams.yml`:
+
+```yaml
+name: Generate Class Diagrams
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'app/Models/**'
+      - 'app/Services/**'
+      - 'app/Http/Controllers/**'
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+      
+      - name: Generate Diagram
+        run: php scripts/generate-class-diagram.php --full --format=mermaid
+      
+      - name: Commit & Push
+        run: |
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git add docs/diagrams/
+          git commit -m "chore: update class diagram" || echo "No changes"
+          git push
+```
+
+---
+
+## � What Gets Extracted
+
+### From Models
+
+- ✅ Fillable fields
+- ✅ Casts
+- ✅ Eloquent relationships (belongsTo, hasMany, etc.)
+- ✅ Scopes
+- ✅ Accessors & Mutators
+- ✅ Model events
+
+### From Services
+
+- ✅ Public methods
+- ✅ Protected methods
+- ✅ Constructor dependencies
+- ✅ Private properties
+
+### From Controllers
+
+- ✅ Public methods (routes)
+- ✅ Constructor dependencies
+- ✅ Middleware
+
+---
+
+## 🎯 Best Practices
+
+### 1. Regular Generation
+
+Generate diagrams after major changes:
+```bash
+# After adding new Models
+php scripts/generate-class-diagram.php --models-only
+
+# Commit to repo
+git add docs/diagrams/
+git commit -m "docs: update models diagram"
+```
+
+### 2. Multiple Diagrams
+
+Don't put everything in one diagram:
+```bash
+# Separate diagrams for clarity
+php scripts/generate-class-diagram.php --models-only --output=docs/diagrams/models.puml
+php scripts/generate-class-diagram.php --services-only --output=docs/diagrams/services.puml
+php scripts/generate-class-diagram.php --controllers-only --output=docs/diagrams/controllers.puml
+```
+
+### 3. Documentation
+
+Include in your README:
+```markdown
+## Architecture
+
+### Domain Models
+![Models Diagram](docs/diagrams/models.svg)
+
+### Service Layer
+![Services Diagram](docs/diagrams/services.svg)
+```
+
+---
+
+## 🐛 Troubleshooting
+
+### "Class not found"
+
+Make sure you're running from project root:
+```bash
+cd /path/to/PA3-KEL06-2026
+php scripts/generate-class-diagram.php --full
+```
+
+### "Memory exhausted"
+
+Increase PHP memory limit:
+```bash
+php -d memory_limit=512M scripts/generate-class-diagram.php --full
+```
+
+### Empty diagram
+
+Check file permissions:
+```bash
+chmod +x scripts/generate-class-diagram.php
+```
+
+---
+
+## 🆕 Extending the Script
+
+### Add Custom Parsers
+
+Edit `generate-class-diagram.php`:
+
+```php
+// Add new parser
+public function generateRepositories()
+{
+    $repoPath = $this->basePath . '/app/Repositories';
+    // ... implementation
+}
+```
+
+### Custom Output Format
+
+```php
+public function generateCustomFormat($data)
+{
+    // Your custom format logic
+    return $formatted;
+}
+```
+
+---
+
+## 📚 Further Reading
+
+- [PlantUML Documentation](https://plantuml.com/)
+- [Mermaid Documentation](https://mermaid-js.github.io/)
+- [UML Class Diagrams](https://www.uml-diagrams.org/class-diagrams-overview.html)
+- [Laravel Architecture Best Practices](https://laravel.com/docs/master/structure)
+
+---
+
+## 🤝 Contributing
+
+Found a bug or want to add a feature?
+
+1. Fork the repo
+2. Create feature branch
+3. Make your changes
+4. Submit PR
+
+---
+
+## 📄 License
+
+MIT License - Feel free to use in your projects!
+
+---
+
+**Made with ❤️ for Laravel Developers**

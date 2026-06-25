@@ -564,8 +564,8 @@
                         messageTextarea.disabled = false;
                         generateBtn.disabled = false;
                         generateBtn.innerHTML = originalBtnHtml;
-                        showToast('success', 'Pesan berhasil di-generate oleh AI Agent!');
-                        showAlert('success', 'Pesan berhasil di-generate oleh AI Agent!');
+                        showToast('success', 'Pesan berhasil di-generate');
+                        showAlert('success', 'Pesan berhasil di-generate');
                     } else {
                         throw new Error(data.message || 'Gagal generate pesan');
                     }

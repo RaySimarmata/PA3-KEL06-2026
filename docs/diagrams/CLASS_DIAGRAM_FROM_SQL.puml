@@ -1,0 +1,335 @@
+@startuml CLASS_DIAGRAM_FROM_SQL
+!define ENTITY_COLOR #E8F5E9
+!define RELATION_COLOR #4CAF50
+
+' Konfigurasi untuk layout yang lebih rapi
+left to right direction
+skinparam linetype ortho
+skinparam nodesep 80
+skinparam ranksep 100
+
+skinparam class {
+    BackgroundColor ENTITY_COLOR
+    BorderColor RELATION_COLOR
+    ArrowColor RELATION_COLOR
+    FontSize 11
+    FontName Arial
+}
+
+skinparam stereotypeCBackgroundColor #FFEBEE
+skinparam stereotypeCBorderColor #F44336
+
+' =====================================================================
+' DOMAIN 1: MASTER DATA
+' =====================================================================
+
+class prodi {
+    +id: BIGINT
+    +kode_prodi: VARCHAR(20)
+    +nama_prodi: VARCHAR(255)
+    +nama_singkat: VARCHAR(100)
+    --
+    +dosenKepala()
+    +dosen()
+    +matakuliah()
+    +laporanGKM()
+}
+
+class users {
+    +id: BIGINT
+    +name: VARCHAR(255)
+    +email: VARCHAR(255)
+    +username: VARCHAR(255)
+    +password: VARCHAR(255)
+    +role: ENUM('gjm','gkm')
+    +prodi_id: BIGINT
+    --
+    +dosen()
+    +prodi()
+    +reminders()
+    +isGKM()
+    +isGJM()
+    +isDosen()
+    +getProdiNameAttribute()
+}
+
+class dosen {
+    +dosen_id: BIGINT
+    +pegawai_id: BIGINT
+    +nip: VARCHAR(50)
+    +nidn: VARCHAR(50)
+    +nama: VARCHAR(255)
+    +inisial_nama: VARCHAR(50)
+    +email: VARCHAR(255)
+    +nomor_telepon: VARCHAR(20)
+    +prodi_id: BIGINT
+    +jabatan_akademik: VARCHAR(255)
+    --
+    +user()
+    +prodi()
+    +matakuliah()
+    +rps()
+    +materi()
+    +monitoring()
+    +perwalian()
+    +kuisionerResponses()
+    +laporanGKM()
+    +evaluasiArtefak()
+    +scopeKaprodi()
+    +scopeDosenWali()
+    +getKelasListByProdi()
+}
+
+' =====================================================================
+' DOMAIN 2: AKADEMIK
+' =====================================================================
+
+class matakuliah {
+    +id: BIGINT
+    +prodi_id: BIGINT
+    +kode_mk: VARCHAR(20)
+    +nama_mk: VARCHAR(255)
+    +sks: INT
+    +semester: INT
+    +status: ENUM('aktif','tidak_aktif')
+    --
+    +prodi()
+    +dosen()
+    +rps()
+}
+
+class periode_akademik {
+    +id: BIGINT
+    +tahun_ajaran: VARCHAR(20)
+    +semester: ENUM('Ganjil','Genap')
+    +start_date: DATE
+    +end_date: DATE
+    +is_active: TINYINT(1)
+    --
+    +getActive()
+    +scopeActive()
+    +setSemesterAttribute()
+}
+
+' =====================================================================
+' DOMAIN 3: RPS & MATERI
+' =====================================================================
+
+class rps {
+    +id: BIGINT
+    +matakuliah_id: BIGINT
+    +periode_id: BIGINT
+    +dosen_id: BIGINT
+    +deskripsi: TEXT
+    +file_rps: VARCHAR(500)
+    +status_upload_rps: ENUM('belum_upload','sudah_upload')
+    --
+    +matakuliah()
+    +ajaran()
+    +dosen()
+    +evaluasiArtefak()
+    +monitoring()
+}
+
+class materi {
+    +id: BIGINT
+    +matakuliah_id: BIGINT
+    +periode_id: BIGINT
+    +dosen_id: BIGINT
+    +judul_materi: VARCHAR(255)
+    +deskripsi: TEXT
+    +pertemuan_ke: INT
+    +file_materi: VARCHAR(500)
+    +tanggal_upload: DATE
+    +status_upload_materi: ENUM('belum_upload','sudah_upload')
+    +catatan: TEXT
+    --
+    +rps()
+    +matakuliah()
+    +dosen()
+    +evaluasiArtefak()
+    +monitoring()
+}
+
+' =====================================================================
+' DOMAIN 5: KUISIONER
+' =====================================================================
+
+class kuisioner {
+    +id: BIGINT
+    +periode_id: BIGINT
+    +matakuliah_id: BIGINT
+    +dosen_id: BIGINT
+    +judul: VARCHAR(255)
+    +periode_kuesioner: ENUM('UTS','UAS')
+    +pertanyaan_id: BIGINT
+    --
+    +pertanyaan()
+    +jawaban()
+}
+
+class pertanyaan_kuisioner {
+    +id: BIGINT
+    +kuisioner_id: BIGINT
+    +pertanyaan: TEXT
+    +jawaban: TEXT
+    +pilihan_jawaban: ENUM('SS','S','CS','TS')
+    +jumlah_responden: INT
+    --
+    +kuisioner()
+    +jawaban()
+}
+
+' =====================================================================
+' DOMAIN 7: REMINDER & NOTIFIKASI
+' =====================================================================
+
+class reminder {
+    +id: BIGINT
+    +user_id: BIGINT
+    +dosen_id: BIGINT
+    +matakuliah_id: BIGINT
+    +rps_id: BIGINT
+    +materi_id: BIGINT
+    +tipe_reminder: ENUM('rps_review','materi_upload')
+    +judul: VARCHAR(255)
+    +isi_reminder: TEXT
+    +status_pengiriman: ENUM('gagal_terkirim','berhasil_terkirim')
+    +tanggal_kirim: DATE
+    --
+    +userPembuat()
+    +userPenerima()
+    +logEmail()
+}
+
+' =====================================================================
+' DOMAIN 8: LAPORAN
+' =====================================================================
+
+class template_laporan {
+    +id: BIGINT
+    +nama_template: VARCHAR(255)
+    +jenis_template: ENUM('artefak bulanan', 'kuesioner', 'triwulan', 'semester')
+    +file_template: VARCHAR(500)
+    --
+    +prodi()
+    +uploader()
+    +laporanBulanan()
+    +scopeActive()
+    +scopeJenis()
+}
+
+class laporan {
+    +id: BIGINT
+    +user_id: BIGINT
+    +dosen_id: BIGINT
+    +prodi_id: BIGINT
+    +jenis_laporan: ENUM('artefak bulanan', 'kuesioner', 'triwulan', 'semester', 'vmts')
+    +periode_id: BIGINT
+    +template_id: BIGINT
+    +judul_laporan: VARCHAR(255)
+    +isi_laporan: TEXT
+    --
+    +user()
+    +template()
+    +prodi()
+    +ajaran()
+    +validatedByUser()
+    +getFormattedPeriodeAttribute()
+    +getStatusLabelAttribute()
+    +getStatusBadgeAttribute()
+}
+
+class kirim_laporan {
+    +id: BIGINT
+    +user_id: BIGINT
+    +penerima: TEXT
+    +cc: TEXT
+    +judul: VARCHAR(255)
+    +isi_pesan: TEXT
+    --
+    +user()
+}
+
+' =====================================================================
+' LAYOUT POSITIONING
+' =====================================================================
+
+' Baris 1: Master Data (paling atas)
+together {
+    class prodi
+    class users
+    class dosen
+}
+
+' Baris 2: Akademik & Periode
+together {
+    class matakuliah
+    class periode_akademik
+}
+
+' Baris 3: RPS & Materi
+together {
+    class rps
+    class materi
+}
+
+' Baris 4: Kuisioner
+together {
+    class kuisioner
+    class pertanyaan_kuisioner
+}
+
+' Baris 5: Reminder & Laporan
+together {
+    class reminder
+    class template_laporan
+    class laporan
+    class kirim_laporan
+}
+
+' =====================================================================
+' RELATIONSHIPS (dengan arah yang lebih rapi)
+' =====================================================================
+
+' Master Data Relationships
+users -down-> dosen : "1" has "*"
+users -right-> prodi : "*" belongs to "1"
+dosen -up-> prodi : "*" belongs to "1"
+
+' Akademik Relationships
+matakuliah -up-> prodi : "*" belongs to "1"
+
+' RPS & Materi Relationships
+rps -up-> matakuliah : "*" belongs to "1"
+rps -right-> periode_akademik : "*" belongs to "1"
+rps -up-> dosen : "*" belongs to "1"
+
+materi -up-> matakuliah : "*" belongs to "1"
+materi -right-> periode_akademik : "*" belongs to "1"
+materi -up-> dosen : "*" belongs to "1"
+
+' Kuisioner Relationships
+kuisioner -up-> periode_akademik : "*" belongs to "1"
+kuisioner -up-> matakuliah : "*" belongs to "1"
+kuisioner -up-> dosen : "*" belongs to "1"
+kuisioner -right-> pertanyaan_kuisioner : "1" references "1"
+pertanyaan_kuisioner -left-> kuisioner : "*" belongs to "1"
+
+' Reminder Relationships
+reminder -up-> users : "*" belongs to "1"
+reminder -up-> dosen : "*" optional "0..1"
+reminder -up-> matakuliah : "*" optional "0..1"
+reminder -up-> rps : "*" optional "0..1"
+reminder -up-> materi : "*" optional "0..1"
+
+' Laporan Relationships
+laporan -up-> users : "*" belongs to "1"
+laporan -left-> template_laporan : "*" belongs to "1"
+laporan -up-> prodi : "*" optional "0..1"
+laporan -up-> periode_akademik : "*" optional "0..1"
+laporan -up-> dosen : "*" optional "0..1"
+
+kirim_laporan -up-> users : "*" belongs to "1"
+
+@enduml

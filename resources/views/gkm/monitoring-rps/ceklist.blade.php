@@ -130,7 +130,7 @@
             </div>
 
             <!-- Template Pesan Card -->
-            <div class="monitoring-card">
+            <div class="monitoring-card" id="templatePesanCard">
                 <div class="monitoring-header">
                     <h6 class="mb-0">Template Pesan Reminder</h6>
                 </div>
@@ -222,7 +222,7 @@
         function generateMessage() {
             const selected = document.querySelectorAll('.dosen-checkbox:checked');
             if (selected.length === 0) {
-                alert('Pilih minimal 1 dosen terlebih dahulu');
+                showTemporaryAlert('warning', 'Pilih minimal 1 dosen terlebih dahulu');
                 return;
             }
             const dosenIds = Array.from(selected).map(cb => cb.value);
@@ -248,7 +248,7 @@
                 .then(data => {
                     if (data.success) {
                         messageTextarea.value = data.message;
-                        showTemporaryAlert('success', 'Pesan berhasil di-generate oleh AI Agent!');
+                        showTemporaryAlert('success', 'Pesan berhasil di-generate');
                     } else throw new Error(data.message || 'Gagal generate');
                 })
                 .catch(err => {
@@ -264,19 +264,48 @@
 
         function showTemporaryAlert(type, message) {
             const alertDiv = document.createElement('div');
-            alertDiv.className = `alert alert-${type} alert-dismissible fade show mb-3`;
-            alertDiv.innerHTML =
-                `<i class="bi bi-${type === 'success' ? 'check-circle' : 'exclamation-triangle'}-fill me-2"></i> ${message}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>`;
-            const container = document.querySelector('#reminderForm .monitoring-card:last-child .p-4');
-            container.prepend(alertDiv);
-            setTimeout(() => alertDiv.remove(), 3000);
+            // Map 'warning' ke 'warning' class yang ada di alert-app
+            const alertClass = type === 'warning' ? 'warning' : type;
+            alertDiv.className = `alert-app ${alertClass} mb-3`;
+            const icon = type === 'success' ? 'check-circle-fill' 
+                       : type === 'danger' ? 'exclamation-triangle-fill' 
+                       : type === 'warning' ? 'exclamation-triangle-fill'
+                       : 'info-circle-fill';
+            alertDiv.innerHTML = `
+                <i class="bi bi-${icon} alert-app-icon"></i>
+                <div class="alert-app-body">${message}</div>
+                <button type="button" class="alert-app-close" onclick="this.parentElement.remove()">
+                    <i class="bi bi-x-lg"></i>
+                </button>`;
+
+            // Insert tepat sebelum section Template Pesan Reminder
+            const templateCard = document.getElementById('templatePesanCard');
+            if (templateCard && templateCard.parentElement) {
+                templateCard.parentElement.insertBefore(alertDiv, templateCard);
+            } else {
+                const form = document.getElementById('reminderForm');
+                if (form && form.parentElement) {
+                    form.parentElement.insertBefore(alertDiv, form);
+                } else {
+                    document.body.prepend(alertDiv);
+                }
+            }
+
+            // Scroll ke atas agar alert terlihat
+            alertDiv.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+            setTimeout(() => {
+                alertDiv.style.transition = 'opacity .4s';
+                alertDiv.style.opacity = '0';
+                setTimeout(() => alertDiv.remove(), 400);
+            }, 4000);
         }
 
         function previewMessage() {
             const subject = document.getElementById('subject').value;
             const message = document.getElementById('message').value;
             if (!subject || !message) {
-                alert('Subjek dan pesan harus diisi');
+                showTemporaryAlert('warning', 'Subjek dan pesan harus diisi');
                 return;
             }
             document.getElementById('previewSubject').textContent = subject;
@@ -287,32 +316,121 @@
         function sendReminder() {
             const selected = document.querySelectorAll('.dosen-checkbox:checked');
             if (selected.length === 0) {
-                alert('Pilih minimal 1 dosen terlebih dahulu');
+                showTemporaryAlert('warning', 'Pilih minimal 1 dosen terlebih dahulu');
                 return;
             }
             const subject = document.getElementById('subject').value;
             const message = document.getElementById('message').value;
             if (!subject || !message) {
-                alert('Subjek dan pesan harus diisi');
+                showTemporaryAlert('warning', 'Subjek dan pesan harus diisi');
                 return;
             }
-            if (!confirm(`Kirim reminder ke ${selected.length} dosen?`)) return;
 
-            const form = document.createElement('form');
-            form.method = 'POST';
-            form.action = '{{ route('gkm.monitoring-rps.send-reminder') }}';
-            form.innerHTML = `<input type="hidden" name="_token" value="{{ csrf_token() }}">
-                          <input type="hidden" name="subject" value="${subject.replace(/"/g, '&quot;')}">
-                          <input type="hidden" name="message" value="${message.replace(/"/g, '&quot;')}">`;
-            Array.from(selected).forEach(cb => {
-                const input = document.createElement('input');
-                input.type = 'hidden';
-                input.name = 'dosen_ids[]';
-                input.value = cb.value;
-                form.appendChild(input);
+            AppConfirm.custom({
+                type: 'process',
+                title: 'Kirim Reminder?',
+                message: `Kirim reminder ke ${selected.length} dosen?`,
+                okText: 'Ya, Kirim'
+            }, function() {
+                doSendReminder(selected, subject, message);
             });
-            document.body.appendChild(form);
-            form.submit();
+        }
+
+        function doSendReminder(selected, subject, message) {
+            // Validasi email dosen
+            const dosenEmails = [];
+            let hasEmptyEmail = false;
+            let invalidDosenCount = 0;
+
+            selected.forEach(checkbox => {
+                const dosenRow = checkbox.closest('tr');
+                if (!dosenRow) return;
+                
+                const emailCell = dosenRow.querySelector('td:nth-child(4)');
+                const emailText = emailCell ? emailCell.textContent.trim() : '';
+
+                if (!emailText || emailText === '-') {
+                    hasEmptyEmail = true;
+                    invalidDosenCount++;
+                } else {
+                    // Parse multiple emails
+                    const emails = emailText.split(',').map(e => e.trim()).filter(e => e);
+                    if (emails.length > 0) {
+                        // Pilih email dengan domain bukan @gmail.com jika ada
+                        const nonGmailEmail = emails.find(e => !e.toLowerCase().includes('@gmail.com'));
+                        const emailToUse = nonGmailEmail || emails[0];
+                        dosenEmails.push(emailToUse);
+                    } else {
+                        hasEmptyEmail = true;
+                        invalidDosenCount++;
+                    }
+                }
+            });
+
+            if (hasEmptyEmail && invalidDosenCount === selected.length) {
+                showTemporaryAlert('danger', 'Email dosen tidak ada - tidak ada yang bisa dikirim');
+                return;
+            }
+
+            if (hasEmptyEmail && invalidDosenCount > 0) {
+                showTemporaryAlert('warning', `${invalidDosenCount} dosen tidak memiliki email dan akan dilewati`);
+            }
+
+            if (dosenEmails.length === 0) {
+                showTemporaryAlert('danger', 'Tidak ada email valid untuk dikirim');
+                return;
+            }
+
+            // Lanjut ke form submission dengan AJAX
+            const form = document.getElementById('reminderForm');
+            const formData = new FormData(form);
+            
+            // Tambah subject dan message ke formData
+            formData.set('subject', subject);
+            formData.set('message', message);
+            
+            // Clear dan re-add dosen_ids
+            formData.delete('dosen_ids[]');
+            Array.from(selected).forEach(cb => {
+                formData.append('dosen_ids[]', cb.value);
+            });
+
+            // Disable button saat loading
+            const btn = event.target;
+            const originalHTML = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Mengirim...';
+
+            fetch('{{ route('gkm.monitoring-rps.send-reminder') }}', {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                },
+                body: formData
+            })
+            .then(res => res.json().then(data => ({ ok: res.ok, data })))
+            .then(({ ok, data }) => {
+                btn.disabled = false;
+                btn.innerHTML = originalHTML;
+                
+                if (ok && data.success) {
+                    showTemporaryAlert('success', data.message);
+                    // Clear form setelah sukses
+                    setTimeout(() => {
+                        document.getElementById('subject').value = '';
+                        document.getElementById('message').value = '';
+                        document.querySelectorAll('.dosen-checkbox').forEach(cb => cb.checked = false);
+                        document.getElementById('selectAllCheckbox').checked = false;
+                    }, 1500);
+                } else {
+                    showTemporaryAlert('danger', data.message || 'Gagal mengirim reminder');
+                }
+            })
+            .catch(err => {
+                btn.disabled = false;
+                btn.innerHTML = originalHTML;
+                showTemporaryAlert('danger', 'Error: ' + err.message);
+            });
         }
     </script>
 @endsection

@@ -1159,6 +1159,6 @@ public function deleteDosenMatkul(Request $request)
     // 3. HANYA MANUAL YANG BOLEH DIHAPUS
     $jadwal->delete();
 
-    return back()->with('success', 'Dosen manual berhasil dihapus');
+    return back()->with('success', 'Dosen berhasil dihapus');
 }
 }

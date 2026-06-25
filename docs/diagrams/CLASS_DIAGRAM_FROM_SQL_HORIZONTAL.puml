@@ -1,0 +1,265 @@
+@startuml CLASS_DIAGRAM_FROM_SQL_HORIZONTAL
+
+' =====================================================================
+' CONFIGURATION - Horizontal Layout
+' =====================================================================
+left to right direction
+skinparam linetype polyline
+skinparam nodesep 100
+skinparam ranksep 120
+skinparam packageStyle rectangle
+
+skinparam class {
+    BackgroundColor #FFFFFF
+    BorderColor #2196F3
+    ArrowColor #455A64
+    FontSize 10
+    BorderThickness 2
+    HeaderBackgroundColor #E3F2FD
+}
+
+skinparam package {
+    BackgroundColor #FAFAFA
+    BorderColor #90CAF9
+    FontStyle bold
+    BorderThickness 2
+}
+
+' =====================================================================
+' LAYER 1: MASTER DATA (Kiri)
+' =====================================================================
+package "MASTER DATA\n(Core Entities)" {
+    
+    class prodi {
+        +id: BIGINT
+        +kode_prodi: VARCHAR(20)
+        +nama_prodi: VARCHAR(255)
+        +nama_singkat: VARCHAR(100)
+        ====
+        +dosenKepala()
+        +dosen()
+        +matakuliah()
+        +laporanGKM()
+    }
+    
+    class users {
+        +id: BIGINT
+        +name: VARCHAR(255)
+        +email: VARCHAR(255)
+        +username: VARCHAR(255)
+        +role: ENUM('gjm','gkm')
+        +prodi_id: BIGINT
+        ====
+        +dosen()
+        +prodi()
+        +reminders()
+        +isGKM()
+        +isGJM()
+    }
+    
+    class dosen {
+        +dosen_id: BIGINT
+        +nip: VARCHAR(50)
+        +nidn: VARCHAR(50)
+        +nama: VARCHAR(255)
+        +email: VARCHAR(255)
+        +prodi_id: BIGINT
+        ====
+        +user()
+        +prodi()
+        +rps()
+        +materi()
+        +scopeKaprodi()
+    }
+}
+
+' =====================================================================
+' LAYER 2: AKADEMIK (Tengah Kiri)
+' =====================================================================
+package "AKADEMIK\n(Academic Core)" {
+    
+    class matakuliah {
+        +id: BIGINT
+        +prodi_id: BIGINT
+        +kode_mk: VARCHAR(20)
+        +nama_mk: VARCHAR(255)
+        +sks: INT
+        +semester: INT
+        +status: ENUM
+        ====
+        +prodi()
+        +dosen()
+        +rps()
+    }
+    
+    class periode_akademik {
+        +id: BIGINT
+        +tahun_ajaran: VARCHAR(20)
+        +semester: ENUM
+        +start_date: DATE
+        +end_date: DATE
+        +is_active: TINYINT
+        ====
+        +getActive()
+        +scopeActive()
+    }
+}
+
+' =====================================================================
+' LAYER 3: PEMBELAJARAN (Tengah)
+' =====================================================================
+package "PEMBELAJARAN\n(Teaching Materials)" {
+    
+    class rps {
+        +id: BIGINT
+        +matakuliah_id: BIGINT
+        +periode_id: BIGINT
+        +dosen_id: BIGINT
+        +file_rps: VARCHAR(500)
+        +status_upload_rps: ENUM
+        ====
+        +matakuliah()
+        +dosen()
+        +monitoring()
+    }
+    
+    class materi {
+        +id: BIGINT
+        +matakuliah_id: BIGINT
+        +periode_id: BIGINT
+        +dosen_id: BIGINT
+        +judul_materi: VARCHAR(255)
+        +file_materi: VARCHAR(500)
+        +status_upload_materi: ENUM
+        ====
+        +matakuliah()
+        +dosen()
+    }
+}
+
+' =====================================================================
+' LAYER 4: EVALUASI (Tengah Kanan)
+' =====================================================================
+package "EVALUASI\n(Assessment)" {
+    
+    class kuisioner {
+        +id: BIGINT
+        +periode_id: BIGINT
+        +matakuliah_id: BIGINT
+        +dosen_id: BIGINT
+        +judul: VARCHAR(255)
+        +periode_kuesioner: ENUM
+        ====
+        +pertanyaan()
+        +jawaban()
+    }
+    
+    class pertanyaan_kuisioner {
+        +id: BIGINT
+        +kuisioner_id: BIGINT
+        +pertanyaan: TEXT
+        +pilihan_jawaban: ENUM
+        +jumlah_responden: INT
+        ====
+        +kuisioner()
+    }
+}
+
+' =====================================================================
+' LAYER 5: REPORTING (Kanan)
+' =====================================================================
+package "REPORTING\n(Reports & Notifications)" {
+    
+    class reminder {
+        +id: BIGINT
+        +user_id: BIGINT
+        +tipe_reminder: ENUM
+        +status_pengiriman: ENUM
+        ====
+        +userPembuat()
+        +userPenerima()
+    }
+    
+    class template_laporan {
+        +id: BIGINT
+        +nama_template: VARCHAR(255)
+        +jenis_template: ENUM
+        ====
+        +scopeActive()
+    }
+    
+    class laporan {
+        +id: BIGINT
+        +user_id: BIGINT
+        +template_id: BIGINT
+        +jenis_laporan: ENUM
+        ====
+        +user()
+        +template()
+    }
+    
+    class kirim_laporan {
+        +id: BIGINT
+        +user_id: BIGINT
+        +penerima: TEXT
+        ====
+        +user()
+    }
+}
+
+' =====================================================================
+' RELATIONSHIPS - Grouped by Domain
+' =====================================================================
+
+' --- MASTER DATA INTERNAL ---
+users "1" -down-> "0..*" dosen : creates
+users "*" -right-> "1" prodi : belongs to
+dosen "*" -up-> "1" prodi : assigned to
+
+' --- AKADEMIK CONNECTIONS ---
+matakuliah "*" -left-> "1" prodi : offered by
+
+' --- PEMBELAJARAN CONNECTIONS ---
+rps "*" -left-> "1" matakuliah : defines
+rps "*" -up-> "1" periode_akademik : valid for
+rps "*" -left-> "1" dosen : created by
+
+materi "*" -left-> "1" matakuliah : belongs to
+materi "*" -up-> "1" periode_akademik : valid for
+materi "*" -left-> "1" dosen : uploaded by
+
+' --- EVALUASI CONNECTIONS ---
+kuisioner "*" -left-> "1" periode_akademik : during
+kuisioner "*" -left-> "1" matakuliah : evaluates
+kuisioner "*" -left-> "1" dosen : for
+kuisioner "1" -down-> "1" pertanyaan_kuisioner : references
+pertanyaan_kuisioner "*" -up-> "1" kuisioner : part of
+
+' --- REMINDER CONNECTIONS ---
+reminder "*" -left-> "1" users : sent to
+reminder "*" .left.> "0..1" dosen : about
+reminder "*" .left.> "0..1" matakuliah : about
+reminder "*" .left.> "0..1" rps : about
+reminder "*" .left.> "0..1" materi : about
+
+' --- LAPORAN CONNECTIONS ---
+laporan "*" -left-> "1" users : created by
+laporan "*" -up-> "1" template_laporan : uses
+laporan "*" .left.> "0..1" prodi : for
+laporan "*" .left.> "0..1" periode_akademik : during
+laporan "*" .left.> "0..1" dosen : about
+
+kirim_laporan "*" -left-> "1" users : sent by
+
+' =====================================================================
+' LEGEND
+' =====================================================================
+legend right
+  |<#2196F3> Core Entity |
+  |<#line> Solid Line | Required Relationship (FK) |
+  |<#line:dotted> Dotted Line | Optional Relationship |
+  
+  **Flow**: Master Data → Akademik → Pembelajaran → Evaluasi → Reporting
+endlegend
+
+@enduml

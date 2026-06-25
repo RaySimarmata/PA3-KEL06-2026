@@ -1,0 +1,241 @@
+@startuml CLASS_DIAGRAM_INDONESIA_SIMPLE
+
+' =====================================================================
+' KONFIGURASI
+' =====================================================================
+skinparam linetype ortho
+skinparam nodesep 60
+skinparam ranksep 80
+skinparam monochrome false
+skinparam shadowing false
+skinparam backgroundColor #FFFFFF
+
+skinparam class {
+    BackgroundColor #E3F2FD
+    BorderColor #1565C0
+    ArrowColor #37474F
+    FontSize 10
+    BorderThickness 2
+}
+
+' =====================================================================
+' DEFINISI CLASS
+' =====================================================================
+
+class prodi {
+    +id: BIGINT
+    +kode_prodi: VARCHAR(20)
+    +nama_prodi: VARCHAR(255)
+    +nama_singkat: VARCHAR(100)
+    --
+    <color:blue>+dosenKepala()</color>
+    <color:blue>+dosen()</color>
+    <color:blue>+matakuliah()</color>
+}
+
+class users {
+    +id: BIGINT
+    +name: VARCHAR(255)
+    +email: VARCHAR(255)
+    +username: VARCHAR(255)
+    <color:red>-password: VARCHAR(255)</color>
+    +role: ENUM
+    +prodi_id: BIGINT
+    --
+    <color:blue>+dosen()</color>
+    <color:green>+prodi() BelongsTo</color>
+    <color:blue>+reminders()</color>
+    +isGKM(): bool
+    +isGJM(): bool
+}
+
+class dosen {
+    +dosen_id: BIGINT
+    +nip: VARCHAR(50)
+    +nidn: VARCHAR(50)
+    +nama: VARCHAR(255)
+    +email: VARCHAR(255)
+    +prodi_id: BIGINT
+    --
+    <color:green>+user() BelongsTo</color>
+    <color:green>+prodi() BelongsTo</color>
+    <color:blue>+rps()</color>
+    <color:blue>+materi()</color>
+    +scopeKaprodi()
+}
+
+class matakuliah {
+    +id: BIGINT
+    +prodi_id: BIGINT
+    +kode_mk: VARCHAR(20)
+    +nama_mk: VARCHAR(255)
+    +sks: INT
+    +semester: INT
+    +status: ENUM
+    --
+    <color:green>+prodi() BelongsTo</color>
+    <color:blue>+dosen()</color>
+    <color:blue>+rps()</color>
+}
+
+class periode_akademik {
+    +id: BIGINT
+    +tahun_ajaran: VARCHAR(20)
+    +semester: ENUM
+    +start_date: DATE
+    +end_date: DATE
+    +is_active: TINYINT
+    --
+    +getActive()
+    +scopeActive()
+}
+
+class rps {
+    +id: BIGINT
+    +matakuliah_id: BIGINT
+    +periode_id: BIGINT
+    +dosen_id: BIGINT
+    +file_rps: VARCHAR(500)
+    +status_upload_rps: ENUM
+    --
+    <color:green>+matakuliah() BelongsTo</color>
+    <color:green>+ajaran() BelongsTo</color>
+    <color:green>+dosen() BelongsTo</color>
+    <color:blue>+monitoring()</color>
+}
+
+class materi {
+    +id: BIGINT
+    +matakuliah_id: BIGINT
+    +periode_id: BIGINT
+    +dosen_id: BIGINT
+    +judul_materi: VARCHAR(255)
+    +file_materi: VARCHAR(500)
+    +status_upload_materi: ENUM
+    --
+    <color:green>+matakuliah() BelongsTo</color>
+    <color:green>+dosen() BelongsTo</color>
+    <color:blue>+monitoring()</color>
+}
+
+class kuisioner {
+    +id: BIGINT
+    +periode_id: BIGINT
+    +matakuliah_id: BIGINT
+    +dosen_id: BIGINT
+    +judul: VARCHAR(255)
+    +periode_kuesioner: ENUM
+    +pertanyaan_id: BIGINT
+    --
+    <color:green>+periode() BelongsTo</color>
+    <color:green>+matakuliah() BelongsTo</color>
+    <color:green>+dosen() BelongsTo</color>
+    <color:blue>+pertanyaan()</color>
+}
+
+class pertanyaan_kuisioner {
+    +id: BIGINT
+    +kuisioner_id: BIGINT
+    +pertanyaan: TEXT
+    +jawaban: TEXT
+    +pilihan_jawaban: ENUM
+    +jumlah_responden: INT
+    --
+    <color:green>+kuisioner() BelongsTo</color>
+}
+
+class reminder {
+    +id: BIGINT
+    +user_id: BIGINT
+    +dosen_id: BIGINT <i>{null}</i>
+    +matakuliah_id: BIGINT <i>{null}</i>
+    +rps_id: BIGINT <i>{null}</i>
+    +materi_id: BIGINT <i>{null}</i>
+    +tipe_reminder: ENUM
+    +status_pengiriman: ENUM
+    --
+    <color:green>+userPembuat() BelongsTo</color>
+    <color:green>+userPenerima() BelongsTo</color>
+}
+
+class template_laporan {
+    +id: BIGINT
+    +nama_template: VARCHAR(255)
+    +jenis_template: ENUM
+    +file_template: VARCHAR(500)
+    --
+    <color:blue>+laporanBulanan()</color>
+    +scopeActive()
+}
+
+class laporan {
+    +id: BIGINT
+    +user_id: BIGINT
+    +prodi_id: BIGINT <i>{null}</i>
+    +template_id: BIGINT
+    +jenis_laporan: ENUM
+    +judul_laporan: VARCHAR(255)
+    --
+    <color:green>+user() BelongsTo</color>
+    <color:green>+template() BelongsTo</color>
+    <color:green>+prodi() BelongsTo</color>
+}
+
+class kirim_laporan {
+    +id: BIGINT
+    +user_id: BIGINT
+    +penerima: TEXT
+    +judul: VARCHAR(255)
+    --
+    <color:green>+user() BelongsTo</color>
+}
+
+' =====================================================================
+' RELASI (dengan label Bahasa Indonesia)
+' =====================================================================
+
+' Master Data
+users "1" -down-> "*" dosen : < memiliki
+users "*" --> "1" prodi : milik >
+dosen "*" --> "1" prodi : milik >
+
+' Akademik
+matakuliah "*" --> "1" prodi : ditawarkan oleh >
+
+' RPS & Materi
+rps "*" --> "1" matakuliah : untuk >
+rps "*" --> "1" periode_akademik : berlaku pada >
+rps "*" --> "1" dosen : dibuat oleh >
+
+materi "*" --> "1" matakuliah : milik >
+materi "*" --> "1" periode_akademik : berlaku pada >
+materi "*" --> "1" dosen : diunggah oleh >
+
+' Kuisioner
+kuisioner "*" --> "1" periode_akademik : pada periode >
+kuisioner "*" --> "1" matakuliah : evaluasi >
+kuisioner "*" --> "1" dosen : untuk >
+kuisioner "1" --> "1" pertanyaan_kuisioner : referensi >
+pertanyaan_kuisioner "*" --> "1" kuisioner : bagian dari >
+
+' Reminder (Opsional)
+reminder "*" --> "1" users : dikirim ke >
+reminder "*" .right.> "0..1" dosen : < tentang\n{opsional}
+reminder "*" .right.> "0..1" matakuliah : < tentang\n{opsional}
+reminder "*" .right.> "0..1" rps : < tentang\n{opsional}
+reminder "*" .right.> "0..1" materi : < tentang\n{opsional}
+
+' Laporan
+laporan "*" --> "1" users : dibuat oleh >
+laporan "*" --> "1" template_laporan : menggunakan >
+laporan "*" .right.> "0..1" prodi : < untuk\n{opsional}
+laporan "*" .right.> "0..1" periode_akademik : < pada\n{opsional}
+laporan "*" .right.> "0..1" dosen : < tentang\n{opsional}
+
+kirim_laporan "*" --> "1" users : dikirim oleh >
+
+' =====================================================================
+' NOTES & LEGEND
+' =====================================================================
+
+@enduml

@@ -116,7 +116,6 @@ private function getPeriodeAktif()
 
     return view('gkm.monitoring-kuesioner.index', compact('kuesioners', 'laporanBulanan', 'laporanTahunan', 'periodeOptions'));
 }
-
     public function create(Request $request)
     {
         // Generate periode dropdown (1 tahun sebelum sampai 1 tahun sesudah)

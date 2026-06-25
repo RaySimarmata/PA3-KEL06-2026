@@ -12,7 +12,7 @@
             </div>
         @endif
 
-        @if (isset($errors) && $errors->any())
+        @if ($errors->any())
             <div class="alert-gkm danger mb-4">
                 <h6 style="font-weight: 600; margin-bottom: 0.5rem;">
                     <i class="bi bi-exclamation-triangle"></i> Terjadi Kesalahan

@@ -1418,12 +1418,53 @@ private function savePerkuliahanComplianceSnapshot(
 
                 foreach ($dosenList as $dosen) {
                     try {
-                        $email = $dosen->email ?? $dosen->kontak_email ?? null;
+                        // =========================
+                        // VALIDASI EMAIL & PEMILIHAN EMAIL
+                        // =========================
+                        $emailList = [];
+                        
+                        // Cek email dari berbagai field
+                        if (!empty($dosen->email)) {
+                            $emailList[] = $dosen->email;
+                        }
+                        if (!empty($dosen->kontak_email)) {
+                            $emailList[] = $dosen->kontak_email;
+                        }
+                        
+                        // Parse multiple emails (jika ada yang terpisah dengan koma)
+                        $allEmails = [];
+                        foreach ($emailList as $emailField) {
+                            $emails = array_map('trim', explode(',', $emailField));
+                            $allEmails = array_merge($allEmails, $emails);
+                        }
+                        
+                        // Filter email valid
+                        $allEmails = array_filter($allEmails, fn($e) => !empty($e) && filter_var($e, FILTER_VALIDATE_EMAIL));
+                        $allEmails = array_unique($allEmails); // Remove duplicates
+                        
+                        if (empty($allEmails)) {
+                            // Skip dosen tanpa email
+                            \Log::warning('Dosen tanpa email dilewati', [
+                                'pegawai_id' => $dosen->pegawai_id,
+                                'nama' => $dosen->nama
+                            ]);
+                            continue;
+                        }
+                        
+                        // Pilih email: prioritas domain bukan @gmail.com
+                        $emailTerpilih = null;
+                        if (count($allEmails) > 1) {
+                            $nonGmailEmail = array_filter($allEmails, fn($e) => !stripos($e, '@gmail.com'));
+                            $emailTerpilih = !empty($nonGmailEmail) ? reset($nonGmailEmail) : reset($allEmails);
+                        } else {
+                            $emailTerpilih = reset($allEmails);
+                        }
+                        
                         $nomorTelepon = $dosen->nomor_telepon ?? $dosen->nomor ?? $dosen->kontak_telepon ?? null;
 
                         // Send email if available
-                        if (!empty($email)) {
-                            Mail::to($email)->send(new ReminderUploadMateriMail(
+                        if (!empty($emailTerpilih)) {
+                            Mail::to($emailTerpilih)->send(new ReminderUploadMateriMail(
                                 $request->subjek,
                                 $request->pesan,
                                 $dosen->nama,
@@ -1434,7 +1475,7 @@ private function savePerkuliahanComplianceSnapshot(
                             // Log email
                             LogEmail::create([
                                 'reminder_id' => null,
-                                'penerima_email' => $email,
+                                'penerima_email' => $emailTerpilih,
                                 'subjek' => $request->subjek,
                                 'isi_email' => $request->pesan,
                                 'status_pengiriman' => 'success',
@@ -1445,7 +1486,7 @@ private function savePerkuliahanComplianceSnapshot(
 
                         // Send WhatsApp if phone available
                         if (!empty($nomorTelepon)) {
-                            $pesanWa = "*{$subject}*\n\n" . $request->pesan;
+                            $pesanWa = "*{$request->subjek}*\n\n" . $request->pesan;
 
                             try {
                                 if ($this->whatsappService) {
@@ -1454,8 +1495,8 @@ private function savePerkuliahanComplianceSnapshot(
                                     // Log WA as email-log entry for traceability
                                     LogEmail::create([
                                         'reminder_id' => null,
-                                        'penerima_email' => $email ?? $nomorTelepon,
-                                        'subjek' => $subject,
+                                        'penerima_email' => $emailTerpilih ?? $nomorTelepon,
+                                        'subjek' => $request->subjek,
                                         'isi_email' => $request->pesan,
                                         'status_pengiriman' => 'success',
                                         'tanggal_pengiriman' => now(),
@@ -1486,14 +1527,14 @@ private function savePerkuliahanComplianceSnapshot(
                             ]);
                         }
 
-                            if (!empty($email) || !empty($nomorTelepon)) {
+                            if (!empty($emailTerpilih) || !empty($nomorTelepon)) {
                                 $successCount++;
                         }
                     } catch (\Exception $loopEx) {
                         $errors[] = "Gagal kirim ke {$dosen->nama}: " . $loopEx->getMessage();
                         Log::error('Failed to send materi reminder', [
                             'pegawai_id' => $dosen->pegawai_id,
-                            'email' => $email ?? 'N/A',
+                            'email' => $emailTerpilih ?? 'N/A',
                             'nomor' => $nomorTelepon ?? 'N/A',
                             'error' => $loopEx->getMessage(),
                         ]);
@@ -1651,7 +1692,49 @@ private function savePerkuliahanComplianceSnapshot(
 
             foreach ($dosenList as $dosen) {
                 try {
-                    Mail::to($dosen->kontak_email)->send(new ReminderReviewSoalMail(
+                    // =========================
+                    // VALIDASI EMAIL & PEMILIHAN EMAIL
+                    // =========================
+                    $emailList = [];
+                    
+                    // Cek email dari berbagai field
+                    if (!empty($dosen->email)) {
+                        $emailList[] = $dosen->email;
+                    }
+                    if (!empty($dosen->kontak_email)) {
+                        $emailList[] = $dosen->kontak_email;
+                    }
+                    
+                    // Parse multiple emails (jika ada yang terpisah dengan koma)
+                    $allEmails = [];
+                    foreach ($emailList as $emailField) {
+                        $emails = array_map('trim', explode(',', $emailField));
+                        $allEmails = array_merge($allEmails, $emails);
+                    }
+                    
+                    // Filter email valid
+                    $allEmails = array_filter($allEmails, fn($e) => !empty($e) && filter_var($e, FILTER_VALIDATE_EMAIL));
+                    $allEmails = array_unique($allEmails); // Remove duplicates
+                    
+                    if (empty($allEmails)) {
+                        // Skip dosen tanpa email
+                        \Log::warning('Dosen tanpa email dilewati', [
+                            'dosen_id' => $dosen->id,
+                            'nama' => $dosen->nama_lengkap
+                        ]);
+                        continue;
+                    }
+                    
+                    // Pilih email: prioritas domain bukan @gmail.com
+                    $emailTerpilih = null;
+                    if (count($allEmails) > 1) {
+                        $nonGmailEmail = array_filter($allEmails, fn($e) => !stripos($e, '@gmail.com'));
+                        $emailTerpilih = !empty($nonGmailEmail) ? reset($nonGmailEmail) : reset($allEmails);
+                    } else {
+                        $emailTerpilih = reset($allEmails);
+                    }
+
+                    Mail::to($emailTerpilih)->send(new ReminderReviewSoalMail(
                         $dosen->nama_lengkap,
                         $request->pesan
                     ));
@@ -1660,12 +1743,32 @@ private function savePerkuliahanComplianceSnapshot(
                     $errors[] = "Gagal kirim ke {$dosen->nama_lengkap}: " . $e->getMessage();
                     Log::error('Failed to send soal reminder', [
                         'dosen_id' => $dosen->id,
-                        'email' => $dosen->kontak_email,
+                        'email' => $emailTerpilih ?? 'N/A',
                         'error' => $e->getMessage(),
                     ]);
                 }
             }
 
+            // Return JSON for AJAX requests
+            if ($request->wantsJson() || $request->ajax()) {
+                if ($successCount > 0) {
+                    return response()->json([
+                        'success' => true,
+                        'message' => "Berhasil mengirim reminder ke {$successCount} dosen",
+                        'count' => $successCount,
+                        'errors' => $errors,
+                    ], 200);
+                } else {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Gagal mengirim semua reminder: ' . implode(', ', $errors),
+                        'errors' => $errors,
+                        'count' => $successCount,
+                    ], 400);
+                }
+            }
+
+            // Traditional redirect response for non-AJAX requests
             if ($successCount > 0) {
                 $message = "Berhasil mengirim reminder ke {$successCount} dosen";
                 if (!empty($errors)) {
@@ -1679,6 +1782,13 @@ private function savePerkuliahanComplianceSnapshot(
             Log::error('Failed to send soal reminder', [
                 'error' => $e->getMessage(),
             ]);
+
+            if ($request->wantsJson() || $request->ajax()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Gagal mengirim reminder: ' . $e->getMessage(),
+                ], 500);
+            }
 
             return redirect()->back()->with('error', 'Gagal mengirim reminder: ' . $e->getMessage());
         }

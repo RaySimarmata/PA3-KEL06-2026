@@ -1,0 +1,263 @@
+@startuml SRS Class Diagram - Simplified for Stakeholders
+
+!theme plain
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName 'Segoe UI'
+skinparam defaultFontSize 12
+
+skinparam class {
+    BackgroundColor #F8F9FA
+    BorderColor #2C3E50
+    BorderThickness 2
+    HeaderBackgroundColor #3498DB
+    HeaderFontColor #FFFFFF
+    ArrowColor #7F8C8D
+}
+
+skinparam package {
+    BackgroundColor #ECF0F1
+    BorderColor #34495E
+    FontStyle bold
+}
+
+title Diagram Kelas Sistem Monitoring Akademik\n(Simplified - For Stakeholder Presentation)
+
+' ==================== CORE ENTITIES ====================
+package "Entitas Utama" {
+    class User {
+        + nama : String
+        + email : String
+        + role : String
+        + prodi_id : Integer
+        --
+        + login()
+        + logout()
+    }
+    
+    class Prodi {
+        + nama_prodi : String
+        + kode_prodi : String
+        + nama_singkat : String
+        --
+        + getAllDosen()
+        + getLaporanGKM()
+    }
+    
+    class Dosen {
+        + nama_lengkap : String
+        + nidn : String
+        + gelar_akademik : String
+        + jabatan_akademik : String
+        --
+        + getRPS()
+        + getMateri()
+        + getMonitoring()
+    }
+}
+
+' ==================== ACADEMIC ====================
+package "Manajemen Akademik" {
+    class Matakuliah {
+        + kode_mk : String
+        + nama_mk : String
+        + sks : Integer
+        + semester : Integer
+        --
+        + getDosenPengampu()
+    }
+    
+    class Ajaran {
+        + tahun_ajaran : String
+        + semester : String
+        + tanggal_mulai : Date
+        + tanggal_akhir : Date
+        + status : String
+    }
+    
+    class RPS {
+        + file_rps : String
+        + status_upload : String
+        + tanggal_upload : DateTime
+        + status_review : String
+        --
+        + upload()
+        + review()
+    }
+    
+    class Materi {
+        + judul_materi : String
+        + file_materi : String
+        + jenis_file : String
+        + status_upload : String
+        + tanggal_upload : DateTime
+        --
+        + upload()
+    }
+}
+
+' ==================== MONITORING ====================
+package "Monitoring" {
+    class Monitoring {
+        + status_rps : String
+        + status_materi : String
+        + status_kuisioner : String
+        + persentase_kepatuhan : Float
+        + tanggal_monitoring : DateTime
+        --
+        + generateReport()
+    }
+    
+    class EvaluasiArtefak {
+        + jenis_artefak : String
+        + skor_evaluasi : Float
+        + catatan_evaluasi : Text
+        + status_evaluasi : String
+        --
+        + approve()
+        + requestRevision()
+    }
+}
+
+' ==================== QUESTIONNAIRE ====================
+package "Kuesioner" {
+    class Kuisioner {
+        + judul_kuisioner : String
+        + tipe_kuisioner : String
+        + tanggal_mulai : Date
+        + tanggal_selesai : Date
+        + status_kuisioner : String
+    }
+    
+    class KuesioneUpload {
+        + nama_file : String
+        + periode : String
+        + semester : String
+        + nama_matakuliah : String
+        + total_responden : Integer
+        + index_kepuasan : Float
+        --
+        + processFile()
+        + generateAnalysis()
+    }
+}
+
+' ==================== REPORTING ====================
+package "Pelaporan" {
+    class TemplateLaporan {
+        + nama_template : String
+        + jenis_template : String
+        + jenis_laporan : String
+        + file_path : String
+        + is_active : Boolean
+    }
+    
+    class LaporanGKM {
+        + jenis_laporan : String
+        + periode : String
+        + bulan : String
+        + tahun : String
+        + total_rps : Integer
+        + total_materi : Integer
+        + file_word : String
+        + file_pdf : String
+        + status_laporan : String
+        --
+        + generate()
+        + exportToWord()
+        + exportToPDF()
+    }
+    
+    class LaporanGJM {
+        + jenis_laporan : String
+        + periode_mulai : Date
+        + periode_akhir : Date
+        + ringkasan_mutu : Text
+        + analisis_kepatuhan : Text
+        + temuan_utama : Text
+        + rekomendasi : Text
+        + status_laporan : String
+        + ppt_path : String
+        --
+        + generate()
+        + generatePPT()
+    }
+}
+
+' ==================== NOTIFICATION ====================
+package "Pengingat" {
+    class JadwalReminder {
+        + nama_jadwal : String
+        + tipe_reminder : String
+        + jam_pengiriman : Time
+        + frekuensi : String
+        + is_active : Boolean
+        --
+        + execute()
+    }
+    
+    class Reminder {
+        + tipe_reminder : String
+        + subjek : String
+        + isi : Text
+        + tanggal_pengiriman : DateTime
+        + status_pengiriman : String
+        --
+        + send()
+    }
+}
+
+' ==================== RELATIONSHIPS ====================
+
+' User Management
+User "1" -- "0..1" Dosen
+User "*" -- "1" Prodi
+Prodi "1" -- "*" Dosen
+
+' Academic
+Prodi "1" -- "*" Matakuliah
+Matakuliah "*" -- "*" Dosen
+Matakuliah "1" -- "*" RPS
+RPS "1" -- "*" Materi
+RPS "*" -- "1" Ajaran
+RPS "*" -- "1" Dosen
+
+' Monitoring
+Dosen "1" -- "*" Monitoring
+Monitoring "*" -- "1" Matakuliah
+RPS "1" -- "0..1" EvaluasiArtefak
+Dosen "1" -- "*" EvaluasiArtefak
+
+' Questionnaire
+Kuisioner "*" -- "1" User
+KuesioneUpload "*" -- "1" User
+
+' Reporting
+Prodi "1" -- "*" LaporanGKM
+User "1" -- "*" LaporanGKM
+TemplateLaporan "1" -- "*" LaporanGKM
+TemplateLaporan "1" -- "*" LaporanGJM
+Ajaran "1" -- "*" LaporanGKM
+Ajaran "1" -- "*" LaporanGJM
+
+' Notification
+Prodi "1" -- "*" JadwalReminder
+JadwalReminder "1" -- "*" Reminder
+User "1" -- "*" Reminder
+
+note right of LaporanGJM
+    **Fitur Khusus:**
+    - Generate otomatis dengan AI
+    - Support OCR untuk gambar
+    - Export ke PPT
+    - Evaluasi kualitas RAGAS
+end note
+
+note left of KuesioneUpload
+    **Data Processing:**
+    - Upload file Excel/CSV
+    - Ekstraksi data otomatis
+    - Analisis AI
+    - Indexing untuk RAG
+end note
+
+@enduml

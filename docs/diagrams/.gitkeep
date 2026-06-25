@@ -1,0 +1,25 @@
+# This directory contains auto-generated class diagrams
+
+Generated using: `php scripts/generate-class-diagram.php`
+
+## Files
+
+- `class-diagram.plantuml` - Complete system diagram (PlantUML format)
+- `models.puml` - Domain models only
+- `services.puml` - Service layer only
+- `controllers.puml` - Controller layer only
+
+## How to View
+
+### Online
+- PlantUML: https://www.plantuml.com/plantuml/uml/
+- Mermaid: https://mermaid.live/
+
+### VSCode
+- Install PlantUML extension
+- Press `Alt + D` to preview
+
+### Command Line
+```bash
+plantuml -tsvg docs/diagrams/*.puml
+```

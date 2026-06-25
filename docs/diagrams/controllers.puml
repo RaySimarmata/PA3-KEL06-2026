@@ -1,0 +1,415 @@
+@startuml
+title Controller Layer
+
+class Http\Controllers\Admin\AICacheController {
+  #cacheService
+  --
+  +index()
+  +clean(Request request)
+  +stats()
+  +invalidate(Request request)
+}
+
+class Http\Controllers\API\GJM\DashboardApiController {
+  --
+  +index(Request request)
+  +clearCache()
+}
+
+class Http\Controllers\API\GKM\DashboardApiController {
+  --
+  +index(Request request)
+  +analytics(Request request)
+  -buildAnalytics(user, semester, tahun)
+  -getKepuasanProdiValue(user, semester, tahun)
+  -getCombinedCompliancePercent(user, semester, tahun)
+  -getMateriCompliancePercent(user, semester, tahun)
+  -getRpsCompliancePercent(user, semester, tahun)
+}
+
+class Http\Controllers\API\N8nCallbackController {
+  --
+  +laporanCallback(Request request)
+  +kuesioneCallback(Request request)
+  +receiveDocument(Request request)
+  +getLaporanStatus(id)
+}
+
+class Http\Controllers\AuthController {
+  --
+  +showLogin()
+  +login(Request request)
+  +apiLogin(Request request)
+  +apiLogout(Request request)
+  +logout(Request request)
+  +showRegister()
+  +register(Request request)
+}
+
+class Http\Controllers\Controller {
+  --
+}
+
+class Http\Controllers\GJM\BuatLaporanController {
+  --
+  +index()
+  +triwulan()
+  +semester()
+  +store(Request request)
+  +show(id)
+}
+
+class Http\Controllers\GJM\BuatPPTController {
+  #pptService
+  --
+  +index()
+  +generate(Request request)
+  +download(id)
+  +delete(id)
+  +archive()
+}
+
+class Http\Controllers\GJM\DashboardController {
+  --
+  +index(Request request)
+  -generateCacheKey(tahun, semester, prodi)
+  +clearCache(Request request)
+  +Analisis()
+}
+
+class Http\Controllers\GJM\KirimLaporanController {
+  #aiAgent
+  --
+  +index()
+  +generateMessage(Request request)
+  +send(Request request)
+}
+
+class Http\Controllers\GJM\LaporanGJMController {
+  --
+  +index(Request request)
+  +create()
+  +show(id)
+  +detail(id)
+  +download(id)
+  +laporanBulanan()
+  +laporanTahunan()
+  +generate(Request request)
+  +destroy(id)
+}
+
+class Http\Controllers\GJM\LaporanSemesterController {
+  #laporanService
+  --
+  +create()
+  +aiPrompt(Request request)
+  +savePreview(Request request)
+  -sectionTitleToKey(title)
+  +store(Request request)
+  -extractTemplateStructure(templateId)
+  -extractTextFromElement(element)
+  -categorizeFile(filename)
+  -getGKMSemesterReports(periodeSemester)
+  +createDraft(Request request)
+}
+
+class Http\Controllers\GJM\LaporanTriwulanController {
+  #laporanService
+  --
+  +create()
+  +createDraft(Request request)
+  +aiPrompt(Request request)
+  +savePreview(Request request)
+  -sectionTitleToKey(title)
+  +store(Request request)
+  -extractTemplateStructure(templateId)
+  -extractTextFromElement(element)
+  -categorizeFile(filename)
+  -getGKMTriwulanReports(periodeTriwulan)
+}
+
+class Http\Controllers\GJM\LaporanVMTSController {
+  #vmtsExcelService
+  #aiService
+  #cacheService
+  --
+  +index(Request request)
+  +create()
+  +show(id)
+  +download(id, format)
+  +destroy(id)
+  +store(Request request)
+  -parseMarkdownToWordSafe(markdown, section)
+  -renderSimpleTable(section, tableRows)
+  -parseMarkdownToWord(markdown, section)
+  -renderMarkdownTableToWord(section, array tableLines)
+}
+
+class Http\Controllers\GJM\ModelEvaluationController {
+  #evaluationService
+  --
+  +index()
+  +getData(Request request)
+  -getOverviewStats(period, feature)
+  -getOverviewStatsFromLaporanGJM(period, feature)
+  -getPerformanceMetrics(period, feature)
+  -getPerformanceMetricsFromLaporanGJM(feature, dateFilter)
+  -getUsageStats(period, feature)
+  -getCacheStats(period, feature)
+  -getErrorStats(period, feature)
+  -getTimelineData(period, feature)
+}
+
+class Http\Controllers\GJM\OCRUploadController {
+  #ocrService
+  #aiService
+  #enhancedLaporanService
+  --
+  +uploadImages(Request request)
+  +generateEnhancedPreview(Request request)
+  +getLaporanStats(Request request)
+  +getUsageStats()
+  +getOCRStats()
+  +clearLaporanData(Request request)
+}
+
+class Http\Controllers\GJM\PromptSemesterController {
+  --
+  +readFile(Request request)
+  +chat(Request request)
+  +diagnostic()
+  -buildSystemPrompt(string type, string periode, string judul)
+  -parseSections(string text)
+  -isImageFile(string fileName)
+  -processImageWithVision(string imagePath, string fileName)
+  -processImageWithClaudeVision(string base64Image, string mimeType, string fileName)
+  -processImageWithOCR(string imagePath, string fileName)
+  -getGKMReportsContext(string periode)
+}
+
+class Http\Controllers\GJM\PromptTriwulanController {
+  --
+  +readFile(Request request)
+  +chat(Request request)
+  -buildSystemPrompt(string type, string periode, string judul)
+  -parseSections(string text)
+  -isImageFile(string fileName)
+  -processImageWithVision(string imagePath, string fileName)
+  -processImageWithClaudeVision(string base64Image, string mimeType, string fileName)
+  -processImageWithOCR(string imagePath, string fileName)
+  -getGKMReportsContext(string periode)
+  -getAIConfigErrorMessage()
+}
+
+class Http\Controllers\GJM\PromptVMTSController {
+  #cacheService
+  --
+  +index()
+  +chat(Request request)
+  +downloadWord(Request request)
+  -buildVMTSSystemPrompt()
+  -parseSections(string text)
+  -renderMarkdownToWord(section, string text, string judul)
+  -renderTableToWord(section, array tableLines)
+  -addInlineMarkdown(textRun, string text, array baseStyle)
+}
+
+class Http\Controllers\GJM\RecapLaporanController {
+  --
+  +index()
+  +grafikKepatuhan()
+  +evaluasi()
+}
+
+class Http\Controllers\GJM\TemplateLaporanController {
+  #laporanService
+  --
+  +indexSemester()
+  +uploadSemester()
+  +storeSemester(Request request)
+  -storeTemplate(Request request, jenisTemplate, redirectRoute)
+  +toggle(id, type)
+  +reindex(id, type)
+  +destroy(id, type, Request request)
+  +download(id)
+  +indexTriwulan()
+  +uploadTriwulan()
+}
+
+class Http\Controllers\GJM\ValidasiLaporanController {
+  --
+  +index()
+  +show(id)
+  +approve(Request request, id)
+  +reject(Request request, id)
+}
+
+class Http\Controllers\GJM\VMTSAIAssistantController {
+  #vmtsAIService
+  --
+  +index()
+  +chat(Request request)
+  +downloadWord(Request request)
+}
+
+class Http\Controllers\GKM\DashboardController {
+  --
+  +index(Request request)
+  +analytics(Request request)
+  -getKepuasanProdiValue(user, semester, tahun)
+  -getCombinedCompliancePercent(user, semester, tahun)
+  -getMateriCompliancePercent(user, semester, tahun)
+  -getRpsCompliancePercent(user, semester, tahun)
+  -loadAnalyticsData(user, semester, tahun)
+}
+
+class Http\Controllers\GKM\DataMasterApiController {
+  --
+  -getToken(forceRefresh)
+  -callApi(url, params)
+  +monitoringRps()
+  +getMonitoringRps(Request request)
+  +monitoringMateri(Request request)
+  +monitoringMateriData(Request request)
+  +tampilDosen()
+  +ceklistRPS()
+  +generateReminderMessage(Request request)
+  +Dmatakuliah(Request request)
+}
+
+class Http\Controllers\GKM\DataMasterController {
+  --
+  +index()
+  +dosenPengajar()
+  +storeDosen(Request request)
+  +updateEmail(Request request)
+  +updateDosen(Request request, id)
+  +destroyDosen(id)
+  +matakuliah()
+  +storeMatakuliah(Request request)
+  +updateMatakuliah(Request request, id)
+  +destroyMatakuliah(id)
+}
+
+class Http\Controllers\GKM\KirimLaporanController {
+  #aiAgent
+  --
+  +index()
+  +generateMessage(Request request)
+  +history(Request request)
+  +send(Request request)
+}
+
+class Http\Controllers\GKM\LaporanArtefakController {
+  #laporanService
+  --
+  +index(Request request)
+  +create()
+  +createDraft(Request request)
+  +aiPrompt(Request request)
+  +apiGet(Request request)
+  -parseMarkdownSections(text)
+  +savePreview(Request request)
+  -sectionTitleToKey(title)
+  -categorizeArtefakFile(filename)
+  -extractTemplateStructure(templateId)
+}
+
+class Http\Controllers\GKM\LaporanKuesioneController {
+  #laporanService
+  --
+  +index()
+  +create()
+  +store(Request request)
+  +show(id)
+  +destroy(id)
+  +download(id, format)
+  +createDraft(Request request)
+  +aiPrompt(Request request)
+  +savePreview(Request request)
+  +generateWordDocument(Request request)
+}
+
+class Http\Controllers\GKM\LaporanKuesioneControllerExtension {
+  --
+  +aiPromptSmart(Request request)
+  -generateDirectFromDatabase(Request request)
+  -generateWithAI(Request request)
+}
+
+class Http\Controllers\GKM\MonitoringKuesioneController {
+  #aiAgent
+  #apiService
+  --
+  -getPeriodeAktif()
+  +index(Request request)
+  +create(Request request)
+  +store(Request request)
+  +show(id)
+  +destroy(id)
+  +download(id)
+  +generateReport(id)
+  +reprocess(id)
+  +indexApi(Request request)
+}
+
+class Http\Controllers\GKM\MonitoringPerkuliahanController {
+  #whatsappService
+  --
+  -generateDynamicTahunAjaran()
+  +index(Request request)
+  -getMonitoringData(semester, tahun, tingkat)
+  +exportPdf(Request request)
+  +clearCache(Request request)
+  +kirimPengingat()
+  +reminderMateri(Request request)
+  +filterRemindersByMode(Request request)
+  -savePerkuliahanSnapshot(array materiTeori, array materiPraktikum, array matkulDosenMap, int prodiId, string prodiKode, string semester, string tahunAjaran)
+  -savePerkuliahanComplianceSnapshot(array materiTeori, array materiPraktikum, array matkulDosenMap, int prodiId, string prodiKode, string semester, string tahunAjaran)
+}
+
+class Http\Controllers\GKM\MonitoringRPSController {
+  --
+  +index(Request request)
+  -getMonitoringRpsData(semester, tahun, tingkat)
+  +syncSemuaJadwal(semester, tahun)
+  +exportPdf(Request request)
+  -buildMonitoringData(apiService, prodiId, selectedSemester, selectedTahunAjaran, prodiKode, selectedTingkat)
+  -saveSnapshotToDB(array matkulList, int prodiId, string prodiKode, string semester, string tahunAjaran)
+  -saveRpsComplianceSnapshot(int prodiId, string prodiKode, string semester, string tahunAjaran)
+  -getRpsComplianceSummary(int prodiId, string semester, string tahunAjaran)
+  -buildRpsComplianceSummary(int prodiId, string semester, string tahunAjaran)
+  +clearCache(Request request)
+}
+
+class Http\Controllers\GKM\PelaporanController {
+  --
+  +index()
+  +laporanArtefak()
+  +laporanKuisioner()
+  +generate(Request request)
+}
+
+class Http\Controllers\GKM\ReminderAgentController {
+  --
+  +index()
+  +jadwal()
+  +logEmail()
+  +storeJadwal(Request request)
+  +editJadwal(id)
+  +updateJadwal(Request request, id)
+  +destroyJadwal(id)
+}
+
+class Http\Controllers\PeriodeAkademikController {
+  --
+  +index()
+  +store(Request request)
+  +getActive()
+  +setActive(id)
+}
+
+
+' Relationships
+
+@enduml

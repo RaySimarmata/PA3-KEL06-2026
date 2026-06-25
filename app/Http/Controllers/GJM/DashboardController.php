@@ -4,6 +4,8 @@ namespace App\Http\Controllers\GJM;
 
 use App\Http\Controllers\Controller;
 use App\Models\HasilAnalisisMongo;
+use App\Models\Dosenn;
+use App\Models\Matakuliah;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Auth;
@@ -84,8 +86,7 @@ class DashboardController extends Controller
             'trendSemester' => collect(),
             'performaProdi' => collect(),
             'heatmapDosen' => collect(),
-            'topDosen' => collect(),
-            'bottomDosen' => collect(),
+            'dosenPerProdi' => collect(),
             'dosenBermasalah' => collect(),
             'matkulBermasalah' => collect(),
             'pertanyaanTerburuk' => collect(),
@@ -214,19 +215,32 @@ class DashboardController extends Controller
     });
 
     /*
-    | TOP DOSEN
+    | DOSEN PER PRODI (BERDASARKAN PRODI MATAKULIAH)
     */
-    $rankingDosen = $data->groupBy('dosen_pengajar')->map(function ($items, $nama) {
+    $rankingDosen = $data->groupBy(function ($item) {
+        return strtoupper(trim((string) $item->dosen_pengajar));
+    })->map(function ($items, $inisial) {
 
         $avg = collect($items)->avg('rata_rata');
         $kepuasan = collect($items)->avg('persentase_kepuasan');
+        $kodeMatkul = collect($items)->pluck('kode_mk')->filter()->unique()->values();
+
+        // Ambil prodi dari data item (prodi matakuliah, bukan prodi dosen)
+        $prodiList = collect($items)->pluck('prodi')->filter()->map(function($prodiData) {
+            if (is_object($prodiData)) {
+                $prodiData = (array) $prodiData;
+            }
+            return $prodiData['kode'] ?? $prodiData['nama'] ?? null;
+        })->filter()->unique()->values()->toArray();
 
         return [
-            'nama' => $nama,
+            'inisial' => $inisial,
+            'nama' => $inisial,
             'avg' => round($avg, 2),
             'kepuasan' => round($kepuasan, 2),
-            'jumlah_matkul' => collect($items)->pluck('kode_mk')->unique()->count(),
-            'jumlah_responden' => collect($items)->sum('total_suara'),
+            'jumlah_matkul' => $kodeMatkul->count(),
+            'kode_matkul' => $kodeMatkul->toArray(),
+            'prodi_matkul_list' => $prodiList, // List prodi dari matakuliah
             'kategori' =>
                 $avg >= 3.25 ? 'Sangat Baik' :
                 ($avg >= 2.75 ? 'Baik' :
@@ -234,8 +248,60 @@ class DashboardController extends Controller
         ];
     });
 
-    $topDosen = $rankingDosen->sortByDesc('avg')->take(5)->values();
-    $bottomDosen = $rankingDosen->sortBy('avg')->take(5)->values();
+    $dosenMysqlMap = Dosenn::query()
+        ->whereNotNull('inisial_nama')
+        ->get()
+        ->keyBy(function ($dosen) {
+            return strtoupper(trim((string) $dosen->inisial_nama));
+        });
+
+    $rankingDosen = $rankingDosen->map(function ($item) use ($dosenMysqlMap) {
+        $dosenMysql = $dosenMysqlMap->get($item['inisial']);
+
+        return array_merge($item, [
+            'dosen_mysql' => $dosenMysql ? [
+                'id' => $dosenMysql->dosen_id,
+                'nama_lengkap' => $dosenMysql->nama,
+                'nip' => $dosenMysql->nip,
+                'nidn' => $dosenMysql->nidn,
+                'email' => $dosenMysql->email,
+                'prodi' => $dosenMysql->prodi,
+                'jabatan_akademik' => $dosenMysql->jabatan_akademik,
+                'jabatan_akademik_desc' => $dosenMysql->jabatan_akademik_desc,
+                'jenjang_pendidikan' => $dosenMysql->jenjang_pendidikan,
+            ] : null,
+            'nama' => $dosenMysql ? $dosenMysql->nama : $item['nama'],
+        ]);
+    });
+
+    // Group dosen by prodi matakuliah (satu dosen bisa muncul di beberapa prodi)
+    $dosenPerProdi = collect();
+    
+    if ($rankingDosen && $rankingDosen->isNotEmpty()) {
+        foreach ($rankingDosen as $dosen) {
+            // Setiap dosen bisa mengajar di beberapa prodi
+            $prodiMatakuliahList = $dosen['prodi_matkul_list'] ?? [];
+            
+            if (empty($prodiMatakuliahList)) {
+                // Jika tidak ada prodi matakuliah, masukkan ke "Tidak Diketahui"
+                $prodiMatakuliahList = ['Tidak Diketahui'];
+            }
+            
+            // Tambahkan dosen ke setiap prodi yang dia ajar
+            foreach ($prodiMatakuliahList as $prodiMatkul) {
+                if (!$dosenPerProdi->has($prodiMatkul)) {
+                    $dosenPerProdi->put($prodiMatkul, collect());
+                }
+                
+                $dosenPerProdi->get($prodiMatkul)->push($dosen);
+            }
+        }
+
+        // Sort each prodi's dosen by average descending dan remove duplicates
+        $dosenPerProdi = $dosenPerProdi->map(function ($dosens) {
+            return $dosens->unique('inisial')->sortByDesc('avg')->values();
+        })->sortKeys();
+    }
 
     /*
     | DOSEN BERMASALAH
@@ -247,12 +313,31 @@ class DashboardController extends Controller
     /*
     | MATKUL BERMASALAH
     */
-    $matkulBermasalah = $data->groupBy('kode_mk')->map(function ($items) {
+    $matkulCodes = $data->pluck('kode_mk')
+        ->filter()
+        ->map(function ($kodeMk) {
+            return strtoupper(trim((string) $kodeMk));
+        })
+        ->unique()
+        ->values();
+
+    $matkulMysqlMap = Matakuliah::query()
+        ->whereIn('kode_mk', $matkulCodes->all())
+        ->get()
+        ->keyBy(function ($matkul) {
+            return strtoupper(trim((string) $matkul->kode_mk));
+        });
+
+    $matkulBermasalah = $data->groupBy(function ($item) {
+        return strtoupper(trim((string) $item->kode_mk));
+    })->map(function ($items, $kodeMk) use ($matkulMysqlMap) {
 
         $first = collect($items)->first();
+        $matkulMysql = $matkulMysqlMap->get($kodeMk);
 
         return [
-            'kode_mk' => $first->kode_mk,
+            'kode_mk' => $kodeMk,
+            'nama_matkul' => $matkulMysql->nama_mk ?? '-',
             'judul' => $first->judul_kuesioner,
             'dosen' => $first->dosen_pengajar,
             'avg' => round(collect($items)->avg('rata_rata'), 2),
@@ -330,8 +415,7 @@ class DashboardController extends Controller
         'trendSemester',
         'performaProdi',
         'heatmapDosen',
-        'topDosen',
-        'bottomDosen',
+        'dosenPerProdi',
         'dosenBermasalah',
         'matkulBermasalah',
         'pertanyaanTerburuk',
@@ -360,7 +444,7 @@ class DashboardController extends Controller
     */
     private function generateCacheKey($tahun = null, $semester = null, $prodi = null)
     {
-        return 'dashboard_gjm_' . md5(
+        return 'dashboard_gjm_v2_' . md5(
             ($tahun ?? 'all') . '_' .
             ($semester ?? 'all') . '_' .
             ($prodi ?? 'all')
@@ -378,21 +462,46 @@ class DashboardController extends Controller
         Cache::forget('filter_list_tahun');
         Cache::forget('filter_list_prodi');
         
-        // Jika menggunakan Redis/Memcached, bisa clear dengan pattern
-        // Tapi untuk database cache, perlu delete manual per key
-        // Alternatif: Cache::flush() untuk clear semua (hati-hati!)
+        // Clear all dashboard_gjm cache variants
+        // This will clear cache for all filter combinations
+        $cacheKeys = [
+            'dashboard_gjm_v2_' . md5('all_all_all'),
+        ];
+        
+        // Try to clear common cache patterns
+        foreach ($cacheKeys as $key) {
+            Cache::forget($key);
+        }
         
         // Clear pattern-based caches (untuk cache drivers yang support tags)
         try {
             // Ini akan work jika menggunakan Redis
             Cache::tags('dashboard_gjm')->flush();
         } catch (\Exception $e) {
-            // Fallback: Setiap user harus refresh manual atau tunggu expire
-            // Bisa juga implement clearing specific ranges jika perlu
-            \Log::info('Cache flush tidak fully supported dengan driver: ' . config('cache.default'));
+            // Fallback: clear semua cache
+            try {
+                // Hati-hati: ini akan clear SEMUA cache aplikasi
+                Cache::flush();
+                \Log::info('All cache cleared due to tag support limitation');
+            } catch (\Exception $ex) {
+                \Log::info('Cache flush tidak fully supported dengan driver: ' . config('cache.default'));
+            }
         }
 
         return redirect()->back()->with('success', 'Cache dashboard berhasil dihapus. Data akan di-refresh di request berikutnya.');
+    }
+
+    private function findDosenByInisial(?string $inisial): ?Dosenn
+    {
+        $inisial = strtoupper(trim((string) $inisial));
+
+        if ($inisial === '') {
+            return null;
+        }
+
+        return Dosenn::query()
+            ->whereRaw('TRIM(UPPER(inisial_nama)) = ?', [$inisial])
+            ->first();
     }
     
     /*

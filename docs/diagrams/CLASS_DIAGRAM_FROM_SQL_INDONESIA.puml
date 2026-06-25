@@ -1,0 +1,272 @@
+@startuml CLASS_DIAGRAM_FROM_SQL_INDONESIA
+
+' =====================================================================
+' KONFIGURASI DIAGRAM - MONOCHROME/POLOS
+' =====================================================================
+skinparam monochrome true
+skinparam linetype ortho
+skinparam nodesep 70
+skinparam ranksep 90
+skinparam backgroundColor white
+skinparam shadowing false
+
+skinparam class {
+    BackgroundColor white
+    BorderColor black
+    ArrowColor black
+    FontSize 10
+    FontName Arial
+    BorderThickness 1
+}
+
+skinparam package {
+    BackgroundColor white
+    BorderColor black
+    FontStyle bold
+    FontSize 11
+    BorderThickness 1
+}
+
+' =====================================================================
+' PAKET: DATA MASTER
+' =====================================================================
+package "DATA MASTER" {
+    
+    class prodi {
+        -id: BIGINT
+        -kode_prodi: VARCHAR(20)
+        -nama_prodi: VARCHAR(255)
+        -nama_singkat: VARCHAR(100)
+        __
+        +dosenKepala()
+        +dosen()
+        +matakuliah()
+        +laporanGKM()
+    }
+    
+    class users {
+        -id: BIGINT
+        -name: VARCHAR(255)
+        -email: VARCHAR(255)
+        -username: VARCHAR(255)
+        -password: VARCHAR(255)
+        -role: ENUM
+        -prodi_id: BIGINT
+        __
+        +dosen()
+        +prodi()
+        +reminders()
+        +isGKM()
+        +isGJM()
+        +isDosen()
+    }
+    
+    class dosen {
+        -dosen_id: BIGINT
+        -nip: VARCHAR(50)
+        -nidn: VARCHAR(50)
+        -nama: VARCHAR(255)
+        -email: VARCHAR(255)
+        -prodi_id: BIGINT
+        __
+        +user()
+        +prodi()
+        +rps()
+        +materi()
+        +scopeKaprodi()
+    }
+}
+
+' =====================================================================
+' PAKET: AKADEMIK
+' =====================================================================
+package "AKADEMIK" {
+    
+    class matakuliah {
+        -id: BIGINT
+        -prodi_id: BIGINT
+        -kode_mk: VARCHAR(20)
+        -nama_mk: VARCHAR(255)
+        -sks: INT
+        -semester: INT
+        -status: ENUM
+        __
+        +prodi()
+        +dosen()
+        +rps()
+    }
+    
+    class periode_akademik {
+        -id: BIGINT
+        -tahun_ajaran: VARCHAR(20)
+        -semester: ENUM
+        -start_date: DATE
+        -end_date: DATE
+        -is_active: TINYINT
+        __
+        +getActive()
+        +scopeActive()
+    }
+}
+
+' =====================================================================
+' PAKET: RPS & MATERI PEMBELAJARAN
+' =====================================================================
+package "RPS & MATERI" {
+    
+    class rps {
+        -id: BIGINT
+        -matakuliah_id: BIGINT
+        -periode_id: BIGINT
+        -dosen_id: BIGINT
+        -deskripsi: TEXT
+        -file_rps: VARCHAR(500)
+        -status_upload_rps: ENUM
+        __
+        +matakuliah()
+        +ajaran()
+        +dosen()
+        +monitoring()
+    }
+    
+    class materi {
+        -id: BIGINT
+        -matakuliah_id: BIGINT
+        -periode_id: BIGINT
+        -dosen_id: BIGINT
+        -judul_materi: VARCHAR(255)
+        -file_materi: VARCHAR(500)
+        -status_upload_materi: ENUM
+        __
+        +matakuliah()
+        +dosen()
+        +monitoring()
+    }
+}
+
+' =====================================================================
+' PAKET: EVALUASI (KUISIONER)
+' =====================================================================
+package "EVALUASI" {
+    
+    class kuisioner {
+        -id: BIGINT
+        -periode_id: BIGINT
+        -matakuliah_id: BIGINT
+        -dosen_id: BIGINT
+        -judul: VARCHAR(255)
+        -periode_kuesioner: ENUM
+        __
+        +pertanyaan()
+        +jawaban()
+    }
+    
+    class pertanyaan_kuisioner {
+        -id: BIGINT
+        -kuisioner_id: BIGINT
+        -pertanyaan: TEXT
+        -jawaban: TEXT
+        -pilihan_jawaban: ENUM
+        -jumlah_responden: INT
+        __
+        +kuisioner()
+        +jawaban()
+    }
+}
+
+' =====================================================================
+' PAKET: PENGINGAT & LAPORAN
+' =====================================================================
+package "PENGINGAT & LAPORAN" {
+    
+    class reminder {
+        -id: BIGINT
+        -user_id: BIGINT
+        -dosen_id: BIGINT
+        -tipe_reminder: ENUM
+        -judul: VARCHAR(255)
+        -status_pengiriman: ENUM
+        __
+        +userPembuat()
+        +userPenerima()
+    }
+    
+    class template_laporan {
+        -id: BIGINT
+        -nama_template: VARCHAR(255)
+        -jenis_template: ENUM
+        -file_template: VARCHAR(500)
+        __
+        +prodi()
+        +laporanBulanan()
+        +scopeActive()
+    }
+    
+    class laporan {
+        -id: BIGINT
+        -user_id: BIGINT
+        -prodi_id: BIGINT
+        -jenis_laporan: ENUM
+        -template_id: BIGINT
+        -judul_laporan: VARCHAR(255)
+        __
+        +user()
+        +template()
+        +prodi()
+    }
+    
+    class kirim_laporan {
+        -id: BIGINT
+        -user_id: BIGINT
+        -penerima: TEXT
+        -judul: VARCHAR(255)
+        __
+        +user()
+    }
+}
+
+' =====================================================================
+' RELASI ANTAR ENTITAS
+' =====================================================================
+
+' --- RELASI DATA MASTER ---
+users "1" --> "*" dosen : memiliki >
+users "*" --> "1" prodi : milik dari >
+dosen "*" --> "1" prodi : bekerja di >
+
+' --- RELASI AKADEMIK ---
+matakuliah "*" --> "1" prodi : ditawarkan oleh >
+
+' --- RELASI RPS & MATERI ---
+rps "*" --> "1" matakuliah : untuk >
+rps "*" --> "1" periode_akademik : berlaku pada >
+rps "*" --> "1" dosen : dibuat oleh >
+
+materi "*" --> "1" matakuliah : bagian dari >
+materi "*" --> "1" periode_akademik : berlaku pada >
+materi "*" --> "1" dosen : diunggah oleh >
+
+' --- RELASI EVALUASI ---
+kuisioner "*" --> "1" periode_akademik : dilaksanakan pada >
+kuisioner "*" --> "1" matakuliah : mengevaluasi >
+kuisioner "*" --> "1" dosen : untuk >
+kuisioner "1" --> "1" pertanyaan_kuisioner : merujuk ke >
+pertanyaan_kuisioner "*" --> "1" kuisioner : bagian dari >
+
+' --- RELASI PENGINGAT (OPSIONAL) ---
+reminder "*" --> "1" users : dikirim ke >
+reminder "*" ..> "0..1" dosen : tentang >
+reminder "*" ..> "0..1" matakuliah : tentang >
+reminder "*" ..> "0..1" rps : tentang >
+reminder "*" ..> "0..1" materi : tentang >
+
+' --- RELASI LAPORAN ---
+laporan "*" --> "1" users : dibuat oleh >
+laporan "*" --> "1" template_laporan : menggunakan >
+laporan "*" ..> "0..1" prodi : untuk >
+laporan "*" ..> "0..1" periode_akademik : pada periode >
+laporan "*" ..> "0..1" dosen : tentang >
+
+kirim_laporan "*" --> "1" users : dikirim oleh >
+
+@enduml

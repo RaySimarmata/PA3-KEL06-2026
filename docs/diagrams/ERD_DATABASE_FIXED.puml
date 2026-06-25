@@ -1,0 +1,465 @@
+@startuml ERD_Database_PA3_KEL06
+
+' Configuration
+skinparam linetype ortho
+skinparam classAttributeIconSize 0
+hide circle
+hide methods
+
+' ========================================
+' MASTER DATA
+' ========================================
+
+package "Master Data" {
+    
+    class prodi {
+        + id : BIGINT <<PK>>
+        --
+        kode_prodi : VARCHAR <<UK>>
+        nama_prodi : VARCHAR
+        nama_singkat : VARCHAR
+        deskripsi : TEXT
+        kaprodi_id : BIGINT
+        --
+        created_at : TIMESTAMP
+        updated_at : TIMESTAMP
+    }
+    
+    class users {
+        + id : BIGINT <<PK>>
+        --
+        name : VARCHAR
+        email : VARCHAR <<UK>>
+        username : VARCHAR <<UK>>
+        password : VARCHAR
+        role : ENUM
+        prodi_id : BIGINT <<FK>>
+        is_active : BOOLEAN
+        --
+        created_at : TIMESTAMP
+        updated_at : TIMESTAMP
+    }
+    
+    class dosen {
+        + id : BIGINT <<PK>>
+        --
+        user_id : BIGINT <<FK>>
+        nama_lengkap : VARCHAR
+        nidn : VARCHAR <<UK>>
+        gelar_akademik : VARCHAR
+        jabatan_akademik : VARCHAR
+        kontak_email : VARCHAR
+        prodi_id : BIGINT <<FK>>
+        bio : TEXT
+        foto_profil : VARCHAR
+        status : ENUM
+        --
+        created_at : TIMESTAMP
+        updated_at : TIMESTAMP
+    }
+    
+    class matakuliah {
+        + id : BIGINT <<PK>>
+        --
+        prodi_id : BIGINT <<FK>>
+        kode_mk : VARCHAR <<UK>>
+        nama_mk : VARCHAR
+        sks : INT
+        semester : INT
+        jenis_mk : VARCHAR
+        deskripsi : TEXT
+        status : ENUM
+        --
+        created_at : TIMESTAMP
+        updated_at : TIMESTAMP
+    }
+    
+    class ajaran {
+        + id : BIGINT <<PK>>
+        --
+        tahun_ajaran : YEAR
+        semester : ENUM
+        tanggal_mulai : DATE
+        tanggal_akhir : DATE
+        prodi_id : BIGINT <<FK>>
+        status : ENUM
+        --
+        created_at : TIMESTAMP
+        updated_at : TIMESTAMP
+    }
+}
+
+' ========================================
+' PEMBELAJARAN
+' ========================================
+
+package "Pembelajaran" {
+    
+    class rps {
+        + id : BIGINT <<PK>>
+        --
+        matakuliah_id : BIGINT <<FK>>
+        ajaran_id : BIGINT <<FK>>
+        dosen_id : BIGINT <<FK>>
+        deskripsi : TEXT
+        capaian_pembelajaran : TEXT
+        strategi_pembelajaran : TEXT
+        file_rps : VARCHAR
+        status_rps : ENUM
+        tanggal_upload : DATE
+        tanggal_validasi : DATE
+        --
+        created_at : TIMESTAMP
+        updated_at : TIMESTAMP
+    }
+    
+    class materi {
+        + id : BIGINT <<PK>>
+        --
+        rps_id : BIGINT <<FK>>
+        judul_materi : VARCHAR
+        deskripsi : TEXT
+        pertemuan_ke : INT
+        file_materi : VARCHAR
+        file_format : VARCHAR
+        tanggal_upload : DATE
+        status : ENUM
+        --
+        created_at : TIMESTAMP
+        updated_at : TIMESTAMP
+    }
+}
+
+' ========================================
+' KUESIONER
+' ========================================
+
+package "Kuesioner" {
+    
+    class kuisioner {
+        + id : BIGINT <<PK>>
+        --
+        ajaran_id : BIGINT <<FK>>
+        judul : VARCHAR
+        deskripsi : TEXT
+        target : ENUM
+        tanggal_mulai : DATE
+        tanggal_akhir : DATE
+        status : ENUM
+        --
+        created_at : TIMESTAMP
+        updated_at : TIMESTAMP
+    }
+    
+    class kuesioner_uploads {
+        + id : BIGINT <<PK>>
+        --
+        nama_file : VARCHAR
+        file_path : VARCHAR
+        periode : VARCHAR
+        matakuliah_id : BIGINT <<FK>>
+        pegawai_id : BIGINT <<FK>>
+        total_responden : INT
+        hasil_analisis : JSON
+        statistik_summary : JSON
+        status : ENUM
+        --
+        created_at : TIMESTAMP
+        updated_at : TIMESTAMP
+    }
+}
+
+' ========================================
+' MONITORING
+' ========================================
+
+package "Monitoring" {
+    
+    class monitoring {
+        + id : BIGINT <<PK>>
+        --
+        ajaran_id : BIGINT <<FK>>
+        prodi_id : BIGINT <<FK>>
+        jenis_monitoring : ENUM
+        total_dosen : INT
+        dosen_selesai : INT
+        dosen_belum : INT
+        persentase_kepatuhan : DECIMAL
+        tanggal_monitoring : DATE
+        --
+        created_at : TIMESTAMP
+        updated_at : TIMESTAMP
+    }
+    
+    class rps_monitoring_snapshots {
+        + id : BIGINT <<PK>>
+        --
+        prodi_id : BIGINT <<FK>>
+        ajaran_id : BIGINT <<FK>>
+        snapshot_date : DATE
+        total_mk : INT
+        mk_rps_complete : INT
+        mk_rps_incomplete : INT
+        persentase_completion : DECIMAL
+        data_details : JSON
+        --
+        created_at : TIMESTAMP
+        updated_at : TIMESTAMP
+    }
+}
+
+' ========================================
+' LAPORAN GKM
+' ========================================
+
+package "Laporan GKM" {
+    
+    class laporan_gkm {
+        + id : BIGINT <<PK>>
+        --
+        prodi_id : BIGINT <<FK>>
+        ajaran_id : BIGINT <<FK>>
+        dosen_ketua : BIGINT <<FK>>
+        periode_mulai : DATE
+        periode_akhir : DATE
+        jenis_laporan : ENUM
+        ringkasan_temuan : TEXT
+        hasil_monitoring_rps : TEXT
+        hasil_monitoring_materi : TEXT
+        hasil_monitoring_kuisioner : TEXT
+        file_laporan : VARCHAR
+        status_laporan : ENUM
+        tanggal_submit : DATE
+        --
+        created_at : TIMESTAMP
+        updated_at : TIMESTAMP
+    }
+    
+    class evaluasi_artefak {
+        + id : BIGINT <<PK>>
+        --
+        laporan_gkm_id : BIGINT <<FK>>
+        dosen_id : BIGINT <<FK>>
+        jenis_artefak : ENUM
+        file_artefak : VARCHAR
+        deskripsi : TEXT
+        tanggal_kejadian : DATE
+        penilaian : TEXT
+        skor : INT
+        --
+        created_at : TIMESTAMP
+        updated_at : TIMESTAMP
+    }
+}
+
+' ========================================
+' LAPORAN GJM + AI
+' ========================================
+
+package "Laporan GJM + AI" {
+    
+    class template_laporan {
+        + id : BIGINT <<PK>>
+        --
+        nama_template : VARCHAR
+        jenis_laporan : ENUM
+        prodi_id : BIGINT <<FK>>
+        struktur_template : TEXT
+        placeholder_fields : JSON
+        status : ENUM
+        --
+        created_at : TIMESTAMP
+        updated_at : TIMESTAMP
+    }
+    
+    class laporan_gjm {
+        + id : BIGINT <<PK>>
+        --
+        ajaran_id : BIGINT <<FK>>
+        template_id : BIGINT <<FK>>
+        periode_mulai : DATE
+        periode_akhir : DATE
+        jenis_laporan : ENUM
+        status_laporan : ENUM
+        file_laporan : VARCHAR
+        tanggal_submit : DATE
+        --
+        ai_query : TEXT
+        ai_response : TEXT
+        rag_sources : JSON
+        ai_preview_pdf : VARCHAR
+        ai_preview_docx : VARCHAR
+        --
+        ragas_faithfulness : DECIMAL
+        ragas_answer_relevancy : DECIMAL
+        ragas_context_precision : DECIMAL
+        ragas_context_recall : DECIMAL
+        --
+        ppt_file_path : VARCHAR
+        ppt_status : ENUM
+        ocr_file_path : VARCHAR
+        ocr_status : ENUM
+        --
+        created_at : TIMESTAMP
+        updated_at : TIMESTAMP
+    }
+    
+    class document_chunks {
+        + id : BIGINT <<PK>>
+        --
+        template_id : BIGINT <<FK>>
+        document_type : VARCHAR
+        chunk_text : TEXT
+        chunk_index : INT
+        metadata : JSON
+        embedding_vector : VECTOR
+        source_file : VARCHAR
+        source_page : INT
+        --
+        created_at : TIMESTAMP
+        updated_at : TIMESTAMP
+    }
+    
+    class ai_response_cache {
+        + id : BIGINT <<PK>>
+        --
+        query_hash : VARCHAR
+        query_text : TEXT
+        response : TEXT
+        model_name : VARCHAR
+        temperature : DECIMAL
+        metadata : JSON
+        response_time : INT
+        hit_count : INT
+        last_accessed_at : TIMESTAMP
+        --
+        created_at : TIMESTAMP
+        updated_at : TIMESTAMP
+    }
+}
+
+' ========================================
+' REMINDER & EMAIL
+' ========================================
+
+package "Reminder & Email" {
+    
+    class reminder {
+        + id : BIGINT <<PK>>
+        --
+        dosen_id : BIGINT <<FK>>
+        rps_id : BIGINT <<FK>>
+        materi_id : BIGINT <<FK>>
+        jenis_reminder : ENUM
+        pesan : TEXT
+        tanggal_kirim : DATE
+        status_pengiriman : ENUM
+        --
+        created_at : TIMESTAMP
+        updated_at : TIMESTAMP
+    }
+    
+    class log_email {
+        + id : BIGINT <<PK>>
+        --
+        reminder_id : BIGINT <<FK>>
+        prodi_id : BIGINT <<FK>>
+        penerima_email : VARCHAR
+        subjek : VARCHAR
+        isi_email : TEXT
+        status_pengiriman : ENUM
+        pesan_error : TEXT
+        tanggal_pengiriman : DATE
+        percobaan_kirim : INT
+        --
+        created_at : TIMESTAMP
+        updated_at : TIMESTAMP
+    }
+}
+
+' ========================================
+' RELATIONS MANY-TO-MANY
+' ========================================
+
+package "Relations" {
+    
+    class dosen_matakuliah {
+        + id : BIGINT <<PK>>
+        --
+        dosen_id : BIGINT <<FK>>
+        matakuliah_id : BIGINT <<FK>>
+        --
+        created_at : TIMESTAMP
+        updated_at : TIMESTAMP
+    }
+    
+    class jadwal_dosen {
+        + id : BIGINT <<PK>>
+        --
+        dosen_id : BIGINT <<FK>>
+        matakuliah_id : BIGINT <<FK>>
+        ajaran_id : BIGINT <<FK>>
+        hari : VARCHAR
+        jam_mulai : TIME
+        jam_selesai : TIME
+        ruangan : VARCHAR
+        kelas : VARCHAR
+        --
+        created_at : TIMESTAMP
+        updated_at : TIMESTAMP
+    }
+}
+
+' ========================================
+' RELATIONSHIPS
+' ========================================
+
+' Master Data Relations
+prodi "1" -- "0..*" users
+prodi "1" -- "0..*" dosen
+prodi "1" -- "0..*" matakuliah
+prodi "1" -- "0..*" ajaran
+prodi "1" -- "0..*" laporan_gkm
+prodi "1" -- "0..*" monitoring
+prodi "1" -- "0..*" template_laporan
+
+users "1" -- "0..1" dosen : profile
+
+' Pembelajaran Relations
+matakuliah "1" -- "0..*" rps
+ajaran "1" -- "0..*" rps
+dosen "1" -- "0..*" rps
+rps "1" -- "0..*" materi
+
+' Kuesioner Relations
+ajaran "1" -- "0..*" kuisioner
+matakuliah "1" -- "0..*" kuesioner_uploads
+
+' Monitoring Relations
+prodi "1" -- "0..*" rps_monitoring_snapshots
+ajaran "1" -- "0..*" monitoring
+ajaran "1" -- "0..*" rps_monitoring_snapshots
+
+' Laporan GKM Relations
+dosen "1" -- "0..*" laporan_gkm : ketua
+laporan_gkm "1" -- "0..*" evaluasi_artefak
+dosen "1" -- "0..*" evaluasi_artefak
+
+' Laporan GJM Relations
+template_laporan "1" -- "0..*" laporan_gjm
+template_laporan "1" -- "0..*" document_chunks
+ajaran "1" -- "0..*" laporan_gjm
+
+' Reminder Relations
+dosen "1" -- "0..*" reminder
+reminder "1" -- "0..*" log_email
+
+' Many-to-Many Relations
+dosen "0..*" -- "0..*" matakuliah
+(dosen, matakuliah) .. dosen_matakuliah
+
+dosen "1" -- "0..*" jadwal_dosen
+matakuliah "1" -- "0..*" jadwal_dosen
+ajaran "1" -- "0..*" jadwal_dosen
+
+@enduml

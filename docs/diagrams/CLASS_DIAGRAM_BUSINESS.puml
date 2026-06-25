@@ -1,0 +1,595 @@
+@startuml CLASS_DIAGRAM_BUSINESS
+!theme plain
+skinparam classAttributeIconSize 0
+skinparam backgroundColor #FFFFFF
+skinparam class {
+    BackgroundColor White
+    BorderColor Black
+    ArrowColor Black
+}
+
+title Sistem Penjaminan Mutu Akademik - Design Class Diagram\nFakultas Vokasi Institut Teknologi Del
+
+' ==========================================
+' ACTOR & USER MANAGEMENT
+' ==========================================
+
+abstract class User {
+    - id: Integer
+    - username: String
+    - email: String
+    - password: String
+    - nama: String
+    - role: RoleEnum
+    - prodi_id: Integer
+    - is_active: Boolean
+    --
+    + login(): Boolean
+    + logout(): void
+    + getRole(): RoleEnum
+    + isGKM(): Boolean
+    + isGJM(): Boolean
+    + isDosen(): Boolean
+}
+
+enum RoleEnum {
+    DOSEN
+    GKM
+    GJM
+    ADMIN
+}
+
+class Dosen {
+    - pegawai_id: Integer
+    - nidn: String
+    - nama_lengkap: String
+    - gelar_akademik: String
+    - jabatan_akademik: String
+    - email: String
+    - nomor_telepon: String
+    - prodi_id: Integer
+    - is_kaprodi: Boolean
+    - is_dosen_wali: Boolean
+    - status: String
+    --
+    + uploadRPS(): void
+    + uploadMateri(): void
+    + getMatakuliahDiampu(): List<MataKuliah>
+    + getJadwalMengajar(): List<JadwalDosen>
+    + isiKuesioner(): void
+}
+
+class ProgramStudi {
+    - id: Integer
+    - kode_prodi: String
+    - nama_prodi: String
+    - nama_singkat: String
+    - kaprodi_id: Integer
+    --
+    + getDosen(): List<Dosen>
+    + getMatakuliah(): List<MataKuliah>
+    + getLaporanGKM(): List<LaporanGKM>
+}
+
+' ==========================================
+' ACADEMIC STRUCTURE
+' ==========================================
+
+class PeriodeAkademik {
+    - id: Integer
+    - tahun_ajaran: String
+    - semester: Integer
+    - semester_label: String
+    - start_date: Date
+    - end_date: Date
+    - is_active: Boolean
+    --
+    + activate(): void
+    + deactivate(): void
+    + getSemesterLabel(): String
+}
+
+class MataKuliah {
+    - id: Integer
+    - kode_mk: String
+    - nama_mk: String
+    - prodi_id: Integer
+    - sks: Integer
+    - semester: Integer
+    - jenis_mk: String
+    - capaian_pembelajaran: String
+    --
+    + assignDosen(dosen: Dosen): void
+    + getDosenPengampu(): List<Dosen>
+    + getRPS(): RPS
+}
+
+class JadwalDosen {
+    - id: Integer
+    - pegawai_id: Integer
+    - kuliah_id: Integer
+    - kode_mk: String
+    - kelas: String
+    - semester: Integer
+    - tahun_ajaran: String
+    - is_manual: Boolean
+    --
+    + getMatakuliah(): MataKuliah
+    + getDosen(): Dosen
+}
+
+class Kelas {
+    - id: Integer
+    - kode_kelas: String
+    - prodi_id: Integer
+    - tingkat: Integer
+    - tahun_angkatan: Integer
+    - status: String
+    --
+    + getMahasiswa(): List<Mahasiswa>
+    + getDosenWali(): Dosen
+}
+
+' ==========================================
+' RPS & MATERI MANAGEMENT
+' ==========================================
+
+class RPS {
+    - id: Integer
+    - matakuliah_id: Integer
+    - dosen_id: Integer
+    - periode_akademik_id: Integer
+    - file_rps: String
+    - status_upload: StatusEnum
+    - tanggal_upload: DateTime
+    - status_review: StatusReviewEnum
+    - feedback_review: String
+    --
+    + upload(file: File): Boolean
+    + review(feedback: String): void
+    + approve(): void
+    + reject(reason: String): void
+    + getStatus(): StatusEnum
+}
+
+class Materi {
+    - id: Integer
+    - rps_id: Integer
+    - matakuliah_id: Integer
+    - dosen_id: Integer
+    - judul_materi: String
+    - minggu_ke: Integer
+    - file_materi: String
+    - jenis_file: String
+    - status_upload: StatusEnum
+    - tanggal_upload: DateTime
+    --
+    + upload(file: File): Boolean
+    + validateDeadline(): Boolean
+    + getStatusKepatuhan(): String
+}
+
+enum StatusEnum {
+    BELUM_UPLOAD
+    SUDAH_UPLOAD
+    TERLAMBAT
+    DIVALIDASI
+}
+
+enum StatusReviewEnum {
+    PENDING
+    APPROVED
+    REJECTED
+    REVISI
+}
+
+' ==========================================
+' MONITORING SYSTEM
+' ==========================================
+
+class MonitoringRPS {
+    - id: Integer
+    - prodi_id: Integer
+    - semester: Integer
+    - tahun_ajaran: String
+    - total_matakuliah: Integer
+    - jumlah_upload: Integer
+    - jumlah_belum_upload: Integer
+    - persentase_kepatuhan: Float
+    - tanggal_monitoring: DateTime
+    --
+    + hitungKepatuhan(): Float
+    + identifikasiDosenBelumUpload(): List<Dosen>
+    + generateLaporan(): LaporanGKM
+    + kirimReminder(): void
+}
+
+class MonitoringPerkuliahan {
+    - id: Integer
+    - prodi_id: Integer
+    - semester: Integer
+    - tahun_ajaran: String
+    - total_pertemuan: Integer
+    - jumlah_materi_upload: Integer
+    - jumlah_terlambat: Integer
+    - persentase_kepatuhan: Float
+    --
+    + hitungKepatuhan(): Float
+    + identifikasiDosenTerlambat(): List<Dosen>
+    + kirimReminderMateri(): void
+}
+
+class EvaluasiArtefak {
+    - id: Integer
+    - evaluator_id: Integer
+    - rps_id: Integer
+    - jenis_artefak: String
+    - skor_evaluasi: Float
+    - catatan_evaluasi: String
+    - status_evaluasi: String
+    - tanggal_evaluasi: DateTime
+    --
+    + evaluasi(skor: Float, catatan: String): void
+    + approve(): void
+    + requestRevision(): void
+}
+
+' ==========================================
+' KUESIONER SYSTEM
+' ==========================================
+
+class Kuesioner {
+    - id: Integer
+    - judul_kuesioner: String
+    - tipe_kuesioner: String
+    - matakuliah_id: Integer
+    - semester: Integer
+    - tahun_ajaran: String
+    - tanggal_mulai: Date
+    - tanggal_selesai: Date
+    - status: StatusKuisionerEnum
+    --
+    + buka(): void
+    + tutup(): void
+    + getPertanyaan(): List<Pertanyaan>
+    + getHasilAnalisis(): HasilAnalisis
+}
+
+class Pertanyaan {
+    - id: Integer
+    - kuesioner_id: Integer
+    - nomor_urut: Integer
+    - teks_pertanyaan: String
+    - tipe_pertanyaan: TipePertanyaanEnum
+    - opsi_jawaban: String[]
+    --
+    + getJawaban(): List<Jawaban>
+}
+
+class Jawaban {
+    - id: Integer
+    - kuesioner_id: Integer
+    - pertanyaan_id: Integer
+    - dosen_id: Integer
+    - jawaban_teks: String
+    - jawaban_nilai: Integer
+    - tanggal_jawab: DateTime
+    --
+    + simpan(): Boolean
+    + validasi(): Boolean
+}
+
+class HasilAnalisis {
+    - kuesioner_id: Integer
+    - total_responden: Integer
+    - index_kepuasan: Float
+    - persen_kepuasan: Float
+    - kategori_kepuasan: String
+    - distribusi_jawaban: String
+    --
+    + hitungStatistik(): void
+    + generateVisualisasi(): void
+    + exportData(): File
+}
+
+enum StatusKuisionerEnum {
+    DRAFT
+    AKTIF
+    SELESAI
+    ARCHIVED
+}
+
+enum TipePertanyaanEnum {
+    PILIHAN_GANDA
+    SKALA_LIKERT
+    TEKS_BEBAS
+    RATING
+}
+
+' ==========================================
+' REMINDER & NOTIFICATION
+' ==========================================
+
+class JadwalReminder {
+    - id: Integer
+    - prodi_id: Integer
+    - nama_jadwal: String
+    - tipe_reminder: TipeReminderEnum
+    - template_pesan: String
+    - tanggal_pengiriman: Date
+    - waktu_pengiriman: Time
+    - frekuensi: String
+    - is_active: Boolean
+    --
+    + aktifkan(): void
+    + nonaktifkan(): void
+    + kirimReminder(): void
+}
+
+class Reminder {
+    - id: Integer
+    - jadwal_reminder_id: Integer
+    - user_pembuat_id: Integer
+    - user_penerima_id: Integer
+    - tipe_reminder: TipeReminderEnum
+    - subjek: String
+    - isi_pesan: String
+    - tanggal_pengiriman: DateTime
+    - status_pengiriman: StatusPengirimanEnum
+    --
+    + kirim(): Boolean
+    + getStatus(): StatusPengirimanEnum
+    + retrySend(): Boolean
+}
+
+class LogEmail {
+    - id: Integer
+    - reminder_id: Integer
+    - penerima_email: String
+    - subjek: String
+    - isi_email: String
+    - status_pengiriman: String
+    - pesan_error: String
+    - tanggal_pengiriman: DateTime
+    --
+    + logSuccess(): void
+    + logError(message: String): void
+}
+
+enum TipeReminderEnum {
+    UPLOAD_RPS
+    UPLOAD_MATERI
+    REVIEW_SOAL
+    KUESIONER
+    PERWALIAN
+}
+
+enum StatusPengirimanEnum {
+    PENDING
+    TERKIRIM
+    GAGAL
+    DIBACA
+}
+
+' ==========================================
+' REPORTING SYSTEM
+' ==========================================
+
+class TemplateLaporan {
+    - id: Integer
+    - nama_template: String
+    - jenis_laporan: JenisLaporanEnum
+    - jenis_template: String
+    - file_path: String
+    - is_active: Boolean
+    - struktur_template: String
+    --
+    + upload(file: File): Boolean
+    + activate(): void
+    + deactivate(): void
+}
+
+class LaporanGKM {
+    - id: Integer
+    - user_id: Integer
+    - template_id: Integer
+    - jenis_laporan: JenisLaporanEnum
+    - periode: String
+    - bulan: String
+    - tahun: Integer
+    - file_word: String
+    - file_pdf: String
+    - kepatuhan_rps: Float
+    - kepatuhan_materi: Float
+    - hasil_kuesioner: String
+    - status: StatusLaporanEnum
+    - tanggal_buat: DateTime
+    --
+    + generate(): Boolean
+    + generateWithAI(prompt: String): Boolean
+    + export(format: String): File
+    + kirimKeGJM(): Boolean
+    + getStatusKepatuhan(): String
+}
+
+class LaporanGJM {
+    - id: Integer
+    - created_by: Integer
+    - template_id: Integer
+    - jenis_laporan: JenisLaporanEnum
+    - periode_mulai: Date
+    - periode_akhir: Date
+    - program_studi: String
+    - ringkasan_mutu: String
+    - analisis_kepatuhan: String
+    - temuan_utama: String
+    - rekomendasi: String
+    - file_laporan: String
+    - file_ppt: String
+    - status: StatusLaporanEnum
+    - tanggal_submit: DateTime
+    --
+    + generate(): Boolean
+    + generatePPT(): Boolean
+    + review(catatan: String): void
+    + approve(): void
+    + reject(alasan: String): void
+    + agregasiDataGKM(): void
+}
+
+class KirimLaporanHistory {
+    - id: Integer
+    - user_id: Integer
+    - recipients: String
+    - subject: String
+    - message: String
+    - laporan_ids: String[]
+    - attachment_names: String[]
+    - sent_count: Integer
+    - failed_count: Integer
+    - status: String
+    - tanggal_kirim: DateTime
+    --
+    + kirimEmail(): Boolean
+    + trackDelivery(): void
+}
+
+enum JenisLaporanEnum {
+    KUESIONER
+    ARTEFAK
+    TRIWULAN
+    SEMESTER
+    TAHUNAN
+}
+
+enum StatusLaporanEnum {
+    DRAFT
+    PROCESSING
+    COMPLETED
+    FAILED
+    MENUNGGU_REVIEW
+    APPROVED
+    REVISI
+}
+
+' ==========================================
+' RELATIONSHIPS
+' ==========================================
+
+' User & Role
+User "1" o-- "1" RoleEnum
+User "1" *-- "1" Dosen : extends >
+User "*" --> "1" ProgramStudi : belongs to
+
+' Academic Structure
+ProgramStudi "1" o-- "*" Dosen
+ProgramStudi "1" *-- "*" MataKuliah
+ProgramStudi "1" *-- "*" Kelas
+ProgramStudi "1" o-- "1" Dosen : kaprodi
+
+Dosen "*" -- "*" MataKuliah : mengampu
+Dosen "1" *-- "*" JadwalDosen
+Dosen "1" -- "0..1" Kelas : dosen wali
+
+MataKuliah "*" --> "1" ProgramStudi
+MataKuliah "1" *-- "0..1" RPS
+MataKuliah "1" *-- "*" Materi
+MataKuliah "1" -- "*" Kuesioner
+
+JadwalDosen "*" --> "1" Dosen
+JadwalDosen "*" --> "1" MataKuliah
+JadwalDosen "*" --> "1" PeriodeAkademik
+
+' RPS & Materi
+RPS "*" --> "1" MataKuliah
+RPS "*" --> "1" Dosen : dibuat oleh
+RPS "*" --> "1" PeriodeAkademik
+RPS "1" o-- "*" Materi
+RPS "1" -- "0..1" EvaluasiArtefak
+
+Materi "*" --> "1" MataKuliah
+Materi "*" --> "1" Dosen : diupload oleh
+Materi "*" --> "1" RPS
+
+' Monitoring
+MonitoringRPS "*" --> "1" ProgramStudi
+MonitoringRPS "*" --> "1" PeriodeAkademik
+MonitoringRPS "1" *-- "*" Dosen : monitors
+
+MonitoringPerkuliahan "*" --> "1" ProgramStudi
+MonitoringPerkuliahan "*" --> "1" PeriodeAkademik
+MonitoringPerkuliahan "1" *-- "*" Materi : monitors
+
+EvaluasiArtefak "*" --> "1" Dosen : evaluator
+EvaluasiArtefak "*" --> "1" RPS : evaluates
+
+' Kuesioner
+Kuesioner "*" --> "1" MataKuliah
+Kuesioner "*" --> "1" PeriodeAkademik
+Kuesioner "1" *-- "*" Pertanyaan
+Kuesioner "1" -- "0..1" HasilAnalisis
+
+Pertanyaan "*" --> "1" Kuesioner
+Pertanyaan "1" *-- "*" Jawaban
+
+Jawaban "*" --> "1" Kuesioner
+Jawaban "*" --> "1" Pertanyaan
+Jawaban "*" --> "1" Dosen : dijawab oleh
+
+' Reminder & Notification
+JadwalReminder "*" --> "1" ProgramStudi
+JadwalReminder "*" --> "1" User : dibuat oleh
+JadwalReminder "1" *-- "*" Reminder : generates
+
+Reminder "*" --> "1" User : pengirim
+Reminder "*" --> "1" User : penerima
+Reminder "1" *-- "*" LogEmail
+
+LogEmail "*" --> "1" Reminder
+
+' Reporting
+TemplateLaporan "*" --> "1" ProgramStudi
+TemplateLaporan "1" -- "*" LaporanGKM : digunakan oleh
+TemplateLaporan "1" -- "*" LaporanGJM : digunakan oleh
+
+LaporanGKM "*" --> "1" User : dibuat oleh
+LaporanGKM "*" --> "1" TemplateLaporan
+LaporanGKM "*" --> "1" PeriodeAkademik
+LaporanGKM "1" *-- "1" MonitoringRPS : berdasarkan
+LaporanGKM "1" *-- "1" MonitoringPerkuliahan : berdasarkan
+LaporanGKM "1" *-- "*" HasilAnalisis : merangkum
+
+LaporanGJM "*" --> "1" User : dibuat oleh
+LaporanGJM "*" --> "1" TemplateLaporan
+LaporanGJM "*" --> "1" PeriodeAkademik
+LaporanGJM "1" *-- "*" LaporanGKM : agregasi dari
+
+KirimLaporanHistory "*" --> "1" User : pengirim
+KirimLaporanHistory "1" -- "*" LaporanGKM : mengirim
+KirimLaporanHistory "1" -- "*" LaporanGJM : mengirim
+
+note bottom of User
+  User sebagai abstract class yang 
+  diwariskan ke Dosen, GKM, GJM
+  berdasarkan role yang dimiliki
+end note
+
+note bottom of MonitoringRPS
+  Monitoring dilakukan secara otomatis
+  berdasarkan snapshot data dari API
+  dan database lokal
+end note
+
+note bottom of LaporanGKM
+  Laporan dapat di-generate manual
+  atau menggunakan AI Assistant
+  dengan RAG (Retrieval Augmented Generation)
+end note
+
+note bottom of Kuesioner
+  Kuesioner diinput dari file Excel
+  dan dianalisis menggunakan 
+  Statistical Analysis + AI
+end note
+
+@enduml

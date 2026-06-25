@@ -1,0 +1,393 @@
+================================================================================
+CLASS DIAGRAM - SISTEM MONITORING MUTU AKADEMIK
+Format: Text-based Class Definition
+================================================================================
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ DOMAIN 1: MASTER DATA                                                       │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+Prodi
+-id: BIGINT
+-kode_prodi: VARCHAR(20)
+-nama_prodi: VARCHAR(255)
+-nama_singkat: VARCHAR(100)
+--
++dosenKepala(): BelongsTo
++dosen(): HasMany
++matakuliah(): HasMany
++laporanGKM(): HasMany
+
+Users
+-id: BIGINT
+-name: VARCHAR(255)
+-email: VARCHAR(255)
+-username: VARCHAR(255)
+-password: VARCHAR(255)
+-role: ENUM('gjm','gkm')
+-prodi_id: BIGINT
+--
++dosen(): HasOne
++prodi(): BelongsTo
++reminders(): HasMany
++isGKM(): boolean
++isGJM(): boolean
++isDosen(): boolean
++getProdiNameAttribute(): string
+#casts(): array
+
+Dosen
+-dosen_id: BIGINT
+-pegawai_id: BIGINT
+-nip: VARCHAR(50)
+-nidn: VARCHAR(50)
+-nama: VARCHAR(255)
+-inisial_nama: VARCHAR(50)
+-email: VARCHAR(255)
+-nomor_telepon: VARCHAR(20)
+-prodi_id: BIGINT
+-jabatan_akademik: VARCHAR(255)
+--
++user(): BelongsTo
++prodi(): BelongsTo
++matakuliah(): BelongsToMany
++rps(): HasMany
++materi(): HasMany
++monitoring(): HasMany
++kuisionerResponses(): HasMany
++laporanGKM(): HasMany
++evaluasiArtefak(): HasMany
++scopeKaprodi(): Builder
++scopeDosenWali(): Builder
++getKelasListByProdi(prodiId): array
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ DOMAIN 2: AKADEMIK                                                          │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+Matakuliah
+-id: BIGINT
+-prodi_id: BIGINT
+-kode_mk: VARCHAR(20)
+-nama_mk: VARCHAR(255)
+-sks: INT
+-semester: INT
+-status: ENUM('aktif','tidak_aktif')
+--
++prodi(): BelongsTo
++dosen(): BelongsToMany
++rps(): HasMany
+
+PeriodeAkademik
+-id: BIGINT
+-tahun_ajaran: VARCHAR(20)
+-semester: ENUM('Ganjil','Genap')
+-start_date: DATE
+-end_date: DATE
+-is_active: TINYINT(1)
+--
++getActive(): PeriodeAkademik
++scopeActive(query): Builder
++setSemesterAttribute(value): void
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ DOMAIN 3: RPS & MATERI                                                      │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+RPS
+-id: BIGINT
+-matakuliah_id: BIGINT
+-periode_id: BIGINT
+-dosen_id: BIGINT
+-deskripsi: TEXT
+-file_rps: VARCHAR(500)
+-status_upload_rps: ENUM('belum_upload','sudah_upload')
+--
++matakuliah(): BelongsTo
++ajaran(): BelongsTo
++dosen(): BelongsTo
++evaluasiArtefak(): HasOne
++monitoring(): HasMany
+
+Materi
+-id: BIGINT
+-matakuliah_id: BIGINT
+-periode_id: BIGINT
+-dosen_id: BIGINT
+-judul_materi: VARCHAR(255)
+-deskripsi: TEXT
+-pertemuan_ke: INT
+-file_materi: VARCHAR(500)
+-tanggal_upload: DATE
+-status_upload_materi: ENUM('belum_upload','sudah_upload')
+-catatan: TEXT
+--
++rps(): BelongsTo
++matakuliah(): BelongsTo
++dosen(): BelongsTo
++evaluasiArtefak(): HasOne
++monitoring(): HasMany
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ DOMAIN 4: KUISIONER                                                         │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+Kuisioner
+-id: BIGINT
+-periode_id: BIGINT
+-matakuliah_id: BIGINT
+-dosen_id: BIGINT
+-judul: VARCHAR(255)
+-periode_kuesioner: ENUM('UTS','UAS')
+-pertanyaan_id: BIGINT
+--
++pertanyaan(): HasMany
++jawaban(): HasMany
+
+PertanyaanKuisioner
+-id: BIGINT
+-kuisioner_id: BIGINT
+-pertanyaan: TEXT
+-jawaban: TEXT
+-pilihan_jawaban: ENUM('SS','S','CS','TS')
+-jumlah_responden: INT
+--
++kuisioner(): BelongsTo
++jawaban(): HasMany
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ DOMAIN 5: REMINDER & LAPORAN                                                │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+Reminder
+-id: BIGINT
+-user_id: BIGINT
+-dosen_id: BIGINT {nullable}
+-matakuliah_id: BIGINT {nullable}
+-rps_id: BIGINT {nullable}
+-materi_id: BIGINT {nullable}
+-tipe_reminder: ENUM('rps_review','materi_upload')
+-judul: VARCHAR(255)
+-isi_reminder: TEXT
+-status_pengiriman: ENUM('gagal_terkirim','berhasil_terkirim')
+-tanggal_kirim: DATE
+--
++userPembuat(): BelongsTo
++userPenerima(): BelongsTo
++logEmail(): HasMany
+
+TemplateLaporan
+-id: BIGINT
+-nama_template: VARCHAR(255)
+-jenis_template: ENUM('artefak bulanan','kuesioner','triwulan','semester')
+-file_template: VARCHAR(500)
+--
++prodi(): BelongsTo
++uploader(): BelongsTo
++laporanBulanan(): HasMany
++scopeActive(query): Builder
++scopeJenis(query, jenis): Builder
+
+Laporan
+-id: BIGINT
+-user_id: BIGINT
+-dosen_id: BIGINT {nullable}
+-prodi_id: BIGINT {nullable}
+-jenis_laporan: ENUM('artefak bulanan','kuesioner','triwulan','semester','vmts')
+-periode_id: BIGINT {nullable}
+-template_id: BIGINT
+-judul_laporan: VARCHAR(255)
+-isi_laporan: TEXT
+--
++user(): BelongsTo
++template(): BelongsTo
++prodi(): BelongsTo
++ajaran(): BelongsTo
++validatedByUser(): BelongsTo
++getFormattedPeriodeAttribute(): string
++getStatusLabelAttribute(): string
++getStatusBadgeAttribute(): string
+
+KirimLaporan
+-id: BIGINT
+-user_id: BIGINT
+-penerima: TEXT
+-cc: TEXT
+-judul: VARCHAR(255)
+-isi_pesan: TEXT
+--
++user(): BelongsTo
+
+================================================================================
+RELASI ANTAR CLASS
+================================================================================
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ MASTER DATA RELATIONS                                                       │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+Users [1] ────────< [*] Dosen
+    Relasi: Users memiliki banyak Dosen
+    Type: One-to-Many (HasMany)
+
+Users [*] >──────── [1] Prodi
+    Relasi: Users milik dari satu Prodi
+    Type: Many-to-One (BelongsTo)
+
+Dosen [*] >──────── [1] Prodi
+    Relasi: Dosen milik dari satu Prodi
+    Type: Many-to-One (BelongsTo)
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ AKADEMIK RELATIONS                                                          │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+Matakuliah [*] >──────── [1] Prodi
+    Relasi: Matakuliah ditawarkan oleh Prodi
+    Type: Many-to-One (BelongsTo)
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ RPS & MATERI RELATIONS                                                      │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+RPS [*] >──────── [1] Matakuliah
+    Relasi: RPS untuk satu Matakuliah
+    Type: Many-to-One (BelongsTo)
+
+RPS [*] >──────── [1] PeriodeAkademik
+    Relasi: RPS berlaku pada satu Periode
+    Type: Many-to-One (BelongsTo)
+
+RPS [*] >──────── [1] Dosen
+    Relasi: RPS dibuat oleh satu Dosen
+    Type: Many-to-One (BelongsTo)
+
+Materi [*] >──────── [1] Matakuliah
+    Relasi: Materi milik satu Matakuliah
+    Type: Many-to-One (BelongsTo)
+
+Materi [*] >──────── [1] PeriodeAkademik
+    Relasi: Materi berlaku pada satu Periode
+    Type: Many-to-One (BelongsTo)
+
+Materi [*] >──────── [1] Dosen
+    Relasi: Materi diunggah oleh satu Dosen
+    Type: Many-to-One (BelongsTo)
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ KUISIONER RELATIONS                                                         │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+Kuisioner [*] >──────── [1] PeriodeAkademik
+    Relasi: Kuisioner pada satu Periode
+    Type: Many-to-One (BelongsTo)
+
+Kuisioner [*] >──────── [1] Matakuliah
+    Relasi: Kuisioner evaluasi untuk satu Matakuliah
+    Type: Many-to-One (BelongsTo)
+
+Kuisioner [*] >──────── [1] Dosen
+    Relasi: Kuisioner untuk satu Dosen
+    Type: Many-to-One (BelongsTo)
+
+Kuisioner [1] ──────── [1] PertanyaanKuisioner
+    Relasi: Kuisioner referensi PertanyaanKuisioner
+    Type: One-to-One (References)
+
+PertanyaanKuisioner [*] >──────── [1] Kuisioner
+    Relasi: PertanyaanKuisioner bagian dari Kuisioner
+    Type: Many-to-One (BelongsTo)
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ REMINDER RELATIONS (OPSIONAL)                                               │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+Reminder [*] >──────── [1] Users
+    Relasi: Reminder dikirim ke User
+    Type: Many-to-One (BelongsTo)
+
+Reminder [*] ··········> [0..1] Dosen
+    Relasi: Reminder tentang Dosen (opsional)
+    Type: Many-to-One Optional (BelongsTo nullable)
+
+Reminder [*] ··········> [0..1] Matakuliah
+    Relasi: Reminder tentang Matakuliah (opsional)
+    Type: Many-to-One Optional (BelongsTo nullable)
+
+Reminder [*] ··········> [0..1] RPS
+    Relasi: Reminder tentang RPS (opsional)
+    Type: Many-to-One Optional (BelongsTo nullable)
+
+Reminder [*] ··········> [0..1] Materi
+    Relasi: Reminder tentang Materi (opsional)
+    Type: Many-to-One Optional (BelongsTo nullable)
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ LAPORAN RELATIONS                                                           │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+Laporan [*] >──────── [1] Users
+    Relasi: Laporan dibuat oleh User
+    Type: Many-to-One (BelongsTo)
+
+Laporan [*] >──────── [1] TemplateLaporan
+    Relasi: Laporan menggunakan Template
+    Type: Many-to-One (BelongsTo)
+
+Laporan [*] ··········> [0..1] Prodi
+    Relasi: Laporan untuk Prodi (opsional)
+    Type: Many-to-One Optional (BelongsTo nullable)
+
+Laporan [*] ··········> [0..1] PeriodeAkademik
+    Relasi: Laporan pada Periode (opsional)
+    Type: Many-to-One Optional (BelongsTo nullable)
+
+Laporan [*] ··········> [0..1] Dosen
+    Relasi: Laporan tentang Dosen (opsional)
+    Type: Many-to-One Optional (BelongsTo nullable)
+
+KirimLaporan [*] >──────── [1] Users
+    Relasi: KirimLaporan dikirim oleh User
+    Type: Many-to-One (BelongsTo)
+
+================================================================================
+LEGEND
+================================================================================
+
+VISIBILITY:
+    - (minus)   = Private attribute/method
+    + (plus)    = Public attribute/method
+    # (hash)    = Protected attribute/method
+
+RELASI:
+    [1] ────────< [*]     = One-to-Many (HasMany)
+    [*] >──────── [1]     = Many-to-One (BelongsTo)
+    [*] ··········> [0..1] = Many-to-One Optional (BelongsTo nullable)
+    [1] ──────── [1]      = One-to-One
+
+TIPE DATA:
+    {nullable} = Field dapat bernilai NULL
+
+CARDINALITY:
+    [1]   = Exactly one
+    [*]   = Zero or more
+    [0..1] = Zero or one
+
+================================================================================
+STATISTIK
+================================================================================
+
+Total Classes:          13
+Total Attributes:       120+
+Total Methods:          80+
+Total Relations:        36
+  - Mandatory:          26
+  - Optional:           10
+BelongsTo Relations:    28
+Domain Count:           5
+
+================================================================================
+Generated: 2026-06-16
+Source: SQL DDL + Laravel Models
+Format: Text-based Class Definition
+================================================================================

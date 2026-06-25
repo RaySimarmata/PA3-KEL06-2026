@@ -1,0 +1,910 @@
+@startuml CLASS_DIAGRAM_COMPLETE
+!define ENTITY_COLOR #E8F5E9
+!define VALUE_OBJECT_COLOR #FFF3E0
+!define SERVICE_COLOR #E3F2FD
+!define CONTROLLER_COLOR #F3E5F5
+
+title Sistem Monitoring Mutu Akademik - Complete Class Diagram
+skinparam class {
+    BackgroundColor<<Entity>> ENTITY_COLOR
+    BackgroundColor<<ValueObject>> VALUE_OBJECT_COLOR
+    BackgroundColor<<Service>> SERVICE_COLOR
+    BackgroundColor<<Controller>> CONTROLLER_COLOR
+    BorderColor Black
+    ArrowColor #2C3E50
+}
+skinparam groupInheritance 2
+
+' ============================================================
+' DOMAIN 1: MASTER DATA & AUTHENTICATION
+' ============================================================
+
+package "Master Data & Auth" <<Rectangle>> {
+    
+    class User <<Entity>> {
+        + id: bigint
+        + name: string
+        + email: string
+        + username: string
+        + password: string
+        + role: enum(gjm,gkm,dosen)
+        + prodi_id: bigint
+        + is_active: boolean
+        --
+        + isGKM(): boolean
+        + isGJM(): boolean
+        + isDosen(): boolean
+        + getProdiNameAttribute(): string
+    }
+    
+    class Prodi <<Entity>> {
+        + id: bigint
+        + kode_prodi: string
+        + nama_prodi: string
+        + nama_singkat: string
+        + dosen_kepala_id: bigint
+    }
+    
+    class Dosen <<Entity>> {
+        + id: bigint
+        + user_id: bigint
+        + prodi_id: bigint
+        + nama_lengkap: string
+        + nidn: string
+        + gelar_akademik: string
+        + jabatan_akademik: string
+        + kontak_email: string
+        + is_kaprodi: boolean
+        + is_dosen_wali: boolean
+        + kelas_wali: string
+        --
+        + scopeKaprodi(): query
+        + scopeDosenWali(): query
+    }
+    
+    class Dosenn <<Entity>> {
+        + dosen_id: bigint
+        + pegawai_id: bigint
+        + nip: string
+        + nidn: string
+        + nama: string
+        + email: string
+        + prodi_id: bigint
+    }
+}
+
+' ============================================================
+' DOMAIN 2: AKADEMIK
+' ============================================================
+
+package "Akademik" <<Rectangle>> {
+    
+    class Matakuliah <<Entity>> {
+        + id: bigint
+        + prodi_id: bigint
+        + kode_mk: string
+        + nama_mk: string
+        + sks: int
+        + semester: int
+        + status: enum
+    }
+    
+    class Ajaran <<Entity>> {
+        + id: bigint
+        + prodi_id: bigint
+        + tahun_ajaran: string
+        + semester: enum(Ganjil,Genap)
+        + is_active: boolean
+    }
+    
+    class PeriodeAkademik <<Entity>> {
+        + id: bigint
+        + tahun_ajaran: string
+        + semester: enum
+        + start_date: date
+        + end_date: date
+        + is_active: boolean
+        --
+        + getActive(): PeriodeAkademik
+    }
+    
+    class Kelas <<Entity>> {
+        + id: bigint
+        + prodi_id: bigint
+        + kode_kelas: string
+        + nama_kelas: string
+        + status: enum
+    }
+}
+
+' ============================================================
+' DOMAIN 3: RPS & MATERI
+' ============================================================
+
+
+package "RPS & Materi" <<Rectangle>> {
+    
+    class RPS <<Entity>> {
+        + id: bigint
+        + matakuliah_id: bigint
+        + ajaran_id: bigint
+        + dosen_id: bigint
+        + deskripsi: text
+        + file_rps: string
+        + status_upload_rps: enum
+    }
+    
+    class Materi <<Entity>> {
+        + id: bigint
+        + matakuliah_id: bigint
+        + ajaran_id: bigint
+        + dosen_id: bigint
+        + judul_materi: string
+        + deskripsi: text
+        + pertemuan_ke: int
+        + file_materi: string
+        + tanggal_upload: date
+        + status_upload_materi: enum
+        + catatan: text
+    }
+    
+    class EvaluasiArtefak <<Entity>> {
+        + id: bigint
+        + dosen_id: bigint
+        + rps_id: bigint
+        + materi_id: bigint
+        + evaluasi: text
+        + skor: decimal
+    }
+}
+
+' ============================================================
+' DOMAIN 4: MONITORING
+' ============================================================
+
+package "Monitoring" <<Rectangle>> {
+    
+    class Monitoring <<Entity>> {
+        + id: bigint
+        + dosen_id: bigint
+        + matakuliah_id: bigint
+        + ajaran_id: bigint
+        + rps_id: bigint
+        + materi_id: bigint
+        + tanggal_monitoring: date
+        + hasil_monitoring: text
+    }
+    
+    class RpsMonitoringSnapshot <<Entity>> {
+        + id: bigint
+        + pegawai_id: bigint
+        + prodi_kode: string
+        + prodi_id: bigint
+        + semester: int
+        + tahun_ajaran: string
+        + kuliah_id: bigint
+        + kode_mk: string
+        + nama_matkul: string
+        + status_rps: string
+        + reminder_sent: boolean
+        + raw_data: json
+        --
+        + scopeByPeriode(): query
+        + scopeByProdi(): query
+        + scopeByStatus(): query
+    }
+    
+    class PerkuliahanMonitoringSnapshot <<Entity>> {
+        + id: bigint
+        + pegawai_id: bigint
+        + prodi_id: bigint
+        + semester: int
+        + tahun_ajaran: string
+        + kode_mk: string
+        + nama_matkul: string
+        + jenis_materi: string
+        + status_upload: string
+        + reminder_sent: boolean
+        + raw_data: json
+    }
+    
+    class PerkuliahanMonitoringDetail <<Entity>> {
+        + id: bigint
+        + pegawai_id: bigint
+        + nama_dosen: string
+        + kode_mk: string
+        + nama_matkul: string
+        + prodi_id: bigint
+        + semester: int
+        + tahun_ajaran: string
+        + total_minggu: int
+        + jumlah_upload: int
+        + jumlah_terlambat: int
+        + jumlah_belum_upload: int
+        + persentase_kepatuhan: decimal
+        + status_kepatuhan: string
+        + detail_weeks: json
+        + raw_data: json
+    }
+}
+
+' ============================================================
+' DOMAIN 5: KUISIONER
+' ============================================================
+
+package "Kuisioner" <<Rectangle>> {
+    
+    class Kuisioner <<Entity>> {
+        + id: bigint
+        + periode_id: bigint
+        + matakuliah_id: bigint
+        + dosen_id: bigint
+        + judul: string
+        + periode_kuesioner: enum(UTS,UAS)
+    }
+    
+    class PertanyaanKuisioner <<Entity>> {
+        + id: bigint
+        + kuisioner_id: bigint
+        + pertanyaan: text
+        + jawaban: text
+        + pilihan_jawaban: enum(SS,S,CS,TS)
+        + jumlah_responden: int
+    }
+    
+    class JawabanKuisioner <<Entity>> {
+        + id: bigint
+        + kuisioner_id: bigint
+        + pertanyaan_id: bigint
+        + dosen_id: bigint
+        + jawaban: text
+    }
+    
+    class KuesioneUpload <<Entity>> {
+        + id: bigint
+        + user_id: bigint
+        + file_name: string
+        + file_path: string
+        + hasil_analisis: json
+        + index_kepuasan: decimal
+        + persen_kepuasan: decimal
+    }
+    
+    class KuesionerMongo <<Entity>> {
+        + _id: ObjectId
+        + periode_id: string
+        + data: object
+        --
+        << MongoDB >>
+    }
+    
+    class HasilAnalisisMongo <<Entity>> {
+        + _id: ObjectId
+        + periode_id: string
+        + analisis_lengkap: object
+        --
+        << MongoDB >>
+    }
+}
+
+' ============================================================
+' DOMAIN 6: LAPORAN
+' ============================================================
+
+package "Laporan" <<Rectangle>> {
+    
+    class TemplateLaporan <<Entity>> {
+        + id: bigint
+        + prodi_id: bigint
+        + nama_template: string
+        + nama_file: string
+        + jenis_template: enum
+        + jenis_laporan: string
+        + file_path: string
+        + struktur_template: json
+        + is_active: boolean
+        + is_indexed: boolean
+        + indexed_at: datetime
+        + total_chunks: int
+        + structure_metadata: json
+        --
+        + scopeActive(): query
+    }
+    
+    class LaporanGKM <<Entity>> {
+        + id: bigint
+        + prodi_id: bigint
+        + user_id: bigint
+        + template_id: bigint
+        + ajaran_id: bigint
+        + jenis_laporan: enum
+        + periode: string
+        + bulan: string
+        + tahun: string
+        + file_laporan: string
+        + file_word: string
+        + file_pdf: string
+        + konten_laporan: text
+        + status_laporan: enum
+        + ai_preview_draft: text
+        + ai_sections: json
+        + tanggal_buat_laporan: datetime
+        --
+        + getFormattedPeriodeAttribute(): string
+        + getStatusLabelAttribute(): string
+        + getStatusBadgeAttribute(): string
+    }
+    
+    class LaporanGJM <<Entity>> {
+        + id: bigint
+        + ajaran_id: bigint
+        + template_id: bigint
+        + periode_mulai: date
+        + periode_akhir: date
+        + jenis_laporan: enum(triwulan,semester,vmts)
+        + program_studi: string
+        + ringkasan_mutu_institusi: text
+        + analisis_kepatuhan: text
+        + temuan_utama: text
+        + rekomendasi_perbaikan: text
+        + file_laporan: string
+        + dokumen_path: string
+        + ppt_path: string
+        + status_laporan: enum
+        + ai_preview_draft: text
+        + ai_sections: json
+        + ocr_data: json
+        + has_ocr_data: boolean
+        + ragas_faithfulness: decimal
+        + ragas_answer_relevancy: decimal
+        + ragas_context_precision: decimal
+        + ragas_context_recall: decimal
+        + ragas_overall_score: decimal
+        + rag_chunks_count: int
+        + rag_contexts: json
+        --
+        + getPeriodeTriwulanAttribute(): string
+        + getStatusBadgeClass(): string
+        + getJenisLaporanLabel(): string
+    }
+    
+    class LaporanBulanan <<Entity>> {
+        + id: bigint
+        + user_id: bigint
+        + template_id: bigint
+        + periode_id: bigint
+        + bulan: string
+        + tahun: int
+        + konten: text
+        + file_path: string
+    }
+    
+    class KirimLaporanHistory <<Entity>> {
+        + id: bigint
+        + user_id: bigint
+        + subject: string
+        + recipients: text
+        + cc: text
+        + body: text
+        + attachment_names: text
+        + recipient_statuses: json
+        + status: enum
+        + sent_at: datetime
+    }
+}
+
+' ============================================================
+' DOMAIN 7: AI & RAG
+' ============================================================
+
+package "AI & RAG" <<Rectangle>> {
+    
+    class AIResponseCache <<Entity>> {
+        + id: bigint
+        + cache_key: string
+        + prompt_hash: string
+        + original_prompt: text
+        + context_metadata: json
+        + ai_response: text
+        + ai_provider: string
+        + ai_model: string
+        + usage_count: int
+        + last_used_at: datetime
+        + similarity_threshold: decimal
+        --
+        + generateCacheKey(prompt, context): string
+        + generatePromptHash(prompt): string
+        + calculateSimilarity(p1, p2): float
+        + findSimilar(prompt, context): AIResponseCache
+        + incrementUsage(): void
+        + cleanOldEntries(days): int
+        + getStatistics(): array
+    }
+    
+    class AIResponseCacheMongo <<Entity>> {
+        + _id: ObjectId
+        + cache_key: string
+        + response: object
+        --
+        << MongoDB >>
+    }
+    
+    class DocumentChunk <<Entity>> {
+        + id: bigint
+        + template_id: bigint
+        + kuesioner_upload_id: bigint
+        + source_type: string
+        + source_id: bigint
+        + chunk_text: text
+        + chunk_index: int
+        + embedding: json
+        + metadata: json
+        --
+        + cosineSimilarity(embedding): float
+    }
+    
+    class EmbeddingsCache <<Entity>> {
+        + id: bigint
+        + text_hash: string
+        + embedding: json
+        + provider: string
+        --
+        + getCached(text): array
+        + store(text, embedding): void
+    }
+    
+    class AIEvaluationTest <<Entity>> {
+        + id: bigint
+        + test_type: enum(ocr,ai_response,rag)
+        + input_data: json
+        + expected_output: text
+        + actual_output: text
+        + ground_truth: text
+        + metrics: json
+        + wer_score: decimal
+        + human_score: decimal
+        + ragas_scores: json
+        --
+        + calculateWER(): decimal
+        + getAverageHumanScore(): decimal
+    }
+    
+    class AIEvaluationResult <<Entity>> {
+        + id: bigint
+        + evaluation_batch: string
+        + total_tests: int
+        + avg_wer: decimal
+        + hallucination_rate: decimal
+        + ragas_avg_faithfulness: decimal
+        + ragas_avg_relevancy: decimal
+        + summary: json
+        --
+        + getOverallQualityScore(): decimal
+        + getHallucinationRate(): decimal
+    }
+}
+
+' ============================================================
+' DOMAIN 8: REMINDER & KOMUNIKASI
+' ============================================================
+
+package "Reminder & Komunikasi" <<Rectangle>> {
+    
+    class Reminder <<Entity>> {
+        + id: bigint
+        + user_pembuat_id: bigint
+        + user_penerima_id: bigint
+        + dosen_id: bigint
+        + matakuliah_id: bigint
+        + rps_id: bigint
+        + materi_id: bigint
+        + tipe_reminder: enum
+        + judul: string
+        + isi_reminder: text
+        + status_pengiriman: enum
+        + tanggal_kirim: date
+    }
+    
+    class JadwalReminder <<Entity>> {
+        + id: bigint
+        + dibuat_oleh: bigint
+        + nama_jadwal: string
+        + tipe_reminder: enum
+        + cron_expression: string
+        + is_active: boolean
+        + filter_criteria: json
+        + template_message: text
+        --
+        + isActiveNow(): boolean
+        + getStatusText(): string
+    }
+    
+    class LogEmail <<Entity>> {
+        + id: bigint
+        + reminder_id: bigint
+        + prodi_id: bigint
+        + to_email: string
+        + subject: string
+        + body: text
+        + status: enum
+        + sent_at: datetime
+        + error_message: text
+    }
+}
+
+' ============================================================
+' DOMAIN 9: SERVICES (Simplified)
+' ============================================================
+
+package "Services" <<Rectangle>> {
+    
+    class UnifiedAIService <<Service>> {
+        - claudeService: ClaudeAIService
+        - geminiService: GeminiAIService
+        --
+        + generateText(prompt, provider): string
+        + streamText(prompt, provider): Generator
+    }
+    
+    class ClaudeAIService <<Service>> {
+        - apiKey: string
+        - model: string
+        --
+        + chat(messages): string
+        + stream(messages): Generator
+    }
+    
+    class GeminiAIService <<Service>> {
+        - apiKey: string
+        - model: string
+        --
+        + generateContent(prompt): string
+    }
+    
+    class RAGRetrievalService <<Service>> {
+        - embeddingService: EmbeddingService
+        - vectorDatabase: VectorDatabaseService
+        --
+        + retrieveRelevantChunks(query, limit): array
+        + semanticSearch(query, threshold): array
+    }
+    
+    class EmbeddingService <<Service>> {
+        - provider: string
+        --
+        + generateEmbedding(text): array
+        + batchGenerate(texts): array
+    }
+    
+    class LaporanTriwulanService <<Service>> {
+        - aiService: UnifiedAIService
+        - ragService: RAGRetrievalService
+        --
+        + generateLaporan(params): LaporanGJM
+        + getRelevantContext(periode): array
+    }
+    
+    class LaporanSemesterService <<Service>> {
+        - aiService: UnifiedAIService
+        - ragService: RAGRetrievalService
+        --
+        + generateLaporan(params): LaporanGJM
+    }
+    
+    class OCRService <<Service>> {
+        - pythonServiceUrl: string
+        --
+        + extractTextFromImage(file): string
+        + processDocument(file): array
+    }
+    
+    class PPTGenerationService <<Service>> {
+        --
+        + generateFromLaporan(laporan): string
+        + createSlides(content): file
+    }
+    
+    class RAGASEvaluationService <<Service>> {
+        --
+        + evaluateFaithfulness(answer, context): decimal
+        + evaluateRelevancy(answer, query): decimal
+        + evaluatePrecision(contexts, query): decimal
+        + evaluateRecall(contexts, answer): decimal
+    }
+}
+
+' ============================================================
+' DOMAIN 10: CONTROLLERS (Simplified)
+' ============================================================
+
+package "Controllers" <<Rectangle>> {
+    
+    class AuthController <<Controller>> {
+        --
+        + login(request): Response
+        + register(request): Response
+        + logout(request): Response
+    }
+    
+    class "GKM::DashboardController" as GKMDashboard <<Controller>> {
+        --
+        + index(): View
+        + getStatistics(): array
+        + getMonitoringData(): array
+    }
+    
+    class "GKM::MonitoringRPSController" as GKMMonitoringRPS <<Controller>> {
+        --
+        + index(): View
+        + cekList(): View
+        + kirimPengingat(): Response
+    }
+    
+    class "GKM::MonitoringPerkuliahanController" as GKMMonitoringPerkuliahan <<Controller>> {
+        --
+        + index(): View
+        + detail(dosen): View
+        + kirimPengingat(): Response
+    }
+    
+    class "GKM::LaporanKuesioneController" as GKMLaporanKuisioner <<Controller>> {
+        - laporanService: LaporanKuesioneService
+        --
+        + index(): View
+        + create(): View
+        + store(request): Response
+        + generateWithAI(request): Response
+    }
+    
+    class "GJM::DashboardController" as GJMDashboard <<Controller>> {
+        --
+        + index(): View
+        + getInstitutionalData(): array
+    }
+    
+    class "GJM::LaporanTriwulanController" as GJMLaporanTriwulan <<Controller>> {
+        - laporanService: LaporanTriwulanService
+        --
+        + index(): View
+        + create(): View
+        + store(request): Response
+        + generateWithAI(request): Response
+        + downloadPPT(id): file
+    }
+    
+    class "GJM::BuatPPTController" as GJMBuatPPT <<Controller>> {
+        - pptService: PPTGenerationService
+        --
+        + generate(laporanId): Response
+        + preview(laporanId): View
+    }
+}
+
+' ============================================================
+' RELATIONSHIPS - MASTER DATA
+' ============================================================
+
+User "1" -- "1" Dosen : has >
+User "N" -- "1" Prodi : belongs to >
+User "1" -- "N" Reminder : creates >
+User "1" -- "N" LaporanGKM : creates >
+User "1" -- "N" LaporanGJM : creates >
+
+Dosen "N" -- "1" Prodi : belongs to >
+Dosen "1" -- "N" RPS : creates >
+Dosen "1" -- "N" Materi : uploads >
+Dosen "1" -- "N" Monitoring : monitored by >
+
+Prodi "1" -- "N" Matakuliah : offers >
+Prodi "1" -- "N" Ajaran : has >
+Prodi "1" -- "N" LaporanGKM : generates >
+
+' ============================================================
+' RELATIONSHIPS - AKADEMIK
+' ============================================================
+
+Matakuliah "N" -- "1" Prodi : belongs to >
+Matakuliah "1" -- "N" RPS : has >
+Matakuliah "N" -- "N" Dosen : taught by >
+
+Ajaran "N" -- "1" Prodi : belongs to >
+Ajaran "1" -- "N" RPS : has >
+Ajaran "1" -- "N" Monitoring : has >
+
+' ============================================================
+' RELATIONSHIPS - RPS & MATERI
+' ============================================================
+
+RPS "N" -- "1" Matakuliah : for >
+RPS "N" -- "1" Ajaran : in period >
+RPS "N" -- "1" Dosen : created by >
+RPS "1" -- "1" EvaluasiArtefak : evaluated in >
+
+Materi "N" -- "1" Matakuliah : for >
+Materi "N" -- "1" Ajaran : in period >
+Materi "N" -- "1" Dosen : uploaded by >
+Materi "1" -- "1" EvaluasiArtefak : evaluated in >
+
+EvaluasiArtefak "N" -- "1" Dosen : evaluated by >
+
+' ============================================================
+' RELATIONSHIPS - MONITORING
+' ============================================================
+
+Monitoring "N" -- "1" Dosen : monitors >
+Monitoring "N" -- "1" Matakuliah : for >
+Monitoring "N" -- "1" Ajaran : in period >
+Monitoring "N" -- "0..1" RPS : tracks >
+Monitoring "N" -- "0..1" Materi : tracks >
+
+RpsMonitoringSnapshot "N" -- "1" Dosenn : for >
+RpsMonitoringSnapshot "N" -- "1" Prodi : in >
+
+PerkuliahanMonitoringSnapshot "N" -- "1" Dosenn : for >
+PerkuliahanMonitoringSnapshot "N" -- "1" Prodi : in >
+
+PerkuliahanMonitoringDetail "N" -- "1" Dosenn : for >
+
+' ============================================================
+' RELATIONSHIPS - KUISIONER
+' ============================================================
+
+Kuisioner "N" -- "1" PeriodeAkademik : in period >
+Kuisioner "N" -- "1" Matakuliah : for >
+Kuisioner "N" -- "1" Dosen : for >
+Kuisioner "1" -- "N" PertanyaanKuisioner : has >
+Kuisioner "1" -- "N" JawabanKuisioner : has >
+
+PertanyaanKuisioner "N" -- "1" Kuisioner : belongs to >
+PertanyaanKuisioner "1" -- "N" JawabanKuisioner : has >
+
+JawabanKuisioner "N" -- "1" Kuisioner : for >
+JawabanKuisioner "N" -- "1" PertanyaanKuisioner : answers >
+JawabanKuisioner "N" -- "1" Dosen : from >
+
+KuesioneUpload "N" -- "1" User : uploaded by >
+
+' ============================================================
+' RELATIONSHIPS - LAPORAN
+' ============================================================
+
+TemplateLaporan "N" -- "1" Prodi : for >
+TemplateLaporan "N" -- "1" User : uploaded by >
+TemplateLaporan "1" -- "N" LaporanBulanan : used in >
+TemplateLaporan "1" -- "N" LaporanGKM : used in >
+TemplateLaporan "1" -- "N" LaporanGJM : used in >
+
+LaporanGKM "N" -- "1" Prodi : for >
+LaporanGKM "N" -- "1" User : created by >
+LaporanGKM "N" -- "1" TemplateLaporan : uses >
+LaporanGKM "N" -- "1" Ajaran : for period >
+
+LaporanGJM "N" -- "1" Ajaran : for period >
+LaporanGJM "N" -- "1" TemplateLaporan : uses >
+LaporanGJM "N" -- "1" User : created by >
+LaporanGJM "N" -- "0..1" User : reviewed by >
+
+LaporanBulanan "N" -- "1" User : created by >
+LaporanBulanan "N" -- "1" TemplateLaporan : uses >
+LaporanBulanan "N" -- "1" PeriodeAkademik : for period >
+
+KirimLaporanHistory "N" -- "1" User : sent by >
+
+' ============================================================
+' RELATIONSHIPS - AI & RAG
+' ============================================================
+
+DocumentChunk "N" -- "0..1" TemplateLaporan : extracted from >
+DocumentChunk "N" -- "0..1" KuesioneUpload : extracted from >
+
+' ============================================================
+' RELATIONSHIPS - REMINDER
+' ============================================================
+
+Reminder "N" -- "1" User : sent to >
+Reminder "N" -- "1" User : created by >
+Reminder "N" -- "0..1" Dosen : for >
+Reminder "N" -- "0..1" Matakuliah : about >
+Reminder "N" -- "0..1" RPS : about >
+Reminder "N" -- "0..1" Materi : about >
+Reminder "1" -- "N" LogEmail : generates >
+
+JadwalReminder "N" -- "1" User : created by >
+
+LogEmail "N" -- "1" Reminder : logs >
+LogEmail "N" -- "0..1" Prodi : for >
+
+' ============================================================
+' RELATIONSHIPS - SERVICES & CONTROLLERS
+' ============================================================
+
+UnifiedAIService ..> ClaudeAIService : uses >
+UnifiedAIService ..> GeminiAIService : uses >
+
+RAGRetrievalService ..> EmbeddingService : uses >
+RAGRetrievalService ..> DocumentChunk : queries >
+
+LaporanTriwulanService ..> UnifiedAIService : uses >
+LaporanTriwulanService ..> RAGRetrievalService : uses >
+LaporanTriwulanService ..> LaporanGJM : creates >
+
+LaporanSemesterService ..> UnifiedAIService : uses >
+LaporanSemesterService ..> RAGRetrievalService : uses >
+LaporanSemesterService ..> LaporanGJM : creates >
+
+GKMLaporanKuisioner ..> LaporanGKM : manages >
+GKMMonitoringRPS ..> RpsMonitoringSnapshot : reads >
+GKMMonitoringPerkuliahan ..> PerkuliahanMonitoringDetail : reads >
+
+GJMLaporanTriwulan ..> LaporanTriwulanService : uses >
+GJMLaporanTriwulan ..> LaporanGJM : manages >
+
+GJMBuatPPT ..> PPTGenerationService : uses >
+GJMBuatPPT ..> LaporanGJM : reads >
+
+' ============================================================
+' NOTES
+' ============================================================
+
+note top of AIResponseCache
+  Intelligent caching with 
+  similarity matching (Jaccard)
+  Threshold: 0.85
+end note
+
+note top of DocumentChunk
+  RAG Implementation
+  Stores embeddings for 
+  semantic search
+end note
+
+
+note top of LaporanGJM
+  Supports RAGAS metrics:
+  - Faithfulness
+  - Answer Relevancy
+  - Context Precision/Recall
+  For AI quality evaluation
+end note
+
+note top of RpsMonitoringSnapshot
+  Snapshot pattern for 
+  historical tracking
+  Enables trend analysis
+end note
+
+note top of PerkuliahanMonitoringDetail
+  Compliance analytics:
+  - Weekly upload tracking
+  - Late submissions
+  - Compliance percentage
+end note
+
+note bottom of UnifiedAIService
+  Multi-provider AI support:
+  - Claude (Anthropic)
+  - Gemini (Google)
+  Unified interface
+end note
+
+note as N1
+  **Architecture Patterns:**
+  - Dual Database (MySQL + MongoDB)
+  - RAG (Retrieval-Augmented Generation)
+  - Service Layer Pattern
+  - Repository Pattern
+  - Cache-First Strategy
+  - Snapshot Pattern for Monitoring
+end note
+
+note as N2
+  **Key Features:**
+  - AI-Powered Report Generation
+  - Vector-based Document Search
+  - Intelligent Response Caching
+  - RAGAS Quality Metrics
+  - Multi-level Monitoring
+  - Automated Reminders
+end note
+
+@enduml

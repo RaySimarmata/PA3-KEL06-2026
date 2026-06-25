@@ -1,0 +1,823 @@
+@startuml ERD_Database_PA3_KEL06
+
+skinparam linetype ortho
+skinparam class {
+    BackgroundColor White
+    ArrowColor Black
+    BorderColor Black
+}
+
+hide circle
+hide methods
+
+' ===============================================
+' TABEL UTAMA - MASTER DATA
+' ===============================================
+
+class prodi {
+  + id : bigint <<PK>>
+  --
+  kode_prodi : string <<UK>>
+  nama_prodi : string
+  nama_singkat : string
+  deskripsi : text
+  kaprodi_id : bigint
+  --
+  created_at : timestamp
+  updated_at : timestamp
+}
+
+entity "users" {
+  primary_key(id) : bigint
+  --
+  name : string
+  unique(email) : string
+  unique(username) : string
+  password : string
+  role : enum (admin, kaprodi, dosen, gjm_reviewer, gkm_reviewer)
+  foreign_key(prodi_id) : bigint (nullable)
+  is_active : boolean
+  email_verified_at : timestamp
+  remember_token : string
+  --
+  created_at : timestamp
+  updated_at : timestamp
+}
+
+entity "dosen" {
+  primary_key(id) : bigint
+  --
+  foreign_key(user_id) : bigint
+  nama_lengkap : string
+  unique(nidn) : string
+  gelar_akademik : string
+  jabatan_akademik : string
+  kontak_email : string
+  foreign_key(prodi_id) : bigint
+  bio : text
+  foto_profil : string
+  status : enum (aktif, tidak_aktif, pensiun)
+  is_kaprodi : boolean
+  is_wali_kelas : boolean
+  --
+  created_at : timestamp
+  updated_at : timestamp
+}
+
+entity "dosenn" {
+  primary_key(id) : bigint
+  --
+  nama : string
+  pegawai_id : string
+  email : string
+  nomor_telepon : string
+  foreign_key(prodi_id) : bigint
+  --
+  created_at : timestamp
+  updated_at : timestamp
+}
+
+entity "matakuliah" {
+  primary_key(id) : bigint
+  --
+  foreign_key(prodi_id) : bigint
+  unique(kode_mk) : string
+  nama_mk : string
+  sks : integer
+  semester : integer
+  jenis_mk : string (Teori, Praktik)
+  deskripsi : text
+  capaian_pembelajaran : text
+  status : enum (aktif, tidak_aktif)
+  --
+  created_at : timestamp
+  updated_at : timestamp
+}
+
+entity "ajaran" {
+  primary_key(id) : bigint
+  --
+  tahun_ajaran : year
+  semester : enum (ganjil, genap)
+  tanggal_mulai : date
+  tanggal_akhir : date
+  foreign_key(prodi_id) : bigint (nullable)
+  status : enum (aktif, non_aktif)
+  --
+  created_at : timestamp
+  updated_at : timestamp
+}
+
+entity "periode_akademik" {
+  primary_key(id) : bigint
+  --
+  tahun_ajaran : string
+  semester : enum (ganjil, genap)
+  tanggal_mulai : date
+  tanggal_akhir : date
+  end_date : date
+  status : enum (aktif, tidak_aktif)
+  --
+  created_at : timestamp
+  updated_at : timestamp
+}
+
+entity "kelas" {
+  primary_key(id) : bigint
+  --
+  foreign_key(prodi_id) : bigint
+  nama_kelas : string
+  tingkat : integer
+  foreign_key(wali_kelas_id) : bigint (FK to dosen)
+  --
+  created_at : timestamp
+  updated_at : timestamp
+}
+
+entity "jabatan_akademik" {
+  primary_key(id) : bigint
+  --
+  nama_jabatan : string
+  kode_jabatan : string
+  deskripsi : text
+  --
+  created_at : timestamp
+  updated_at : timestamp
+}
+
+' ===============================================
+' TABEL RELASI MANY-TO-MANY
+' ===============================================
+
+entity "dosen_matakuliah" {
+  primary_key(id) : bigint
+  --
+  foreign_key(dosen_id) : bigint
+  foreign_key(matakuliah_id) : bigint
+  unique(dosen_id, matakuliah_id)
+  --
+  created_at : timestamp
+  updated_at : timestamp
+}
+
+entity "matkul_dosen" {
+  primary_key(id) : bigint
+  --
+  foreign_key(matakuliah_id) : bigint
+  foreign_key(dosen_id) : bigint
+  foreign_key(ajaran_id) : bigint
+  --
+  created_at : timestamp
+  updated_at : timestamp
+}
+
+entity "jadwal_dosen" {
+  primary_key(id) : bigint
+  --
+  foreign_key(dosen_id) : bigint
+  foreign_key(matakuliah_id) : bigint
+  foreign_key(ajaran_id) : bigint
+  hari : string
+  jam_mulai : time
+  jam_selesai : time
+  ruangan : string
+  kelas : string
+  is_manual : boolean
+  --
+  created_at : timestamp
+  updated_at : timestamp
+}
+
+' ===============================================
+' TABEL PEMBELAJARAN (RPS & MATERI)
+' ===============================================
+
+entity "rps" {
+  primary_key(id) : bigint
+  --
+  foreign_key(matakuliah_id) : bigint
+  foreign_key(ajaran_id) : bigint
+  foreign_key(dosen_id) : bigint
+  deskripsi : text
+  capaian_pembelajaran : text
+  strategi_pembelajaran : text
+  penugasan : text
+  penilaian : text
+  file_rps : string
+  status_rps : enum (draft, menunggu_review, sudah_divalidasi, revisi)
+  status_review_rps : string
+  tanggal_upload : date
+  tanggal_validasi : date
+  catatan_validasi : text
+  --
+  created_at : timestamp
+  updated_at : timestamp
+}
+
+entity "materi" {
+  primary_key(id) : bigint
+  --
+  foreign_key(rps_id) : bigint
+  judul_materi : string
+  deskripsi : text
+  pertemuan_ke : integer
+  file_materi : string
+  file_format : string (PDF, PPT, DOC)
+  capaian_pembelajaran : text
+  tanggal_upload : date
+  status : enum (belum_upload, sudah_upload, perlu_revisi)
+  status_upload_materi : string
+  catatan : text
+  --
+  created_at : timestamp
+  updated_at : timestamp
+}
+
+' ===============================================
+' TABEL MONITORING & SNAPSHOT
+' ===============================================
+
+entity "monitoring" {
+  primary_key(id) : bigint
+  --
+  foreign_key(ajaran_id) : bigint
+  foreign_key(prodi_id) : bigint
+  jenis_monitoring : enum (rps, materi, kuisioner, perwaliaan, evaluasi)
+  total_dosen : integer
+  dosen_selesai : integer
+  dosen_belum : integer
+  persentase_kepatuhan : decimal(5,2)
+  tanggal_monitoring : date
+  catatan : text
+  --
+  created_at : timestamp
+  updated_at : timestamp
+}
+
+entity "rps_monitoring_snapshots" {
+  primary_key(id) : bigint
+  --
+  foreign_key(prodi_id) : bigint
+  foreign_key(ajaran_id) : bigint
+  snapshot_date : date
+  total_mk : integer
+  mk_rps_complete : integer
+  mk_rps_incomplete : integer
+  persentase_completion : decimal(5,2)
+  data_details : json
+  --
+  created_at : timestamp
+  updated_at : timestamp
+}
+
+entity "perkuliahan_monitoring_snapshots" {
+  primary_key(id) : bigint
+  --
+  foreign_key(prodi_id) : bigint
+  foreign_key(ajaran_id) : bigint
+  snapshot_date : date
+  total_mk : integer
+  total_pertemuan : integer
+  pertemuan_completed : integer
+  persentase_completion : decimal(5,2)
+  --
+  created_at : timestamp
+  updated_at : timestamp
+}
+
+entity "perkuliahan_monitoring_detail" {
+  primary_key(id) : bigint
+  --
+  foreign_key(snapshot_id) : bigint
+  foreign_key(dosen_id) : bigint
+  foreign_key(matakuliah_id) : bigint
+  pertemuan_ke : integer
+  status : enum (completed, incomplete)
+  tanggal_pelaksanaan : date
+  --
+  created_at : timestamp
+  updated_at : timestamp
+}
+
+' ===============================================
+' TABEL KUESIONER
+' ===============================================
+
+entity "kuisioner" {
+  primary_key(id) : bigint
+  --
+  foreign_key(ajaran_id) : bigint
+  judul : string
+  deskripsi : text
+  target : enum (dosen, mahasiswa, semua)
+  tanggal_mulai : date
+  tanggal_akhir : date
+  status : enum (draft, aktif, tertutup, dianalisis)
+  status_kuisioner : string
+  --
+  created_at : timestamp
+  updated_at : timestamp
+}
+
+entity "pertanyaan_kuisioner" {
+  primary_key(id) : bigint
+  --
+  foreign_key(kuisioner_id) : bigint
+  teks_pertanyaan : text
+  tipe_pertanyaan : enum (pilihan_ganda, essay, skala_likert)
+  pilihan_jawaban : json
+  urutan : integer
+  --
+  created_at : timestamp
+  updated_at : timestamp
+}
+
+entity "jawaban_kuisioner" {
+  primary_key(id) : bigint
+  --
+  foreign_key(pertanyaan_id) : bigint
+  foreign_key(user_id) : bigint
+  jawaban : text
+  nilai : integer
+  --
+  created_at : timestamp
+  updated_at : timestamp
+}
+
+entity "kuesioner_uploads" {
+  primary_key(id) : bigint
+  --
+  nama_file : string
+  file_path : string
+  periode : string
+  foreign_key(prodi_id) : bigint (removed)
+  foreign_key(matakuliah_id) : bigint
+  foreign_key(pegawai_id) : bigint
+  foreign_key(kuliah_id) : bigint
+  tingkat : integer
+  jenis_kuesioner : enum
+  deskripsi : text
+  total_responden : integer
+  hasil_analisis : json
+  statistik_summary : json
+  status : enum (uploaded, processing, completed, error)
+  --
+  created_at : timestamp
+  updated_at : timestamp
+}
+
+' ===============================================
+' TABEL LAPORAN GKM (Gugus Kendali Mutu)
+' ===============================================
+
+entity "laporan_gkm" {
+  primary_key(id) : bigint
+  --
+  foreign_key(prodi_id) : bigint (nullable)
+  foreign_key(ajaran_id) : bigint (nullable)
+  foreign_key(dosen_ketua) : bigint
+  periode_mulai : date
+  periode_akhir : date
+  jenis_laporan : enum (bulanan, semester, tahunan, artefak)
+  ringkasan_temuan : text
+  hasil_monitoring_rps : text
+  hasil_monitoring_materi : text
+  hasil_monitoring_kuisioner : text
+  rencana_perbaikan : text
+  file_laporan : string
+  status_laporan : enum (draft, menunggu_review, approved, revisi)
+  tanggal_submit : date
+  tanggal_buat_laporan : date
+  foreign_key(reviewed_by) : bigint
+  tanggal_review : date
+  catatan_review : text
+  ai_preview_pdf : string
+  ai_preview_docx : string
+  --
+  Artefak specific fields:
+  --
+  artefak_type : enum (foto, video, dokumen)
+  artefak_file_path : string
+  artefak_caption : text
+  artefak_tanggal_kejadian : date
+  --
+  created_at : timestamp
+  updated_at : timestamp
+}
+
+entity "evaluasi_artefak" {
+  primary_key(id) : bigint
+  --
+  foreign_key(laporan_gkm_id) : bigint
+  foreign_key(dosen_id) : bigint
+  jenis_artefak : enum (foto, video, dokumen)
+  file_artefak : string
+  deskripsi : text
+  tanggal_kejadian : date
+  penilaian : text
+  skor : integer
+  --
+  created_at : timestamp
+  updated_at : timestamp
+}
+
+' ===============================================
+' TABEL LAPORAN GJM (Gugus Jaminan Mutu)
+' ===============================================
+
+entity "laporan_gjm" {
+  primary_key(id) : bigint
+  --
+  foreign_key(ajaran_id) : bigint (nullable)
+  foreign_key(template_id) : bigint
+  periode_mulai : date
+  periode_akhir : date
+  jenis_laporan : enum (bulanan, semester, tahunan, vmts, triwulan)
+  ringkasan_mutu_institusi : text
+  analisis_kepatuhan : text
+  temuan_utama : text
+  rekomendasi_perbaikan : text
+  rencana_tindakan : text
+  file_laporan : string
+  status_laporan : enum (draft, menunggu_review, approved, revisi, processing, failed, completed)
+  processing_status : string
+  tanggal_submit : date
+  foreign_key(reviewed_by) : bigint
+  tanggal_review : date
+  catatan_review : text
+  jumlah_prodi_terlibat : integer
+  jumlah_laporan_gkm_diterima : integer
+  --
+  AI & RAG Fields:
+  --
+  ai_query : text
+  ai_response : text
+  rag_sources : json
+  ai_preview_pdf : string
+  ai_preview_docx : string
+  ai_file_path : string
+  ai_doc_type : enum (pdf, docx)
+  --
+  PPT Fields:
+  --
+  ppt_file_path : string
+  ppt_status : enum (not_generated, generating, completed, failed)
+  --
+  OCR Fields:
+  --
+  ocr_file_path : string
+  ocr_text : text
+  ocr_status : enum (pending, processing, completed, failed)
+  --
+  RAGAS Evaluation:
+  --
+  ragas_faithfulness : decimal(3,2)
+  ragas_answer_relevancy : decimal(3,2)
+  ragas_context_precision : decimal(3,2)
+  ragas_context_recall : decimal(3,2)
+  ragas_evaluated_at : timestamp
+  --
+  created_at : timestamp
+  updated_at : timestamp
+}
+
+entity "laporan_bulanan" {
+  primary_key(id) : bigint
+  --
+  foreign_key(template_id) : bigint
+  foreign_key(prodi_id) : bigint (removed)
+  periode_bulan : string(7) YYYY-MM
+  judul_laporan : string
+  tipe_laporan : enum
+  file_path : string
+  status : enum (pending, processing, completed, failed)
+  error_message : text
+  isi_laporan : text
+  metadata : json
+  --
+  Template structure fields:
+  --
+  sections : json
+  prompts : json
+  --
+  created_at : timestamp
+  updated_at : timestamp
+}
+
+entity "template_laporan" {
+  primary_key(id) : bigint
+  --
+  nama_template : string
+  jenis_laporan : enum (bulanan, triwulan, semester, tahunan, vmts)
+  foreign_key(prodi_id) : bigint
+  struktur_template : text
+  placeholder_fields : json
+  contoh_data : json
+  status : enum (aktif, tidak_aktif)
+  --
+  created_at : timestamp
+  updated_at : timestamp
+}
+
+' ===============================================
+' TABEL REMINDER & EMAIL
+' ===============================================
+
+entity "reminder" {
+  primary_key(id) : bigint
+  --
+  foreign_key(dosen_id) : bigint
+  foreign_key(rps_id) : bigint (nullable)
+  foreign_key(materi_id) : bigint (nullable)
+  jenis_reminder : enum (rps, materi, kuisioner)
+  pesan : text
+  tanggal_kirim : date
+  status_pengiriman : enum (pending, sent, failed)
+  --
+  created_at : timestamp
+  updated_at : timestamp
+}
+
+entity "jadwal_reminder" {
+  primary_key(id) : bigint
+  --
+  foreign_key(prodi_id) : bigint
+  nama_reminder : string
+  tipe_reminder : enum (rps, materi, kuesioner, perwaliaan, general)
+  deskripsi : text
+  target_penerima : enum (dosen, mahasiswa, semua)
+  jadwal_pengiriman : datetime
+  recurrence : enum (once, daily, weekly, monthly)
+  template_email : text
+  status : enum (active, inactive, completed)
+  last_sent_at : datetime
+  --
+  created_at : timestamp
+  updated_at : timestamp
+}
+
+entity "log_email" {
+  primary_key(id) : bigint
+  --
+  foreign_key(reminder_id) : bigint
+  foreign_key(prodi_id) : bigint
+  penerima_email : string
+  subjek : string
+  isi_email : text
+  status_pengiriman : enum (success, failed, pending)
+  pesan_error : text
+  tanggal_pengiriman : date
+  percobaan_kirim : integer
+  --
+  created_at : timestamp
+  updated_at : timestamp
+}
+
+entity "kirim_laporan_history" {
+  primary_key(id) : bigint
+  --
+  laporan_type : string (GKM/GJM)
+  foreign_key(laporan_id) : bigint
+  penerima_email : string
+  subjek : string
+  pesan : text
+  file_path : string
+  status : enum (success, failed, pending)
+  error_message : text
+  sent_at : timestamp
+  foreign_key(sent_by) : bigint
+  --
+  created_at : timestamp
+  updated_at : timestamp
+}
+
+' ===============================================
+' TABEL AI & RAG SYSTEM
+' ===============================================
+
+entity "document_chunks" {
+  primary_key(id) : bigint
+  --
+  foreign_key(template_id) : bigint
+  document_type : string
+  chunk_text : text
+  chunk_index : integer
+  metadata : json
+  embedding_vector : vector
+  source_file : string
+  source_page : integer
+  --
+  created_at : timestamp
+  updated_at : timestamp
+}
+
+entity "embeddings_cache" {
+  primary_key(id) : bigint
+  --
+  content_hash : string
+  embedding_vector : vector
+  model_name : string
+  metadata : json
+  --
+  created_at : timestamp
+  updated_at : timestamp
+}
+
+entity "ai_response_cache" {
+  primary_key(id) : bigint
+  --
+  query_hash : string
+  query_text : text
+  response : text
+  model_name : string
+  temperature : decimal(2,1)
+  metadata : json
+  response_time : integer (ms)
+  hit_count : integer
+  last_accessed_at : timestamp
+  --
+  created_at : timestamp
+  updated_at : timestamp
+}
+
+entity "ai_evaluation_tests" {
+  primary_key(id) : bigint
+  --
+  foreign_key(laporan_id) : bigint
+  test_name : string
+  question : text
+  ground_truth : text
+  ai_answer : text
+  contexts : json
+  --
+  RAGAS Metrics:
+  --
+  faithfulness : decimal(3,2)
+  answer_relevancy : decimal(3,2)
+  context_precision : decimal(3,2)
+  context_recall : decimal(3,2)
+  ambiguity_score : decimal(3,2)
+  --
+  evaluation_metadata : json
+  --
+  created_at : timestamp
+  updated_at : timestamp
+}
+
+' ===============================================
+' TABEL PERWALIAAN & KPI
+' ===============================================
+
+entity "perwaliaan" {
+  primary_key(id) : bigint
+  --
+  foreign_key(dosen_id) : bigint (wali)
+  foreign_key(mahasiswa_id) : bigint (FK to users)
+  foreign_key(ajaran_id) : bigint
+  tanggal_konseling : date
+  topik_konseling : text
+  catatan : text
+  tindak_lanjut : text
+  --
+  created_at : timestamp
+  updated_at : timestamp
+}
+
+entity "pencapaian_kpi" {
+  primary_key(id) : bigint
+  --
+  foreign_key(prodi_id) : bigint
+  foreign_key(ajaran_id) : bigint
+  nama_kpi : string
+  target_kpi : decimal(5,2)
+  realisasi_kpi : decimal(5,2)
+  persentase_pencapaian : decimal(5,2)
+  periode_evaluasi : string
+  catatan : text
+  --
+  created_at : timestamp
+  updated_at : timestamp
+}
+
+' ===============================================
+' TABEL JOBS & CACHE
+' ===============================================
+
+entity "jobs" {
+  primary_key(id) : bigint
+  --
+  queue : string
+  payload : text
+  attempts : integer
+  reserved_at : integer
+  available_at : integer
+  created_at : integer
+}
+
+entity "failed_jobs" {
+  primary_key(id) : bigint
+  --
+  uuid : string
+  connection : text
+  queue : text
+  payload : longtext
+  exception : longtext
+  failed_at : timestamp
+}
+
+entity "cache" {
+  primary_key(key) : string
+  --
+  value : text
+  expiration : integer
+}
+
+' ===============================================
+' RELASI ANTAR TABEL
+' ===============================================
+
+' Master Data Relations
+prodi ||--o{ users : "has many"
+prodi ||--o{ dosen : "has many"
+prodi ||--o{ dosenn : "has many"
+prodi ||--o{ matakuliah : "has many"
+prodi ||--o{ ajaran : "has many"
+prodi ||--o{ kelas : "has many"
+prodi ||--o{ monitoring : "has many"
+prodi ||--o{ pencapaian_kpi : "has many"
+prodi ||--o{ template_laporan : "has many"
+prodi ||--o{ jadwal_reminder : "has many"
+prodi ||--o{ log_email : "has many"
+prodi ||--o{ rps_monitoring_snapshots : "has many"
+prodi ||--o{ perkuliahan_monitoring_snapshots : "has many"
+
+users ||--|| dosen : "has one profile"
+users ||--o{ jawaban_kuisioner : "submits"
+users ||--o{ perwaliaan : "as mahasiswa"
+
+dosen ||--o{ rps : "creates"
+dosen ||--o{ reminder : "receives"
+dosen ||--o{ laporan_gkm : "creates as ketua"
+dosen ||--o{ evaluasi_artefak : "evaluates"
+dosen ||--o{ perwaliaan : "as wali"
+dosen ||--o{ jadwal_dosen : "has schedule"
+dosen }o--o{ matakuliah : "teaches (dosen_matakuliah)"
+dosen ||--o{ kelas : "as wali kelas"
+
+' Many-to-Many Relations
+dosen_matakuliah }o--|| dosen : "belongs to"
+dosen_matakuliah }o--|| matakuliah : "belongs to"
+
+matkul_dosen }o--|| dosen : "assigned to"
+matkul_dosen }o--|| matakuliah : "for"
+matkul_dosen }o--|| ajaran : "in periode"
+
+jadwal_dosen }o--|| dosen : "for"
+jadwal_dosen }o--|| matakuliah : "for"
+jadwal_dosen }o--|| ajaran : "in periode"
+
+' Tahun Ajaran Relations
+ajaran ||--o{ rps : "in periode"
+ajaran ||--o{ kuisioner : "in periode"
+ajaran ||--o{ monitoring : "monitored in"
+ajaran ||--o{ laporan_gkm : "reported in"
+ajaran ||--o{ laporan_gjm : "reported in"
+ajaran ||--o{ perwaliaan : "in periode"
+ajaran ||--o{ pencapaian_kpi : "evaluated in"
+ajaran ||--o{ rps_monitoring_snapshots : "snapshot in"
+ajaran ||--o{ perkuliahan_monitoring_snapshots : "snapshot in"
+
+' RPS & Materi Relations
+matakuliah ||--o{ rps : "has"
+rps ||--o{ materi : "contains"
+rps ||--o{ reminder : "for"
+
+materi ||--o{ reminder : "for"
+
+' Kuesioner Relations
+kuisioner ||--o{ pertanyaan_kuisioner : "has"
+pertanyaan_kuisioner ||--o{ jawaban_kuisioner : "answered by"
+matakuliah ||--o{ kuesioner_uploads : "evaluated in"
+
+' Laporan GKM Relations
+laporan_gkm ||--o{ evaluasi_artefak : "includes"
+
+' Laporan GJM Relations
+template_laporan ||--o{ laporan_gjm : "uses"
+template_laporan ||--o{ laporan_bulanan : "uses"
+template_laporan ||--o{ document_chunks : "has chunks"
+laporan_gjm ||--o{ ai_evaluation_tests : "evaluated by"
+
+' Reminder & Email Relations
+reminder ||--o{ log_email : "logs"
+jadwal_reminder ||--o{ log_email : "sends via"
+
+' Monitoring Snapshots
+perkuliahan_monitoring_snapshots ||--o{ perkuliahan_monitoring_detail : "contains"
+perkuliahan_monitoring_detail }o--|| dosen : "for"
+perkuliahan_monitoring_detail }o--|| matakuliah : "for"
+
+' Kirim Laporan History
+users ||--o{ kirim_laporan_history : "sent by"
+
+@enduml

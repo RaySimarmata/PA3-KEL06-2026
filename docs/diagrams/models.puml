@@ -1,0 +1,418 @@
+@startuml
+!theme plain
+skinparam backgroundColor #FFFFFF
+skinparam componentStyle rectangle
+skinparam defaultFontName 'Segoe UI'
+skinparam defaultFontSize 11
+
+' Menghilangkan logo C
+skinparam stdlib false
+skinparam handwritten false
+
+skinparam class {
+  BackgroundColor #F8F9FA
+  BorderColor #2C3E50
+  BorderThickness 1
+  FontColor #2C3E50
+  HeaderBackgroundColor #2980B9
+  HeaderFontColor #FFFFFF
+  AttributeFontColor #555555
+  MethodFontColor #27AE60
+}
+
+skinparam package {
+  BackgroundColor #ECF0F1
+  BorderColor #7F8C8D
+  FontColor #2C3E50
+  FontStyle bold
+  BorderThickness 1
+}
+
+skinparam arrow {
+  Color #7F8C8D
+  FontColor #7F8C8D
+  FontSize 9
+}
+
+
+' ==================== INTI DOMAIN ====================
+package "Inti Domain" {
+  
+  class Pengguna {
+    + nama : string
+    + nama_pengguna : string
+    + email : string
+    + kata_sandi : string
+    + peran : string
+    + prodi_id : int
+    + aktif : boolean
+    --
+    + dosen()
+    + prodi()
+    + isGKM()
+    + isGJM()
+  }
+
+  class ProgramStudi {
+    + nama_prodi : string
+    + kode_prodi : string
+    + nama_singkat : string
+    + deskripsi : string
+    + kaprodi_id : int
+    --
+    + dosen()
+    + matakuliah()
+    + laporanGKM()
+  }
+
+  class Dosen {
+    + pengguna_id : int
+    + prodi_id : int
+    + nama_lengkap : string
+    + nidn : string
+    + gelar_akademik : string
+    + jabatan_akademik : string
+    + kontak_email : string
+    + status : string
+    --
+    + pengguna()
+    + prodi()
+    + matakuliah()
+    + rps()
+    + materi()
+    + monitoring()
+    + jawabanKuisioner()
+    + laporanGKM()
+    + evaluasiArtefak()
+  }
+
+  class MataKuliah {
+    + prodi_id : int
+    + kode_mk : string
+    + nama_mk : string
+    + capaian_pembelajaran : text
+    + sks : int
+    + semester : int
+    + jenis_mk : string
+    + status : string
+    --
+    + prodi()
+    + dosen()
+    + rps()
+  }
+
+  class TahunAjaran {
+    + prodi_id : int
+    + tahun_ajaran : string
+    + semester : string
+    + tanggal_mulai : date
+    + tanggal_akhir : date
+    + status : string
+    --
+    + prodi()
+    + rps()
+    + monitoring()
+    + laporanGKM()
+  }
+}
+
+' ==================== AKADEMIK ====================
+package "Manajemen Akademik" {
+  
+  class RPS {
+    + matakuliah_id : int
+    + ajaran_id : int
+    + dosen_id : int
+    + file_rps : string
+    + status_upload_rps : string
+    + tanggal_upload_rps : datetime
+    + status_review_rps : string
+    --
+    + matakuliah()
+    + tahunAjaran()
+    + dosen()
+    + evaluasiArtefak()
+    + monitoring()
+  }
+
+  class Materi {
+    + rps_id : int
+    + matakuliah_id : int
+    + dosen_id : int
+    + judul_materi : string
+    + deskripsi_materi : text
+    + file_materi : string
+    + jenis_file : string
+    + status_upload_materi : string
+    + tanggal_upload_materi : datetime
+    --
+    + rps()
+    + matakuliah()
+    + dosen()
+    + evaluasiArtefak()
+    + monitoring()
+  }
+
+  class Monitoring {
+    + dosen_id : int
+    + matakuliah_id : int
+    + ajaran_id : int
+    + rps_id : int
+    + materi_id : int
+    + status_rps : string
+    + status_materi : string
+    + status_kuisioner : string
+    + persentase_kepatuhan : float
+    + catatan_monitoring : text
+    + tanggal_monitoring : datetime
+    --
+    + dosen()
+    + matakuliah()
+    + tahunAjaran()
+    + rps()
+    + materi()
+  }
+
+  class EvaluasiArtefak {
+    + evaluator_id : int
+    + rps_id : int
+    + jenis_artefak : string
+    + skor_evaluasi : float
+    + catatan_evaluasi : text
+    + status_evaluasi : string
+    + tanggal_evaluasi : datetime
+    + saran_perbaikan : text
+    + tanggal_revisi_selesai : date
+    + jumlah_revisi : int
+    --
+    + dosen()
+    + rps()
+  }
+}
+
+' ==================== KUISIONER ====================
+package "Manajemen Kuisioner" {
+
+  class PertanyaanKuisioner {
+    + kuisioner_id : int
+    + nomor_urut : int
+    + teks_pertanyaan : text
+    + tipe_pertanyaan : string
+    + opsi_jawaban : json
+    --
+    + kuisioner()
+    + jawaban()
+  }
+
+  class JawabanKuisioner {
+    + kuisioner_id : int
+    + pertanyaan_id : int
+    + dosen_id : int
+    + jawaban_teks : text
+    + jawaban_nilai : float
+    + tanggal_jawab : datetime
+    --
+    + kuisioner()
+    + pertanyaan()
+    + dosen()
+  }
+}
+
+' ==================== LAPORAN ====================
+package "Manajemen Laporan" {
+  
+  class LaporanGKM {
+    + prodi_id : int
+    + pengguna_id : int
+    + template_id : int
+    + ajaran_id : int
+    + jenis_laporan : string
+    + periode : string
+    + bulan : string
+    + tahun : string
+    + file_laporan : string
+    + status_laporan : string
+    + konten_laporan : text
+    + total_rps : int
+    + total_materi : int
+    --
+    + prodi()
+    + pengguna()
+    + template()
+    + tahunAjaran()
+  }
+
+  class LaporanGJM {
+    + ajaran_id : int
+    + template_id : int
+    + jenis_laporan : string
+    + program_studi : string
+    + ringkasan_mutu_institusi : text
+    + analisis_kepatuhan : text
+    + temuan_utama : text
+    + rekomendasi_perbaikan : text
+    + status_laporan : string
+    + jumlah_prodi_terlibat : int
+    + jumlah_laporan_gkm_diterima : int
+    + skor_ragas_keseluruhan : float
+    --
+    + tahunAjaran()
+    + template()
+    + dibuatOleh()
+  }
+
+  class LaporanBulanan {
+    + periode : string
+    + bulan : string
+    + tahun : string
+    + pengguna_id : int
+    + template_id : int
+    + judul_laporan : string
+    + total_kuesioner : int
+    + total_responden : int
+    + index_kepuasan_rata_rata : float
+    + status : string
+    + file_word : string
+    + file_pdf : string
+    --
+    + pengguna()
+    + template()
+  }
+
+  class Laporan {
+    + prodi_id : int
+    + nama_template : string
+    + jenis_template : string
+    + jenis_laporan : string
+    + jalur_file : string
+    + aktif : boolean
+    + terindeks : boolean
+    + total_potongan : int
+    --
+    + prodi()
+    + pengunggah()
+    + laporanBulanan()
+  }
+}
+
+' ==================== PEMANTAUAN ====================
+package "Pemantauan & Pengingat" {
+  
+  class SnapshotPemantauanPerkuliahan {
+    + pegawai_id : int
+    + prodi_id : int
+    + semester : string
+    + tahun_ajaran : string
+    + kode_mk : string
+    + nama_matkul : string
+    + tingkat : string
+    + jenis_materi : string
+    + status_upload : string
+    + pengingat_terkirim : boolean
+    --
+    + dosen()
+    + prodi()
+    + lingkupPerPeriode()
+    + tandaiPengingatTerkirim()
+  }
+
+  class SnapshotPemantauanRPS {
+    + pegawai_id : int
+    + prodi_id : int
+    + semester : string
+    + tahun_ajaran : string
+    + kode_mk : string
+    + nama_matkul : string
+    + status_rps : string
+    + pengingat_terkirim : boolean
+    --
+    + dosen()
+    + prodi()
+    + lingkupPerPeriode()
+    + tandaiPengingatTerkirim()
+  }
+
+  class JadwalPengingat {
+    + prodi_id : int
+    + nama_jadwal : string
+    + tipe_pengingat : string
+    + jam_pengiriman : time
+    + tanggal_mulai : date
+    + tanggal_selesai : date
+    + frekuensi : string
+    + aktif : boolean
+    --
+    + aktifSekarang()
+    + ambilTeksStatus()
+  }
+
+  class Pengingat {
+    + pengguna_pembuat_id : int
+    + pengguna_penerima_id : int
+    + tipe_pengingat : string
+    + subjek_pengingat : string
+    + isi_pengingat : text
+    + tanggal_pengiriman : datetime
+    + status_pengiriman : string
+    --
+    + penggunaPembuat()
+    + penggunaPenerima()
+    + logEmail()
+  }
+
+  class LogEmail {
+    + pengingat_id : int
+    + prodi_id : int
+    + penerima_email : string
+    + subjek : string
+    + isi_email : text
+    + status_pengiriman : string
+    + tanggal_pengiriman : datetime
+    --
+    + pengingat()
+    + prodi()
+  }
+}
+
+' ==================== HUBUNGAN ====================
+
+' Hubungan Inti Domain
+Pengguna "1" -- "1" Dosen
+Pengguna "*" -- "1" ProgramStudi
+ProgramStudi "1" -- "*" Dosen
+ProgramStudi "1" -- "*" MataKuliah
+ProgramStudi "1" -- "*" LaporanGKM
+ProgramStudi "1" -- "*" TahunAjaran
+
+Dosen "*" -- "*" MataKuliah
+Dosen "1" -- "*" RPS
+Dosen "1" -- "*" Materi
+Dosen "1" -- "*" Monitoring
+Dosen "1" -- "*" EvaluasiArtefak
+Dosen "1" -- "*" JawabanKuisioner
+
+MataKuliah "1" -- "*" RPS
+TahunAjaran "1" -- "*" RPS
+TahunAjaran "1" -- "*" Monitoring
+
+' Hubungan Akademik
+RPS "1" -- "*" Materi
+RPS "1" -- "*" Monitoring
+RPS "1" -- "1" EvaluasiArtefak
+Materi "1" -- "*" Monitoring
+
+' Hubungan Kuisioner
+Kuisioner "1" -- "*" PertanyaanKuisioner
+PertanyaanKuisioner "1" -- "*" JawabanKuisioner
+Kuisioner "1" -- "*" JawabanKuisioner
+
+' Hubungan Laporan
+TemplateLaporan "1" -- "*" LaporanBulanan
+TemplateLaporan "1" -- "*" LaporanGKM
+TemplateLaporan "1" -- "*" LaporanGJM
+
+' Hubungan Pemantauan
+JadwalPengingat "1" -- "*" Pengingat
+Pengingat "1" -- "*" LogEmail
+
+@enduml
