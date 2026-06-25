@@ -21,14 +21,14 @@ class BuatPPTController extends Controller
     public function index()
     {
         $user = Auth::user();
-        
+
         // Get available reports for PPT generation with pagination
         $laporan = LaporanGJM::with(['ajaran', 'createdBy'])
             ->where('status_laporan', 'completed')
             ->whereNotNull('dokumen_hasil_path')
             ->orderBy('created_at', 'desc')
             ->paginate(5);
-        
+
         return view('gjm.buat-ppt.index', compact('user', 'laporan'));
     }
 
@@ -38,10 +38,11 @@ class BuatPPTController extends Controller
             $validated = $request->validate([
                 'laporan_id' => 'required|exists:laporan_gjm,id',
                 'judul_presentasi' => 'required|string|max:255',
+                'nama_pembuat' => 'required|string|max:100',
             ]);
 
             $laporan = LaporanGJM::findOrFail($validated['laporan_id']);
-            
+
             // Validate that laporan has document
             if (!$laporan->dokumen_hasil_path) {
                 return response()->json([
@@ -59,13 +60,15 @@ class BuatPPTController extends Controller
             // Generate PPT using AI Agent
             $result = $this->pptService->generateFromLaporan(
                 $validated['laporan_id'],
-                $validated['judul_presentasi']
+                $validated['judul_presentasi'],
+                $validated['nama_pembuat'] ?? null
             );
 
             // Update laporan record with PPT path
             $laporan->update([
                 'ppt_path' => $result['file_path'],
-                'ppt_generated_at' => now()
+                'ppt_generated_at' => now(),
+                'ppt_creator' => $validated['nama_pembuat'] ?? null
             ]);
 
             return response()->json([
@@ -73,10 +76,11 @@ class BuatPPTController extends Controller
                 'message' => 'PPT berhasil di-generate menggunakan AI Agent',
                 'ppt' => [
                     'title' => $validated['judul_presentasi'],
+                    'creator' => $validated['nama_pembuat'] ?? null,
                     'based_on' => $laporan->ringkasan_mutu_institusi,
                     'generated_at' => now()->format('Y-m-d H:i:s'),
                     'file_path' => $result['file_path'],
-                    'slides_count' => count($result['structure']['slides'] ?? [])
+                    'slides_count' => (isset($result['structure']['slides']) && is_array($result['structure']['slides'])) ? count($result['structure']['slides']) : 0
                 ],
                 'download_url' => route('gjm.buat-ppt.download', $laporan->id)
             ]);
@@ -104,7 +108,7 @@ class BuatPPTController extends Controller
     {
         try {
             $laporan = LaporanGJM::findOrFail($id);
-            
+
             if (!$laporan->ppt_path) {
                 return response()->json([
                     'success' => false,
@@ -113,7 +117,7 @@ class BuatPPTController extends Controller
             }
 
             $filePath = storage_path('app/' . $laporan->ppt_path);
-            
+
             if (!file_exists($filePath)) {
                 return response()->json([
                     'success' => false,
@@ -121,8 +125,14 @@ class BuatPPTController extends Controller
                 ], 404);
             }
 
-            $fileName = 'Presentasi_' . str_replace(' ', '_', $laporan->ringkasan_mutu_institusi) . '.pptx';
-            
+            $creatorPart = '';
+            if (!empty($laporan->ppt_creator)) {
+                $safe = preg_replace('/[^A-Za-z0-9_\-]/', '_', mb_substr($laporan->ppt_creator, 0, 50));
+                $creatorPart = '_' . $safe;
+            }
+
+            $fileName = 'Presentasi_' . str_replace(' ', '_', $laporan->ringkasan_mutu_institusi) . $creatorPart . '.pptx';
+
             return response()->download($filePath, $fileName, [
                 'Content-Type' => 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
             ]);
@@ -144,7 +154,7 @@ class BuatPPTController extends Controller
     {
         try {
             $laporan = LaporanGJM::findOrFail($id);
-            
+
             // Check if PPT exists
             if (!$laporan->ppt_path) {
                 return response()->json([
@@ -154,7 +164,7 @@ class BuatPPTController extends Controller
             }
 
             $pptPath = storage_path('app/' . $laporan->ppt_path);
-            
+
             // Delete physical file if exists
             if (file_exists($pptPath)) {
                 unlink($pptPath);
@@ -197,7 +207,7 @@ class BuatPPTController extends Controller
     public function archive()
     {
         $user = Auth::user();
-        
+
         // Get generated PPTs with search functionality
         $search = request('search');
         $pptArchive = LaporanGJM::with(['ajaran', 'createdBy'])

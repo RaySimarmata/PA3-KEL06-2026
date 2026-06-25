@@ -434,6 +434,11 @@ Route::middleware('auth')->group(function () {
             Route::get('/triwulan/upload', [TemplateLaporanController::class, 'uploadTriwulan'])->name('triwulan.upload');
             Route::post('/triwulan', [TemplateLaporanController::class, 'storeTriwulan'])->name('triwulan.store');
 
+            // VMTS Templates
+            Route::get('/vmts', [TemplateLaporanController::class, 'indexVmts'])->name('vmts.index');
+            Route::get('/vmts/upload', [TemplateLaporanController::class, 'uploadVmts'])->name('vmts.upload');
+            Route::post('/vmts', [TemplateLaporanController::class, 'storeVmts'])->name('vmts.store');
+
             // Semester Templates
             Route::get('/semester', [TemplateLaporanController::class, 'indexSemester'])->name('semester.index');
             Route::get('/semester/upload', [TemplateLaporanController::class, 'uploadSemester'])->name('semester.upload');

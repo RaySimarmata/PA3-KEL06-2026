@@ -309,14 +309,14 @@ class ModelEvaluationController extends Controller
                   ->orWhere('context_metadata.type', 'laporan_' . $feature);
             });
         }
-        
+
         $data = $query->orderBy('created_at', 'asc')->get();
-        
+
         // Group by date manually
         $usage = [];
         foreach ($data as $entry) {
             $date = $entry->created_at->format('Y-m-d');
-            
+
             if (!isset($usage[$date])) {
                 $usage[$date] = [
                     'date' => $date,
@@ -324,11 +324,11 @@ class ModelEvaluationController extends Controller
                     'total_usage' => 0,
                 ];
             }
-            
+
             $usage[$date]['requests']++;
             $usage[$date]['total_usage'] += $entry->usage_count ?? 1;
         }
-        
+
         return array_values($usage);
     }
 
@@ -351,7 +351,7 @@ class ModelEvaluationController extends Controller
                   ->orWhere('context_metadata.type', 'laporan_' . $feature);
             });
         }
-        
+
         $cacheData = $query->get();
 
         $totalEntries = $cacheData->count();
@@ -399,14 +399,14 @@ class ModelEvaluationController extends Controller
                   ->orWhere('context_metadata.type', 'laporan_' . $feature);
             });
         }
-        
+
         $data = $query->orderBy('created_at', 'asc')->get();
-        
+
         // Group by date manually since MongoDB aggregation might differ
         $timeline = [];
         foreach ($data as $entry) {
             $date = $entry->created_at->format('Y-m-d');
-            
+
             if (!isset($timeline[$date])) {
                 $timeline[$date] = [
                     'date' => $date,
@@ -414,11 +414,11 @@ class ModelEvaluationController extends Controller
                     'cache_hits' => 0,
                 ];
             }
-            
+
             $timeline[$date]['new_requests']++;
             $timeline[$date]['cache_hits'] += max(0, ($entry->usage_count ?? 1) - 1);
         }
-        
+
         return array_values($timeline);
     }
 
@@ -501,7 +501,7 @@ class ModelEvaluationController extends Controller
         if ($feature !== 'all') {
             $query->where('context_metadata.feature', $feature);
         }
-        
+
         $allData = $query->orderBy('created_at', 'asc')->get();
 
         // If less than 2 entries, use laporan_gjm fallback
@@ -806,7 +806,7 @@ class ModelEvaluationController extends Controller
         if ($feature !== 'all') {
             $query->where('context_metadata.feature', $feature);
         }
-        
+
         $allData = $query->orderBy('created_at', 'asc')->get();
 
         // If insufficient data, return default comparison

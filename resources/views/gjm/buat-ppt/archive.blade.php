@@ -56,6 +56,9 @@
                                         @if ($item->ajaran)
                                             <span class="text-muted">{{ $item->ajaran->tahun_ajaran }}</span>
                                         @endif
+                                        @if (!empty($item->ppt_creator))
+                                            <span class="text-muted">• {{ $item->ppt_creator }}</span>
+                                        @endif
                                     </div>
 
                                     <div class="ppt-date">

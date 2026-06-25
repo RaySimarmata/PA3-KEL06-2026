@@ -109,6 +109,8 @@
                                 <i class="bi bi-check-circle-fill me-2"></i>
                                 <small class="text-muted d-block" style="font-size: 0.7rem;">Laporan Terpilih:</small>
                                 <strong id="selectedTitle" style="font-size: 0.875rem;"></strong>
+                                <div class="text-muted mt-1" style="font-size: 0.8rem;">Pembuat: <span
+                                        id="selectedCreator">-</span></div>
                             </div>
 
                             <!-- Judul Input -->
@@ -119,6 +121,17 @@
                                     required rows="3" maxlength="200"></textarea>
                                 <div class="form-text text-muted mt-1">
                                     <i class="bi bi-info-circle"></i> <span id="charCount">0</span>/200 karakter
+                                </div>
+                            </div>
+
+                            <!-- Nama Pembuat Input -->
+                            <div class="mb-4">
+                                <label class="form-label fw-semibold">Nama Pembuat <span
+                                        class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="namaPembuat" name="nama_pembuat"
+                                    placeholder="Masukkan nama pembuat presentasi" maxlength="100" required>
+                                <div class="form-text text-muted mt-1">
+                                    <i class="bi bi-info-circle"></i> Nama akan ditampilkan di slide cover
                                 </div>
                             </div>
 
@@ -133,7 +146,8 @@
                                 </div>
                                 <div class="col-6">
                                     <div class="stats-card text-center p-3" style="border-left: 4px solid #28a745;">
-                                        <i class="bi bi-layout-text-window" style="color: #28a745; font-size: 1.5rem;"></i>
+                                        <i class="bi bi-layout-text-window"
+                                            style="color: #28a745; font-size: 1.5rem;"></i>
                                         <div class="text-muted mt-1" style="font-size: 0.7rem;">Slide</div>
                                         <div style="font-size: 0.875rem; font-weight: 600;">10-15</div>
                                     </div>
@@ -293,6 +307,10 @@
             const selectedTitle = document.getElementById('selectedTitle');
             selectedPreview.style.display = 'block';
             selectedTitle.textContent = title;
+            const selectedCreator = document.getElementById('selectedCreator');
+            const namaVal = document.getElementById('namaPembuat') ? document.getElementById('namaPembuat').value.trim() :
+                '';
+            selectedCreator.textContent = namaVal || '-';
 
             const judulInput = document.getElementById('judulPresentasi');
             if (!judulInput.value) {
@@ -300,7 +318,16 @@
                 updateCharCount();
             }
 
-            document.getElementById('generateBtn').disabled = false;
+            updateGenerateButtonState();
+        }
+
+        function updateCreatorPreview() {
+            const selectedCreator = document.getElementById('selectedCreator');
+            const namaInput = document.getElementById('namaPembuat');
+            if (!selectedCreator) return;
+            const val = namaInput ? namaInput.value.trim() : '';
+            selectedCreator.textContent = val || '-';
+            updateGenerateButtonState();
         }
 
         function updateCharCount() {
@@ -309,12 +336,36 @@
             charCount.textContent = judulInput.value.length;
         }
 
+        function updateGenerateButtonState() {
+            const generateBtn = document.getElementById('generateBtn');
+            if (!generateBtn) return;
+            const namaVal = document.getElementById('namaPembuat') ? document.getElementById('namaPembuat').value.trim() :
+                '';
+            const judulVal = document.getElementById('judulPresentasi') ? document.getElementById('judulPresentasi').value
+                .trim() : '';
+            const judulValid = judulVal.length > 0 && judulVal.length <= 200;
+            const namaValid = namaVal.length > 0 && namaVal.length <= 100;
+            generateBtn.disabled = !(selectedLaporanId && judulValid && namaValid);
+        }
+
         document.addEventListener('DOMContentLoaded', function() {
             loadingModal = new bootstrap.Modal(document.getElementById('loadingModal'));
             successModal = new bootstrap.Modal(document.getElementById('successModal'));
 
             const judulInput = document.getElementById('judulPresentasi');
-            judulInput.addEventListener('input', updateCharCount);
+            judulInput.addEventListener('input', function() {
+                updateCharCount();
+                updateGenerateButtonState();
+            });
+            const namaInput = document.getElementById('namaPembuat');
+            if (namaInput) {
+                namaInput.addEventListener('input', function() {
+                    updateCreatorPreview();
+                    updateGenerateButtonState();
+                });
+            }
+
+            // updateGenerateButtonState is defined in top-level scope
 
             // Search
             const searchInput = document.getElementById('searchLaporan');
@@ -373,11 +424,20 @@
                         method: 'POST',
                         body: formData,
                         headers: {
-                            'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                            'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                            'Accept': 'application/json',
+                            'X-Requested-With': 'XMLHttpRequest'
                         }
                     });
 
-                    const data = await response.json();
+                    let data;
+                    const contentType = response.headers.get('content-type') || '';
+                    if (contentType.includes('application/json')) {
+                        data = await response.json();
+                    } else {
+                        const text = await response.text();
+                        throw new Error('Server returned non-JSON response: ' + text.slice(0, 200));
+                    }
                     clearInterval(progressInterval);
 
                     loadingModal.hide();
@@ -400,6 +460,7 @@
                         });
                         document.getElementById('selectedPreview').style.display = 'none';
                         updateCharCount();
+                        updateCreatorPreview();
                         generateBtn.disabled = true;
                     } else {
                         alert('Gagal generate PPT: ' + data.message);

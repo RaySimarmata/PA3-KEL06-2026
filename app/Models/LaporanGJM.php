@@ -27,6 +27,7 @@ class LaporanGJM extends Model
         'dokumen_path',
         'dokumen_hasil_path',
         'ppt_path',
+        'ppt_creator',
         'ppt_generated_at',
         'status_laporan',
         'tanggal_submit',
@@ -44,7 +45,7 @@ class LaporanGJM extends Model
         'ai_preview_used_for_generation',
         'ocr_data',
         'has_ocr_data',
-        
+
         // RAGAS Metrics for VMTS
         'ragas_faithfulness',
         'ragas_answer_relevancy',
@@ -52,7 +53,7 @@ class LaporanGJM extends Model
         'ragas_context_recall',
         'ragas_context_relevancy',
         'ragas_overall_score',
-        
+
         // RAG Metadata
         'rag_chunks_count',
         'rag_avg_similarity',
@@ -74,7 +75,7 @@ class LaporanGJM extends Model
         'ai_preview_used_for_generation' => 'boolean',
         'ocr_data' => 'array',
         'has_ocr_data' => 'boolean',
-        
+
         // RAGAS Casts
         'rag_contexts' => 'array',
         'ragas_evaluated_at' => 'datetime',

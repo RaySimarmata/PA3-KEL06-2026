@@ -13,7 +13,7 @@ use PhpOffice\PhpPresentation\Style\Fill;
 
 /**
  * PPT Generation Service
- * 
+ *
  * Generate PPT dari AI preview yang sudah disimpan di database
  * Menggunakan sections dari AI preview untuk membuat slide yang terstruktur
  */
@@ -34,7 +34,7 @@ class PPTGenerationService
      * Generate PPT from Laporan GJM
      * Menggunakan AI preview dari database
      */
-    public function generateFromLaporan($laporanId, $judulPresentasi)
+    public function generateFromLaporan($laporanId, $judulPresentasi, $namaPembuat = null)
     {
         Log::info("=== Starting PPT Generation ===", [
             'laporan_id' => $laporanId,
@@ -43,7 +43,7 @@ class PPTGenerationService
 
         try {
             $laporan = LaporanGJM::with(['template'])->find($laporanId);
-            
+
             if (!$laporan) {
                 throw new \Exception("Laporan not found");
             }
@@ -52,32 +52,65 @@ class PPTGenerationService
             $cacheService = app(AIPreviewCacheService::class);
             $preview = $cacheService->getAIPreview($laporanId);
 
+            // If sections were stored as a JSON string, attempt to decode them
+            if (isset($preview['sections']) && is_string($preview['sections'])) {
+                $maybe = json_decode($preview['sections'], true);
+                if (is_array($maybe)) {
+                    $preview['sections'] = $maybe;
+                    Log::info('Decoded preview.sections from JSON string', ['laporan_id' => $laporanId]);
+                }
+            }
+
             if (!$preview) {
                 throw new \Exception('AI preview belum dibuat. Silakan generate preview terlebih dahulu melalui chat assistant.');
             }
 
+            $sectionsCount = is_array($preview['sections']) ? count($preview['sections']) : 0;
             Log::info('AI preview retrieved from database', [
                 'laporan_id' => $laporanId,
                 'preview_length' => strlen(is_string($preview['draft']) ? $preview['draft'] : json_encode($preview['draft'])),
-                'sections_count' => count($preview['sections'])
+                'sections_count' => $sectionsCount
             ]);
+
+            if ($sectionsCount === 0 && isset($preview['sections']) && !is_array($preview['sections'])) {
+                Log::warning('AI preview sections is not an array', [
+                    'laporan_id' => $laporanId,
+                    'sections_type' => gettype($preview['sections']),
+                    'sections_sample' => is_string($preview['sections']) ? substr($preview['sections'], 0, 300) : json_encode($preview['sections'])
+                ]);
+            }
+
+            // Fall back to parsing the draft if parsed sections are empty
+            if ($sectionsCount === 0 && !empty($preview['draft'])) {
+                Log::warning('Fallback to parsing AI preview draft for sections', ['laporan_id' => $laporanId]);
+                $fallbackSections = $cacheService->parseAIPreview($preview['draft']);
+                if (!empty($fallbackSections) && is_array($fallbackSections)) {
+                    $preview['sections'] = $fallbackSections;
+                    $sectionsCount = count($fallbackSections);
+                    Log::info('AI preview draft parsed into sections', [
+                        'laporan_id' => $laporanId,
+                        'fallback_sections_count' => $sectionsCount,
+                        'fallback_section_keys' => array_keys($fallbackSections),
+                    ]);
+                }
+            }
 
             // 2. Build PPT structure dari AI preview sections
             Log::info('Building PPT structure...');
-            $pptStructure = $this->buildPPTStructureFromPreview($preview, $judulPresentasi, $laporan);
-            
+            $pptStructure = $this->buildPPTStructureFromPreview($preview, $judulPresentasi, $laporan, $namaPembuat);
+
             Log::info('PPT structure built successfully', [
-                'slides_count' => count($pptStructure['slides'])
+                'slides_count' => is_array($pptStructure['slides']) ? count($pptStructure['slides']) : 0
             ]);
-            
+
             // 3. Create PowerPoint presentation
             Log::info('Creating PowerPoint file...');
-            $pptPath = $this->createPowerPointFile($pptStructure, $judulPresentasi);
-            
+            $pptPath = $this->createPowerPointFile($pptStructure, $judulPresentasi, $namaPembuat);
+
             Log::info('PowerPoint file created successfully', [
                 'file_path' => $pptPath
             ]);
-            
+
             // 4. Mark preview sebagai sudah digunakan
             $cacheService->markAsUsedForGeneration($laporanId);
 
@@ -109,7 +142,7 @@ class PPTGenerationService
     /**
      * Build PPT structure dari AI preview sections
      */
-    private function buildPPTStructureFromPreview($preview, $judulPresentasi, $laporan)
+    private function buildPPTStructureFromPreview($preview, $judulPresentasi, $laporan, $namaPembuat = null)
     {
         Log::info('Building PPT structure from AI preview');
 
@@ -118,14 +151,20 @@ class PPTGenerationService
         $structure = [
             'title' => $judulPresentasi,
             'subtitle' => $laporan->getPeriodeLabel(),
+            'creator' => $namaPembuat,
             'slides' => []
         ];
 
         // Title slide
+        $titleContent = "Gugus Jaminan Mutu Fakultas Vokasi\n" . $laporan->getPeriodeLabel() . "\nInstitut Teknologi Del\n" . ($laporan->ajaran ? $laporan->ajaran->tahun_ajaran : '2025/2026');
+        if (!empty($namaPembuat)) {
+            $titleContent .= "\nPembuat: " . $namaPembuat;
+        }
+
         $structure['slides'][] = [
             'type' => 'title',
             'title' => $judulPresentasi,
-            'content' => "Gugus Jaminan Mutu Fakultas Vokasi\n" . $laporan->getPeriodeLabel() . "\nInstitut Teknologi Del\n" . ($laporan->ajaran ? $laporan->ajaran->tahun_ajaran : '2025/2026')
+            'content' => $titleContent
         ];
 
         // Agenda slide
@@ -206,7 +245,7 @@ class PPTGenerationService
                 'title' => 'Program Kerja',
                 'content' => ''
             ];
-            
+
             Log::info('Processing Program Kerja section');
             $bulletPoints = $this->extractBulletPointsManually($program_kerja);
             $chunks = array_chunk($bulletPoints, 6);
@@ -243,14 +282,14 @@ class PPTGenerationService
             Log::info('Processing Hambatan & Pemecahan section');
             $combinedContent = trim($hambatan . "\n\n" . $pemecahan);
             $bulletPoints = $this->extractBulletPointsManually($combinedContent);
-            
+
             $halfCount = ceil(count($bulletPoints) / 2);
             $structure['slides'][] = [
                 'type' => 'content',
                 'title' => 'Hambatan yang Dihadapi',
                 'bullet_points' => array_slice($bulletPoints, 0, $halfCount)
             ];
-            
+
             if (count($bulletPoints) > 3) {
                 $structure['slides'][] = [
                     'type' => 'content',
@@ -314,19 +353,19 @@ class PPTGenerationService
     private function extractBulletPointsManually($content)
     {
         $bulletPoints = [];
-        
+
         // Clean content
         $content = trim($content);
         $content = preg_replace('/^#+\s*/m', '', $content); // Remove markdown headers
-        
+
         if (empty($content)) {
             return ['Konten akan ditampilkan di sini'];
         }
-        
+
         // First, try to detect if content already has bullet points or numbered lists
         $lines = explode("\n", $content);
         $hasListMarkers = false;
-        
+
         foreach ($lines as $line) {
             $line = trim($line);
             // Check for list markers: -, *, +, 1., 2., etc.
@@ -335,7 +374,7 @@ class PPTGenerationService
                 break;
             }
         }
-        
+
         // If content has list markers, extract them
         if ($hasListMarkers) {
             foreach ($lines as $line) {
@@ -343,33 +382,33 @@ class PPTGenerationService
                 // Remove list markers
                 $line = preg_replace('/^[\-\*\+•]\s*/', '', $line);
                 $line = preg_replace('/^\d+\.\s*/', '', $line);
-                
+
                 if (strlen($line) > 20) {
                     $bulletPoints[] = $line;
                     if (count($bulletPoints) >= 6) break;
                 }
             }
         }
-        
+
         // If we have enough points from list extraction, return them
         if (count($bulletPoints) >= 3) {
             return $bulletPoints;
         }
-        
+
         // Otherwise, try to split by sentences with better logic
         $bulletPoints = [];
-        
+
         // Split by sentence-ending punctuation followed by space and capital letter
         $sentences = preg_split('/(?<=[.!?])\s+(?=[A-Z])/', $content);
-        
+
         foreach ($sentences as $sentence) {
             $sentence = trim($sentence);
-            
+
             // Skip very short sentences
             if (strlen($sentence) < 40) {
                 continue;
             }
-            
+
             // For long sentences, try to find a good breaking point
             if (strlen($sentence) > 200) {
                 // Try to break at comma, semicolon, or colon
@@ -377,7 +416,7 @@ class PPTGenerationService
                 if (count($parts) > 1 && strlen($parts[0]) > 40 && strlen($parts[0]) < 180) {
                     $bulletPoints[] = trim($parts[0]);
                     if (count($bulletPoints) >= 6) break;
-                    
+
                     // Add second part if it's substantial
                     if (strlen(trim($parts[1])) > 40) {
                         $bulletPoints[] = trim($parts[1]);
@@ -400,19 +439,19 @@ class PPTGenerationService
                 if (count($bulletPoints) >= 6) break;
             }
         }
-        
+
         // If still not enough points, try paragraph-based extraction
         if (count($bulletPoints) < 3) {
             $bulletPoints = [];
             $paragraphs = preg_split('/\n\s*\n/', $content);
-            
+
             foreach ($paragraphs as $para) {
                 $para = trim($para);
-                
+
                 if (strlen($para) < 40) {
                     continue;
                 }
-                
+
                 // If paragraph is reasonable length, use it
                 if (strlen($para) <= 200) {
                     $bulletPoints[] = $para;
@@ -427,22 +466,22 @@ class PPTGenerationService
                         }
                     }
                 }
-                
+
                 if (count($bulletPoints) >= 6) break;
             }
         }
-        
+
         // Last resort: intelligent chunking by semantic breaks
         if (count($bulletPoints) < 3) {
             $bulletPoints = [];
-            
+
             // Try to find natural breaks (periods, colons, semicolons)
             $chunks = preg_split('/([.;:])\s+/', $content, -1, PREG_SPLIT_DELIM_CAPTURE);
             $currentChunk = '';
-            
+
             for ($i = 0; $i < count($chunks); $i++) {
                 $currentChunk .= $chunks[$i];
-                
+
                 // If we hit a delimiter and chunk is substantial
                 if (in_array($chunks[$i], ['.', ';', ':']) && strlen($currentChunk) > 50) {
                     $bulletPoints[] = trim($currentChunk);
@@ -450,24 +489,24 @@ class PPTGenerationService
                     if (count($bulletPoints) >= 6) break;
                 }
             }
-            
+
             // Add remaining chunk if substantial
             if (!empty(trim($currentChunk)) && strlen(trim($currentChunk)) > 40 && count($bulletPoints) < 6) {
                 $bulletPoints[] = trim($currentChunk);
             }
         }
-        
+
         // Final fallback: just split by approximate word count
         if (count($bulletPoints) < 2) {
             $bulletPoints = [];
             $words = explode(' ', $content);
             $chunk = '';
             $wordCount = 0;
-            
+
             foreach ($words as $word) {
                 $chunk .= $word . ' ';
                 $wordCount++;
-                
+
                 // Create a bullet point every 20-25 words or at sentence end
                 if ($wordCount >= 20 && (in_array(substr($word, -1), ['.', '!', '?']) || $wordCount >= 25)) {
                     $point = trim($chunk);
@@ -479,18 +518,18 @@ class PPTGenerationService
                     $wordCount = 0;
                 }
             }
-            
+
             // Add remaining chunk if substantial
             if (!empty(trim($chunk)) && strlen(trim($chunk)) > 40 && count($bulletPoints) < 6) {
                 $bulletPoints[] = trim($chunk);
             }
         }
-        
+
         // Clean up bullet points - remove incomplete sentences at the end
         $cleanedPoints = [];
         foreach ($bulletPoints as $point) {
             $point = trim($point);
-            
+
             // Ensure point ends with proper punctuation or is complete
             if (!empty($point)) {
                 // If point doesn't end with punctuation, try to complete it
@@ -504,11 +543,11 @@ class PPTGenerationService
                     // Otherwise add period
                     $point .= '.';
                 }
-                
+
                 $cleanedPoints[] = $point;
             }
         }
-        
+
         // Ensure we have at least one point
         if (empty($cleanedPoints)) {
             // Take first 180 characters as single point
@@ -519,20 +558,20 @@ class PPTGenerationService
             }
             $cleanedPoints[] = $firstPoint;
         }
-        
+
         return $cleanedPoints;
     }
 
     /**
      * Create PowerPoint file using PhpPresentation
      */
-    private function createPowerPointFile($structure, $judulPresentasi)
+    private function createPowerPointFile($structure, $judulPresentasi, $namaPembuat = null)
     {
         $presentation = new PhpPresentation();
-        
+
         // Set presentation properties
         $presentation->getDocumentProperties()
-            ->setCreator('GJM System')
+            ->setCreator($structure['creator'] ?? $namaPembuat ?? 'GJM System')
             ->setTitle($judulPresentasi)
             ->setSubject('Laporan GJM')
             ->setDescription('Generated automatically by GJM AI Agent');
@@ -546,10 +585,10 @@ class PPTGenerationService
         // Create slides based on structure
         foreach ($structure['slides'] as $slideData) {
             $slide = $presentation->createSlide();
-            
+
             // Ensure slide has proper dimensions
             $slide->setName($slideData['title'] ?? 'Slide');
-            
+
             $this->createSlideContent($slide, $slideData);
         }
 
@@ -582,7 +621,7 @@ class PPTGenerationService
     private function createSlideContent($slide, $slideData)
     {
         $slideType = $slideData['type'] ?? 'content';
-        
+
         switch ($slideType) {
             case 'title':
                 $this->createTitleSlide($slide, $slideData);
@@ -610,7 +649,7 @@ class PPTGenerationService
             ->setWidth(960)
             ->setOffsetX(0)
             ->setOffsetY(0);
-        
+
         $backgroundShape->getFill()
             ->setFillType(Fill::FILL_GRADIENT_LINEAR)
             ->setStartColor(new Color('FF1E3A8A'))  // Deep blue
@@ -653,11 +692,11 @@ class PPTGenerationService
             ->setWidth(800)
             ->setOffsetX(80)
             ->setOffsetY(130);
-        
+
         $titleShape->getActiveParagraph()
             ->getAlignment()
             ->setHorizontal(Alignment::HORIZONTAL_CENTER);
-        
+
         $titleText = $titleShape->createTextRun($slideData['title'] ?? 'Untitled');
         $titleText->getFont()
             ->setBold(true)
@@ -672,16 +711,16 @@ class PPTGenerationService
                 ->setWidth(800)
                 ->setOffsetX(80)
                 ->setOffsetY(290);
-            
+
             $subtitleShape->getActiveParagraph()
                 ->getAlignment()
                 ->setHorizontal(Alignment::HORIZONTAL_CENTER);
-            
+
             // Clean content and split into lines
             $subtitleContent = $slideData['content'];
             $subtitleContent = preg_replace('/^#\s*/', '', $subtitleContent);
             $lines = explode("\n", trim($subtitleContent));
-            
+
             foreach ($lines as $i => $line) {
                 $line = trim($line);
                 if (!empty($line)) {
@@ -704,11 +743,11 @@ class PPTGenerationService
             ->setWidth(600)
             ->setOffsetX(180)
             ->setOffsetY(450);
-        
+
         $footerShape->getActiveParagraph()
             ->getAlignment()
             ->setHorizontal(Alignment::HORIZONTAL_CENTER);
-        
+
         $footerText = $footerShape->createTextRun('Institut Teknologi Del');
         $footerText->getFont()
             ->setSize(18)
@@ -728,7 +767,7 @@ class PPTGenerationService
             ->setWidth(960)
             ->setOffsetX(0)
             ->setOffsetY(0);
-        
+
         $backgroundShape->getFill()
             ->setFillType(Fill::FILL_GRADIENT_LINEAR)
             ->setStartColor(new Color('FFFF6B35'))  // Bright orange
@@ -760,11 +799,11 @@ class PPTGenerationService
             ->setWidth(700)
             ->setOffsetX(80)
             ->setOffsetY(180);
-        
+
         $titleShape->getActiveParagraph()
             ->getAlignment()
             ->setHorizontal(Alignment::HORIZONTAL_LEFT);
-        
+
         $titleText = $titleShape->createTextRun($slideData['title'] ?? 'Section');
         $titleText->getFont()
             ->setBold(true)
@@ -790,7 +829,7 @@ class PPTGenerationService
                 ->setWidth(600)
                 ->setOffsetX(80)
                 ->setOffsetY(370);
-            
+
             $contentText = $contentShape->createTextRun(substr($slideData['content'], 0, 150) . '...');
             $contentText->getFont()
                 ->setSize(18)
@@ -810,7 +849,7 @@ class PPTGenerationService
             ->setWidth(960)
             ->setOffsetX(0)
             ->setOffsetY(0);
-        
+
         $backgroundShape->getFill()
             ->setFillType(Fill::FILL_GRADIENT_LINEAR)
             ->setStartColor(new Color('FFFFFFFF'))  // Pure white
@@ -856,7 +895,7 @@ class PPTGenerationService
             ->setWidth(800)
             ->setOffsetX(60)
             ->setOffsetY(10);
-        
+
         $titleText = $titleShape->createTextRun($slideData['title'] ?? 'Untitled');
         $titleText->getFont()
             ->setBold(true)
@@ -882,7 +921,7 @@ class PPTGenerationService
                 $paragraph->getAlignment()->setMarginLeft(40);
                 $paragraph->getAlignment()->setIndent(-30);
                 $paragraph->getAlignment()->setLevel(0);
-                
+
                 $textRun = $paragraph->createTextRun($point);
                 $textRun->getFont()
                     ->setSize(20)
@@ -903,7 +942,7 @@ class PPTGenerationService
                         if (strpos($line, '#') === 0) {
                             continue;
                         }
-                        
+
                         if ($lineCount > 0) {
                             $contentShape->createParagraph();
                         }
@@ -914,7 +953,7 @@ class PPTGenerationService
                             ->setColor(new Color('FF1F2937'))  // Dark gray
                             ->setName('Segoe UI');
                         $lineCount++;
-                        
+
                         // Limit to prevent overcrowding
                         if ($lineCount >= 8) break;
                     }
@@ -952,7 +991,7 @@ class PPTGenerationService
             ->setWidth(960)
             ->setOffsetX(0)
             ->setOffsetY(0);
-        
+
         $backgroundShape->getFill()
             ->setFillType(Fill::FILL_GRADIENT_LINEAR)
             ->setStartColor(new Color('FF059669'))  // Emerald green
@@ -1006,7 +1045,7 @@ class PPTGenerationService
             ->setWidth(800)
             ->setOffsetX(60)
             ->setOffsetY(10);
-        
+
         $titleText = $titleShape->createTextRun($slideData['title'] ?? 'Summary');
         $titleText->getFont()
             ->setBold(true)
@@ -1031,7 +1070,7 @@ class PPTGenerationService
                 $paragraph->getBulletStyle()->setBulletType(\PhpOffice\PhpPresentation\Style\Bullet::TYPE_BULLET);
                 $paragraph->getAlignment()->setMarginLeft(40);
                 $paragraph->getAlignment()->setIndent(-30);
-                
+
                 $textRun = $paragraph->createTextRun($point);
                 $textRun->getFont()
                     ->setSize(20)
@@ -1051,7 +1090,7 @@ class PPTGenerationService
                         if (strpos($line, '#') === 0) {
                             continue;
                         }
-                        
+
                         if ($lineCount > 0) {
                             $contentShape->createParagraph();
                         }
@@ -1062,7 +1101,7 @@ class PPTGenerationService
                             ->setColor(new Color('FFFFFFFF'))  // Pure white
                             ->setName('Segoe UI');
                         $lineCount++;
-                        
+
                         if ($lineCount >= 6) break;
                     }
                 }

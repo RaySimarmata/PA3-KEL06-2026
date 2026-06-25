@@ -67,7 +67,7 @@ class TemplateLaporanController extends Controller
             $tempPath = $file->getRealPath();
             $zip = new \ZipArchive();
             $checkResult = $zip->open($tempPath, \ZipArchive::CHECKCONS);
-            
+
             if ($checkResult !== true) {
                 return redirect()->back()
                     ->withErrors(['file_template' => 'File Word yang diupload tidak valid atau corrupt. Silakan coba file lain.'])
@@ -118,8 +118,8 @@ class TemplateLaporanController extends Controller
         $template->is_active = !$template->is_active;
         $template->save();
 
-        $redirectRoute = $type === 'triwulan' 
-            ? 'gjm.template-laporan.triwulan.index' 
+        $redirectRoute = $type === 'triwulan'
+            ? 'gjm.template-laporan.triwulan.index'
             : 'gjm.template-laporan.semester.index';
 
         return redirect()->route($redirectRoute)->with('success', 'Status template berhasil diubah.');
@@ -132,20 +132,20 @@ class TemplateLaporanController extends Controller
     {
         try {
             $result = $this->laporanService->processTemplateToVectorDB($id);
-            
-            $redirectRoute = $type === 'triwulan' 
-                ? 'gjm.template-laporan.triwulan.index' 
+
+            $redirectRoute = $type === 'triwulan'
+                ? 'gjm.template-laporan.triwulan.index'
                 : 'gjm.template-laporan.semester.index';
-            
-            return redirect()->route($redirectRoute)->with('success', 
+
+            return redirect()->route($redirectRoute)->with('success',
                 "Template berhasil di-reindex. Total chunks: {$result['chunks_count']}"
             );
         } catch (\Exception $e) {
-            $redirectRoute = $type === 'triwulan' 
-                ? 'gjm.template-laporan.triwulan.index' 
+            $redirectRoute = $type === 'triwulan'
+                ? 'gjm.template-laporan.triwulan.index'
                 : 'gjm.template-laporan.semester.index';
-            
-            return redirect()->route($redirectRoute)->with('error', 
+
+            return redirect()->route($redirectRoute)->with('error',
                 'Gagal reindex template: ' . $e->getMessage()
             );
         }
@@ -160,13 +160,13 @@ class TemplateLaporanController extends Controller
 
         // Jika template sedang digunakan oleh laporan, lepas referensinya terlebih dahulu
         $usageCount = LaporanGJM::where('template_id', $id)->count();
-        
+
         if ($usageCount > 0) {
             Log::info("Deleting template that is in use", [
                 'template_id' => $id,
                 'affected_laporan' => $usageCount
             ]);
-            
+
             LaporanGJM::where('template_id', $id)->update(['template_id' => null]);
         }
 
@@ -191,8 +191,8 @@ class TemplateLaporanController extends Controller
 
         $template->delete();
 
-        $redirectRoute = $type === 'triwulan' 
-            ? 'gjm.template-laporan.triwulan.index' 
+        $redirectRoute = $type === 'triwulan'
+            ? 'gjm.template-laporan.triwulan.index'
             : 'gjm.template-laporan.semester.index';
 
         return redirect()->route($redirectRoute)
@@ -206,13 +206,13 @@ class TemplateLaporanController extends Controller
     {
         try {
             $template = TemplateLaporan::findOrFail($id);
-            
+
             Log::info('Template download attempt', [
                 'template_id' => $id,
                 'file_path' => $template->file_path,
                 'nama_file' => $template->nama_file
             ]);
-            
+
             // Try multiple possible file paths
             $possiblePaths = [
                 storage_path('app/public/' . $template->file_path),
@@ -220,7 +220,7 @@ class TemplateLaporanController extends Controller
                 storage_path('app/public/templates/' . $template->nama_file),
                 storage_path('app/templates/' . $template->nama_file),
             ];
-            
+
             $filePath = null;
             foreach ($possiblePaths as $path) {
                 if (file_exists($path)) {
@@ -228,7 +228,7 @@ class TemplateLaporanController extends Controller
                     break;
                 }
             }
-            
+
             if (!$filePath) {
                 Log::error('Template file not found', [
                     'template_id' => $id,
@@ -236,27 +236,56 @@ class TemplateLaporanController extends Controller
                 ]);
                 return redirect()->back()->with('error', 'File template tidak ditemukan.');
             }
-            
+
             Log::info('Template download successful', [
                 'template_id' => $id,
                 'file_path' => $filePath
             ]);
-            
+
             $fileName = $template->nama_file;
-            
+
             return response()->download($filePath, $fileName, [
                 'Content-Type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
             ]);
-            
+
         } catch (\Exception $e) {
             Log::error('Template download error', [
                 'template_id' => $id,
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);
-            
+
             return redirect()->back()->with('error', 'Terjadi kesalahan saat download: ' . $e->getMessage());
         }
+    }
+
+    /**
+     * Template Management - Index VMTS
+     */
+    public function indexVmts()
+    {
+        $templates = TemplateLaporan::with(['prodi', 'uploader'])
+            ->jenis('laporan_vmts')
+            ->orderBy('created_at', 'desc')
+            ->paginate(10);
+
+        return view('gjm.template-laporan.vmts.index', compact('templates'));
+    }
+
+    /**
+     * Template Management - Upload Form VMTS
+     */
+    public function uploadVmts()
+    {
+        return view('gjm.template-laporan.vmts.upload');
+    }
+
+    /**
+     * Template Management - Store VMTS
+     */
+    public function storeVmts(Request $request)
+    {
+        return $this->storeTemplate($request, 'laporan_vmts', 'gjm.template-laporan.vmts.index');
     }
 
     /**
@@ -286,5 +315,22 @@ class TemplateLaporanController extends Controller
     public function storeTriwulan(Request $request)
     {
         return $this->storeTemplate($request, 'laporan_triwulan', 'gjm.template-laporan.triwulan.index');
+    }
+
+    /**
+     * Resolve redirect route for template type.
+     */
+    private function getTemplateRedirectRoute(string $type): string
+    {
+        switch ($type) {
+            case 'triwulan':
+                return 'gjm.template-laporan.triwulan.index';
+            case 'semester':
+                return 'gjm.template-laporan.semester.index';
+            case 'vmts':
+                return 'gjm.template-laporan.vmts.index';
+            default:
+                return 'gjm.template-laporan.triwulan.index';
+        }
     }
 }
