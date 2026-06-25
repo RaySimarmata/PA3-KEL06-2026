@@ -7,8 +7,8 @@
     <meta name="cache-version" content="1.2.0-{{ time() }}">
     <style>
         /* ===============================================================
-                                                                                                                                                   AI PROMPT ASSISTANT — VMTS
-                                                                                                                                                   =============================================================== */
+                                                                                                                                                           AI PROMPT ASSISTANT — VMTS
+                                                                                                                                                           =============================================================== */
 
         /* Button hover effect - icon turns white */
         .btn-template-link:hover i {
@@ -720,8 +720,8 @@
         }
 
         /* ===============================================================
-                                                                                                                                           SETTINGS MODAL STYLES
-                                                                                                                                           =============================================================== */
+                                                                                                                                                   SETTINGS MODAL STYLES
+                                                                                                                                                   =============================================================== */
 
         /* Modal overlay */
         .fixed {
@@ -1043,6 +1043,26 @@
                                     <label class="filter-label">Judul Laporan <span class="text-danger">*</span></label>
                                     <input type="text" class="form-control" name="judul_laporan" id="judul_laporan"
                                         placeholder="Masukkan judul laporan" required>
+                                </div>
+
+                                <div class="col-md-6 mb-4">
+                                    <label class="filter-label">Template VMTS</label>
+                                    <div class="input-group">
+                                        <select class="form-select" name="template_id" id="template_id">
+                                            <option value="">Pilih template VMTS (opsional)</option>
+                                            @foreach ($templates ?? [] as $template)
+                                                <option value="{{ $template->id }}">{{ $template->nama_template }}
+                                                    @if (!$template->is_active)
+                                                        (nonaktif)
+                                                    @endif
+                                                </option>
+                                            @endforeach
+                                        </select>
+                                        <a href="{{ route('gjm.template-laporan.vmts.upload') }}"
+                                            class="btn btn-outline-secondary btn-sm" style="white-space: nowrap;">
+                                            <i class="bi bi-upload"></i> Upload Baru
+                                        </a>
+                                    </div>
                                 </div>
 
                                 <div class="col-md-12 mb-0">
@@ -1958,6 +1978,10 @@
                     formData.append('_token', '{{ csrf_token() }}');
                     formData.append('periode_VMTS', periode);
                     formData.append('judul_laporan', judul);
+                    const templateSelect = document.getElementById('template_id');
+                    if (templateSelect && templateSelect.value) {
+                        formData.append('template_id', templateSelect.value);
+                    }
 
                     const response = await fetch('{{ route('gjm.buat-laporan.vmts.create-draft') }}', {
                         method: 'POST',
@@ -2019,8 +2043,8 @@
                 }
 
                 // ── VALIDASI PROMPT ──────────────────────────────────────────
-                const hasFiles    = selectedFiles.length > 0 || selectedOCRImages.length > 0;
-                const hasOCRText  = ocrExtractedText && ocrExtractedText.length > 0;
+                const hasFiles = selectedFiles.length > 0 || selectedOCRImages.length > 0;
+                const hasOCRText = ocrExtractedText && ocrExtractedText.length > 0;
                 const hasConversation = conversationHistory.length > 0;
 
                 console.log('🔍 VALIDATION CHECK:', {
@@ -2094,7 +2118,9 @@
                                 </p>
                             </div>
                         `);
-                        setTimeout(() => { promptInput.focus(); }, 100);
+                        setTimeout(() => {
+                            promptInput.focus();
+                        }, 100);
                         return;
                     } else {
                         console.warn('❌ VALIDATION FAILED: No instruction provided');
@@ -2105,14 +2131,17 @@
                                 </p>
                             </div>
                         `);
-                        setTimeout(() => { promptInput.focus(); }, 100);
+                        setTimeout(() => {
+                            promptInput.focus();
+                        }, 100);
                         return;
                     }
                 }
 
                 // VALIDATION 3: Instruksi terlalu pendek
                 if (prompt.length < 5) {
-                    console.warn('❌ VALIDATION FAILED: Instruction too short (' + prompt.length + ' chars)');
+                    console.warn('❌ VALIDATION FAILED: Instruction too short (' + prompt.length +
+                        ' chars)');
                     appendAIMessage(`
                         <div style="background:#fee2e2;border-left:4px solid #dc2626;padding:15px;border-radius:6px;">
                             <p style="color:#dc2626;margin:0;font-weight:700;">
@@ -2132,7 +2161,9 @@
                             </ul>
                         </div>
                     `);
-                    setTimeout(() => { promptInput.focus(); }, 100);
+                    setTimeout(() => {
+                        promptInput.focus();
+                    }, 100);
                     return;
                 }
 
@@ -2200,7 +2231,9 @@
                             </ul>
                         </div>
                     `);
-                    setTimeout(() => { promptInput.focus(); }, 100);
+                    setTimeout(() => {
+                        promptInput.focus();
+                    }, 100);
                     return;
                 }
 
@@ -2258,6 +2291,12 @@
                     // Add conversation history for multi-turn chat
                     if (conversationHistory.length > 0) {
                         formData.append('conversation_history', JSON.stringify(conversationHistory));
+                    }
+
+                    // Include selected VMTS template if available
+                    const selectedTemplate = document.getElementById('template_id');
+                    if (selectedTemplate && selectedTemplate.value) {
+                        formData.append('template_id', selectedTemplate.value);
                     }
 
                     // Add files

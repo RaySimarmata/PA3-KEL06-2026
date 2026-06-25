@@ -1,0 +1,209 @@
+// PA3 Database Schema - Generated ERD
+// Generated: 2026-06-13T07:05:56+02:00
+
+Table users {
+  id bigint [pk, increment]
+  created_at timestamp [null]
+  updated_at timestamp [null]
+  name varchar(255)
+  email varchar(255) [unique]
+  password varchar(255)
+  role varchar(50)
+  prodi_id bigint [not null]
+  is_active boolean
+}
+
+Table prodi {
+  id bigint [pk, increment]
+  created_at timestamp [null]
+  updated_at timestamp [null]
+  kode_prodi varchar(10) [unique]
+  nama_prodi varchar(255)
+  kaprodi_id bigint [not null]
+}
+
+Table periode_akademik {
+  id bigint [pk, increment]
+  created_at timestamp [null]
+  updated_at timestamp [null]
+  tahun_ajaran varchar(20)
+  semester varchar(50)
+  is_active boolean
+  start_date varchar(255)
+  end_date varchar(255)
+}
+
+Table dosenn {
+  id bigint [pk, increment]
+  created_at timestamp [null]
+  updated_at timestamp [null]
+  pegawai_id varchar(50) [not null]
+  nama varchar(255)
+  nidn varchar(20) [unique]
+  email varchar(255) [unique]
+  nomor_telepon varchar(255)
+}
+
+Table jadwal_dosen {
+  id bigint [pk, increment]
+  created_at timestamp [null]
+  updated_at timestamp [null]
+  pegawai_id varchar(50) [not null]
+  kode_mk varchar(20)
+  nama_mk varchar(255)
+  kelas varchar(255)
+  semester varchar(50)
+  tahun_ajaran varchar(20)
+}
+
+Table kuesioner_uploads {
+  id bigint [pk, increment]
+  created_at timestamp [null]
+  updated_at timestamp [null]
+  user_id bigint [not null]
+  file_path varchar(500)
+  pegawai_id varchar(50) [not null]
+  kode_matakuliah varchar(20)
+  extracted_data json
+  ai_analysis text
+}
+
+Table rps_monitoring_snapshots {
+  id bigint [pk, increment]
+  created_at timestamp [null]
+  updated_at timestamp [null]
+  prodi_id bigint [not null]
+  periode_id bigint [not null]
+  snapshot_data json
+  generated_at timestamp
+}
+
+Table perkuliahan_monitoring_snapshots {
+  id bigint [pk, increment]
+  created_at timestamp [null]
+  updated_at timestamp [null]
+  prodi_id bigint [not null]
+  periode_id bigint [not null]
+  snapshot_data json
+  generated_at timestamp
+}
+
+Table laporan_gjm {
+  id bigint [pk, increment]
+  created_at timestamp [null]
+  updated_at timestamp [null]
+  user_id bigint [not null]
+  template_id bigint [not null]
+  jenis_laporan varchar(255)
+  judul_laporan varchar(255)
+  ai_konten_preview varchar(255)
+}
+
+Table laporan_bulanan {
+  id bigint [pk, increment]
+  created_at timestamp [null]
+  updated_at timestamp [null]
+}
+
+Table template_laporan {
+  id bigint [pk, increment]
+  created_at timestamp [null]
+  updated_at timestamp [null]
+  nama_template varchar(255)
+  jenis_laporan varchar(255)
+  file_path varchar(500)
+  prodi_id bigint [not null]
+  is_active boolean
+}
+
+Table laporan_gkm {
+  id bigint [pk, increment]
+  created_at timestamp [null]
+  updated_at timestamp [null]
+  user_id bigint [not null]
+  file_path varchar(500)
+  jenis_laporan varchar(255)
+  tahun varchar(255)
+  status varchar(255)
+}
+
+Table document_chunks {
+  id bigint [pk, increment]
+  created_at timestamp [null]
+  updated_at timestamp [null]
+  template_id bigint [not null]
+  chunk_index varchar(255)
+  content text
+  embedding varchar(255)
+}
+
+Table embeddings_cache {
+  id bigint [pk, increment]
+  created_at timestamp [null]
+  updated_at timestamp [null]
+  hash varchar(255)
+  embedding varchar(255)
+  model_name varchar(255)
+  created_at timestamp [null]
+}
+
+Table jadwal_reminder {
+  id bigint [pk, increment]
+  created_at timestamp [null]
+  updated_at timestamp [null]
+  user_id bigint [not null]
+  prodi_id bigint [not null]
+  jenis_reminder varchar(255)
+  jadwal_kirim varchar(255)
+  is_active boolean
+}
+
+Table log_email {
+  id bigint [pk, increment]
+  created_at timestamp [null]
+  updated_at timestamp [null]
+  prodi_id bigint [not null]
+  reminder_id bigint [not null]
+  recipient varchar(255)
+  subject varchar(255)
+  status varchar(255)
+  sent_at timestamp
+}
+
+Table kirim_laporan_history {
+  id bigint [pk, increment]
+  created_at timestamp [null]
+  updated_at timestamp [null]
+  sent_by varchar(255)
+  laporan_type varchar(255)
+  laporan_id bigint [not null]
+  recipients varchar(255)
+  sent_at timestamp
+}
+
+Table cache {
+}
+
+Table jobs {
+}
+
+// Relationships
+Ref: users.prodi_id > prodi.id
+Ref: kuesioner_uploads.user_id > users.id
+Ref: laporan_gjm.user_id > users.id
+Ref: laporan_bulanan.user_id > users.id
+Ref: jadwal_reminder.user_id > users.id
+Ref: kirim_laporan_history.sent_by > users.id
+Ref: rps_monitoring_snapshots.prodi_id > prodi.id
+Ref: perkuliahan_monitoring_snapshots.prodi_id > prodi.id
+Ref: laporan_bulanan.prodi_id > prodi.id
+Ref: template_laporan.prodi_id > prodi.id
+Ref: jadwal_reminder.prodi_id > prodi.id
+Ref: log_email.prodi_id > prodi.id
+Ref: rps_monitoring_snapshots.periode_id > periode_akademik.id
+Ref: perkuliahan_monitoring_snapshots.periode_id > periode_akademik.id
+Ref: jadwal_dosen.pegawai_id > dosenn.id
+Ref: laporan_gjm.template_id > template_laporan.id
+Ref: laporan_bulanan.template_id > template_laporan.id
+Ref: document_chunks.template_id > template_laporan.id
+Ref: log_email.reminder_id > jadwal_reminder.id

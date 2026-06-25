@@ -1,0 +1,632 @@
+{
+    "metadata": {
+        "generated_at": "2026-06-13T07:05:56+02:00",
+        "project_name": "PA3 GKM\/GJM System",
+        "total_tables": 19,
+        "total_usage_points": 48
+    },
+    "tables": {
+        "users": {
+            "name": "users",
+            "model_name": "Users",
+            "description": "User authentication and role management",
+            "group": "core",
+            "usage_count": 0,
+            "fields": [
+                "id",
+                "created_at",
+                "updated_at",
+                "name",
+                "email",
+                "password",
+                "role",
+                "prodi_id",
+                "is_active"
+            ],
+            "usage_files": []
+        },
+        "prodi": {
+            "name": "prodi",
+            "model_name": "Prodi",
+            "description": "Program Studi (Study Programs) data",
+            "group": "core",
+            "usage_count": 16,
+            "fields": [
+                "id",
+                "created_at",
+                "updated_at",
+                "kode_prodi",
+                "nama_prodi",
+                "kaprodi_id"
+            ],
+            "usage_files": {
+                "controller": [
+                    "app\/Http\/Controllers\/GJM\/RecapLaporanController.php",
+                    "app\/Http\/Controllers\/GKM\/DataMasterApiController.php",
+                    "app\/Http\/Controllers\/GKM\/DataMasterController.php",
+                    "app\/Http\/Controllers\/GKM\/LaporanArtefakController.php",
+                    "app\/Http\/Controllers\/GKM\/LaporanKuesioneController.php",
+                    "app\/Http\/Controllers\/GKM\/MonitoringKuesioneController.php"
+                ],
+                "model": [
+                    "app\/Models\/Ajaran.php",
+                    "app\/Models\/LaporanBulanan.php",
+                    "app\/Models\/LaporanGKM.php",
+                    "app\/Models\/LogEmail.php",
+                    "app\/Models\/Matakuliah.php",
+                    "app\/Models\/PerkuliahanMonitoringSnapshot.php",
+                    "app\/Models\/RpsMonitoringSnapshot.php",
+                    "app\/Models\/TemplateLaporan.php",
+                    "app\/Models\/User.php"
+                ],
+                "route": [
+                    "routes\/web.php"
+                ]
+            }
+        },
+        "periode_akademik": {
+            "name": "periode_akademik",
+            "model_name": "PeriodeAkademik",
+            "description": "Academic periods and active semester",
+            "group": "core",
+            "usage_count": 11,
+            "fields": [
+                "id",
+                "created_at",
+                "updated_at",
+                "tahun_ajaran",
+                "semester",
+                "is_active",
+                "start_date",
+                "end_date"
+            ],
+            "usage_files": {
+                "controller": [
+                    "app\/Http\/Controllers\/GKM\/DashboardController.php",
+                    "app\/Http\/Controllers\/GKM\/DataMasterApiController.php",
+                    "app\/Http\/Controllers\/GKM\/DataMasterController.php",
+                    "app\/Http\/Controllers\/GKM\/LaporanArtefakController.php",
+                    "app\/Http\/Controllers\/GKM\/LaporanKuesioneController.php",
+                    "app\/Http\/Controllers\/GKM\/MonitoringKuesioneController.php",
+                    "app\/Http\/Controllers\/GKM\/MonitoringPerkuliahanController.php",
+                    "app\/Http\/Controllers\/GKM\/MonitoringRPSController.php",
+                    "app\/Http\/Controllers\/PeriodeAkademikController.php"
+                ],
+                "model": [
+                    "app\/Models\/LaporanBulanan.php"
+                ],
+                "view": [
+                    "resources\/views\/gkm\/laporan-kuesioner\/create.blade.php"
+                ]
+            }
+        },
+        "dosenn": {
+            "name": "dosenn",
+            "model_name": "Dosenn",
+            "description": "Lecturer data from external API",
+            "group": "external_api",
+            "usage_count": 13,
+            "fields": [
+                "id",
+                "created_at",
+                "updated_at",
+                "pegawai_id",
+                "nama",
+                "nidn",
+                "email",
+                "nomor_telepon"
+            ],
+            "usage_files": {
+                "controller": [
+                    "app\/Http\/Controllers\/GKM\/DataMasterApiController.php",
+                    "app\/Http\/Controllers\/GKM\/DataMasterController.php",
+                    "app\/Http\/Controllers\/GKM\/MonitoringKuesioneController.php",
+                    "app\/Http\/Controllers\/GKM\/MonitoringPerkuliahanController.php",
+                    "app\/Http\/Controllers\/GKM\/MonitoringRPSController.php",
+                    "app\/Http\/Controllers\/GKM\/ReminderAgentController.php",
+                    "app\/Http\/Controllers\/PeriodeAkademikController.php"
+                ],
+                "model": [
+                    "app\/Models\/JadwalDosen.php",
+                    "app\/Models\/PerkuliahanMonitoringDetail.php",
+                    "app\/Models\/PerkuliahanMonitoringSnapshot.php",
+                    "app\/Models\/RpsMonitoringSnapshot.php"
+                ],
+                "view": [
+                    "resources\/views\/gkm\/monitoring-kuesioner\/index.blade.php",
+                    "resources\/views\/gkm\/monitoring-kuesioner\/show.blade.php"
+                ]
+            }
+        },
+        "jadwal_dosen": {
+            "name": "jadwal_dosen",
+            "model_name": "JadwalDosen",
+            "description": "Teaching schedule and course assignments",
+            "group": "external_api",
+            "usage_count": 4,
+            "fields": [
+                "id",
+                "created_at",
+                "updated_at",
+                "pegawai_id",
+                "kode_mk",
+                "nama_mk",
+                "kelas",
+                "semester",
+                "tahun_ajaran"
+            ],
+            "usage_files": {
+                "controller": [
+                    "app\/Http\/Controllers\/GKM\/DashboardController.php",
+                    "app\/Http\/Controllers\/GKM\/DataMasterApiController.php",
+                    "app\/Http\/Controllers\/GKM\/MonitoringPerkuliahanController.php",
+                    "app\/Http\/Controllers\/GKM\/MonitoringRPSController.php"
+                ]
+            }
+        },
+        "kuesioner_uploads": {
+            "name": "kuesioner_uploads",
+            "model_name": "KuesionerUpload",
+            "description": "Questionnaire files and AI analysis",
+            "group": "monitoring",
+            "usage_count": 0,
+            "fields": [
+                "id",
+                "created_at",
+                "updated_at",
+                "user_id",
+                "file_path",
+                "pegawai_id",
+                "kode_matakuliah",
+                "extracted_data",
+                "ai_analysis"
+            ],
+            "usage_files": []
+        },
+        "rps_monitoring_snapshots": {
+            "name": "rps_monitoring_snapshots",
+            "model_name": "RpsMonitoringSnapshot",
+            "description": "RPS compliance monitoring cache",
+            "group": "monitoring",
+            "usage_count": 3,
+            "fields": [
+                "id",
+                "created_at",
+                "updated_at",
+                "prodi_id",
+                "periode_id",
+                "snapshot_data",
+                "generated_at"
+            ],
+            "usage_files": {
+                "controller": [
+                    "app\/Http\/Controllers\/GKM\/DashboardController.php",
+                    "app\/Http\/Controllers\/GKM\/LaporanArtefakController.php",
+                    "app\/Http\/Controllers\/GKM\/MonitoringRPSController.php"
+                ]
+            }
+        },
+        "perkuliahan_monitoring_snapshots": {
+            "name": "perkuliahan_monitoring_snapshots",
+            "model_name": "PerkuliahanMonitoringSnapshot",
+            "description": "Course monitoring cache",
+            "group": "monitoring",
+            "usage_count": 3,
+            "fields": [
+                "id",
+                "created_at",
+                "updated_at",
+                "prodi_id",
+                "periode_id",
+                "snapshot_data",
+                "generated_at"
+            ],
+            "usage_files": {
+                "controller": [
+                    "app\/Http\/Controllers\/GKM\/LaporanArtefakController.php",
+                    "app\/Http\/Controllers\/GKM\/MonitoringKuesioneController.php",
+                    "app\/Http\/Controllers\/GKM\/MonitoringPerkuliahanController.php"
+                ]
+            }
+        },
+        "laporan_gjm": {
+            "name": "laporan_gjm",
+            "model_name": "LaporanGJM",
+            "description": "GJM reports (Triwulan, Semester, VMTS, PPT)",
+            "group": "reporting",
+            "usage_count": 11,
+            "fields": [
+                "id",
+                "created_at",
+                "updated_at",
+                "user_id",
+                "template_id",
+                "jenis_laporan",
+                "judul_laporan",
+                "ai_konten_preview"
+            ],
+            "usage_files": {
+                "controller": [
+                    "app\/Http\/Controllers\/API\/N8nCallbackController.php",
+                    "app\/Http\/Controllers\/GJM\/BuatLaporanController.php",
+                    "app\/Http\/Controllers\/GJM\/BuatPPTController.php",
+                    "app\/Http\/Controllers\/GJM\/KirimLaporanController.php",
+                    "app\/Http\/Controllers\/GJM\/LaporanGJMController.php",
+                    "app\/Http\/Controllers\/GJM\/LaporanSemesterController.php",
+                    "app\/Http\/Controllers\/GJM\/LaporanTriwulanController.php",
+                    "app\/Http\/Controllers\/GJM\/LaporanVMTSController.php",
+                    "app\/Http\/Controllers\/GJM\/ModelEvaluationController.php",
+                    "app\/Http\/Controllers\/GJM\/OCRUploadController.php",
+                    "app\/Http\/Controllers\/GJM\/TemplateLaporanController.php"
+                ]
+            }
+        },
+        "laporan_bulanan": {
+            "name": "laporan_bulanan",
+            "model_name": "LaporanBulanan",
+            "description": "Monthly GKM reports",
+            "group": "reporting",
+            "usage_count": 10,
+            "fields": [
+                "id",
+                "created_at",
+                "updated_at"
+            ],
+            "usage_files": {
+                "controller": [
+                    "app\/Http\/Controllers\/API\/N8nCallbackController.php",
+                    "app\/Http\/Controllers\/GJM\/LaporanSemesterController.php",
+                    "app\/Http\/Controllers\/GJM\/LaporanTriwulanController.php",
+                    "app\/Http\/Controllers\/GJM\/PromptSemesterController.php",
+                    "app\/Http\/Controllers\/GJM\/PromptTriwulanController.php",
+                    "app\/Http\/Controllers\/GKM\/DashboardController.php",
+                    "app\/Http\/Controllers\/GKM\/KirimLaporanController.php",
+                    "app\/Http\/Controllers\/GKM\/LaporanKuesioneController.php",
+                    "app\/Http\/Controllers\/GKM\/LaporanKuesioneControllerExtension.php"
+                ],
+                "model": [
+                    "app\/Models\/TemplateLaporan.php"
+                ]
+            }
+        },
+        "template_laporan": {
+            "name": "template_laporan",
+            "model_name": "TemplateLaporan",
+            "description": "Report templates and RAG context",
+            "group": "reporting",
+            "usage_count": 11,
+            "fields": [
+                "id",
+                "created_at",
+                "updated_at",
+                "nama_template",
+                "jenis_laporan",
+                "file_path",
+                "prodi_id",
+                "is_active"
+            ],
+            "usage_files": {
+                "controller": [
+                    "app\/Http\/Controllers\/GJM\/BuatLaporanController.php",
+                    "app\/Http\/Controllers\/GJM\/LaporanSemesterController.php",
+                    "app\/Http\/Controllers\/GJM\/LaporanTriwulanController.php",
+                    "app\/Http\/Controllers\/GJM\/TemplateLaporanController.php",
+                    "app\/Http\/Controllers\/GKM\/DataMasterController.php",
+                    "app\/Http\/Controllers\/GKM\/LaporanArtefakController.php",
+                    "app\/Http\/Controllers\/GKM\/LaporanKuesioneController.php"
+                ],
+                "model": [
+                    "app\/Models\/DocumentChunk.php",
+                    "app\/Models\/LaporanBulanan.php",
+                    "app\/Models\/LaporanGJM.php",
+                    "app\/Models\/LaporanGKM.php"
+                ]
+            }
+        },
+        "laporan_gkm": {
+            "name": "laporan_gkm",
+            "model_name": "LaporanGKM",
+            "description": "GKM artifact reports",
+            "group": "reporting",
+            "usage_count": 7,
+            "fields": [
+                "id",
+                "created_at",
+                "updated_at",
+                "user_id",
+                "file_path",
+                "jenis_laporan",
+                "tahun",
+                "status"
+            ],
+            "usage_files": {
+                "controller": [
+                    "app\/Http\/Controllers\/GJM\/RecapLaporanController.php",
+                    "app\/Http\/Controllers\/GJM\/ValidasiLaporanController.php",
+                    "app\/Http\/Controllers\/GKM\/DashboardController.php",
+                    "app\/Http\/Controllers\/GKM\/LaporanArtefakController.php",
+                    "app\/Http\/Controllers\/GKM\/PelaporanController.php"
+                ],
+                "model": [
+                    "app\/Models\/Ajaran.php",
+                    "app\/Models\/Prodi.php"
+                ]
+            }
+        },
+        "document_chunks": {
+            "name": "document_chunks",
+            "model_name": "DocumentChunk",
+            "description": "RAG document chunking for AI",
+            "group": "ai_vector",
+            "usage_count": 1,
+            "fields": [
+                "id",
+                "created_at",
+                "updated_at",
+                "template_id",
+                "chunk_index",
+                "content",
+                "embedding"
+            ],
+            "usage_files": {
+                "controller": [
+                    "app\/Http\/Controllers\/GJM\/TemplateLaporanController.php"
+                ]
+            }
+        },
+        "embeddings_cache": {
+            "name": "embeddings_cache",
+            "model_name": "EmbeddingsCache",
+            "description": "Vector embeddings cache",
+            "group": "ai_vector",
+            "usage_count": 0,
+            "fields": [
+                "id",
+                "created_at",
+                "updated_at",
+                "hash",
+                "embedding",
+                "model_name",
+                "created_at"
+            ],
+            "usage_files": []
+        },
+        "jadwal_reminder": {
+            "name": "jadwal_reminder",
+            "model_name": "JadwalReminder",
+            "description": "Scheduled reminder system",
+            "group": "notifications",
+            "usage_count": 1,
+            "fields": [
+                "id",
+                "created_at",
+                "updated_at",
+                "user_id",
+                "prodi_id",
+                "jenis_reminder",
+                "jadwal_kirim",
+                "is_active"
+            ],
+            "usage_files": {
+                "controller": [
+                    "app\/Http\/Controllers\/GKM\/ReminderAgentController.php"
+                ]
+            }
+        },
+        "log_email": {
+            "name": "log_email",
+            "model_name": "LogEmail",
+            "description": "Email delivery tracking",
+            "group": "notifications",
+            "usage_count": 4,
+            "fields": [
+                "id",
+                "created_at",
+                "updated_at",
+                "prodi_id",
+                "reminder_id",
+                "recipient",
+                "subject",
+                "status",
+                "sent_at"
+            ],
+            "usage_files": {
+                "controller": [
+                    "app\/Http\/Controllers\/GKM\/MonitoringPerkuliahanController.php",
+                    "app\/Http\/Controllers\/GKM\/MonitoringRPSController.php",
+                    "app\/Http\/Controllers\/GKM\/ReminderAgentController.php"
+                ],
+                "model": [
+                    "app\/Models\/Reminder.php"
+                ]
+            }
+        },
+        "kirim_laporan_history": {
+            "name": "kirim_laporan_history",
+            "model_name": "KirimLaporanHistory",
+            "description": "Report distribution history",
+            "group": "notifications",
+            "usage_count": 1,
+            "fields": [
+                "id",
+                "created_at",
+                "updated_at",
+                "sent_by",
+                "laporan_type",
+                "laporan_id",
+                "recipients",
+                "sent_at"
+            ],
+            "usage_files": {
+                "controller": [
+                    "app\/Http\/Controllers\/GKM\/KirimLaporanController.php"
+                ]
+            }
+        },
+        "cache": {
+            "name": "cache",
+            "model_name": "Cache",
+            "description": "Laravel framework cache",
+            "group": "support",
+            "usage_count": 7,
+            "fields": [],
+            "usage_files": {
+                "controller": [
+                    "app\/Http\/Controllers\/GJM\/DashboardController.php",
+                    "app\/Http\/Controllers\/GJM\/ModelEvaluationController.php",
+                    "app\/Http\/Controllers\/GKM\/DashboardController.php",
+                    "app\/Http\/Controllers\/GKM\/DataMasterApiController.php",
+                    "app\/Http\/Controllers\/GKM\/DataMasterController.php",
+                    "app\/Http\/Controllers\/GKM\/MonitoringPerkuliahanController.php",
+                    "app\/Http\/Controllers\/GKM\/MonitoringRPSController.php"
+                ]
+            }
+        },
+        "jobs": {
+            "name": "jobs",
+            "model_name": "Jobs",
+            "description": "Laravel queue jobs",
+            "group": "support",
+            "usage_count": 0,
+            "fields": [],
+            "usage_files": []
+        }
+    },
+    "relationships": [
+        {
+            "from": "users",
+            "to": "prodi",
+            "type": "many_to_one",
+            "fk": "prodi_id"
+        },
+        {
+            "from": "kuesioner_uploads",
+            "to": "users",
+            "type": "many_to_one",
+            "fk": "user_id"
+        },
+        {
+            "from": "laporan_gjm",
+            "to": "users",
+            "type": "many_to_one",
+            "fk": "user_id"
+        },
+        {
+            "from": "laporan_bulanan",
+            "to": "users",
+            "type": "many_to_one",
+            "fk": "user_id"
+        },
+        {
+            "from": "jadwal_reminder",
+            "to": "users",
+            "type": "many_to_one",
+            "fk": "user_id"
+        },
+        {
+            "from": "kirim_laporan_history",
+            "to": "users",
+            "type": "many_to_one",
+            "fk": "sent_by"
+        },
+        {
+            "from": "rps_monitoring_snapshots",
+            "to": "prodi",
+            "type": "many_to_one",
+            "fk": "prodi_id"
+        },
+        {
+            "from": "perkuliahan_monitoring_snapshots",
+            "to": "prodi",
+            "type": "many_to_one",
+            "fk": "prodi_id"
+        },
+        {
+            "from": "laporan_bulanan",
+            "to": "prodi",
+            "type": "many_to_one",
+            "fk": "prodi_id"
+        },
+        {
+            "from": "template_laporan",
+            "to": "prodi",
+            "type": "many_to_one",
+            "fk": "prodi_id"
+        },
+        {
+            "from": "jadwal_reminder",
+            "to": "prodi",
+            "type": "many_to_one",
+            "fk": "prodi_id"
+        },
+        {
+            "from": "log_email",
+            "to": "prodi",
+            "type": "many_to_one",
+            "fk": "prodi_id"
+        },
+        {
+            "from": "rps_monitoring_snapshots",
+            "to": "periode_akademik",
+            "type": "many_to_one",
+            "fk": "periode_id"
+        },
+        {
+            "from": "perkuliahan_monitoring_snapshots",
+            "to": "periode_akademik",
+            "type": "many_to_one",
+            "fk": "periode_id"
+        },
+        {
+            "from": "jadwal_dosen",
+            "to": "dosenn",
+            "type": "many_to_one",
+            "fk": "pegawai_id"
+        },
+        {
+            "from": "laporan_gjm",
+            "to": "template_laporan",
+            "type": "many_to_one",
+            "fk": "template_id"
+        },
+        {
+            "from": "laporan_bulanan",
+            "to": "template_laporan",
+            "type": "many_to_one",
+            "fk": "template_id"
+        },
+        {
+            "from": "document_chunks",
+            "to": "template_laporan",
+            "type": "many_to_one",
+            "fk": "template_id"
+        },
+        {
+            "from": "log_email",
+            "to": "jadwal_reminder",
+            "type": "many_to_one",
+            "fk": "reminder_id"
+        }
+    ],
+    "usage_stats": {
+        "users": 0,
+        "prodi": 16,
+        "periode_akademik": 11,
+        "dosenn": 13,
+        "jadwal_dosen": 4,
+        "kuesioner_uploads": 0,
+        "rps_monitoring_snapshots": 3,
+        "perkuliahan_monitoring_snapshots": 3,
+        "laporan_gjm": 11,
+        "laporan_bulanan": 10,
+        "template_laporan": 11,
+        "laporan_gkm": 7,
+        "document_chunks": 1,
+        "embeddings_cache": 0,
+        "jadwal_reminder": 1,
+        "log_email": 4,
+        "kirim_laporan_history": 1,
+        "cache": 7,
+        "jobs": 0
+    }
+}

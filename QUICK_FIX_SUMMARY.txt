@@ -1,0 +1,96 @@
+═══════════════════════════════════════════════════════════════════════════════
+  PERUBAHAN FORMAT ANALISIS KOMPARATIF - LAPORAN VMTS
+═══════════════════════════════════════════════════════════════════════════════
+
+PERUBAHAN:
+----------
+Bagian "2. Analisis Komparatif" di IV. PEMBAHASAN telah diubah dari format 
+TABEL menjadi format PARAGRAF NARATIF.
+
+FORMAT LAMA (Tabel):
+--------------------
+❌ Menggunakan tabel markdown dengan separator |---|---|
+❌ Data dalam format sel-sel tabel
+❌ Sulit untuk analisis mendalam
+
+FORMAT BARU (Paragraf Naratif):
+--------------------------------
+✅ 7 paragraf naratif yang mengalir
+✅ Data persentase disertakan dalam kalimat
+✅ Analisis dan interpretasi mendalam
+✅ Lebih mudah dibaca dan dipahami
+
+ALASAN PERUBAHAN:
+-----------------
+1. Keterbacaan lebih baik - paragraf lebih natural dan mudah dipahami
+2. Analisis lebih mendalam - bisa menjelaskan konteks dan hubungan antar data
+3. Profesionalisme - format naratif lebih sesuai untuk laporan akademik
+4. Fleksibilitas - mudah menambahkan interpretasi dan rekomendasi
+
+STRUKTUR 7 PARAGRAF BARU:
+--------------------------
+1. Perbandingan Tingkat Pengetahuan Visi-Misi
+2. Perbandingan Frekuensi Sosialisasi
+3. Perbandingan Tingkat Pemahaman
+4. Perbandingan Dukungan Terhadap Kompetensi
+5. Perbandingan Kebutuhan Perbaikan
+6. Analisis Faktor-Faktor yang Mempengaruhi
+7. Kesimpulan Komparatif
+
+ATURAN PENULISAN:
+-----------------
+✓ WAJIB menggunakan paragraf naratif (bukan tabel)
+✓ Sertakan data persentase dalam kalimat (contoh: "70% responden")
+✓ Sebutkan nama unit secara spesifik
+✓ Berikan interpretasi, bukan hanya angka
+✓ Hubungkan dengan konteks institusi
+
+✗ DILARANG menggunakan format tabel (|---|---|)
+✗ DILARANG menggunakan bullet points untuk data
+✗ DILARANG hanya menyebutkan angka tanpa interpretasi
+
+CONTOH OUTPUT:
+--------------
+"Fakultas Vokasi menunjukkan tingkat pengetahuan tertinggi dengan 70% responden 
+menyatakan mengetahui visi-misi institusi, diikuti oleh Program Studi D3 TI (75%) 
+dan D3 TK (71.4%). Sementara itu, Program Studi D4 TRPL dan Perguruan Tinggi 
+memiliki persentase yang lebih rendah, yaitu masing-masing 66.7%..."
+
+CARA TESTING:
+-------------
+1. Hapus cache AI: php artisan ai:clean-cache
+2. Buat laporan VMTS baru dengan AI Assistant
+3. Periksa bagian "2. Analisis Komparatif"
+4. Pastikan formatnya paragraf, BUKAN tabel
+
+FILE YANG DIMODIFIKASI:
+-----------------------
+✓ app/Http/Controllers/GJM/LaporanVMTSController.php
+  - buildVMTSPrompt() - Bagian "## 2. Analisis Komparatif"
+  - Menghapus instruksi format tabel
+  - Menambahkan instruksi format paragraf dengan 7 topik
+
+BAGIAN LAIN YANG MASIH MENGGUNAKAN TABEL:
+------------------------------------------
+✓ III. Hasil Analisis Deskriptif > 1. Gambaran Umum Responden
+✓ III. Hasil Analisis Deskriptif > 2. Analisis Per Butir Pertanyaan
+
+CATATAN PENTING:
+----------------
+⚠ WAJIB hapus cache AI setelah perubahan!
+⚠ Hanya bagian "Analisis Komparatif" yang diubah
+⚠ Bagian lain tetap menggunakan tabel seperti biasa
+⚠ Format paragraf lebih cocok untuk analisis komparatif
+
+HASIL YANG DIHARAPKAN:
+----------------------
+✓ Bagian "2. Analisis Komparatif" berisi 7 paragraf
+✓ Setiap paragraf membahas aspek perbandingan tertentu
+✓ Data persentase disertakan dalam kalimat
+✓ Analisis mendalam, bukan hanya deskripsi angka
+✓ Mudah dibaca dan dipahami
+
+═══════════════════════════════════════════════════════════════════════════════
+Tanggal: 22 Juni 2026
+Status: ✅ FORMAT DIUBAH DARI TABEL KE PARAGRAF NARATIF
+═══════════════════════════════════════════════════════════════════════════════

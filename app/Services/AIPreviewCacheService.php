@@ -7,7 +7,7 @@ use Illuminate\Support\Facades\Log;
 
 /**
  * AIPreviewCacheService
- * 
+ *
  * Service untuk menyimpan dan mengambil AI preview/draft dari chat assistant
  * Preview ini akan digunakan untuk generate Laporan Word, Semester, dan PPT
  * Enhanced dengan OCR data integration
@@ -16,7 +16,7 @@ class AIPreviewCacheService
 {
     /**
      * Simpan AI preview ke database
-     * 
+     *
      * @param int $laporanId ID dari LaporanGJM
      * @param string $aiPreviewDraft Full AI preview/draft text
      * @param array $sections Parsed sections dari preview
@@ -33,7 +33,7 @@ class AIPreviewCacheService
     ): bool {
         try {
             $laporan = LaporanGJM::findOrFail($laporanId);
-            
+
             $updateData = [
                 'ai_preview_draft' => $aiPreviewDraft,
                 'ai_sections' => $sections,
@@ -53,13 +53,13 @@ class AIPreviewCacheService
                     'images_count' => count($ocrImages),
                     'saved_at' => now()->toIso8601String(),
                 ];
-                
+
                 $updateData['ocr_data'] = $ocrData;
                 $updateData['has_ocr_data'] = true;
             }
-            
+
             $laporan->update($updateData);
-            
+
             Log::info('AI preview saved', [
                 'laporan_id' => $laporanId,
                 'preview_length' => strlen($aiPreviewDraft),
@@ -68,7 +68,7 @@ class AIPreviewCacheService
                 'has_ocr_images' => !empty($ocrImages),
                 'ocr_images_count' => count($ocrImages),
             ]);
-            
+
             return true;
         } catch (\Exception $e) {
             Log::error('Failed to save AI preview', [
@@ -81,7 +81,7 @@ class AIPreviewCacheService
 
     /**
      * Ambil AI preview dari database
-     * 
+     *
      * @param int $laporanId ID dari LaporanGJM
      * @return array|null
      */
@@ -89,11 +89,11 @@ class AIPreviewCacheService
     {
         try {
             $laporan = LaporanGJM::findOrFail($laporanId);
-            
+
             if (empty($laporan->ai_preview_draft)) {
                 return null;
             }
-            
+
             return [
                 'draft' => $laporan->ai_preview_draft,
                 'sections' => $laporan->ai_sections ?? [],
@@ -114,14 +114,14 @@ class AIPreviewCacheService
 
     /**
      * Parse AI preview menjadi sections
-     * 
+     *
      * @param string $aiPreview Full AI preview text
      * @return array Parsed sections
      */
     public function parseAIPreview(string $aiPreview): array
     {
         $sections = [];
-        
+
         // Define section keywords
         $sectionKeywords = [
             'latar_belakang' => ['latar belakang', 'background', 'pendahuluan'],
@@ -136,31 +136,51 @@ class AIPreviewCacheService
             'kesimpulan' => ['kesimpulan', 'conclusion', 'penutup'],
             'rekomendasi' => ['rekomendasi', 'recommendation', 'saran'],
         ];
-        
+
         // Split by markdown headings
         $lines = explode("\n", $aiPreview);
         $currentSection = null;
         $currentContent = '';
-        
+
         foreach ($lines as $line) {
-            // Check if line is a heading
+            $trimmedLine = trim($line);
+            $isHeading = false;
+
+            // Check if line is a markdown heading
             if (preg_match('/^#+\s+(.+)$/i', $line, $matches)) {
+                $heading = strtolower(trim($matches[1]));
+                $isHeading = true;
+            } elseif (!empty($trimmedLine)) {
+                // Check for plain text section headings such as "Latar Belakang:" or "1. Tujuan"
+                foreach ($sectionKeywords as $sectionKey => $keywords) {
+                    foreach ($keywords as $keyword) {
+                        $pattern = '/^\s*(?:\d+\.\s*)?' . preg_quote($keyword, '/') . '(?:\s*[:\-]|\s*$)/i';
+                        if (preg_match($pattern, $trimmedLine)) {
+                            $heading = strtolower($keyword);
+                            $isHeading = true;
+                            break 2;
+                        }
+                    }
+                }
+            }
+
+            if ($isHeading) {
                 // Save previous section
                 if ($currentSection && !empty(trim($currentContent))) {
                     $sections[$currentSection] = trim($currentContent);
                 }
-                
-                // Identify new section
-                $heading = strtolower($matches[1]);
+
                 $currentSection = null;
                 $currentContent = '';
-                
-                // Match heading with keywords
-                foreach ($sectionKeywords as $sectionKey => $keywords) {
-                    foreach ($keywords as $keyword) {
-                        if (strpos($heading, $keyword) !== false) {
-                            $currentSection = $sectionKey;
-                            break 2;
+
+                // Match heading with keywords using normalized text
+                if (!empty($heading)) {
+                    foreach ($sectionKeywords as $sectionKey => $keywords) {
+                        foreach ($keywords as $keyword) {
+                            if (strpos($heading, $keyword) !== false) {
+                                $currentSection = $sectionKey;
+                                break 2;
+                            }
                         }
                     }
                 }
@@ -171,23 +191,23 @@ class AIPreviewCacheService
                 }
             }
         }
-        
+
         // Save last section
         if ($currentSection && !empty(trim($currentContent))) {
             $sections[$currentSection] = trim($currentContent);
         }
-        
+
         Log::info('AI preview parsed', [
             'sections_found' => count($sections),
             'section_keys' => array_keys($sections),
         ]);
-        
+
         return $sections;
     }
 
     /**
      * Get specific section dari AI preview
-     * 
+     *
      * @param int $laporanId ID dari LaporanGJM
      * @param string $sectionKey Section key (latar_belakang, dasar, dll)
      * @return string|null
@@ -195,34 +215,34 @@ class AIPreviewCacheService
     public function getSection(int $laporanId, string $sectionKey): ?string
     {
         $preview = $this->getAIPreview($laporanId);
-        
+
         if (!$preview || empty($preview['sections'])) {
             return null;
         }
-        
+
         return $preview['sections'][$sectionKey] ?? null;
     }
 
     /**
      * Get all sections dari AI preview
-     * 
+     *
      * @param int $laporanId ID dari LaporanGJM
      * @return array
      */
     public function getAllSections(int $laporanId): array
     {
         $preview = $this->getAIPreview($laporanId);
-        
+
         if (!$preview) {
             return [];
         }
-        
+
         return $preview['sections'] ?? [];
     }
 
     /**
      * Mark AI preview sebagai sudah digunakan untuk generate
-     * 
+     *
      * @param int $laporanId ID dari LaporanGJM
      * @return bool
      */
@@ -231,9 +251,9 @@ class AIPreviewCacheService
         try {
             $laporan = LaporanGJM::findOrFail($laporanId);
             $laporan->update(['ai_preview_used_for_generation' => true]);
-            
+
             Log::info('AI preview marked as used', ['laporan_id' => $laporanId]);
-            
+
             return true;
         } catch (\Exception $e) {
             Log::error('Failed to mark AI preview as used', [
@@ -246,7 +266,7 @@ class AIPreviewCacheService
 
     /**
      * Clear AI preview
-     * 
+     *
      * @param int $laporanId ID dari LaporanGJM
      * @return bool
      */
@@ -262,9 +282,9 @@ class AIPreviewCacheService
                 'ocr_data' => null,
                 'has_ocr_data' => false,
             ]);
-            
+
             Log::info('AI preview cleared', ['laporan_id' => $laporanId]);
-            
+
             return true;
         } catch (\Exception $e) {
             Log::error('Failed to clear AI preview', [
@@ -277,14 +297,14 @@ class AIPreviewCacheService
 
     /**
      * Get AI preview statistics
-     * 
+     *
      * @param int $laporanId ID dari LaporanGJM
      * @return array
      */
     public function getPreviewStats(int $laporanId): array
     {
         $preview = $this->getAIPreview($laporanId);
-        
+
         if (!$preview) {
             return [
                 'has_preview' => false,
@@ -298,7 +318,7 @@ class AIPreviewCacheService
                 'ocr_text_length' => 0,
             ];
         }
-        
+
         $ocrStats = [];
         if ($preview['has_ocr_data'] && !empty($preview['ocr_data'])) {
             $ocrData = $preview['ocr_data'];
@@ -316,7 +336,7 @@ class AIPreviewCacheService
                 'ocr_processing_time_ms' => $ocrData['total_processing_time_ms'] ?? 0,
             ];
         }
-        
+
         return array_merge([
             'has_preview' => true,
             'preview_length' => strlen(is_string($preview['draft']) ? $preview['draft'] : json_encode($preview['draft'])),
@@ -332,41 +352,41 @@ class AIPreviewCacheService
 
     /**
      * Get file details dari AI preview
-     * 
+     *
      * @param int $laporanId ID dari LaporanGJM
      * @return array|null
      */
     public function getFileDetails(int $laporanId): ?array
     {
         $preview = $this->getAIPreview($laporanId);
-        
+
         if (!$preview || empty($preview['file_details'])) {
             return null;
         }
-        
+
         return $preview['file_details'];
     }
 
     /**
      * Get OCR data dari AI preview
-     * 
+     *
      * @param int $laporanId ID dari LaporanGJM
      * @return array|null
      */
     public function getOCRData(int $laporanId): ?array
     {
         $preview = $this->getAIPreview($laporanId);
-        
+
         if (!$preview || !$preview['has_ocr_data'] || empty($preview['ocr_data'])) {
             return null;
         }
-        
+
         return $preview['ocr_data'];
     }
 
     /**
      * Save OCR data untuk laporan
-     * 
+     *
      * @param int $laporanId ID dari LaporanGJM
      * @param array $ocrData OCR data dari gambar
      * @return bool
@@ -375,12 +395,12 @@ class AIPreviewCacheService
     {
         try {
             $laporan = LaporanGJM::findOrFail($laporanId);
-            
+
             $laporan->update([
                 'ocr_data' => $ocrData,
                 'has_ocr_data' => true,
             ]);
-            
+
             // Ensure combined_text is string for strlen
             $ocrText = $ocrData['combined_text'] ?? '';
             if (is_array($ocrText)) {
@@ -388,13 +408,13 @@ class AIPreviewCacheService
             } elseif (!is_string($ocrText)) {
                 $ocrText = (string)$ocrText;
             }
-            
+
             Log::info('OCR data saved to laporan', [
                 'laporan_id' => $laporanId,
                 'images_count' => $ocrData['images_count'] ?? 0,
                 'text_length' => strlen($ocrText),
             ]);
-            
+
             return true;
         } catch (\Exception $e) {
             Log::error('Failed to save OCR data', [
@@ -407,14 +427,14 @@ class AIPreviewCacheService
 
     /**
      * Get combined context (AI preview + OCR data) untuk generate laporan
-     * 
+     *
      * @param int $laporanId ID dari LaporanGJM
      * @return array
      */
     public function getCombinedContext(int $laporanId): array
     {
         $preview = $this->getAIPreview($laporanId);
-        
+
         if (!$preview) {
             return [
                 'has_data' => false,
@@ -423,9 +443,9 @@ class AIPreviewCacheService
                 'combined_text' => '',
             ];
         }
-        
+
         $combinedText = $preview['draft'];
-        
+
         // Add OCR text if available
         if ($preview['has_ocr_data'] && !empty($preview['ocr_data']['combined_text'])) {
             $ocrText = $preview['ocr_data']['combined_text'];
@@ -437,7 +457,7 @@ class AIPreviewCacheService
             $combinedText .= "\n\n=== DATA DARI GAMBAR (OCR) ===\n\n";
             $combinedText .= $ocrText;
         }
-        
+
         return [
             'has_data' => true,
             'ai_preview' => $preview,
