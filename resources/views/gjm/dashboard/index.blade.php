@@ -202,7 +202,7 @@
                         <select name="tahun" class="form-select">
                             <option value="">Semua Tahun</option>
                             @foreach ($listTahun as $item)
-                                <option value="{{ $item }}" {{ request('tahun') == $item ? 'selected' : '' }}>
+                                <option value="{{ $item }}" {{ (request('tahun', '2025') == $item) ? 'selected' : '' }}>
                                     {{ $item }}
                                 </option>
                             @endforeach

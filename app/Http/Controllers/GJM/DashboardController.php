@@ -42,7 +42,8 @@ class DashboardController extends Controller
     set_time_limit(300);
     $user = Auth::user();
 
-    $tahun = $request->tahun;
+    // Set default tahun ke 2025 jika tidak ada filter
+    $tahun = $request->tahun ?? '2025';
     $semester = $request->semester;
     $prodi = $request->prodi;
 
