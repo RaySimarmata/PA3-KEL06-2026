@@ -2649,7 +2649,33 @@ class LaporanVMTSController extends Controller
                 $zip->addFromString($xmlFile, $fixed);
             }
 
-            $zip->close();
+            // Close with retry on Windows permission issues
+            $closeSuccess = false;
+            $retries = 3;
+            
+            for ($i = 0; $i < $retries; $i++) {
+                try {
+                    if ($zip->close()) {
+                        $closeSuccess = true;
+                        break;
+                    }
+                } catch (\Throwable $closeEx) {
+                    if ($i < $retries - 1) {
+                        usleep(100000); // Wait 100ms before retry
+                        continue;
+                    }
+                    throw $closeEx;
+                }
+            }
+
+            if (!$closeSuccess) {
+                Log::warning('Could not close zip after ' . $retries . ' attempts');
+                // Clean up and return original
+                if (file_exists($fixedPath)) {
+                    @unlink($fixedPath);
+                }
+                return $templatePath;
+            }
 
             // Verify the file was created successfully
             if (!file_exists($fixedPath) || filesize($fixedPath) == 0) {
@@ -2667,15 +2693,20 @@ class LaporanVMTSController extends Controller
                 'error' => $e->getMessage()
             ]);
 
-            // Try to close zip if still open
-            try {
-                $zip->close();
-            } catch (\Exception $closeEx) {
-                // Ignore close errors
+            // Try to close zip if still open and valid
+            if (isset($zip) && $zip instanceof \ZipArchive) {
+                try {
+                    @$zip->close();
+                } catch (\Throwable $closeEx) {
+                    // Ignore close errors
+                    Log::debug('Could not close zip after error', [
+                        'error' => $closeEx->getMessage()
+                    ]);
+                }
             }
 
             // Clean up temp file
-            if (file_exists($fixedPath)) {
+            if (isset($fixedPath) && file_exists($fixedPath)) {
                 @unlink($fixedPath);
             }
 

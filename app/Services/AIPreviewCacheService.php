@@ -122,9 +122,10 @@ class AIPreviewCacheService
     {
         $sections = [];
 
-        // Define section keywords
+        // Define section keywords - including VMTS keywords
         $sectionKeywords = [
-            'latar_belakang' => ['latar belakang', 'background', 'pendahuluan'],
+            // Triwulan/Semester keywords
+            'latar_belakang' => ['latar belakang', 'background'],
             'dasar' => ['dasar penyusunan', 'dasar', 'basis', 'foundation'],
             'tujuan' => ['tujuan', 'objective', 'purpose'],
             'ruang_lingkup' => ['ruang lingkup', 'scope', 'cakupan'],
@@ -135,6 +136,11 @@ class AIPreviewCacheService
             'evaluasi' => ['evaluasi', 'evaluation', 'assessment'],
             'kesimpulan' => ['kesimpulan', 'conclusion', 'penutup'],
             'rekomendasi' => ['rekomendasi', 'recommendation', 'saran'],
+            // VMTS keywords
+            'pendahuluan' => ['pendahuluan', 'i. pendahuluan', 'i pendahuluan'],
+            'metode_penelitian' => ['metode penelitian', 'ii. metode penelitian', 'ii metode penelitian', 'ii. metode', 'methodology'],
+            'hasil_analisis' => ['hasil analisis', 'iii. hasil analisis', 'iii hasil analisis', 'iii. hasil', 'hasil analisis deskriptif'],
+            'pembahasan' => ['pembahasan', 'iv. pembahasan', 'iv pembahasan', 'iv. pembahasan', 'discussion'],
         ];
 
         // Split by markdown headings

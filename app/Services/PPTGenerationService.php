@@ -144,9 +144,84 @@ class PPTGenerationService
      */
     private function buildPPTStructureFromPreview($preview, $judulPresentasi, $laporan, $namaPembuat = null)
     {
-        Log::info('Building PPT structure from AI preview');
+        Log::info('Building PPT structure from AI preview', [
+            'has_sections' => isset($preview['sections']),
+            'sections_type' => isset($preview['sections']) ? gettype($preview['sections']) : 'not set',
+            'sections_count' => isset($preview['sections']) && is_array($preview['sections']) ? count($preview['sections']) : 0,
+            'sections_keys' => isset($preview['sections']) && is_array($preview['sections']) ? array_keys($preview['sections']) : [],
+            'jenis_laporan' => $laporan->jenis_laporan
+        ]);
 
         $sections = $preview['sections'] ?? [];
+
+        // Check if sections contain expected keys for Triwulan/Semester
+        $triwulanKeys = ['latar_belakang', 'dasar', 'tujuan', 'ruang_lingkup', 'program_kerja', 'pelaksanaan', 'hambatan', 'evaluasi', 'kesimpulan', 'rekomendasi'];
+        
+        // Check if sections contain expected keys for VMTS
+        $vmtsKeys = ['pendahuluan', 'metode_penelitian', 'hasil_analisis', 'pembahasan', 'kesimpulan', 'lampiran_gambar'];
+        
+        $hasTriwulanKeys = false;
+        $hasVMTSKeys = false;
+        
+        if (is_array($sections)) {
+            foreach ($triwulanKeys as $key) {
+                if (isset($sections[$key])) {
+                    $hasTriwulanKeys = true;
+                    break;
+                }
+            }
+            
+            foreach ($vmtsKeys as $key) {
+                if (isset($sections[$key])) {
+                    $hasVMTSKeys = true;
+                    break;
+                }
+            }
+        }
+
+        Log::info('Section type detection', [
+            'has_triwulan_keys' => $hasTriwulanKeys,
+            'has_vmts_keys' => $hasVMTSKeys
+        ]);
+
+        // If sections is empty, not an array, or doesn't have expected keys, try to parse from draft
+        if (empty($sections) || !is_array($sections) || (!$hasTriwulanKeys && !$hasVMTSKeys)) {
+            Log::warning('Sections empty, not array, or missing expected keys - attempting to parse from draft', [
+                'has_draft' => !empty($preview['draft']),
+                'draft_length' => !empty($preview['draft']) ? strlen($preview['draft']) : 0,
+                'has_triwulan_keys' => $hasTriwulanKeys,
+                'has_vmts_keys' => $hasVMTSKeys,
+                'current_keys' => is_array($sections) ? array_keys($sections) : []
+            ]);
+
+            if (!empty($preview['draft'])) {
+                $cacheService = app(AIPreviewCacheService::class);
+                $parsedSections = $cacheService->parseAIPreview($preview['draft']);
+                
+                if (!empty($parsedSections) && is_array($parsedSections)) {
+                    $sections = $parsedSections;
+                    
+                    // Re-check if now we have VMTS keys after parsing
+                    $hasVMTSKeys = false;
+                    foreach (['pendahuluan', 'metode_penelitian', 'hasil_analisis', 'pembahasan'] as $key) {
+                        if (isset($sections[$key])) {
+                            $hasVMTSKeys = true;
+                            break;
+                        }
+                    }
+                    
+                    Log::info('Parsed sections from draft', [
+                        'sections_count' => count($sections),
+                        'sections_keys' => array_keys($sections),
+                        'has_vmts_keys_after_parse' => $hasVMTSKeys
+                    ]);
+                } else {
+                    Log::error('Failed to parse sections from draft', [
+                        'draft_sample' => substr($preview['draft'], 0, 500)
+                    ]);
+                }
+            }
+        }
 
         $structure = [
             'title' => $judulPresentasi,
@@ -167,6 +242,127 @@ class PPTGenerationService
             'content' => $titleContent
         ];
 
+        // Determine which structure to use based on jenis_laporan or detected keys
+        $isVMTS = ($laporan->jenis_laporan === 'vmts' || $hasVMTSKeys);
+
+        Log::info('PPT structure decision', [
+            'jenis_laporan' => $laporan->jenis_laporan,
+            'hasVMTSKeys' => $hasVMTSKeys,
+            'isVMTS' => $isVMTS
+        ]);
+
+        if ($isVMTS) {
+            Log::info('Using VMTS structure for PPT');
+            $structure = $this->buildVMTSStructure($structure, $sections, $laporan);
+        } else {
+            Log::info('Using Triwulan/Semester structure for PPT');
+            $structure = $this->buildTriwulanStructure($structure, $sections, $laporan);
+        }
+
+        // Penutup
+        $structure['slides'][] = [
+            'type' => 'content',
+            'title' => 'Penutup',
+            'bullet_points' => [
+                'Terima kasih atas perhatian dan dukungan dalam pelaksanaan program kerja GJM',
+                'Semoga laporan ini bermanfaat untuk perbaikan dan peningkatan kualitas pendidikan',
+                'Kami terbuka untuk masukan dan saran konstruktif',
+                'Mari bersama-sama meningkatkan mutu pendidikan di Fakultas Vokasi Institut Teknologi Del'
+            ]
+        ];
+
+        // Fallback: if we only have 3 slides (title, agenda, closing), use generic content from draft
+        if (count($structure['slides']) <= 3 && !empty($preview['draft'])) {
+            Log::warning('Only 3 slides generated, adding fallback slides from draft', [
+                'current_slide_count' => count($structure['slides'])
+            ]);
+            
+            // Remove closing slide temporarily
+            array_pop($structure['slides']);
+            
+            // Split draft into chunks and create generic content slides
+            $draft = $preview['draft'];
+            
+            // Try to split by markdown headers
+            $chunks = preg_split('/^##\s+/m', $draft);
+            $slidesAdded = 0;
+            
+            foreach ($chunks as $index => $chunk) {
+                if (empty(trim($chunk)) || $slidesAdded >= 8) {
+                    continue;
+                }
+                
+                // Extract title from first line
+                $lines = explode("\n", trim($chunk), 2);
+                $title = trim($lines[0]);
+                $content = isset($lines[1]) ? trim($lines[1]) : '';
+                
+                if (strlen($title) > 50) {
+                    $title = substr($title, 0, 50) . '...';
+                }
+                
+                if (empty($content)) {
+                    continue;
+                }
+                
+                // Extract bullet points from content
+                $bulletPoints = $this->extractBulletPointsManually($content);
+                
+                if (count($bulletPoints) > 0) {
+                    $structure['slides'][] = [
+                        'type' => 'content',
+                        'title' => $title ?: 'Konten Laporan (' . ($slidesAdded + 1) . ')',
+                        'bullet_points' => array_slice($bulletPoints, 0, 6)
+                    ];
+                    $slidesAdded++;
+                }
+            }
+            
+            // If still no slides added, create slides from the whole draft
+            if ($slidesAdded === 0) {
+                Log::warning('No slides created from markdown chunks, using whole draft');
+                $bulletPoints = $this->extractBulletPointsManually($draft);
+                $chunks = array_chunk($bulletPoints, 6);
+                
+                foreach (array_slice($chunks, 0, 6) as $index => $chunk) {
+                    $structure['slides'][] = [
+                        'type' => 'content',
+                        'title' => 'Ringkasan Laporan (' . ($index + 1) . ')',
+                        'bullet_points' => $chunk
+                    ];
+                }
+            }
+            
+            // Re-add closing slide
+            $structure['slides'][] = [
+                'type' => 'content',
+                'title' => 'Penutup',
+                'bullet_points' => [
+                    'Terima kasih atas perhatian dan dukungan dalam pelaksanaan program kerja GJM',
+                    'Semoga laporan ini bermanfaat untuk perbaikan dan peningkatan kualitas pendidikan',
+                    'Kami terbuka untuk masukan dan saran konstruktif',
+                    'Mari bersama-sama meningkatkan mutu pendidikan di Fakultas Vokasi Institut Teknologi Del'
+                ]
+            ];
+            
+            Log::info('Fallback slides added', [
+                'final_slide_count' => count($structure['slides'])
+            ]);
+        }
+
+        Log::info('PPT structure built from AI preview', [
+            'slides_count' => count($structure['slides']),
+            'title' => $structure['title']
+        ]);
+
+        return $structure;
+    }
+
+    /**
+     * Build PPT structure for Triwulan/Semester reports
+     */
+    private function buildTriwulanStructure($structure, $sections, $laporan)
+    {
         // Agenda slide
         $structure['slides'][] = [
             'type' => 'content',
@@ -339,10 +535,238 @@ class PPTGenerationService
             ]
         ];
 
+        // Fallback: if we only have 3 slides (title, agenda, closing), use generic content from draft
+        if (count($structure['slides']) <= 3 && !empty($preview['draft'])) {
+            Log::warning('Only 3 slides generated, adding fallback slides from draft', [
+                'current_slide_count' => count($structure['slides'])
+            ]);
+            
+            // Remove closing slide temporarily
+            array_pop($structure['slides']);
+            
+            // Split draft into chunks and create generic content slides
+            $draft = $preview['draft'];
+            
+            // Try to split by markdown headers
+            $chunks = preg_split('/^##\s+/m', $draft);
+            $slidesAdded = 0;
+            
+            foreach ($chunks as $index => $chunk) {
+                if (empty(trim($chunk)) || $slidesAdded >= 8) {
+                    continue;
+                }
+                
+                // Extract title from first line
+                $lines = explode("\n", trim($chunk), 2);
+                $title = trim($lines[0]);
+                $content = isset($lines[1]) ? trim($lines[1]) : '';
+                
+                if (strlen($title) > 50) {
+                    $title = substr($title, 0, 50) . '...';
+                }
+                
+                if (empty($content)) {
+                    continue;
+                }
+                
+                // Extract bullet points from content
+                $bulletPoints = $this->extractBulletPointsManually($content);
+                
+                if (count($bulletPoints) > 0) {
+                    $structure['slides'][] = [
+                        'type' => 'content',
+                        'title' => $title ?: 'Konten Laporan (' . ($slidesAdded + 1) . ')',
+                        'bullet_points' => array_slice($bulletPoints, 0, 6)
+                    ];
+                    $slidesAdded++;
+                }
+            }
+            
+            // If still no slides added, create slides from the whole draft
+            if ($slidesAdded === 0) {
+                Log::warning('No slides created from markdown chunks, using whole draft');
+                $bulletPoints = $this->extractBulletPointsManually($draft);
+                $chunks = array_chunk($bulletPoints, 6);
+                
+                foreach (array_slice($chunks, 0, 6) as $index => $chunk) {
+                    $structure['slides'][] = [
+                        'type' => 'content',
+                        'title' => 'Ringkasan Laporan (' . ($index + 1) . ')',
+                        'bullet_points' => $chunk
+                    ];
+                }
+            }
+            
+            // Re-add closing slide
+            $structure['slides'][] = [
+                'type' => 'content',
+                'title' => 'Penutup',
+                'bullet_points' => [
+                    'Terima kasih atas perhatian dan dukungan dalam pelaksanaan program kerja GJM',
+                    'Semoga laporan ini bermanfaat untuk perbaikan dan peningkatan kualitas pendidikan',
+                    'Kami terbuka untuk masukan dan saran konstruktif',
+                    'Mari bersama-sama meningkatkan mutu pendidikan di Fakultas Vokasi Institut Teknologi Del'
+                ]
+            ];
+            
+            Log::info('Fallback slides added', [
+                'final_slide_count' => count($structure['slides'])
+            ]);
+        }
+
         Log::info('PPT structure built from AI preview', [
             'slides_count' => count($structure['slides']),
             'title' => $structure['title']
         ]);
+
+        return $structure;
+    }
+    /**
+     * Build PPT structure for VMTS reports
+     */
+    private function buildVMTSStructure($structure, $sections, $laporan)
+    {
+        // Agenda slide for VMTS
+        $structure['slides'][] = [
+            'type' => 'content',
+            'title' => 'Daftar Isi',
+            'content' => 'Laporan ' . $laporan->getJenisLaporanLabel() . ' GJM Fakultas Vokasi',
+            'bullet_points' => [
+                'I. Pendahuluan',
+                'II. Metode Penelitian',
+                'III. Hasil Analisis Deskriptif',
+                'IV. Pembahasan',
+                'V. Kesimpulan',
+                'Lampiran'
+            ]
+        ];
+
+        // I. Pendahuluan - with section divider
+        $pendahuluan = $sections['pendahuluan'] ?? '';
+        if (!empty($pendahuluan)) {
+            Log::info('Processing Pendahuluan section (VMTS)');
+            
+            // Add section divider slide
+            $structure['slides'][] = [
+                'type' => 'section',
+                'title' => 'I. Pendahuluan',
+                'content' => 'Konteks dan Latar Belakang Survei'
+            ];
+            
+            $bulletPoints = $this->extractBulletPointsManually($pendahuluan);
+            // Use smaller chunks (4 points per slide) to create more slides
+            $chunks = array_chunk($bulletPoints, 4);
+            
+            foreach ($chunks as $index => $chunk) {
+                $slideTitle = count($chunks) > 1 ? 'Pendahuluan - Bagian ' . ($index + 1) : 'I. Pendahuluan';
+                $structure['slides'][] = [
+                    'type' => 'content',
+                    'title' => $slideTitle,
+                    'bullet_points' => $chunk
+                ];
+            }
+        }
+
+        // II. Metode Penelitian - with section divider
+        $metode = $sections['metode_penelitian'] ?? '';
+        if (!empty($metode)) {
+            Log::info('Processing Metode Penelitian section (VMTS)');
+            
+            // Add section divider slide
+            $structure['slides'][] = [
+                'type' => 'section',
+                'title' => 'II. Metode Penelitian',
+                'content' => 'Desain dan Instrumen Survei'
+            ];
+            
+            $bulletPoints = $this->extractBulletPointsManually($metode);
+            $chunks = array_chunk($bulletPoints, 4);
+            
+            foreach ($chunks as $index => $chunk) {
+                $slideTitle = count($chunks) > 1 ? 'Metode Penelitian - Bagian ' . ($index + 1) : 'II. Metode Penelitian';
+                $structure['slides'][] = [
+                    'type' => 'content',
+                    'title' => $slideTitle,
+                    'bullet_points' => $chunk
+                ];
+            }
+        }
+
+        // III. Hasil Analisis Deskriptif - with section divider
+        $hasil = $sections['hasil_analisis'] ?? '';
+        if (!empty($hasil)) {
+            Log::info('Processing Hasil Analisis section (VMTS)');
+            
+            // Add section divider slide
+            $structure['slides'][] = [
+                'type' => 'section',
+                'title' => 'III. Hasil Analisis Deskriptif',
+                'content' => 'Temuan dan Data Statistik'
+            ];
+            
+            $bulletPoints = $this->extractBulletPointsManually($hasil);
+            // Create more slides for analysis section
+            $chunks = array_chunk($bulletPoints, 4);
+            
+            foreach ($chunks as $index => $chunk) {
+                $slideTitle = count($chunks) > 1 ? 'Hasil Analisis - Bagian ' . ($index + 1) : 'III. Hasil Analisis Deskriptif';
+                $structure['slides'][] = [
+                    'type' => 'content',
+                    'title' => $slideTitle,
+                    'bullet_points' => $chunk
+                ];
+            }
+        }
+
+        // IV. Pembahasan - with section divider
+        $pembahasan = $sections['pembahasan'] ?? '';
+        if (!empty($pembahasan)) {
+            Log::info('Processing Pembahasan section (VMTS)');
+            
+            // Add section divider slide
+            $structure['slides'][] = [
+                'type' => 'section',
+                'title' => 'IV. Pembahasan',
+                'content' => 'Interpretasi dan Implikasi'
+            ];
+            
+            $bulletPoints = $this->extractBulletPointsManually($pembahasan);
+            $chunks = array_chunk($bulletPoints, 4);
+            
+            foreach ($chunks as $index => $chunk) {
+                $slideTitle = count($chunks) > 1 ? 'Pembahasan - Bagian ' . ($index + 1) : 'IV. Pembahasan';
+                $structure['slides'][] = [
+                    'type' => 'content',
+                    'title' => $slideTitle,
+                    'bullet_points' => $chunk
+                ];
+            }
+        }
+
+        // V. Kesimpulan - with section divider
+        $kesimpulan = $sections['kesimpulan'] ?? '';
+        if (!empty($kesimpulan)) {
+            Log::info('Processing Kesimpulan section (VMTS)');
+            
+            // Add section divider slide
+            $structure['slides'][] = [
+                'type' => 'section',
+                'title' => 'V. Kesimpulan',
+                'content' => 'Rangkuman dan Rekomendasi'
+            ];
+            
+            $bulletPoints = $this->extractBulletPointsManually($kesimpulan);
+            $chunks = array_chunk($bulletPoints, 5);
+            
+            foreach ($chunks as $index => $chunk) {
+                $slideTitle = count($chunks) > 1 ? 'Kesimpulan - Bagian ' . ($index + 1) : 'V. Kesimpulan';
+                $structure['slides'][] = [
+                    'type' => 'summary',
+                    'title' => $slideTitle,
+                    'bullet_points' => $chunk
+                ];
+            }
+        }
 
         return $structure;
     }

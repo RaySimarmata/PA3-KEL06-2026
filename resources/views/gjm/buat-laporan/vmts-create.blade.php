@@ -1046,23 +1046,17 @@
                                 </div>
 
                                 <div class="col-md-6 mb-4">
-                                    <label class="filter-label">Template VMTS</label>
-                                    <div class="input-group">
-                                        <select class="form-select" name="template_id" id="template_id">
-                                            <option value="">Pilih template VMTS (opsional)</option>
-                                            @foreach ($templates ?? [] as $template)
-                                                <option value="{{ $template->id }}">{{ $template->nama_template }}
-                                                    @if (!$template->is_active)
-                                                        (nonaktif)
-                                                    @endif
-                                                </option>
-                                            @endforeach
-                                        </select>
-                                        <a href="{{ route('gjm.template-laporan.vmts.upload') }}"
-                                            class="btn btn-outline-secondary btn-sm" style="white-space: nowrap;">
-                                            <i class="bi bi-upload"></i> Upload Baru
-                                        </a>
-                                    </div>
+                                    <label class="filter-label">Template VMTS <span class="text-danger">*</span></label>
+                                    <select class="form-select" name="template_id" id="template_id" required>
+                                        <option value="">Pilih template VMTS</option>
+                                        @foreach ($templates ?? [] as $template)
+                                            <option value="{{ $template->id }}">{{ $template->nama_template }}
+                                                @if (!$template->is_active)
+                                                    (nonaktif)
+                                                @endif
+                                            </option>
+                                        @endforeach
+                                    </select>
                                 </div>
 
                                 <div class="col-md-12 mb-0">
